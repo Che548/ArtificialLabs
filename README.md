@@ -1,22 +1,62 @@
 # ArtificialLabs
 
-Native iOS app scaffold built with SwiftUI and XcodeGen.
+> [!IMPORTANT]
+> **Этот репозиторий содержит бывший прототип интерфейса ArtificialLabs.** Сейчас разрабатывается новый интерфейс, который полностью заменит представленную здесь версию. Репозиторий сохраняется как архив ранней продуктовой и визуальной концепции и не отражает актуальное состояние продукта.
 
-## Stack
+ArtificialLabs — концепция мобильной платформы для персонального мониторинга здоровья. Продукт должен объединить медицинский профиль, дневник наблюдений, персональные программы, результаты анализов, сканирование домашних экспресс-тестов и AI-ассистента.
 
-- SwiftUI for the app UI.
-- XcodeGen for reproducible `.xcodeproj` generation.
-- Native `Material` backgrounds for glass-like surfaces on the current Xcode 16.2 toolchain.
-- Future migration path: native iOS 26+ Liquid Glass APIs (`glassEffect`, `GlassEffectContainer`, `.buttonStyle(.glass)`) once the installed Xcode/SDK supports them.
+## Что реализовано в прототипе
 
-## Generate the Xcode project
+В репозитории находится нативный iOS-прототип на SwiftUI со следующими разделами:
+
+- **Programs** — подключаемые программы наблюдения за здоровьем;
+- **Scan** — интерфейс сканирования экспресс-тестов и история результатов;
+- **Chat** — экран взаимодействия с AI-ассистентом;
+- **Labs** — список анализов, чекапов и добавленных результатов;
+- **Profile** — медицинский профиль, документы и настройки данных;
+- **Journal** — дневник симптомов, показателей, питания и наблюдений;
+- **Notifications** — напоминания о тестах, результатах и изменениях программы.
+
+Большая часть данных и действий внутри приложения демонстрационная. Прототип предназначен для проверки структуры продукта, навигации и визуального подхода. Он не содержит готовой медицинской логики, серверной инфраструктуры или рабочего AI/CV-модуля.
+
+## Технологии
+
+- Swift и SwiftUI;
+- iOS 17.0+;
+- XcodeGen для генерации проекта;
+- нативные компоненты Liquid Glass на iOS 26+;
+- `Material` как визуальный fallback для более ранних версий iOS;
+- локальные шрифты и векторные PDF-ассеты.
+
+## Запуск проекта
+
+### 1. Установите XcodeGen
+
+```sh
+brew install xcodegen
+```
+
+### 2. Сгенерируйте Xcode-проект
 
 ```sh
 xcodegen generate
 ```
 
-## Open and preview the app
+### 3. Запустите приложение
 
-Open `ArtificialLabs.xcodeproj` in Xcode, select an iPhone simulator, then press `Cmd+R`.
+Откройте `ArtificialLabs.xcodeproj` в Xcode, выберите симулятор iPhone и нажмите `Cmd + R`.
 
-You can preview individual SwiftUI views in Xcode Canvas from files such as `ArtificialLabs/Sources/ContentView.swift`.
+## Структура
+
+```text
+ArtificialLabs/
+├── ArtificialLabs/
+│   ├── Sources/            # SwiftUI-интерфейс приложения
+│   └── Resources/          # шрифты и графические ассеты
+├── project.yml             # конфигурация XcodeGen
+└── README.md
+```
+
+## Ограничения
+
+Проект является интерфейсным прототипом и не предназначен для медицинской диагностики или принятия решений о лечении. Представленные результаты, рекомендации и пользовательские данные являются демонстрационными.
