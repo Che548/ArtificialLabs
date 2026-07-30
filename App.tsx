@@ -19,6 +19,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -37,6 +38,8 @@ import ArrowCard from './assets/figma/arrow-card.svg';
 import CalendarIcon from './assets/figma/calendar-icon.svg';
 import ContentShape from './assets/figma/content-shape.svg';
 import MonitoringIcon from './assets/figma/monitoring-icon.svg';
+import { useHealthStore } from './lib/health-store';
+import type { JournalKind } from './lib/health-types';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
@@ -46,15 +49,9 @@ const FONT_YARO_RG = 'YaroRg-Regular';
 const FontReadyContext = createContext(false);
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const MAX_PREGNANCY_WEEK = 42;
-const INITIAL_WEEK = 7;
 const WEEK_ITEM_WIDTH = 76;
 const WEEK_BUBBLE_SIZE = 75;
 const WEEK_CENTER_PADDING = (DESIGN_WIDTH - WEEK_ITEM_WIDTH) / 2;
-const weeks = Array.from(
-  { length: MAX_PREGNANCY_WEEK },
-  (_, index) => index + 1,
-);
-
 const journalBars = Array.from({ length: 24 }, (_, index) => index < 16);
 
 function getWeekLabel(week: number) {
@@ -268,12 +265,43 @@ function FeatureCard({ title, accent = false }: FeatureCardProps) {
 }
 
 function MonitoringScreen({ headerTop }: { headerTop: number }) {
-  const [activeWeek, setActiveWeek] = useState(INITIAL_WEEK);
-  const [journalCompleted, setJournalCompleted] = useState(false);
+  const { profile, journalEntries, addJournalEntry, readOnly, syncStatus } =
+    useHealthStore();
+  const pregnancyMode = profile?.goal === 'pregnancy';
+  const maxPeriod = pregnancyMode
+    ? MAX_PREGNANCY_WEEK
+    : (profile?.cycleLengthDays ?? 28);
+  const initialPeriod = pregnancyMode
+    ? Math.min(
+        maxPeriod,
+        Math.max(
+          1,
+          Math.floor(
+            (Date.now() - (profile?.pregnancyStartAt ?? Date.now())) /
+              (7 * 24 * 60 * 60 * 1000),
+          ) + 1,
+        ),
+      )
+    : Math.min(
+        maxPeriod,
+        Math.max(
+          1,
+          Math.floor(
+            (Date.now() - (profile?.lastPeriodStartAt ?? Date.now())) /
+              (24 * 60 * 60 * 1000),
+          ) + 1,
+        ),
+      );
+  const periods = Array.from({ length: maxPeriod }, (_, index) => index + 1);
+  const [activeWeek, setActiveWeek] = useState(initialPeriod);
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [journalKind, setJournalKind] = useState<JournalKind>('symptom');
+  const [journalText, setJournalText] = useState('');
+  const [journalError, setJournalError] = useState<string>();
   const fontsReady = useContext(FontReadyContext);
   const weekScrollRef = useRef<ScrollView>(null);
   const scrollX = useRef(
-    new Animated.Value((INITIAL_WEEK - 1) * WEEK_ITEM_WIDTH),
+    new Animated.Value((initialPeriod - 1) * WEEK_ITEM_WIDTH),
   ).current;
   const weekNumberFont = fontsReady
     ? FONT_YARO_RG
@@ -288,7 +316,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
 
   const selectWeekFromOffset = (offsetX: number) => {
     const nextWeek = Math.min(
-      MAX_PREGNANCY_WEEK,
+      maxPeriod,
       Math.max(1, Math.round(offsetX / WEEK_ITEM_WIDTH) + 1),
     );
 
@@ -307,6 +335,35 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
       x: (week - 1) * WEEK_ITEM_WIDTH,
       animated: true,
     });
+  };
+
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const todayEntries = journalEntries.filter(
+    (entry) => !entry.deletedAt && entry.occurredAt >= todayStart,
+  );
+  const journalCompleted = todayEntries.length > 0;
+
+  const saveJournal = async () => {
+    if (!journalText.trim()) {
+      setJournalError('Добавьте короткую запись.');
+      return;
+    }
+    await addJournalEntry({
+      occurredAt: Date.now(),
+      kind: journalKind,
+      label:
+        journalKind === 'mood'
+          ? 'Настроение'
+          : journalKind === 'energy'
+            ? 'Энергия'
+            : journalKind === 'nutrition'
+              ? 'Питание'
+              : 'Симптомы',
+      textValue: journalText.trim(),
+    });
+    setJournalText('');
+    setJournalError(undefined);
+    setJournalOpen(false);
   };
 
   return (
@@ -404,7 +461,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
         accessibilityLabel="Текущая неделя беременности"
         contentInsetAdjustmentBehavior="never"
         contentOffset={{
-          x: (INITIAL_WEEK - 1) * WEEK_ITEM_WIDTH,
+          x: (initialPeriod - 1) * WEEK_ITEM_WIDTH,
           y: 0,
         }}
         contentContainerStyle={styles.weekCarouselContent}
@@ -422,9 +479,9 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
         )}
         scrollEventThrottle={16}
       >
-        {weeks.map((week, index) => {
+        {periods.map((week, index) => {
           const selected = week === activeWeek;
-          const weekLabel = getWeekLabel(week);
+          const weekLabel = pregnancyMode ? getWeekLabel(week) : 'день';
           const itemOffset = index * WEEK_ITEM_WIDTH;
           const inputRange = [
             itemOffset - WEEK_ITEM_WIDTH * 2,
@@ -512,8 +569,8 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
             },
           ]}
         >
-          {weeks.map((week, index) => {
-            const weekLabel = getWeekLabel(week);
+          {periods.map((week, index) => {
+            const weekLabel = pregnancyMode ? getWeekLabel(week) : 'день';
             const itemOffset = index * WEEK_ITEM_WIDTH;
             const inputRange = [
               itemOffset - WEEK_ITEM_WIDTH * 2,
@@ -592,8 +649,14 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
 
       <View className="absolute left-4 top-[579px] h-32 w-[386px] flex-row gap-2.5">
         <FeatureCard accent title={'Индекс внимания\nк здоровью'} />
-        <FeatureCard title={'Подбор\nпитания в 1-м\nтриместре'} />
-        <FeatureCard title={'7 Важных\nобследований\nи анализов'} />
+        <FeatureCard
+          title={
+            pregnancyMode
+              ? 'Подбор\nпитания в 1-м\nтриместре'
+              : 'Наблюдение\nза циклом и\nсамочувствием'
+          }
+        />
+        <FeatureCard title={'Важные\nобследования\nи анализы'} />
       </View>
 
       <View className="absolute left-4 right-4 top-[716px] h-[58px] flex-row items-end justify-between">
@@ -622,15 +685,91 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Заполнить журнал"
-          onPress={() => setJournalCompleted((value) => !value)}
+          onPress={() => setJournalOpen(true)}
           className="h-12 min-w-[116px] flex-row items-center justify-center gap-0.5 rounded-full bg-brand-primary px-3.5 active:opacity-[0.72]"
         >
           <ProjectText className="text-[15px] leading-[17px] tracking-[-0.3px] text-white">
-            {journalCompleted ? 'Готово' : 'Заполнить'}
+            {journalCompleted ? 'Дополнить' : 'Заполнить'}
           </ProjectText>
           <ArrowButton width={18.3} height={18.3} />
         </Pressable>
       </View>
+
+      {journalOpen ? (
+        <View className="absolute inset-0 z-50 justify-end bg-black/25 px-4 pb-[92px]">
+          <View className="shadow-card rounded-[30px] bg-white p-5">
+            <View className="flex-row items-center justify-between">
+              <ProjectText
+                className="text-[22px] leading-6 text-ink"
+                weight="semibold"
+              >
+                Запись в дневник
+              </ProjectText>
+              <Pressable
+                onPress={() => setJournalOpen(false)}
+                className="h-10 w-10 items-center justify-center rounded-full bg-[#f2f2f7]"
+              >
+                <ProjectText className="text-[18px] text-ink">×</ProjectText>
+              </Pressable>
+            </View>
+            <View className="mt-4 flex-row gap-2">
+              {(['symptom', 'mood', 'energy', 'nutrition'] as const).map(
+                (kind) => (
+                  <Pressable
+                    key={kind}
+                    onPress={() => setJournalKind(kind)}
+                    className={`h-9 flex-1 items-center justify-center rounded-full ${journalKind === kind ? 'bg-brand-primary' : 'bg-[#f2f2f7]'}`}
+                  >
+                    <ProjectText
+                      className={`text-[12px] ${journalKind === kind ? 'text-white' : 'text-ink'}`}
+                    >
+                      {
+                        {
+                          symptom: 'Симптом',
+                          mood: 'Настроение',
+                          energy: 'Энергия',
+                          nutrition: 'Питание',
+                        }[kind]
+                      }
+                    </ProjectText>
+                  </Pressable>
+                ),
+              )}
+            </View>
+            <TextInput
+              value={journalText}
+              onChangeText={setJournalText}
+              multiline
+              placeholder="Что важно отметить сегодня?"
+              className="mt-3 min-h-[92px] rounded-2xl bg-[#f2f2f7] px-4 py-3 font-sf text-[16px] text-ink"
+            />
+            {journalError ? (
+              <ProjectText className="mt-2 text-[13px] text-state-error">
+                {journalError}
+              </ProjectText>
+            ) : null}
+            {readOnly ? (
+              <ProjectText className="text-text-secondary mt-2 text-[13px]">
+                В web-демо сохранение отключено.
+              </ProjectText>
+            ) : null}
+            <Pressable
+              disabled={readOnly}
+              onPress={() => void saveJournal()}
+              className={`mt-4 h-12 items-center justify-center rounded-full ${readOnly ? 'bg-state-disabled' : 'bg-brand-primary'}`}
+            >
+              <ProjectText className="text-[15px] text-white">
+                Сохранить локально
+              </ProjectText>
+            </Pressable>
+            <ProjectText className="text-text-secondary mt-2 text-center text-[11px]">
+              {syncStatus === 'syncing'
+                ? 'Синхронизация…'
+                : 'Сначала сохраняется на устройстве'}
+            </ProjectText>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -747,7 +886,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   weekTextTrack: {
-    width: weeks.length * WEEK_ITEM_WIDTH + WEEK_CENTER_PADDING * 2,
+    width: MAX_PREGNANCY_WEEK * WEEK_ITEM_WIDTH + WEEK_CENTER_PADDING * 2,
     height: WEEK_BUBBLE_SIZE + 40,
     paddingHorizontal: WEEK_CENTER_PADDING,
     paddingTop: 20,

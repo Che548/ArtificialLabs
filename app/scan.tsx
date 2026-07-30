@@ -1,5 +1,6 @@
 import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFonts } from 'expo-font';
 import {
   GlassContainer,
@@ -7,6 +8,7 @@ import {
   isLiquidGlassAvailable,
 } from 'expo-glass-effect';
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useRef, useState } from 'react';
@@ -30,6 +32,10 @@ import type {
   ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useHealthStore } from '../lib/health-store';
+import type { ScanResult } from '../lib/health-types';
+import { persistScanImage } from '../lib/local-files';
 
 import ContentShape from '../assets/figma/content-shape.svg';
 import CalendarIcon from '../assets/figma/calendar-icon.svg';
@@ -244,8 +250,18 @@ export default function ScanScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const instructionRef = useRef<ScrollViewType>(null);
+  const cameraRef = useRef<CameraView>(null);
+  const { addScanResult, readOnly, scanResults } = useHealthStore();
+  const [permission, requestPermission] = useCameraPermissions();
   const [activeInstruction, setActiveInstruction] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [capturedUri, setCapturedUri] = useState<string>();
+  const [testSystemKey, setTestSystemKey] = useState<
+    'pregnancy-strip' | 'ovulation-strip'
+  >('pregnancy-strip');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [fontsLoaded] = useFonts({
     [FONT_SF_REGULAR]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
     [FONT_SF_MEDIUM]: require('../assets/fonts/SF-Pro-Display-Medium.otf'),
@@ -293,6 +309,69 @@ export default function ScanScreen() {
     setNotice(`${title}: раздел будет подключён к соответствующему сценарию.`);
   };
 
+  const openCamera = async () => {
+    if (readOnly) {
+      setNotice('В web-демо камера и сохранение медицинских данных отключены.');
+      return;
+    }
+    const status = permission?.granted ? permission : await requestPermission();
+    if (!status.granted) {
+      setNotice(
+        'Нужен доступ к камере. Разрешите его в настройках устройства и повторите.',
+      );
+      return;
+    }
+    setCameraOpen(true);
+  };
+
+  const capture = async () => {
+    const picture = await cameraRef.current?.takePictureAsync({ quality: 0.9 });
+    if (!picture) return;
+    setCapturedUri(await persistScanImage(picture.uri));
+    setCameraOpen(false);
+  };
+
+  const pickImage = async () => {
+    if (readOnly) {
+      setNotice('В web-демо сохранение медицинских данных отключено.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.9,
+    });
+    if (!result.canceled) {
+      setCapturedUri(await persistScanImage(result.assets[0].uri));
+      setCameraOpen(false);
+    }
+  };
+
+  const saveConfirmedResult = async (
+    confirmedValue: ScanResult['confirmedValue'],
+  ) => {
+    if (!capturedUri) return;
+    setSaving(true);
+    try {
+      await addScanResult({
+        testSystemKey,
+        capturedAt: Date.now(),
+        confirmedValue,
+        confidence: 'manual',
+        qualityFlags: [],
+        algorithmVersion: 'manual-v1',
+        hasLocalImage: true,
+        localImageUri: capturedUri,
+      });
+      setCapturedUri(undefined);
+      setNotice('Результат сохранён. Фото осталось только на этом устройстве.');
+    } catch (cause) {
+      console.error('Saving scan result failed', cause);
+      setNotice('Не удалось сохранить результат. Попробуйте ещё раз.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <View className="flex-1 items-center justify-center bg-surface-rose">
       <StatusBar style="dark" hidden={false} />
@@ -319,7 +398,7 @@ export default function ScanScreen() {
             >
               <GlassControl
                 accessibilityLabel="Открыть историю"
-                onPress={() => showPlaceholder('История')}
+                onPress={() => setHistoryOpen(true)}
                 className="h-12 w-12 items-center justify-center rounded-full"
               >
                 <HeaderHistoryIcon width={22} height={22} />
@@ -378,7 +457,7 @@ export default function ScanScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Начать сканирование"
-                onPress={() => showPlaceholder('Сканирование')}
+                onPress={() => void openCamera()}
                 className="absolute left-[86px] top-[200px] h-[46px] min-w-[198px] flex-row items-center justify-center gap-2.5 rounded-full bg-brand-primary px-3.5 active:opacity-[0.72]"
               >
                 <ScanIcon width={20} height={20} />
@@ -484,7 +563,7 @@ export default function ScanScreen() {
               />
               <ActionButton
                 label="История"
-                onPress={() => showPlaceholder('История')}
+                onPress={() => setHistoryOpen(true)}
                 icon={<HistoryIcon width={19} height={19} />}
               />
             </View>
@@ -499,6 +578,166 @@ export default function ScanScreen() {
                   {notice}
                 </Text>
               </Pressable>
+            ) : null}
+
+            {cameraOpen ? (
+              <View className="absolute inset-0 z-50 bg-black">
+                <CameraView
+                  ref={cameraRef}
+                  facing="back"
+                  style={StyleSheet.absoluteFill}
+                />
+                <View className="absolute left-5 right-5 top-12 flex-row justify-between">
+                  <Pressable
+                    onPress={() => setCameraOpen(false)}
+                    className="h-11 items-center justify-center rounded-full bg-black/60 px-5"
+                  >
+                    <Text className="font-sf-medium text-[14px] text-white">
+                      Закрыть
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void pickImage()}
+                    className="h-11 items-center justify-center rounded-full bg-black/60 px-5"
+                  >
+                    <Text className="font-sf-medium text-[14px] text-white">
+                      Из галереи
+                    </Text>
+                  </Pressable>
+                </View>
+                <View className="absolute bottom-14 left-0 right-0 items-center">
+                  <Pressable
+                    accessibilityLabel="Сделать снимок"
+                    onPress={() => void capture()}
+                    className="h-[74px] w-[74px] items-center justify-center rounded-full border-4 border-white bg-white/30"
+                  >
+                    <View className="h-[56px] w-[56px] rounded-full bg-white" />
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {capturedUri ? (
+              <View className="absolute inset-0 z-50 justify-end bg-black/40 p-4 pb-[90px]">
+                <View className="rounded-[30px] bg-white p-5">
+                  <View className="flex-row items-center justify-between">
+                    <Text className="font-sf-semibold text-[21px] text-ink">
+                      Подтвердите результат
+                    </Text>
+                    <Pressable
+                      onPress={() => setCapturedUri(undefined)}
+                      className="h-10 w-10 items-center justify-center rounded-full bg-[#f2f2f7]"
+                    >
+                      <Text className="text-[22px] text-ink">×</Text>
+                    </Pressable>
+                  </View>
+                  <Image
+                    source={{ uri: capturedUri }}
+                    resizeMode="cover"
+                    className="mt-3 h-[170px] w-full rounded-2xl bg-[#f2f2f7]"
+                  />
+                  <Text className="text-text-secondary mt-3 font-sf text-[13px] leading-[18px]">
+                    Автоматическое распознавание пока не выполняется. Выберите
+                    тип теста и визуально подтверждённый результат.
+                  </Text>
+                  <View className="mt-3 flex-row gap-2">
+                    {(['pregnancy-strip', 'ovulation-strip'] as const).map(
+                      (key) => (
+                        <Pressable
+                          key={key}
+                          onPress={() => setTestSystemKey(key)}
+                          className={`h-9 flex-1 items-center justify-center rounded-full ${testSystemKey === key ? 'bg-brand-primary' : 'bg-[#f2f2f7]'}`}
+                        >
+                          <Text
+                            className={`font-sf-medium text-[12px] ${testSystemKey === key ? 'text-white' : 'text-ink'}`}
+                          >
+                            {key === 'pregnancy-strip'
+                              ? 'Беременность'
+                              : 'Овуляция'}
+                          </Text>
+                        </Pressable>
+                      ),
+                    )}
+                  </View>
+                  <View className="mt-3 flex-row gap-2">
+                    {(
+                      [
+                        ['negative', 'Отрицательный'],
+                        ['positive', 'Положительный'],
+                        ['invalid', 'Недействителен'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <Pressable
+                        key={value}
+                        disabled={saving}
+                        onPress={() => void saveConfirmedResult(value)}
+                        className="min-h-11 flex-1 items-center justify-center rounded-2xl border border-brand-primary px-1"
+                      >
+                        <Text className="text-center font-sf-medium text-[11px] text-brand-primary">
+                          {label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            {historyOpen ? (
+              <View className="absolute inset-0 z-50 justify-end bg-black/30 p-4 pb-[90px]">
+                <View className="max-h-[620px] rounded-[30px] bg-white p-5">
+                  <View className="flex-row items-center justify-between">
+                    <Text className="font-sf-semibold text-[22px] text-ink">
+                      История тестов
+                    </Text>
+                    <Pressable
+                      onPress={() => setHistoryOpen(false)}
+                      className="h-10 w-10 items-center justify-center rounded-full bg-[#f2f2f7]"
+                    >
+                      <Text className="text-[22px] text-ink">×</Text>
+                    </Pressable>
+                  </View>
+                  <ScrollView className="mt-2">
+                    {scanResults.filter((item) => !item.deletedAt).length ? (
+                      scanResults
+                        .filter((item) => !item.deletedAt)
+                        .map((result) => (
+                          <View
+                            key={result.localId}
+                            className="mt-3 rounded-2xl bg-[#f2f2f7] p-4"
+                          >
+                            <Text className="font-sf-semibold text-[15px] text-ink">
+                              {result.testSystemKey === 'ovulation-strip'
+                                ? 'Тест на овуляцию'
+                                : 'Тест на беременность'}
+                            </Text>
+                            <Text className="text-text-secondary mt-1 font-sf text-[13px]">
+                              {new Date(result.capturedAt).toLocaleString(
+                                'ru-RU',
+                              )}{' '}
+                              ·{' '}
+                              {
+                                {
+                                  positive: 'положительный',
+                                  negative: 'отрицательный',
+                                  invalid: 'недействительный',
+                                }[result.confirmedValue]
+                              }
+                            </Text>
+                            <Text className="text-text-secondary mt-1 font-sf text-[11px]">
+                              Подтверждено пользователем · фото только на
+                              устройстве
+                            </Text>
+                          </View>
+                        ))
+                    ) : (
+                      <Text className="text-text-secondary py-8 text-center font-sf text-[14px]">
+                        Сохранённых тестов пока нет.
+                      </Text>
+                    )}
+                  </ScrollView>
+                </View>
+              </View>
             ) : null}
           </View>
         </View>

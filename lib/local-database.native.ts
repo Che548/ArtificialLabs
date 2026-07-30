@@ -24,7 +24,9 @@ async function databaseKey() {
   const existing = await SecureStore.getItemAsync(DATABASE_KEY_NAME);
   if (existing) return existing;
   const bytes = await Crypto.getRandomBytesAsync(32);
-  const key = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const key = Array.from(bytes, (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('');
   await SecureStore.setItemAsync(DATABASE_KEY_NAME, key, {
     keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
   });
@@ -193,7 +195,9 @@ export async function acknowledgeOutbox(ids: number[]) {
   await db.runAsync(`DELETE FROM outbox WHERE id IN (${placeholders})`, ids);
 }
 
-export async function mergeRemoteSnapshot(remote: Omit<HealthSnapshot, 'profile'>) {
+export async function mergeRemoteSnapshot(
+  remote: Omit<HealthSnapshot, 'profile'>,
+) {
   const local = await loadLocalSnapshot();
   for (const entity of [
     'programs',
@@ -203,13 +207,27 @@ export async function mergeRemoteSnapshot(remote: Omit<HealthSnapshot, 'profile'
     'reminders',
   ] as const) {
     for (const remoteItem of remote[entity]) {
-      const localItem = local[entity].find((item) => item.localId === remoteItem.localId);
+      const localItem = local[entity].find(
+        (item) => item.localId === remoteItem.localId,
+      );
+      const {
+        _id: _remoteId,
+        _creationTime: _remoteCreationTime,
+        profileId: _remoteProfileId,
+        ...portableItem
+      } = remoteItem as typeof remoteItem & {
+        _id?: string;
+        _creationTime?: number;
+        profileId?: string;
+      };
       const merged =
         entity === 'scanResults' && localItem && 'localImageUri' in localItem
-          ? { ...remoteItem, localImageUri: localItem.localImageUri }
-          : entity === 'labResults' && localItem && 'localDocumentUri' in localItem
-            ? { ...remoteItem, localDocumentUri: localItem.localDocumentUri }
-            : remoteItem;
+          ? { ...portableItem, localImageUri: localItem.localImageUri }
+          : entity === 'labResults' &&
+              localItem &&
+              'localDocumentUri' in localItem
+            ? { ...portableItem, localDocumentUri: localItem.localDocumentUri }
+            : portableItem;
       await saveLocalRecord(entity, merged as never, false);
     }
   }

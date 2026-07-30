@@ -68,7 +68,11 @@ type HealthStoreValue = HealthSnapshot & {
 const HealthStoreContext = createContext<HealthStoreValue | null>(null);
 
 function withoutLocalFiles<T extends Record<string, unknown>>(item: T) {
-  const { localImageUri: _image, localDocumentUri: _document, ...syncable } = item;
+  const {
+    localImageUri: _image,
+    localDocumentUri: _document,
+    ...syncable
+  } = item;
   return syncable;
 }
 
@@ -91,6 +95,14 @@ export function HealthStoreProvider({
     mode === 'authenticated' && remoteProfile ? {} : 'skip',
   );
   const readOnly = mode === 'demo';
+  const localRevision = Math.max(
+    0,
+    ...snapshot.programs.map((item) => item.updatedAt),
+    ...snapshot.journalEntries.map((item) => item.updatedAt),
+    ...snapshot.labResults.map((item) => item.updatedAt),
+    ...snapshot.scanResults.map((item) => item.updatedAt),
+    ...snapshot.reminders.map((item) => item.updatedAt),
+  );
 
   const refresh = useCallback(async () => {
     setSnapshot(await loadLocalSnapshot());
@@ -166,7 +178,7 @@ export function HealthStoreProvider({
 
   useEffect(() => {
     if (remoteProfile) void syncNow();
-  }, [remoteProfile, snapshot.journalEntries.length, snapshot.labResults.length, snapshot.scanResults.length, syncNow]);
+  }, [localRevision, remoteProfile, syncNow]);
 
   const completeOnboarding = useCallback(
     async (input: OnboardingInput) => {
@@ -235,7 +247,9 @@ export function HealthStoreProvider({
         occurredAt: result.collectedAt,
         kind: 'measurement',
         label: result.title,
-        textValue: result.analytes.map((item) => `${item.name}: ${item.value}`).join(', '),
+        textValue: result.analytes
+          .map((item) => `${item.name}: ${item.value}`)
+          .join(', '),
         source: 'lab',
         sourceLocalId: result.localId,
         updatedAt: result.updatedAt,
@@ -336,6 +350,7 @@ export function HealthStoreProvider({
 
 export function useHealthStore() {
   const value = useContext(HealthStoreContext);
-  if (!value) throw new Error('useHealthStore must be used within HealthStoreProvider');
+  if (!value)
+    throw new Error('useHealthStore must be used within HealthStoreProvider');
   return value;
 }
