@@ -35,9 +35,10 @@ separate feature explicitly requires it.
 
 # Web deployment
 
-GitHub Actions builds the Expo web export into the private image
-`ghcr.io/che548/artificiallabs`. Branch pushes publish branch and commit tags;
-manual runs and pushes to `expo-design-kit` also update `latest`.
+The intended registry target is the private image
+`ghcr.io/che548/artificiallabs`. Automatic push triggers must remain disabled
+until the package owner has explicitly set GHCR visibility to private. A manual
+run publishes branch, commit, and `latest` tags for deployment verification.
 
 The runtime image contains only the generated `dist` directory and nginx
 configuration. Never copy `.env` files, Git metadata, source files, or Convex
