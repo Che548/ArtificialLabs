@@ -42,7 +42,6 @@ manual runs and pushes to `expo-design-kit` also update `latest`.
 The runtime image contains only the generated `dist` directory and nginx
 configuration. Never copy `.env` files, Git metadata, source files, or Convex
 admin credentials into the runtime image. The `artificiallabs_web` container on
-`junk` is updated by its dedicated label-enabled Watchtower service. Its private
-GHCR credential is isolated in
-`~/deployments/artificiallabs-web/docker-config/config.json`; do not replace
+`junk` is updated by its dedicated label-enabled Watchtower service. The image
+is publicly pullable, so this deployment must not store a GHCR token or replace
 the global Docker credential used by `ph_web`.

@@ -35,7 +35,6 @@ yarn-error.*
 .env*.local
 infra/convex/.env
 infra/web/.env
-infra/web/docker-config/
 
 # typescript
 *.tsbuildinfo
