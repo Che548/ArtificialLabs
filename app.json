@@ -28,7 +28,26 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Разрешите ArtificialLabs сфотографировать домашний тест. Снимок останется только на этом устройстве."
+        }
+      ],
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Разрешите ArtificialLabs защищать локальные медицинские данные."
+        }
+      ]
     ]
   }
 }
