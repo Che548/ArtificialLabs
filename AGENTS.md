@@ -5,3 +5,30 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 # NativeWind
 
 Before installing, configuring, or changing NativeWind code, read https://www.nativewind.dev/llms.txt.
+
+# Convex
+
+Read these guides before changing the Convex integration:
+
+- https://docs.expo.dev/guides/using-convex/
+- https://docs.convex.dev/quickstart/react-native
+- https://www.convex.dev/components/push-notifications
+
+This project uses a dedicated self-hosted Convex deployment on `junk`:
+
+- Client/backend: `https://artificiallabs-convex.bebra42.ru`
+- HTTP actions/site proxy: `https://artificiallabs-convex-site.bebra42.ru`
+- Dashboard: `https://artificiallabs-convex-dashboard.bebra42.ru`
+
+Copy `.env.example` to `.env.local`. The Expo client requires
+`EXPO_PUBLIC_CONVEX_URL`. The Convex CLI requires `CONVEX_SELF_HOSTED_URL` and
+`CONVEX_SELF_HOSTED_ADMIN_KEY`.
+
+Never commit `.env.local`, `infra/convex/.env`, an instance secret, an admin
+key, or production data. Run `npx convex dev --once --env-file .env.local` to
+push functions and regenerate `convex/_generated`, or `npx convex codegen` when
+only local bindings need regeneration. Finish changes with `npm run verify`.
+
+Push notifications are intentionally out of scope for the initial integration.
+Do not install or configure `@convex-dev/expo-push-notifications` until a
+separate feature explicitly requires it.
