@@ -1,3 +1,7 @@
-# Expo SDK 54
+# Expo SDK 57
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
+Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
+
+# NativeWind
+
+Before installing, configuring, or changing NativeWind code, read https://www.nativewind.dev/llms.txt.

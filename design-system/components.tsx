@@ -1,22 +1,10 @@
 import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
-import {
-  GlassView,
-  isLiquidGlassAvailable,
-} from 'expo-glass-effect';
-import type {
-  GlassColorScheme,
-  GlassStyle,
-} from 'expo-glass-effect';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { PropsWithChildren, ReactNode } from 'react';
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type {
   ColorValue,
   PressableProps,
@@ -25,37 +13,39 @@ import type {
   ViewStyle,
 } from 'react-native';
 
-import {
-  colors,
-  fonts,
-  motion,
-  radii,
-  shadows,
-  spacing,
-  typeScale,
-} from './tokens';
+import { colors, motion, radii, shadows } from './tokens';
 
-const hasNativeLiquidGlass =
-  Platform.OS === 'ios' && isLiquidGlassAvailable();
+const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 type AppTextProps = PropsWithChildren<{
+  className?: string;
   style?: StyleProp<TextStyle>;
-  role?: keyof typeof typeScale;
+  role?: 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption';
   weight?: 'regular' | 'medium' | 'semibold' | 'bold';
   numeric?: boolean;
   color?: string;
   numberOfLines?: number;
 }>;
 
-const sfByWeight = {
-  regular: fonts.sfRegular,
-  medium: fonts.sfMedium,
-  semibold: fonts.sfSemibold,
-  bold: fonts.sfBold,
+const roleClasses = {
+  display: 'text-[36px] leading-[38px] tracking-[-0.8px]',
+  title: 'text-[28px] leading-[31px] tracking-[-0.56px]',
+  heading: 'text-[22px] leading-[25px] tracking-[-0.44px]',
+  body: 'text-[17px] leading-[21px] tracking-[-0.34px]',
+  label: 'text-[15px] leading-[18px] tracking-[-0.3px]',
+  caption: 'text-[12px] leading-[15px] tracking-[-0.12px]',
+} as const;
+
+const weightClasses = {
+  regular: 'font-sf',
+  medium: 'font-sf-medium',
+  semibold: 'font-sf-semibold',
+  bold: 'font-sf-bold',
 } as const;
 
 export function AppText({
   children,
+  className = '',
   style,
   role = 'body',
   weight = 'regular',
@@ -66,14 +56,8 @@ export function AppText({
   return (
     <Text
       numberOfLines={numberOfLines}
-      style={[
-        typeScale[role],
-        {
-          color,
-          fontFamily: numeric ? fonts.yaroRegular : sfByWeight[weight],
-        },
-        style,
-      ]}
+      className={`${roleClasses[role]} ${numeric ? 'font-yaro' : weightClasses[weight]} ${className}`}
+      style={[{ color }, style]}
     >
       {children}
     </Text>
@@ -102,11 +86,7 @@ export function LiquidGlassSurface({
   washColor = 'transparent',
   radius = radii.pill,
 }: LiquidGlassSurfaceProps) {
-  const fallbackHighlight: readonly [
-    ColorValue,
-    ColorValue,
-    ColorValue,
-  ] = [
+  const fallbackHighlight: readonly [ColorValue, ColorValue, ColorValue] = [
     'rgba(255,255,255,0.44)',
     'rgba(255,255,255,0.08)',
     'rgba(255,255,255,0.16)',
@@ -115,12 +95,12 @@ export function LiquidGlassSurface({
   return (
     <View
       pointerEvents={hasNativeLiquidGlass ? 'box-none' : 'none'}
-      style={[
-        styles.glassSurface,
-        !hasNativeLiquidGlass && styles.clipped,
-        { borderRadius: radius },
-        style,
-      ]}
+      className={
+        !hasNativeLiquidGlass
+          ? 'absolute inset-0 overflow-hidden'
+          : 'absolute inset-0'
+      }
+      style={[{ borderRadius: radius }, style]}
     >
       {hasNativeLiquidGlass ? (
         <GlassView
@@ -130,19 +110,17 @@ export function LiquidGlassSurface({
           isInteractive
           style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
         >
-          <View pointerEvents="none" style={styles.centerFill}>
+          <View
+            pointerEvents="none"
+            className="absolute inset-0 items-center justify-center"
+          >
             {children}
           </View>
         </GlassView>
       ) : (
         <>
           {Platform.OS === 'web' ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                styles.webGlassFallback,
-              ]}
-            />
+            <View className="absolute inset-0 bg-white/25" />
           ) : (
             <BlurView
               tint={fallbackTint}
@@ -152,10 +130,8 @@ export function LiquidGlassSurface({
             />
           )}
           <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: washColor },
-            ]}
+            className="absolute inset-0"
+            style={[{ backgroundColor: washColor }]}
           />
           <LinearGradient
             colors={fallbackHighlight}
@@ -165,12 +141,13 @@ export function LiquidGlassSurface({
             style={StyleSheet.absoluteFill}
           />
           <View
-            style={[
-              styles.fallbackStroke,
-              { borderRadius: radius },
-            ]}
+            className="absolute inset-0 border-[0.8px] border-white/50"
+            style={[{ borderRadius: radius }]}
           />
-          <View pointerEvents="none" style={styles.centerFill}>
+          <View
+            pointerEvents="none"
+            className="absolute inset-0 items-center justify-center"
+          >
             {children}
           </View>
         </>
@@ -181,12 +158,14 @@ export function LiquidGlassSurface({
 
 type GlassControlProps = PropsWithChildren<{
   accessibilityLabel: string;
+  className?: string;
   onPress?: PressableProps['onPress'];
-  style: StyleProp<ViewStyle>;
+  style?: StyleProp<ViewStyle>;
 }>;
 
 export function GlassControl({
   accessibilityLabel,
+  className = '',
   children,
   onPress,
   style,
@@ -196,6 +175,7 @@ export function GlassControl({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
+      className={className}
       style={({ pressed }) => [
         style,
         !hasNativeLiquidGlass && shadows.floating,
@@ -232,19 +212,10 @@ export function PrimaryButton({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.primaryButton,
-        compact && styles.primaryButtonCompact,
-        disabled && styles.primaryButtonDisabled,
-        pressed && styles.pressed,
-      ]}
+      className={`min-h-12 flex-row items-center justify-center gap-3 rounded-full bg-brand-primary px-6 active:scale-[0.985] active:opacity-[0.72] ${compact ? 'min-h-10 px-4' : ''} ${disabled ? 'bg-state-disabled' : ''}`}
     >
       {icon}
-      <AppText
-        role="label"
-        weight="medium"
-        color={colors.text.inverse}
-      >
+      <AppText role="label" weight="medium" color={colors.text.inverse}>
         {label}
       </AppText>
     </Pressable>
@@ -252,24 +223,21 @@ export function PrimaryButton({
 }
 
 type AppCardProps = PropsWithChildren<{
+  className?: string;
   style?: StyleProp<ViewStyle>;
   tone?: 'white' | 'warm' | 'accent';
 }>;
 
 export function AppCard({
   children,
+  className = '',
   style,
   tone = 'white',
 }: AppCardProps) {
   return (
     <View
-      style={[
-        styles.card,
-        tone === 'white' && styles.cardWhite,
-        tone === 'warm' && styles.cardWarm,
-        tone === 'accent' && styles.cardAccent,
-        style,
-      ]}
+      className={`rounded-card-lg p-4 ${tone === 'white' ? 'bg-surface-raised' : ''} ${tone === 'warm' ? 'bg-surface-warm' : ''} ${tone === 'accent' ? 'bg-brand-primary' : ''} ${className}`}
+      style={style}
     >
       {children}
     </View>
@@ -281,116 +249,31 @@ type ProgressMeterProps = {
   total?: number;
 };
 
-export function ProgressMeter({
-  value,
-  total = 24,
-}: ProgressMeterProps) {
+export function ProgressMeter({ value, total = 24 }: ProgressMeterProps) {
   return (
     <View
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: total, now: value }}
-      style={styles.progress}
+      className="h-6 flex-row items-center gap-[3px]"
     >
       {Array.from({ length: total }, (_, index) => (
         <View
           key={index}
-          style={[
-            styles.progressBar,
-            {
-              backgroundColor:
-                index < value
-                  ? colors.brand.success
-                  : colors.surface.divider,
-            },
-          ]}
+          className={`h-3.5 flex-1 rounded-[3px] ${index < value ? 'bg-brand-success' : 'bg-surface-divider'}`}
         />
       ))}
     </View>
   );
 }
 
-export function TokenLabel({
-  children,
-}: PropsWithChildren) {
+export function TokenLabel({ children }: PropsWithChildren) {
   return (
     <AppText
       role="caption"
       color={colors.text.secondary}
-      style={styles.tokenLabel}
+      className="uppercase tracking-[0.5px]"
     >
       {children}
     </AppText>
   );
 }
-
-const styles = StyleSheet.create({
-  glassSurface: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  clipped: {
-    overflow: 'hidden',
-  },
-  centerFill: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  webGlassFallback: {
-    backgroundColor: 'rgba(255,255,255,0.24)',
-  },
-  fallbackStroke: {
-    ...StyleSheet.absoluteFillObject,
-    borderWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.48)',
-  },
-  primaryButton: {
-    minHeight: 48,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radii.pill,
-    backgroundColor: colors.brand.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  primaryButtonCompact: {
-    minHeight: 40,
-    paddingHorizontal: spacing.md,
-  },
-  primaryButtonDisabled: {
-    backgroundColor: colors.state.disabled,
-  },
-  pressed: {
-    opacity: motion.pressedOpacity,
-    transform: [{ scale: 0.985 }],
-  },
-  card: {
-    borderRadius: radii.lg,
-    padding: spacing.md,
-  },
-  cardWhite: {
-    backgroundColor: colors.surface.raised,
-  },
-  cardWarm: {
-    backgroundColor: colors.surface.warm,
-  },
-  cardAccent: {
-    backgroundColor: colors.brand.primary,
-  },
-  progress: {
-    height: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  progressBar: {
-    flex: 1,
-    height: 14,
-    borderRadius: 3,
-  },
-  tokenLabel: {
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-});
-

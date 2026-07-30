@@ -9,13 +9,7 @@ import {
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import {
   Animated,
@@ -50,8 +44,7 @@ const FONT_SF_REGULAR = 'SFProDisplay-Regular';
 const FONT_SF_SEMIBOLD = 'SFProDisplay-Semibold';
 const FONT_YARO_RG = 'YaroRg-Regular';
 const FontReadyContext = createContext(false);
-const hasNativeLiquidGlass =
-  Platform.OS === 'ios' && isLiquidGlassAvailable();
+const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const MAX_PREGNANCY_WEEK = 42;
 const INITIAL_WEEK = 7;
 const WEEK_ITEM_WIDTH = 76;
@@ -171,10 +164,7 @@ function LiquidGlassSurface({
             />
           )}
           <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: washColor },
-            ]}
+            style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
           />
           <LinearGradient
             colors={highlightColors}
@@ -183,9 +173,7 @@ function LiquidGlassSurface({
             end={{ x: 0.96, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <View
-            style={[styles.glassInnerStroke, { borderRadius: radius }]}
-          />
+          <View style={[styles.glassInnerStroke, { borderRadius: radius }]} />
           {children}
         </>
       )}
@@ -195,11 +183,13 @@ function LiquidGlassSurface({
 
 type ProjectTextProps = Omit<TextProps, 'children'> & {
   children: string | number;
+  className?: string;
   weight?: 'regular' | 'semibold';
 };
 
 function ProjectText({
   children,
+  className = '',
   style,
   weight = 'regular',
   ...props
@@ -223,11 +213,8 @@ function ProjectText({
   return (
     <Text
       {...props}
-      style={[
-        styles.projectText,
-        style,
-        { fontFamily: sfFont, fontWeight: fallbackWeight },
-      ]}
+      className={`font-sf ${className}`}
+      style={[style, { fontFamily: sfFont, fontWeight: fallbackWeight }]}
     >
       {segments.map((segment, index) =>
         /^\d+$|^сфера$/i.test(segment) ? (
@@ -258,22 +245,20 @@ function FeatureCard({ title, accent = false }: FeatureCardProps) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
-      style={({ pressed }) => [
-        styles.featureCard,
-        accent ? styles.featureCardAccent : styles.featureCardSoft,
-        pressed && styles.pressed,
-      ]}
+      className={`h-32 w-[118px] items-end justify-between rounded-card-lg p-4 active:opacity-[0.72] ${accent ? 'bg-brand-primary' : 'bg-[#f2a8cb]'}`}
     >
       {accent ? (
-        <ProjectText style={styles.attentionValue}>72%</ProjectText>
+        <ProjectText className="self-start text-[32px] leading-[38px] tracking-[-0.64px] text-brand-success">
+          72%
+        </ProjectText>
       ) : (
-        <View style={styles.cardArrow}>
+        <View className="h-[27px] w-[27px] items-center justify-center rounded-full bg-brand-primary">
           <ArrowCard width={18.3} height={18.3} />
         </View>
       )}
       <ProjectText
         numberOfLines={3}
-        style={[styles.featureTitle, accent && styles.featureTitleLight]}
+        className={`w-full text-[14.2px] leading-[17px] tracking-[-0.284px] ${accent ? 'text-white' : 'text-[#171717]'}`}
         weight="regular"
       >
         {title}
@@ -287,9 +272,9 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
   const [journalCompleted, setJournalCompleted] = useState(false);
   const fontsReady = useContext(FontReadyContext);
   const weekScrollRef = useRef<ScrollView>(null);
-  const scrollX = useRef(new Animated.Value(
-    (INITIAL_WEEK - 1) * WEEK_ITEM_WIDTH,
-  )).current;
+  const scrollX = useRef(
+    new Animated.Value((INITIAL_WEEK - 1) * WEEK_ITEM_WIDTH),
+  ).current;
   const weekNumberFont = fontsReady
     ? FONT_YARO_RG
     : Platform.OS === 'ios'
@@ -325,32 +310,28 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
   };
 
   return (
-    <View style={styles.canvas}>
+    <View className="h-[874px] w-[402px] overflow-hidden rounded-card-xl bg-[#f2f2f2]">
       <Image
         source={require('./assets/figma/pregnancy-background.png')}
         resizeMode="cover"
-        style={styles.heroImage}
+        className="absolute -left-[159px] -top-3 h-[573px] w-[717px]"
       />
 
       <LinearGradient
         colors={['rgba(130,53,55,0.96)', 'rgba(130,53,55,0)']}
         locations={[0, 0.96]}
-        style={styles.heroGradient}
+        className="absolute left-0 top-0 h-[100px] w-[402px]"
       />
 
-      <GlassContainer
-        spacing={12}
-        style={[styles.topBar, { top: headerTop }]}
-      >
+      <GlassContainer spacing={12} style={[styles.topBar, { top: headerTop }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Открыть мониторинг"
+          className="h-12 w-12 items-center justify-center rounded-full"
           style={({ pressed }) => [
             styles.topCircle,
             !hasNativeLiquidGlass && styles.glassControlShadow,
-            pressed &&
-              !hasNativeLiquidGlass &&
-              styles.glassFallbackPressed,
+            pressed && !hasNativeLiquidGlass && styles.glassFallbackPressed,
           ]}
         >
           <LiquidGlassSurface
@@ -361,7 +342,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
             washColor="transparent"
             highlight="light"
           >
-            <View style={styles.headerIconOrientation}>
+            <View className="-scale-y-100">
               <MonitoringIcon width={22} height={22} />
             </View>
           </LiquidGlassSurface>
@@ -370,12 +351,11 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Выбрать дату"
+          className="h-12 w-[156px] items-center justify-center rounded-full"
           style={({ pressed }) => [
             styles.datePill,
             !hasNativeLiquidGlass && styles.glassControlShadow,
-            pressed &&
-              !hasNativeLiquidGlass &&
-              styles.glassFallbackPressed,
+            pressed && !hasNativeLiquidGlass && styles.glassFallbackPressed,
           ]}
         >
           <LiquidGlassSurface
@@ -386,19 +366,20 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
             washColor="transparent"
             highlight="light"
           >
-            <ProjectText style={styles.dateText}>21 июля</ProjectText>
+            <ProjectText className="text-[18px] leading-5 tracking-[-0.36px] text-ink">
+              21 июля
+            </ProjectText>
           </LiquidGlassSurface>
         </Pressable>
 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Открыть календарь"
+          className="h-12 w-12 items-center justify-center rounded-full"
           style={({ pressed }) => [
             styles.topCircle,
             !hasNativeLiquidGlass && styles.glassControlShadow,
-            pressed &&
-              !hasNativeLiquidGlass &&
-              styles.glassFallbackPressed,
+            pressed && !hasNativeLiquidGlass && styles.glassFallbackPressed,
           ]}
         >
           <LiquidGlassSurface
@@ -409,7 +390,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
             washColor="transparent"
             highlight="light"
           >
-            <View style={styles.headerIconOrientation}>
+            <View className="-scale-y-100">
               <CalendarIcon width={22} height={22} />
             </View>
           </LiquidGlassSurface>
@@ -475,12 +456,12 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 accessibilityLabel={`${week} ${weekLabel}`}
+                className="h-[75px] w-[75px] items-center justify-center rounded-full"
                 hitSlop={10}
                 onPress={() => scrollToWeek(week)}
                 style={({ pressed }) => [
                   styles.weekBubble,
-                  !hasNativeLiquidGlass &&
-                    styles.weekBubbleFallbackShadow,
+                  !hasNativeLiquidGlass && styles.weekBubbleFallbackShadow,
                   pressed &&
                     !hasNativeLiquidGlass &&
                     styles.glassFallbackPressed,
@@ -494,20 +475,16 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
                   washColor="transparent"
                   highlight="light"
                 >
-                  <View style={styles.weekCopy}>
+                  <View className="h-[75px] w-[75px] items-center justify-center">
                     <Text
-                      style={[
-                        styles.weekNumber,
-                        { fontFamily: weekNumberFont },
-                      ]}
+                      className="text-[18px] leading-[19px] tracking-[-0.32px] text-white"
+                      style={{ fontFamily: weekNumberFont }}
                     >
                       {week}
                     </Text>
                     <Text
-                      style={[
-                        styles.weekLabel,
-                        { fontFamily: weekLabelFont },
-                      ]}
+                      className="-mt-0.5 text-[14px] leading-[15px] tracking-[-0.24px] text-white"
+                      style={{ fontFamily: weekLabelFont }}
                     >
                       {weekLabel}
                     </Text>
@@ -523,7 +500,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
         pointerEvents="none"
         style={[styles.weekSelector, styles.weekBubbleSelected]}
       >
-        <View style={styles.selectedWeekFill} />
+        <View className="absolute inset-0 rounded-full border-[0.8px] border-white/90 bg-white" />
       </View>
 
       <View pointerEvents="none" style={styles.weekTextCarousel}>
@@ -531,9 +508,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
           style={[
             styles.weekTextTrack,
             {
-              transform: [
-                { translateX: Animated.multiply(scrollX, -1) },
-              ],
+              transform: [{ translateX: Animated.multiply(scrollX, -1) }],
             },
           ]}
         >
@@ -575,7 +550,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
                   { transform: [{ translateY }, { scale }] },
                 ]}
               >
-                <View style={styles.weekCopy}>
+                <View className="h-[75px] w-[75px] items-center justify-center">
                   <Animated.View
                     style={[
                       styles.weekSelectedCopy,
@@ -615,38 +590,30 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
         style={styles.contentShape}
       />
 
-      <View style={styles.cardsRow}>
-        <FeatureCard
-          accent
-          title={'Индекс внимания\nк здоровью'}
-        />
+      <View className="absolute left-4 top-[579px] h-32 w-[386px] flex-row gap-2.5">
+        <FeatureCard accent title={'Индекс внимания\nк здоровью'} />
         <FeatureCard title={'Подбор\nпитания в 1-м\nтриместре'} />
         <FeatureCard title={'7 Важных\nобследований\nи анализов'} />
       </View>
 
-      <View style={styles.journalArea}>
-        <View style={styles.journalInfo}>
-          <ProjectText style={styles.journalTitle}>
+      <View className="absolute left-4 right-4 top-[716px] h-[58px] flex-row items-end justify-between">
+        <View className="w-60 gap-[3px]">
+          <ProjectText className="text-[12px] leading-[14px] tracking-[-0.24px] text-[#5d5d5d]">
             Оценка заполнения журнала
           </ProjectText>
-          <View style={styles.barRow}>
+          <View className="h-5 w-60 flex-row justify-between">
             {journalBars.map((filled, index) => (
               <View
                 key={index}
-                style={[
-                  styles.journalBar,
-                  filled || journalCompleted
-                    ? styles.journalBarFilled
-                    : styles.journalBarEmpty,
-                ]}
+                className={`h-5 w-0.5 rounded-sm ${filled || journalCompleted ? 'bg-brand-success' : 'bg-[#e4e4e4]'}`}
               />
             ))}
           </View>
-          <View style={styles.resultsRow}>
-            <ProjectText style={styles.resultLabel}>
+          <View className="w-60 flex-row justify-between">
+            <ProjectText className="text-[12px] leading-[14px] tracking-[-0.24px] text-[#5d5d5d]">
               Прошлый месяц 5/7
             </ProjectText>
-            <ProjectText style={styles.resultLabel}>
+            <ProjectText className="text-[12px] leading-[14px] tracking-[-0.24px] text-[#5d5d5d]">
               Лучший результат 8/7
             </ProjectText>
           </View>
@@ -656,18 +623,14 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
           accessibilityRole="button"
           accessibilityLabel="Заполнить журнал"
           onPress={() => setJournalCompleted((value) => !value)}
-          style={({ pressed }) => [
-            styles.fillButton,
-            pressed && styles.pressed,
-          ]}
+          className="h-12 min-w-[116px] flex-row items-center justify-center gap-0.5 rounded-full bg-brand-primary px-3.5 active:opacity-[0.72]"
         >
-          <ProjectText style={styles.fillButtonText}>
+          <ProjectText className="text-[15px] leading-[17px] tracking-[-0.3px] text-white">
             {journalCompleted ? 'Готово' : 'Заполнить'}
           </ProjectText>
           <ArrowButton width={18.3} height={18.3} />
         </Pressable>
       </View>
-
     </View>
   );
 }
@@ -691,7 +654,7 @@ export default function App() {
 
   return (
     <FontReadyContext.Provider value={fontsLoaded && !fontError}>
-      <View style={styles.root}>
+      <View className="flex-1 items-center justify-center bg-brand-burgundy">
         <StatusBar style="light" hidden={false} />
         <View
           style={{
@@ -700,10 +663,8 @@ export default function App() {
           }}
         >
           <View
-            style={[
-              styles.scaledCanvas,
-              { transform: [{ scale }] },
-            ]}
+            className="h-[874px] w-[402px]"
+            style={{ transform: [{ scale }], transformOrigin: 'top left' }}
           >
             <MonitoringScreen headerTop={headerTop} />
           </View>
@@ -714,38 +675,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#823537',
-  },
-  scaledCanvas: {
-    width: DESIGN_WIDTH,
-    height: DESIGN_HEIGHT,
-    transformOrigin: 'top left',
-  },
-  canvas: {
-    width: DESIGN_WIDTH,
-    height: DESIGN_HEIGHT,
-    overflow: 'hidden',
-    backgroundColor: '#f2f2f2',
-    borderRadius: 40,
-  },
-  heroImage: {
-    position: 'absolute',
-    left: -159,
-    top: -12,
-    width: 717,
-    height: 573,
-  },
-  heroGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: DESIGN_WIDTH,
-    height: 100,
-  },
   topBar: {
     position: 'absolute',
     left: 16,
@@ -767,16 +696,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  dateText: {
-    color: '#212123',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 18,
-    letterSpacing: -0.36,
-    lineHeight: 20,
-  },
-  headerIconOrientation: {
-    transform: [{ scaleY: -1 }],
   },
   weekBubble: {
     width: WEEK_BUBBLE_SIZE,
@@ -828,9 +747,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   weekTextTrack: {
-    width:
-      weeks.length * WEEK_ITEM_WIDTH +
-      WEEK_CENTER_PADDING * 2,
+    width: weeks.length * WEEK_ITEM_WIDTH + WEEK_CENTER_PADDING * 2,
     height: WEEK_BUBBLE_SIZE + 40,
     paddingHorizontal: WEEK_CENTER_PADDING,
     paddingTop: 20,
@@ -843,23 +760,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  weekCopy: {
-    width: WEEK_BUBBLE_SIZE,
-    height: WEEK_BUBBLE_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   weekSelectedCopy: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  selectedWeekFill: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    borderWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.92)',
   },
   weekNumber: {
     color: '#ffffff',
@@ -884,135 +788,11 @@ const styles = StyleSheet.create({
     left: 0,
     top: 513,
   },
-  cardsRow: {
-    position: 'absolute',
-    left: 16,
-    top: 579,
-    width: 386,
-    height: 128,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  featureCard: {
-    width: 118,
-    height: 128,
-    padding: 16,
-    borderRadius: 30,
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  featureCardAccent: {
-    backgroundColor: '#d31471',
-  },
-  featureCardSoft: {
-    backgroundColor: '#f2a8cb',
-  },
-  attentionValue: {
-    alignSelf: 'flex-start',
-    color: '#1fbb74',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 32,
-    lineHeight: 38,
-    letterSpacing: -0.64,
-  },
-  cardArrow: {
-    width: 27,
-    height: 27,
-    borderRadius: 13.5,
-    backgroundColor: '#d31471',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  featureTitle: {
-    width: '100%',
-    color: '#171717',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 14.2,
-    lineHeight: 17,
-    letterSpacing: -0.284,
-  },
-  featureTitleLight: {
-    color: '#ffffff',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 14.2,
-    lineHeight: 17,
-  },
-  journalArea: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    top: 716,
-    height: 58,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  journalInfo: {
-    width: 240,
-    gap: 3,
-  },
-  journalTitle: {
-    color: '#5d5d5d',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 12,
-    lineHeight: 14,
-    letterSpacing: -0.24,
-  },
-  barRow: {
-    width: 240,
-    height: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  journalBar: {
-    width: 2,
-    height: 20,
-    borderRadius: 1,
-  },
-  journalBarFilled: {
-    backgroundColor: '#1fbb74',
-  },
-  journalBarEmpty: {
-    backgroundColor: '#e4e4e4',
-  },
-  resultsRow: {
-    width: 240,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  resultLabel: {
-    color: '#5d5d5d',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 12,
-    lineHeight: 14,
-    letterSpacing: -0.24,
-  },
-  fillButton: {
-    minWidth: 116,
-    height: 48,
-    paddingHorizontal: 14,
-    borderRadius: 24,
-    backgroundColor: '#d31471',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  fillButtonText: {
-    color: '#ffffff',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 15,
-    lineHeight: 17,
-    letterSpacing: -0.3,
-  },
-  pressed: {
-    opacity: 0.72,
-  },
   nativeGlassView: {
     overflow: 'visible',
   },
   nativeGlassContent: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1020,14 +800,14 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.035 }],
   },
   glassSurface: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 999,
   },
   glassSurfaceClipped: {
     overflow: 'hidden',
   },
   glassInnerStroke: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 999,
     borderWidth: 0.8,
     borderColor: 'rgba(255,255,255,0.52)',
@@ -1038,8 +818,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.24,
     shadowRadius: 14,
     elevation: 9,
-  },
-  projectText: {
-    fontFamily: FONT_SF_REGULAR,
   },
 });

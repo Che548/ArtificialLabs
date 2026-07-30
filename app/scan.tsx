@@ -9,13 +9,9 @@ import {
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import {
-  useRef,
-  useState,
-} from 'react';
+import { useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import {
-  Alert,
   Image,
   Platform,
   Pressable,
@@ -53,8 +49,7 @@ const FONT_YARO_RG = 'YaroRg-Regular';
 const INSTRUCTION_CARD_WIDTH = 360;
 const INSTRUCTION_GAP = 10;
 const INSTRUCTION_SNAP = INSTRUCTION_CARD_WIDTH + INSTRUCTION_GAP;
-const hasNativeLiquidGlass =
-  Platform.OS === 'ios' && isLiquidGlassAvailable();
+const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 const instructions = [
   {
@@ -77,9 +72,10 @@ const instructions = [
 
 type GlassControlProps = {
   accessibilityLabel: string;
+  className?: string;
   children: React.ReactNode;
   onPress?: () => void;
-  style: StyleProp<ViewStyle>;
+  style?: StyleProp<ViewStyle>;
 };
 
 type LiquidGlassSurfaceProps = PropsWithChildren<{
@@ -168,10 +164,7 @@ function LiquidGlassSurface({
             />
           )}
           <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: washColor },
-            ]}
+            style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
           />
           <LinearGradient
             colors={highlightColors}
@@ -180,9 +173,7 @@ function LiquidGlassSurface({
             end={{ x: 0.96, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <View
-            style={[styles.glassInnerStroke, { borderRadius: radius }]}
-          />
+          <View style={[styles.glassInnerStroke, { borderRadius: radius }]} />
           <View pointerEvents="none" style={styles.nativeGlassContent}>
             {children}
           </View>
@@ -194,6 +185,7 @@ function LiquidGlassSurface({
 
 function GlassControl({
   accessibilityLabel,
+  className = '',
   children,
   onPress,
   style,
@@ -203,6 +195,7 @@ function GlassControl({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
+      className={className}
       style={({ pressed }) => [
         style,
         !hasNativeLiquidGlass && styles.glassShadow,
@@ -235,13 +228,14 @@ function ActionButton({ icon, label, onPress }: ActionButtonProps) {
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.actionButton,
-        pressed && styles.pressed,
-      ]}
+      className="h-12 flex-row items-center justify-center gap-3 rounded-full bg-brand-primary py-0 pl-[5px] pr-[18px] active:opacity-[0.72]"
     >
-      <View style={styles.actionIconCircle}>{icon}</View>
-      <Text style={styles.actionLabel}>{label}</Text>
+      <View className="h-[38px] w-[38px] items-center justify-center rounded-full bg-white">
+        {icon}
+      </View>
+      <Text className="font-sf text-[15px] leading-[17px] tracking-[-0.3px] text-white">
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -251,6 +245,7 @@ export default function ScanScreen() {
   const insets = useSafeAreaInsets();
   const instructionRef = useRef<ScrollViewType>(null);
   const [activeInstruction, setActiveInstruction] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
   const [fontsLoaded] = useFonts({
     [FONT_SF_REGULAR]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
     [FONT_SF_MEDIUM]: require('../assets/fonts/SF-Pro-Display-Medium.otf'),
@@ -277,10 +272,7 @@ export default function ScanScreen() {
       : 'sans-serif';
 
   const scrollToInstruction = (index: number) => {
-    const nextIndex = Math.max(
-      0,
-      Math.min(instructions.length - 1, index),
-    );
+    const nextIndex = Math.max(0, Math.min(instructions.length - 1, index));
     setActiveInstruction(nextIndex);
     instructionRef.current?.scrollTo({
       x: nextIndex * INSTRUCTION_SNAP,
@@ -294,17 +286,15 @@ export default function ScanScreen() {
     const index = Math.round(
       event.nativeEvent.contentOffset.x / INSTRUCTION_SNAP,
     );
-    setActiveInstruction(
-      Math.max(0, Math.min(instructions.length - 1, index)),
-    );
+    setActiveInstruction(Math.max(0, Math.min(instructions.length - 1, index)));
   };
 
   const showPlaceholder = (title: string) => {
-    Alert.alert(title, 'Раздел будет подключён к соответствующему сценарию.');
+    setNotice(`${title}: раздел будет подключён к соответствующему сценарию.`);
   };
 
   return (
-    <View style={styles.root}>
+    <View className="flex-1 items-center justify-center bg-surface-rose">
       <StatusBar style="dark" hidden={false} />
       <View
         style={{
@@ -312,12 +302,15 @@ export default function ScanScreen() {
           height: DESIGN_HEIGHT * scale,
         }}
       >
-        <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
-          <View style={styles.canvas}>
+        <View
+          className="h-[874px] w-[402px] origin-top-left"
+          style={{ transform: [{ scale }] }}
+        >
+          <View className="h-[874px] w-[402px] overflow-hidden rounded-card-xl bg-surface-rose">
             <Image
               source={require('../assets/figma/scan-screen/background.png')}
               resizeMode="cover"
-              style={styles.background}
+              className="absolute -top-[15px] left-0 h-[869px] w-[402px] -scale-y-100"
             />
 
             <GlassContainer
@@ -327,7 +320,7 @@ export default function ScanScreen() {
               <GlassControl
                 accessibilityLabel="Открыть историю"
                 onPress={() => showPlaceholder('История')}
-                style={styles.headerCircle}
+                className="h-12 w-12 items-center justify-center rounded-full"
               >
                 <HeaderHistoryIcon width={22} height={22} />
               </GlassControl>
@@ -335,9 +328,12 @@ export default function ScanScreen() {
               <GlassControl
                 accessibilityLabel="Выбрать дату"
                 onPress={() => showPlaceholder('Выбор даты')}
-                style={styles.datePill}
+                className="h-12 w-[156px] items-center justify-center rounded-full"
               >
-                <Text style={[styles.dateText, { fontFamily: sfRegular }]}>
+                <Text
+                  className="text-[18px] leading-5 tracking-[-0.36px] text-ink"
+                  style={{ fontFamily: sfRegular }}
+                >
                   <Text style={{ fontFamily: yaro }}>21</Text> июля
                 </Text>
               </GlassControl>
@@ -345,30 +341,34 @@ export default function ScanScreen() {
               <GlassControl
                 accessibilityLabel="Открыть календарь"
                 onPress={() => showPlaceholder('Календарь')}
-                style={styles.headerCircle}
+                className="h-12 w-12 items-center justify-center rounded-full"
               >
-                <View style={styles.headerIconOrientation}>
+                <View className="-scale-y-100">
                   <CalendarIcon width={22} height={22} />
                 </View>
               </GlassControl>
             </GlassContainer>
 
-            <View style={[styles.scannerCard, { top: scannerTop }]}>
+            <View
+              className="absolute left-4 h-[370px] w-[370px] overflow-hidden rounded-[50px] bg-white/20"
+              style={{ top: scannerTop }}
+            >
               <ScannerFrame
                 width={339}
                 height={339}
                 style={styles.scannerFrame}
               />
 
-              <View style={styles.scannerCopy}>
-                <Text style={[styles.sphere, { fontFamily: yaro }]}>
+              <View className="absolute left-10 top-[105px] w-[290px] items-center gap-[5px]">
+                <Text
+                  className="text-[32px] leading-[35px] tracking-[-0.64px] text-brand-soft"
+                  style={{ fontFamily: yaro }}
+                >
                   сфера.
                 </Text>
                 <Text
-                  style={[
-                    styles.scannerDescription,
-                    { fontFamily: sfRegular },
-                  ]}
+                  className="w-[290px] text-center text-[19px] leading-[22px] tracking-[-0.38px] text-brand-soft"
+                  style={{ fontFamily: sfRegular }}
                 >
                   Мгновенный анализ тестов на{'\n'}
                   овуляцию или беременность
@@ -379,17 +379,12 @@ export default function ScanScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Начать сканирование"
                 onPress={() => showPlaceholder('Сканирование')}
-                style={({ pressed }) => [
-                  styles.scanButton,
-                  pressed && styles.pressed,
-                ]}
+                className="absolute left-[86px] top-[200px] h-[46px] min-w-[198px] flex-row items-center justify-center gap-2.5 rounded-full bg-brand-primary px-3.5 active:opacity-[0.72]"
               >
                 <ScanIcon width={20} height={20} />
                 <Text
-                  style={[
-                    styles.scanButtonLabel,
-                    { fontFamily: sfRegular },
-                  ]}
+                  className="text-[15px] leading-[17px] tracking-[-0.3px] text-white"
+                  style={{ fontFamily: sfRegular }}
                 >
                   Начать сканирование
                 </Text>
@@ -411,11 +406,7 @@ export default function ScanScreen() {
               }}
               disabled={activeInstruction === 0}
               onPress={() => scrollToInstruction(activeInstruction - 1)}
-              style={({ pressed }) => [
-                styles.previousButton,
-                activeInstruction === 0 && styles.arrowDisabled,
-                pressed && styles.arrowPressed,
-              ]}
+              className={`absolute left-[11px] top-[524px] h-10 w-10 rotate-180 active:opacity-[0.64] ${activeInstruction === 0 ? 'opacity-70' : ''}`}
             >
               <NextIcon width={40} height={40} />
             </Pressable>
@@ -424,17 +415,11 @@ export default function ScanScreen() {
               accessibilityRole="button"
               accessibilityLabel="Следующий шаг"
               accessibilityState={{
-                disabled:
-                  activeInstruction === instructions.length - 1,
+                disabled: activeInstruction === instructions.length - 1,
               }}
               disabled={activeInstruction === instructions.length - 1}
               onPress={() => scrollToInstruction(activeInstruction + 1)}
-              style={({ pressed }) => [
-                styles.nextButton,
-                activeInstruction === instructions.length - 1 &&
-                  styles.arrowDisabled,
-                pressed && styles.arrowPressed,
-              ]}
+              className={`absolute right-[11px] top-[524px] h-10 w-10 active:opacity-[0.64] ${activeInstruction === instructions.length - 1 ? 'opacity-70' : ''}`}
             >
               <NextIcon width={40} height={40} />
             </Pressable>
@@ -445,40 +430,37 @@ export default function ScanScreen() {
               decelerationRate="fast"
               disableIntervalMomentum
               contentInsetAdjustmentBehavior="never"
-              contentContainerStyle={styles.instructionsContent}
+              contentContainerClassName="gap-2.5 pl-4 pr-[26px]"
               showsHorizontalScrollIndicator={false}
               snapToInterval={INSTRUCTION_SNAP}
               onMomentumScrollEnd={handleInstructionScrollEnd}
-              style={styles.instructions}
+              className="absolute left-0 top-[591px] h-[100px] w-[402px]"
             >
               {instructions.map((instruction, index) => (
-                <View key={instruction.title} style={styles.instructionCard}>
-                  <View style={styles.instructionNumberRow}>
+                <View
+                  key={instruction.title}
+                  className="h-[100px] w-[360px] flex-row items-center gap-2 rounded-card-lg bg-surface-warm pl-[23px] pr-4"
+                >
+                  <View className="h-[100px] w-[68px] -translate-x-1.5 translate-y-[3px] items-center justify-center">
                     <Text
                       numberOfLines={1}
-                      style={[
-                        styles.instructionNumber,
-                        { fontFamily: yaro },
-                      ]}
+                      className="h-[100px] w-[68px] text-center text-[62px] leading-[100px] tracking-[-1.24px] text-[#171717]"
+                      style={{ fontFamily: yaro }}
                     >
                       {`${index + 1}”`}
                     </Text>
                   </View>
-                  <View style={styles.instructionCopy}>
+                  <View className="w-[245px] justify-center gap-[3px]">
                     <Text
-                      style={[
-                        styles.instructionTitle,
-                        { fontFamily: sfMedium },
-                      ]}
+                      className="text-[20px] leading-[22px] tracking-[-0.4px] text-[#171717]"
+                      style={{ fontFamily: sfMedium }}
                     >
                       {instruction.title}
                     </Text>
                     <Text
                       numberOfLines={2}
-                      style={[
-                        styles.instructionBody,
-                        { fontFamily: sfRegular },
-                      ]}
+                      className="text-[17px] leading-[19px] tracking-[-0.34px] text-[#171717]"
+                      style={{ fontFamily: sfRegular }}
                     >
                       {instruction.body}
                     </Text>
@@ -487,9 +469,9 @@ export default function ScanScreen() {
               ))}
             </ScrollView>
 
-            <View style={styles.divider} />
+            <View className="absolute left-4 top-[713px] h-0.5 w-[370px] rounded bg-surface-divider" />
 
-            <View style={styles.actions}>
+            <View className="absolute left-4 top-[726px] h-12 w-[370px] flex-row items-center justify-between">
               <ActionButton
                 label="Инфо"
                 onPress={() => showPlaceholder('Инфо')}
@@ -506,6 +488,18 @@ export default function ScanScreen() {
                 icon={<HistoryIcon width={19} height={19} />}
               />
             </View>
+            {notice ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Закрыть уведомление"
+                onPress={() => setNotice(null)}
+                className="absolute bottom-[92px] left-4 right-4 z-10 rounded-2xl bg-ink/90 px-4 py-3 active:opacity-80"
+              >
+                <Text className="font-sf text-[14px] leading-[18px] text-white">
+                  {notice}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>
@@ -514,32 +508,6 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fee8e3',
-  },
-  scaledCanvas: {
-    width: DESIGN_WIDTH,
-    height: DESIGN_HEIGHT,
-    transformOrigin: 'top left',
-  },
-  canvas: {
-    width: DESIGN_WIDTH,
-    height: DESIGN_HEIGHT,
-    overflow: 'hidden',
-    borderRadius: 40,
-    backgroundColor: '#fee8e3',
-  },
-  background: {
-    position: 'absolute',
-    left: 0,
-    top: -15,
-    width: DESIGN_WIDTH,
-    height: 869,
-    transform: [{ scaleY: -1 }],
-  },
   header: {
     position: 'absolute',
     zIndex: 5,
@@ -549,34 +517,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  datePill: {
-    width: 156,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateText: {
-    color: '#212123',
-    fontSize: 18,
-    lineHeight: 20,
-    letterSpacing: -0.36,
-  },
-  headerIconOrientation: {
-    transform: [{ scaleY: -1 }],
-  },
   nativeGlassView: {
     overflow: 'visible',
   },
   nativeGlassContent: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -588,14 +533,14 @@ const styles = StyleSheet.create({
     elevation: 9,
   },
   glassSurface: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 999,
   },
   glassSurfaceClipped: {
     overflow: 'hidden',
   },
   glassInnerStroke: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 999,
     borderWidth: 0.8,
     borderColor: 'rgba(255,255,255,0.52)',
@@ -603,190 +548,14 @@ const styles = StyleSheet.create({
   fallbackPressed: {
     transform: [{ scale: 1.035 }],
   },
-  scannerCard: {
-    position: 'absolute',
-    left: 16,
-    width: 370,
-    height: 370,
-    borderRadius: 50,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.20)',
-  },
   scannerFrame: {
     position: 'absolute',
     left: 16,
     top: 16,
   },
-  scannerCopy: {
-    position: 'absolute',
-    top: 105,
-    left: 40,
-    width: 290,
-    alignItems: 'center',
-    gap: 5,
-  },
-  sphere: {
-    color: '#ea4087',
-    fontSize: 32,
-    lineHeight: 35,
-    letterSpacing: -0.64,
-  },
-  scannerDescription: {
-    width: 290,
-    color: '#ea4087',
-    textAlign: 'center',
-    fontSize: 19,
-    lineHeight: 22,
-    letterSpacing: -0.38,
-  },
-  scanButton: {
-    position: 'absolute',
-    left: 86,
-    top: 200,
-    minWidth: 198,
-    height: 46,
-    paddingHorizontal: 14,
-    borderRadius: 23,
-    backgroundColor: '#d31471',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  scanButtonLabel: {
-    color: '#ffffff',
-    fontSize: 15,
-    lineHeight: 17,
-    letterSpacing: -0.3,
-  },
   contentShape: {
     position: 'absolute',
     left: 0,
     top: 513,
-  },
-  previousButton: {
-    position: 'absolute',
-    left: 11,
-    top: 524,
-    width: 40,
-    height: 40,
-    transform: [{ rotate: '180deg' }],
-  },
-  nextButton: {
-    position: 'absolute',
-    right: 11,
-    top: 524,
-    width: 40,
-    height: 40,
-  },
-  arrowPressed: {
-    opacity: 0.64,
-  },
-  arrowDisabled: {
-    opacity: 0.7,
-  },
-  instructions: {
-    position: 'absolute',
-    left: 0,
-    top: 591,
-    width: DESIGN_WIDTH,
-    height: 100,
-  },
-  instructionsContent: {
-    paddingLeft: 16,
-    paddingRight: 26,
-    gap: INSTRUCTION_GAP,
-  },
-  instructionCard: {
-    width: INSTRUCTION_CARD_WIDTH,
-    height: 100,
-    paddingLeft: 23,
-    paddingRight: 16,
-    borderRadius: 30,
-    backgroundColor: '#fdece5',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  instructionNumberRow: {
-    width: 68,
-    height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    transform: [{ translateX: -6 }, { translateY: 3 }],
-  },
-  instructionNumber: {
-    width: 68,
-    height: 100,
-    color: '#171717',
-    fontSize: 62,
-    lineHeight: 100,
-    letterSpacing: -1.24,
-    textAlign: 'center',
-  },
-  instructionCopy: {
-    width: 245,
-    gap: 3,
-    justifyContent: 'center',
-  },
-  instructionTitle: {
-    color: '#171717',
-    fontSize: 20,
-    lineHeight: 22,
-    letterSpacing: -0.4,
-  },
-  instructionBody: {
-    color: '#171717',
-    fontSize: 17,
-    lineHeight: 19,
-    letterSpacing: -0.34,
-  },
-  divider: {
-    position: 'absolute',
-    left: 16,
-    top: 713,
-    width: 370,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: '#ededed',
-  },
-  actions: {
-    position: 'absolute',
-    left: 16,
-    top: 726,
-    width: 370,
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  actionButton: {
-    height: 48,
-    paddingLeft: 5,
-    paddingRight: 18,
-    borderRadius: 24,
-    backgroundColor: '#d31471',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  actionIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionLabel: {
-    color: '#ffffff',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 15,
-    lineHeight: 17,
-    letterSpacing: -0.3,
-  },
-  pressed: {
-    opacity: 0.72,
   },
 });

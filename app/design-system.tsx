@@ -4,14 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import {
-  Image,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import ArrowButton from '../assets/figma/arrow-button.svg';
@@ -31,7 +24,6 @@ import {
   sizes,
   spacing,
   TokenLabel,
-  typeScale,
 } from '../design-system';
 
 const colorTokens = [
@@ -121,8 +113,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
+    <View className="gap-6">
+      <View className="gap-2">
         <TokenLabel>{eyebrow}</TokenLabel>
         <AppText role="heading" weight="semibold">
           {title}
@@ -145,30 +137,28 @@ export default function DesignSystemScreen() {
   });
 
   if (!fontsLoaded) {
-    return <View style={styles.loading} />;
+    return <View className="flex-1 bg-surface-canvas" />;
   }
 
   return (
-    <View style={styles.root}>
+    <View className="flex-1 bg-brand-burgundy">
       <StatusBar style="light" hidden={false} />
       <ScrollView
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 16) + 112 },
-        ]}
+        contentContainerClassName="bg-surface-canvas"
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom, 16) + 112,
+        }}
       >
         <View
-          style={[
-            styles.hero,
-            { paddingTop: Math.max(insets.top, 16) + 12 },
-          ]}
+          className="min-h-[430px] overflow-hidden bg-brand-burgundy px-4 pb-[34px]"
+          style={{ paddingTop: Math.max(insets.top, 16) + 12 }}
         >
           <Image
             source={require('../assets/figma/pregnancy-background.png')}
             resizeMode="cover"
-            style={styles.heroImage}
+            className="absolute -left-[220px] -top-[70px] h-[570px] w-[820px] opacity-[0.82]"
           />
           <LinearGradient
             colors={[
@@ -184,12 +174,13 @@ export default function DesignSystemScreen() {
             <GlassControl
               accessibilityLabel="Вернуться назад"
               onPress={() => router.back()}
-              style={styles.heroCircle}
+              className="h-12 w-12 rounded-full"
             >
               <AppText
                 role="heading"
                 color={colors.text.primary}
-                style={styles.backGlyph}
+                className="text-[36px] leading-[38px]"
+                style={{ marginTop: Platform.OS === 'ios' ? -3 : -1 }}
               >
                 ‹
               </AppText>
@@ -197,24 +188,20 @@ export default function DesignSystemScreen() {
 
             <GlassControl
               accessibilityLabel="Версия дизайн-системы"
-              style={styles.versionPill}
+              className="h-12 w-[174px] rounded-full"
             >
-              <AppText
-                role="label"
-                weight="medium"
-                color={colors.text.primary}
-              >
+              <AppText role="label" weight="medium" color={colors.text.primary}>
                 Private · UI kit 01
               </AppText>
             </GlassControl>
           </GlassContainer>
 
-          <View style={styles.heroCopy}>
+          <View className="mt-16">
             <AppText
               role="caption"
               weight="semibold"
               color="rgba(255,255,255,0.72)"
-              style={styles.heroEyebrow}
+              className="tracking-[1.5px]"
             >
               DESIGN SYSTEM / IOS
             </AppText>
@@ -222,93 +209,63 @@ export default function DesignSystemScreen() {
               role="display"
               weight="semibold"
               color={colors.text.inverse}
-              style={styles.heroTitle}
+              className="mt-2.5 text-[50px] leading-[52px] tracking-[-1.4px]"
             >
               Private
             </AppText>
             <AppText
               role="body"
               color="rgba(255,255,255,0.82)"
-              style={styles.heroDescription}
+              className="mt-3 max-w-[300px]"
             >
               Исполняемый каталог токенов и компонентов приложения.
             </AppText>
           </View>
 
-          <View style={styles.heroMeta}>
+          <View className="mt-[42px] flex-row justify-between border-t border-white/30 pt-[18px]">
             <View>
-              <AppText
-                numeric
-                role="title"
-                color={colors.text.inverse}
-              >
+              <AppText numeric role="title" color={colors.text.inverse}>
                 402
               </AppText>
-              <AppText
-                role="caption"
-                color="rgba(255,255,255,0.62)"
-              >
+              <AppText role="caption" color="rgba(255,255,255,0.62)">
                 base width
               </AppText>
             </View>
             <View>
-              <AppText
-                numeric
-                role="title"
-                color={colors.text.inverse}
-              >
+              <AppText numeric role="title" color={colors.text.inverse}>
                 48
               </AppText>
-              <AppText
-                role="caption"
-                color="rgba(255,255,255,0.62)"
-              >
+              <AppText role="caption" color="rgba(255,255,255,0.62)">
                 min touch
               </AppText>
             </View>
             <View>
-              <AppText
-                numeric
-                role="title"
-                color={colors.text.inverse}
-              >
+              <AppText numeric role="title" color={colors.text.inverse}>
                 16
               </AppText>
-              <AppText
-                role="caption"
-                color="rgba(255,255,255,0.62)"
-              >
+              <AppText role="caption" color="rgba(255,255,255,0.62)">
                 gutter
               </AppText>
             </View>
           </View>
         </View>
 
-        <View style={styles.sheet}>
+        <View className="-mt-7 rounded-t-card-xl bg-surface-canvas px-4 pt-[38px]">
           <Section eyebrow="01 / Foundations" title="Цветовые роли">
-            <View style={styles.swatchGrid}>
+            <View className="flex-row flex-wrap gap-4">
               {colorTokens.map((token) => (
-                <View key={token.name} style={styles.swatchItem}>
+                <View key={token.name} className="w-[46%] gap-[5px]">
                   <View
-                    style={[
-                      styles.swatch,
-                      { backgroundColor: token.value },
-                    ]}
+                    className="mb-1 aspect-[1.6] w-full rounded-card-md border border-black/10"
+                    style={{ backgroundColor: token.value }}
                   />
                   <AppText role="label" weight="medium">
                     {token.name}
                   </AppText>
-                  <AppText
-                    numeric
-                    role="caption"
-                    color={colors.text.secondary}
-                  >
+                  <AppText numeric role="caption" color={colors.text.secondary}>
                     {token.value}
                   </AppText>
-                  <AppText
-                    role="caption"
-                    color={colors.text.secondary}
-                  >
+                  <AppText role="caption" color={colors.text.secondary}>
                     {token.role}
                   </AppText>
                 </View>
@@ -316,44 +273,31 @@ export default function DesignSystemScreen() {
             </View>
           </Section>
 
-          <View style={styles.rule} />
+          <View className="my-[38px] h-px bg-surface-divider" />
 
           <Section eyebrow="02 / Typography" title="Два шрифтовых голоса">
-            <AppCard style={styles.typeCard}>
+            <AppCard className="py-0" style={shadows.card}>
               {typeSpecimens.map((specimen, index) => (
                 <View
                   key={specimen.label}
-                  style={[
-                    styles.typeRow,
-                    index > 0 && styles.typeRowBorder,
-                  ]}
+                  className={`gap-2 py-4 ${index > 0 ? 'border-t border-surface-divider' : ''}`}
                 >
                   <TokenLabel>{specimen.label}</TokenLabel>
-                  <AppText role={specimen.role}>
-                    {specimen.text}
-                  </AppText>
+                  <AppText role={specimen.role}>{specimen.text}</AppText>
                 </View>
               ))}
             </AppCard>
 
-            <View style={styles.numericCard}>
-              <View style={styles.numericSample}>
-                <AppText
-                  numeric
-                  role="display"
-                  color={colors.brand.primary}
-                >
+            <View className="min-h-[116px] flex-row items-center gap-6 rounded-card-lg bg-surface-warm p-4">
+              <View className="w-[100px] items-center">
+                <AppText numeric role="display" color={colors.brand.primary}>
                   7”
                 </AppText>
-                <AppText
-                  numeric
-                  role="heading"
-                  color={colors.brand.primary}
-                >
+                <AppText numeric role="heading" color={colors.brand.primary}>
                   сфера.
                 </AppText>
               </View>
-              <View style={styles.numericCopy}>
+              <View className="flex-1 gap-2">
                 <TokenLabel>Yaro Rg</TokenLabel>
                 <AppText role="label">
                   Все цифры, апострофы и слово «сфера.»
@@ -362,33 +306,36 @@ export default function DesignSystemScreen() {
             </View>
           </Section>
 
-          <View style={styles.rule} />
+          <View className="my-[38px] h-px bg-surface-divider" />
 
           <Section eyebrow="03 / Material" title="Liquid Glass">
-            <View style={styles.glassStage}>
+            <View className="h-[190px] justify-center overflow-hidden rounded-card-lg">
               <Image
                 source={require('../assets/figma/scan-screen/background.png')}
                 resizeMode="cover"
-                style={styles.glassStageImage}
+                className="absolute inset-0 h-full w-full"
               />
               <GlassContainer spacing={12} style={styles.glassRow}>
                 <GlassControl
                   accessibilityLabel="Мониторинг"
-                  style={styles.glassCircle}
+                  className="h-12 w-12 rounded-full"
                 >
                   <MonitoringIcon width={sizes.icon} height={sizes.icon} />
                 </GlassControl>
                 <GlassControl
                   accessibilityLabel="Дата"
-                  style={styles.glassPill}
+                  className="h-12 w-[156px] rounded-full"
                 >
                   <AppText role="body">
-                    <AppText numeric role="body">21</AppText> июля
+                    <AppText numeric role="body">
+                      21
+                    </AppText>{' '}
+                    июля
                   </AppText>
                 </GlassControl>
                 <GlassControl
                   accessibilityLabel="Календарь"
-                  style={styles.glassCircle}
+                  className="h-12 w-12 rounded-full"
                 >
                   <CalendarIcon width={sizes.icon} height={sizes.icon} />
                 </GlassControl>
@@ -396,75 +343,77 @@ export default function DesignSystemScreen() {
               <AppText
                 role="caption"
                 color="rgba(33,33,35,0.64)"
-                style={styles.glassNote}
+                className="absolute bottom-3.5 right-[18px]"
               >
                 clear · interactive · no tint
               </AppText>
             </View>
           </Section>
 
-          <View style={styles.rule} />
+          <View className="my-[38px] h-px bg-surface-divider" />
 
           <Section eyebrow="04 / Controls" title="Кнопки и состояния">
-            <View style={styles.buttonStack}>
+            <View className="gap-3">
               <PrimaryButton
                 label={complete ? 'Готово' : 'Заполнить'}
                 onPress={() => setComplete((value) => !value)}
                 icon={<ArrowButton width={18} height={18} />}
               />
-              <View style={styles.inlineButtons}>
+              <View className="flex-row gap-3">
                 <PrimaryButton compact label="Купить" />
                 <PrimaryButton compact disabled label="Недоступно" />
               </View>
-              <AppText
-                role="caption"
-                color={colors.text.secondary}
-              >
+              <AppText role="caption" color={colors.text.secondary}>
                 Нажмите «Заполнить», чтобы проверить интерактивное состояние.
               </AppText>
             </View>
           </Section>
 
-          <View style={styles.rule} />
+          <View className="my-[38px] h-px bg-surface-divider" />
 
           <Section eyebrow="05 / Cards" title="Контентные поверхности">
-            <View style={styles.cardRow}>
-              <AppCard tone="accent" style={styles.demoCard}>
-                <AppText
-                  numeric
-                  role="title"
-                  color={colors.text.inverse}
-                >
+            <View className="flex-row gap-3">
+              <AppCard
+                tone="accent"
+                className="min-h-[150px] flex-1 justify-between"
+              >
+                <AppText numeric role="title" color={colors.text.inverse}>
                   72%
                 </AppText>
                 <AppText
                   role="label"
                   color={colors.text.inverse}
-                  style={styles.demoCardTitle}
+                  className="mt-6"
                 >
                   Индекс внимания к здоровью
                 </AppText>
               </AppCard>
-              <AppCard tone="warm" style={styles.demoCard}>
-                <View style={styles.cardArrow}>
-                  <AppText
-                    role="body"
-                    color={colors.brand.primary}
-                  >
+              <AppCard
+                tone="warm"
+                className="min-h-[150px] flex-1 justify-between"
+              >
+                <View className="h-[34px] w-[34px] items-center justify-center self-end rounded-full bg-surface-raised">
+                  <AppText role="body" color={colors.brand.primary}>
                     ↗
                   </AppText>
                 </View>
-                <AppText role="label" style={styles.demoCardTitle}>
+                <AppText role="label" className="mt-6">
                   Подбор питания в 1-м триместре
                 </AppText>
               </AppCard>
             </View>
 
-            <AppCard style={styles.instructionCard}>
-              <AppText numeric style={styles.instructionNumber}>
+            <AppCard
+              className="min-h-[120px] flex-row items-center gap-4 bg-surface-raised"
+              style={shadows.card}
+            >
+              <AppText
+                numeric
+                className="w-[76px] text-center text-[58px] leading-[64px] tracking-[-1.2px]"
+              >
                 1”
               </AppText>
-              <View style={styles.instructionCopy}>
+              <View className="flex-1 gap-2">
                 <AppText role="heading" weight="medium">
                   Ознакомление
                 </AppText>
@@ -475,49 +424,29 @@ export default function DesignSystemScreen() {
             </AppCard>
           </Section>
 
-          <View style={styles.rule} />
+          <View className="my-[38px] h-px bg-surface-divider" />
 
           <Section eyebrow="06 / Status" title="Прогресс и семантика">
-            <AppCard style={styles.progressCard}>
-              <View style={styles.progressHeader}>
+            <AppCard className="gap-4" style={shadows.card}>
+              <View className="flex-row items-center justify-between">
                 <AppText role="body" weight="medium">
                   Оценка заполнения журнала
                 </AppText>
-                <AppText
-                  numeric
-                  role="label"
-                  color={colors.brand.success}
-                >
+                <AppText numeric role="label" color={colors.brand.success}>
                   {complete ? '24/24' : '16/24'}
                 </AppText>
               </View>
               <ProgressMeter value={complete ? 24 : 16} />
-              <View style={styles.legend}>
-                <View style={styles.legendItem}>
-                  <View
-                    style={[
-                      styles.legendDot,
-                      { backgroundColor: colors.brand.success },
-                    ]}
-                  />
-                  <AppText
-                    role="caption"
-                    color={colors.text.secondary}
-                  >
+              <View className="flex-row gap-6">
+                <View className="flex-row items-center gap-2">
+                  <View className="h-2 w-2 rounded-full bg-brand-success" />
+                  <AppText role="caption" color={colors.text.secondary}>
                     Выполнено
                   </AppText>
                 </View>
-                <View style={styles.legendItem}>
-                  <View
-                    style={[
-                      styles.legendDot,
-                      { backgroundColor: colors.surface.divider },
-                    ]}
-                  />
-                  <AppText
-                    role="caption"
-                    color={colors.text.secondary}
-                  >
+                <View className="flex-row items-center gap-2">
+                  <View className="h-2 w-2 rounded-full bg-surface-divider" />
+                  <AppText role="caption" color={colors.text.secondary}>
                     Не заполнено
                   </AppText>
                 </View>
@@ -525,17 +454,15 @@ export default function DesignSystemScreen() {
             </AppCard>
           </Section>
 
-          <View style={styles.rule} />
+          <View className="my-[38px] h-px bg-surface-divider" />
 
           <Section eyebrow="07 / Geometry" title="Радиусы и ритм">
-            <View style={styles.radiusRow}>
+            <View className="flex-row justify-between">
               {radiusTokens.map((token) => (
-                <View key={token.name} style={styles.geometryItem}>
+                <View key={token.name} className="items-center gap-2">
                   <View
-                    style={[
-                      styles.radiusShape,
-                      { borderRadius: token.value },
-                    ]}
+                    className="h-[68px] w-[68px] border border-brand-primary/20 bg-surface-warm"
+                    style={{ borderRadius: token.value }}
                   />
                   <AppText numeric role="caption">
                     {token.name}
@@ -544,39 +471,37 @@ export default function DesignSystemScreen() {
               ))}
             </View>
 
-            <View style={styles.spacingCard}>
+            <View className="gap-3 rounded-card-lg bg-surface-raised p-4">
               {spacingTokens.map((value) => (
-                <View key={value} style={styles.spacingRow}>
+                <View
+                  key={value}
+                  className="h-[18px] flex-row items-center gap-3"
+                >
                   <AppText
                     numeric
                     role="caption"
                     color={colors.text.secondary}
-                    style={styles.spacingValue}
+                    className="w-6 text-right"
                   >
                     {value}
                   </AppText>
                   <View
-                    style={[
-                      styles.spacingBar,
-                      { width: value * 3 },
-                    ]}
+                    className="h-2 max-w-[160px] rounded bg-brand-primary"
+                    style={{ width: value * 3 }}
                   />
                 </View>
               ))}
             </View>
           </Section>
 
-          <View style={styles.footer}>
+          <View className="mt-12 flex-row items-center gap-3 border-t border-surface-divider py-6">
             <ScanIcon width={22} height={22} />
-            <View style={styles.footerCopy}>
+            <View className="gap-0.5">
               <AppText role="label" weight="medium">
                 Private Design System
               </AppText>
-              <AppText
-                role="caption"
-                color={colors.text.secondary}
-              >
-                Expo 54 · React Native · native Liquid Glass
+              <AppText role="caption" color={colors.text.secondary}>
+                Expo 57 · NativeWind 4 · native Liquid Glass
               </AppText>
             </View>
           </View>
@@ -587,151 +512,10 @@ export default function DesignSystemScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.brand.burgundy,
-  },
-  loading: {
-    flex: 1,
-    backgroundColor: colors.surface.canvas,
-  },
-  scrollContent: {
-    backgroundColor: colors.surface.canvas,
-  },
-  hero: {
-    minHeight: 430,
-    paddingHorizontal: sizes.screenGutter,
-    paddingBottom: 34,
-    overflow: 'hidden',
-    backgroundColor: colors.brand.burgundy,
-  },
-  heroImage: {
-    position: 'absolute',
-    left: -220,
-    top: -70,
-    width: 820,
-    height: 570,
-    opacity: 0.82,
-  },
   heroControls: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  heroCircle: {
-    width: sizes.touch,
-    height: sizes.touch,
-    borderRadius: sizes.touch / 2,
-  },
-  versionPill: {
-    width: 174,
-    height: sizes.touch,
-    borderRadius: sizes.touch / 2,
-  },
-  backGlyph: {
-    marginTop: Platform.OS === 'ios' ? -3 : -1,
-    fontSize: 36,
-    lineHeight: 38,
-  },
-  heroCopy: {
-    marginTop: 64,
-  },
-  heroEyebrow: {
-    letterSpacing: 1.5,
-  },
-  heroTitle: {
-    marginTop: 10,
-    fontSize: 50,
-    lineHeight: 52,
-    letterSpacing: -1.4,
-  },
-  heroDescription: {
-    maxWidth: 300,
-    marginTop: 12,
-  },
-  heroMeta: {
-    marginTop: 42,
-    paddingTop: 18,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.28)',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  sheet: {
-    marginTop: -28,
-    paddingTop: 38,
-    paddingHorizontal: sizes.screenGutter,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
-    backgroundColor: colors.surface.canvas,
-  },
-  section: {
-    gap: spacing.lg,
-  },
-  sectionHeader: {
-    gap: spacing.xs,
-  },
-  rule: {
-    height: 1,
-    marginVertical: 38,
-    backgroundColor: colors.surface.divider,
-  },
-  swatchGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  swatchItem: {
-    width: '46%',
-    gap: 5,
-  },
-  swatch: {
-    width: '100%',
-    aspectRatio: 1.6,
-    marginBottom: 4,
-    borderRadius: radii.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(33,33,35,0.08)',
-  },
-  typeCard: {
-    paddingVertical: 0,
-    ...shadows.card,
-  },
-  typeRow: {
-    paddingVertical: spacing.md,
-    gap: spacing.xs,
-  },
-  typeRowBorder: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.surface.divider,
-  },
-  numericCard: {
-    minHeight: 116,
-    padding: spacing.md,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surface.warm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.lg,
-  },
-  numericSample: {
-    width: 100,
-    alignItems: 'center',
-  },
-  numericCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  glassStage: {
-    height: 190,
-    overflow: 'hidden',
-    borderRadius: radii.lg,
-    justifyContent: 'center',
-  },
-  glassStageImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: undefined,
-    height: undefined,
   },
   glassRow: {
     paddingHorizontal: spacing.md,
@@ -739,139 +523,4 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  glassCircle: {
-    width: sizes.touch,
-    height: sizes.touch,
-    borderRadius: sizes.touch / 2,
-  },
-  glassPill: {
-    width: 156,
-    height: sizes.touch,
-    borderRadius: sizes.touch / 2,
-  },
-  glassNote: {
-    position: 'absolute',
-    right: 18,
-    bottom: 14,
-  },
-  buttonStack: {
-    gap: spacing.sm,
-  },
-  inlineButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  cardRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  demoCard: {
-    flex: 1,
-    minHeight: 150,
-    justifyContent: 'space-between',
-  },
-  demoCardTitle: {
-    marginTop: spacing.lg,
-  },
-  cardArrow: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.surface.raised,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-end',
-  },
-  instructionCard: {
-    minHeight: 120,
-    backgroundColor: colors.surface.raised,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    ...shadows.card,
-  },
-  instructionNumber: {
-    width: 76,
-    fontSize: 58,
-    lineHeight: 64,
-    letterSpacing: -1.2,
-    textAlign: 'center',
-  },
-  instructionCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  progressCard: {
-    gap: spacing.md,
-    ...shadows.card,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  legend: {
-    flexDirection: 'row',
-    gap: spacing.lg,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  radiusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  geometryItem: {
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  radiusShape: {
-    width: 68,
-    height: 68,
-    backgroundColor: colors.surface.warm,
-    borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.16)',
-  },
-  spacingCard: {
-    padding: spacing.md,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surface.raised,
-    gap: spacing.sm,
-  },
-  spacingRow: {
-    height: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  spacingValue: {
-    width: 24,
-    textAlign: 'right',
-  },
-  spacingBar: {
-    maxWidth: 160,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.brand.primary,
-  },
-  footer: {
-    marginTop: 48,
-    paddingVertical: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.surface.divider,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  footerCopy: {
-    gap: 2,
-  },
 });
-
