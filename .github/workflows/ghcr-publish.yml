@@ -1,6 +1,11 @@
 name: Build and Publish Web Image
 
 on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '*'
   workflow_dispatch:
 
 env:
@@ -50,7 +55,7 @@ jobs:
             type=sha
             type=ref,event=branch
             type=ref,event=tag
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/expo-design-kit' || github.event_name == 'workflow_dispatch' }}
 
       - name: Build and push private image
         uses: docker/build-push-action@v6
