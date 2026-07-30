@@ -13,6 +13,7 @@ import { emptySnapshot } from './health-types';
 const DATABASE_NAME = 'artificiallabs.db';
 const DATABASE_KEY_NAME = 'artificiallabs.database-key.v1';
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
+let writeQueue = Promise.resolve();
 
 type OutboxRow = {
   id: number;
@@ -46,8 +47,9 @@ async function databaseKey() {
 async function openDatabase() {
   const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
   const key = await databaseKey();
+  await db.execAsync(`PRAGMA key = "x'${key}'"`);
+  await db.getFirstAsync('SELECT count(*) AS count FROM sqlite_master');
   await db.execAsync(`
-    PRAGMA key = "x'${key}'";
     PRAGMA cipher_memory_security = ON;
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -83,6 +85,30 @@ function database() {
   return databasePromise;
 }
 
+async function withWriteTransaction(
+  task: (db: SQLite.SQLiteDatabase) => Promise<void>,
+) {
+  const previousWrite = writeQueue;
+  let releaseWrite: () => void = () => undefined;
+  writeQueue = new Promise<void>((resolve) => {
+    releaseWrite = resolve;
+  });
+  await previousWrite;
+  try {
+    const db = await database();
+    await db.execAsync('BEGIN IMMEDIATE');
+    try {
+      await task(db);
+      await db.execAsync('COMMIT');
+    } catch (error) {
+      await db.execAsync('ROLLBACK');
+      throw error;
+    }
+  } finally {
+    releaseWrite();
+  }
+}
+
 export async function initializeLocalDatabase() {
   await database();
 }
@@ -93,7 +119,7 @@ export async function claimLocalDatabaseOwner(userId: string) {
     "SELECT value FROM settings WHERE key = 'ownerId'",
   );
   if (row?.value === userId) return;
-  await db.withExclusiveTransactionAsync(async (transaction) => {
+  await withWriteTransaction(async (transaction) => {
     await transaction.execAsync(
       "DELETE FROM records; DELETE FROM outbox; DELETE FROM settings WHERE key = 'profile';",
     );
@@ -130,12 +156,13 @@ export async function loadLocalSnapshot(): Promise<HealthSnapshot> {
 }
 
 export async function saveLocalProfile(profile: LocalProfile) {
-  const db = await database();
-  await db.runAsync(
-    `INSERT INTO settings (key, value) VALUES ('profile', ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    JSON.stringify(profile),
-  );
+  await withWriteTransaction(async (db) => {
+    await db.runAsync(
+      `INSERT INTO settings (key, value) VALUES ('profile', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      JSON.stringify(profile),
+    );
+  });
 }
 
 export async function saveLocalRecord<K extends HealthEntityName>(
@@ -143,7 +170,6 @@ export async function saveLocalRecord<K extends HealthEntityName>(
   item: HealthEntityMap[K],
   enqueue = true,
 ) {
-  const db = await database();
   const payload = JSON.stringify(item);
   const occurredAt =
     'occurredAt' in item
@@ -155,7 +181,7 @@ export async function saveLocalRecord<K extends HealthEntityName>(
           : 'dueAt' in item
             ? item.dueAt
             : item.startedAt;
-  await db.withExclusiveTransactionAsync(async (transaction) => {
+  await withWriteTransaction(async (transaction) => {
     await transaction.runAsync(
       `INSERT INTO records (entity, local_id, payload, occurred_at, updated_at)
        VALUES (?, ?, ?, ?, ?)
@@ -200,9 +226,10 @@ export async function pendingOutbox() {
 
 export async function acknowledgeOutbox(ids: number[]) {
   if (!ids.length) return;
-  const db = await database();
   const placeholders = ids.map(() => '?').join(',');
-  await db.runAsync(`DELETE FROM outbox WHERE id IN (${placeholders})`, ids);
+  await withWriteTransaction(async (db) => {
+    await db.runAsync(`DELETE FROM outbox WHERE id IN (${placeholders})`, ids);
+  });
 }
 
 export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
