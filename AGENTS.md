@@ -62,6 +62,12 @@ commit and `latest` tags. Other branches deploy only through the manual
 Actions branch selector and run it. A manual run also updates `latest`, so the
 label-enabled Watchtower on `junk` deploys that selected revision.
 
+The same protected workflow deploys Convex functions before building the web
+image. `CONVEX_SELF_HOSTED_ADMIN_KEY` is a GitHub Actions repository secret;
+never echo it, expose it to a `pull_request` job, or pass it to untrusted code.
+The deployment workflow has no `pull_request` trigger. Public PRs run only
+`.github/workflows/ci.yml`, which receives no Convex admin credentials.
+
 The runtime image contains only the generated `dist` directory and nginx
 configuration. Never copy `.env` files, Git metadata, source files, or Convex
 admin credentials into the runtime image. The `artificiallabs_web` container on
