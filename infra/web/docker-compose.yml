@@ -1,0 +1,31 @@
+name: artificiallabs-web
+
+services:
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/che548/artificiallabs:latest}
+    container_name: artificiallabs_web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8093}:80"
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+
+  watchtower:
+    image: nickfedor/watchtower:latest
+    container_name: artificiallabs_web_watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-config/config.json:/config.json:ro
+    command:
+      - --label-enable
+      - --cleanup
+      - --interval
+      - "300"
+      - artificiallabs_web

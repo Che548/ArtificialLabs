@@ -32,3 +32,17 @@ only local bindings need regeneration. Finish changes with `npm run verify`.
 Push notifications are intentionally out of scope for the initial integration.
 Do not install or configure `@convex-dev/expo-push-notifications` until a
 separate feature explicitly requires it.
+
+# Web deployment
+
+GitHub Actions builds the Expo web export into the private image
+`ghcr.io/che548/artificiallabs`. Branch pushes publish branch and commit tags;
+manual runs and pushes to `expo-design-kit` also update `latest`.
+
+The runtime image contains only the generated `dist` directory and nginx
+configuration. Never copy `.env` files, Git metadata, source files, or Convex
+admin credentials into the runtime image. The `artificiallabs_web` container on
+`junk` is updated by its dedicated label-enabled Watchtower service. Its private
+GHCR credential is isolated in
+`~/deployments/artificiallabs-web/docker-config/config.json`; do not replace
+the global Docker credential used by `ph_web`.
