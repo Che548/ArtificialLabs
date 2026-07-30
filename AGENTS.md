@@ -56,8 +56,11 @@ Go is not sufficient for verification after native plugin changes.
 # Web deployment
 
 GitHub Actions builds the Expo web export into
-`ghcr.io/che548/artificiallabs`. Branch pushes publish branch and commit tags;
-manual runs and pushes to `expo-design-kit` also update `latest`.
+`ghcr.io/che548/artificiallabs`. A push to `main` automatically publishes the
+commit and `latest` tags. Other branches deploy only through the manual
+**Build and Publish Web Image** workflow; choose the branch in the GitHub
+Actions branch selector and run it. A manual run also updates `latest`, so the
+label-enabled Watchtower on `junk` deploys that selected revision.
 
 The runtime image contains only the generated `dist` directory and nginx
 configuration. Never copy `.env` files, Git metadata, source files, or Convex

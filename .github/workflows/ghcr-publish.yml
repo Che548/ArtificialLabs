@@ -3,10 +3,12 @@ name: Build and Publish Web Image
 on:
   push:
     branches:
-      - '**'
-    tags:
-      - '*'
+      - main
   workflow_dispatch:
+
+concurrency:
+  group: web-deploy
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -54,8 +56,7 @@ jobs:
           tags: |
             type=sha
             type=ref,event=branch
-            type=ref,event=tag
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/expo-design-kit' || github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest
 
       - name: Build and push image
         uses: docker/build-push-action@v7
