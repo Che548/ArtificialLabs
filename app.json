@@ -26,7 +26,14 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Разрешите приложению Private использовать камеру для сканирования QR-кодов и тестов.",
+          "recordAudioAndroid": false
+        }
+      ]
     ]
   }
 }

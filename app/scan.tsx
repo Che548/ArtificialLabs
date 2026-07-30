@@ -16,7 +16,7 @@ import {
 import type { PropsWithChildren } from 'react';
 import {
   Alert,
-  Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -41,16 +41,24 @@ import BuyIcon from '../assets/figma/scan-screen/buy.svg';
 import HeaderHistoryIcon from '../assets/figma/scan-screen/header-history.svg';
 import HistoryIcon from '../assets/figma/scan-screen/history.svg';
 import InfoIcon from '../assets/figma/scan-screen/info.svg';
-import NextIcon from '../assets/figma/scan-screen/next.svg';
 import ScanIcon from '../assets/figma/scan-screen/scan.svg';
-import ScannerFrame from '../assets/figma/scan-screen/scanner-frame.svg';
+import ScannerFrame from '../assets/figma/scan-screen/circle.svg';
+import {
+  colors,
+  EdgeFadeGradient,
+  InstructionCard,
+  InstructionIntroCard,
+  InstructionNavigation,
+  ScanBackgroundMotion,
+  ScanFlowOverlay,
+} from '../design-system';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 const FONT_SF_REGULAR = 'SFProDisplay-Regular';
-const FONT_SF_MEDIUM = 'SFProDisplay-Medium';
 const FONT_YARO_RG = 'YaroRg-Regular';
 const INSTRUCTION_CARD_WIDTH = 360;
+const INSTRUCTION_CARD_HEIGHT = 130;
 const INSTRUCTION_GAP = 10;
 const INSTRUCTION_SNAP = INSTRUCTION_CARD_WIDTH + INSTRUCTION_GAP;
 const hasNativeLiquidGlass =
@@ -58,22 +66,30 @@ const hasNativeLiquidGlass =
 
 const instructions = [
   {
-    title: 'Ознакомление',
-    body: 'Вскройте коробку, внимательно\nизучите инструкции.',
+    body: 'Соберите мочу в чистую сухую емкость.',
   },
   {
-    title: 'Анализ и подготовка',
-    body: 'Используйте тест и разместите\nего на однотонном фоне.',
+    body: 'Вскройте фольгированную упаковку и достаньте тест-полоску.',
   },
   {
-    title: 'Проверьте освещение',
-    body: 'Избегайте теней, бликов и\nслишком тёмных мест.',
+    body: 'Опустите тест-полоску в мочу до отметки ”MAX” на 3–5 секунд.',
   },
   {
-    title: 'Наведите камеру',
-    body: 'Поместите весь тест в рамку\nи держите телефон неподвижно.',
+    body: 'Достаньте тест-полоску и положите её на ровную сухую поверхность.',
+  },
+  {
+    body: 'Спустя 3-7 минут отсканируйте результат в приложении.',
   },
 ];
+
+const instructionIllustrations = [
+  require('../assets/instructions/step-1-cup.png'),
+  require('../assets/instructions/step-2-package.png'),
+  require('../assets/instructions/step-3-dip-test.png'),
+  require('../assets/instructions/step-4-test-strip.png'),
+  require('../assets/instructions/step-5-results.png'),
+];
+const INSTRUCTION_SLIDE_COUNT = instructions.length + 1;
 
 type GlassControlProps = {
   accessibilityLabel: string;
@@ -211,10 +227,11 @@ function GlassControl({
     >
       <LiquidGlassSurface
         variant="clear"
+        tintColor={colors.surface.headerGlassWash}
         colorScheme="light"
         fallbackTint="systemUltraThinMaterialLight"
         intensity={58}
-        washColor="transparent"
+        washColor={colors.surface.headerGlassWash}
         highlight="light"
       >
         {children}
@@ -251,25 +268,22 @@ export default function ScanScreen() {
   const insets = useSafeAreaInsets();
   const instructionRef = useRef<ScrollViewType>(null);
   const [activeInstruction, setActiveInstruction] = useState(0);
+  const [scanFlowVisible, setScanFlowVisible] = useState(false);
+  const [hasSeenScanBriefing, setHasSeenScanBriefing] = useState(false);
+  const [hasSavedScan, setHasSavedScan] = useState(false);
   const [fontsLoaded] = useFonts({
     [FONT_SF_REGULAR]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
-    [FONT_SF_MEDIUM]: require('../assets/fonts/SF-Pro-Display-Medium.otf'),
     [FONT_YARO_RG]: require('../assets/fonts/Yaro-Rg-Regular.otf'),
   });
 
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
-  const headerTop = Math.max(16, insets.top / scale + 12);
-  const scannerTop = Math.max(110, headerTop + 62);
+  const headerTop = Math.max(16, insets.top / scale + 8);
+  const scannerTop = Math.max(123, headerTop + 79);
   const sfRegular = fontsLoaded
     ? FONT_SF_REGULAR
     : Platform.OS === 'ios'
       ? 'System'
       : 'sans-serif';
-  const sfMedium = fontsLoaded
-    ? FONT_SF_MEDIUM
-    : Platform.OS === 'ios'
-      ? 'System'
-      : 'sans-serif-medium';
   const yaro = fontsLoaded
     ? FONT_YARO_RG
     : Platform.OS === 'ios'
@@ -279,7 +293,7 @@ export default function ScanScreen() {
   const scrollToInstruction = (index: number) => {
     const nextIndex = Math.max(
       0,
-      Math.min(instructions.length - 1, index),
+      Math.min(INSTRUCTION_SLIDE_COUNT - 1, index),
     );
     setActiveInstruction(nextIndex);
     instructionRef.current?.scrollTo({
@@ -295,7 +309,7 @@ export default function ScanScreen() {
       event.nativeEvent.contentOffset.x / INSTRUCTION_SNAP,
     );
     setActiveInstruction(
-      Math.max(0, Math.min(instructions.length - 1, index)),
+      Math.max(0, Math.min(INSTRUCTION_SLIDE_COUNT - 1, index)),
     );
   };
 
@@ -305,7 +319,10 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" hidden={false} />
+      <StatusBar
+        style={scanFlowVisible ? 'light' : 'dark'}
+        hidden={false}
+      />
       <View
         style={{
           width: DESIGN_WIDTH * scale,
@@ -314,11 +331,15 @@ export default function ScanScreen() {
       >
         <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
           <View style={styles.canvas}>
-            <Image
-              source={require('../assets/figma/scan-screen/background.png')}
-              resizeMode="cover"
-              style={styles.background}
-            />
+            <View style={styles.background}>
+              <ScanBackgroundMotion
+                source={require('../assets/figma/scan-screen/background.png')}
+                variant="drift"
+                width={DESIGN_WIDTH}
+                height={869}
+                flipY
+              />
+            </View>
 
             <GlassContainer
               spacing={12}
@@ -355,8 +376,8 @@ export default function ScanScreen() {
 
             <View style={[styles.scannerCard, { top: scannerTop }]}>
               <ScannerFrame
-                width={339}
-                height={339}
+                width={340}
+                height={340}
                 style={styles.scannerFrame}
               />
 
@@ -378,7 +399,7 @@ export default function ScanScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Начать сканирование"
-                onPress={() => showPlaceholder('Сканирование')}
+                onPress={() => setScanFlowVisible(true)}
                 style={({ pressed }) => [
                   styles.scanButton,
                   pressed && styles.pressed,
@@ -391,7 +412,9 @@ export default function ScanScreen() {
                     { fontFamily: sfRegular },
                   ]}
                 >
-                  Начать сканирование
+                  {hasSavedScan
+                    ? 'Сканировать снова'
+                    : 'Начать сканирование'}
                 </Text>
               </Pressable>
             </View>
@@ -403,41 +426,21 @@ export default function ScanScreen() {
               style={styles.contentShape}
             />
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Предыдущий шаг"
-              accessibilityState={{
-                disabled: activeInstruction === 0,
-              }}
-              disabled={activeInstruction === 0}
-              onPress={() => scrollToInstruction(activeInstruction - 1)}
-              style={({ pressed }) => [
-                styles.previousButton,
-                activeInstruction === 0 && styles.arrowDisabled,
-                pressed && styles.arrowPressed,
-              ]}
-            >
-              <NextIcon width={40} height={40} />
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Следующий шаг"
-              accessibilityState={{
-                disabled:
-                  activeInstruction === instructions.length - 1,
-              }}
-              disabled={activeInstruction === instructions.length - 1}
-              onPress={() => scrollToInstruction(activeInstruction + 1)}
-              style={({ pressed }) => [
-                styles.nextButton,
-                activeInstruction === instructions.length - 1 &&
-                  styles.arrowDisabled,
-                pressed && styles.arrowPressed,
-              ]}
-            >
-              <NextIcon width={40} height={40} />
-            </Pressable>
+            <View style={styles.instructionNavigation}>
+              <InstructionNavigation
+                variant="outline"
+                leftDisabled={activeInstruction === 0}
+                rightDisabled={
+                  activeInstruction === INSTRUCTION_SLIDE_COUNT - 1
+                }
+                onPrevious={() =>
+                  scrollToInstruction(activeInstruction - 1)
+                }
+                onNext={() =>
+                  scrollToInstruction(activeInstruction + 1)
+                }
+              />
+            </View>
 
             <ScrollView
               ref={instructionRef}
@@ -451,39 +454,23 @@ export default function ScanScreen() {
               onMomentumScrollEnd={handleInstructionScrollEnd}
               style={styles.instructions}
             >
+              <InstructionIntroCard
+                title="Инструкция по использованию"
+                illustration={require('../assets/instructions/step-4-test-strip.png')}
+                variant="classic"
+                height={INSTRUCTION_CARD_HEIGHT}
+              />
+
               {instructions.map((instruction, index) => (
-                <View key={instruction.title} style={styles.instructionCard}>
-                  <View style={styles.instructionNumberRow}>
-                    <Text
-                      numberOfLines={1}
-                      style={[
-                        styles.instructionNumber,
-                        { fontFamily: yaro },
-                      ]}
-                    >
-                      {`${index + 1}”`}
-                    </Text>
-                  </View>
-                  <View style={styles.instructionCopy}>
-                    <Text
-                      style={[
-                        styles.instructionTitle,
-                        { fontFamily: sfMedium },
-                      ]}
-                    >
-                      {instruction.title}
-                    </Text>
-                    <Text
-                      numberOfLines={2}
-                      style={[
-                        styles.instructionBody,
-                        { fontFamily: sfRegular },
-                      ]}
-                    >
-                      {instruction.body}
-                    </Text>
-                  </View>
-                </View>
+                <InstructionCard
+                  key={index}
+                  step={index + 1}
+                  total={instructions.length}
+                  text={instruction.body}
+                  variant="illustrated"
+                  height={INSTRUCTION_CARD_HEIGHT}
+                  illustration={instructionIllustrations[index]}
+                />
               ))}
             </ScrollView>
 
@@ -506,9 +493,60 @@ export default function ScanScreen() {
                 icon={<HistoryIcon width={19} height={19} />}
               />
             </View>
+
+            <EdgeFadeGradient
+              edge="top"
+              height={headerTop + 60}
+              style={styles.headerFadeGradient}
+            />
+            <EdgeFadeGradient
+              edge="bottom"
+              height={108}
+              style={styles.navbarFadeGradient}
+            />
+
           </View>
         </View>
       </View>
+
+      <Modal
+        animationType="fade"
+        presentationStyle="fullScreen"
+        statusBarTranslucent={false}
+        visible={scanFlowVisible}
+        onRequestClose={() => setScanFlowVisible(false)}
+      >
+        <View style={styles.flowModalRoot}>
+          <StatusBar style="light" hidden={false} />
+          <View
+            style={{
+              width: DESIGN_WIDTH * scale,
+              height: DESIGN_HEIGHT * scale,
+            }}
+          >
+            <View
+              style={[
+                styles.scaledCanvas,
+                { transform: [{ scale }] },
+              ]}
+            >
+              <View style={styles.flowModalCanvas}>
+                <ScanFlowOverlay
+                  headerTop={headerTop}
+                  visible={scanFlowVisible}
+                  showBriefing={!hasSeenScanBriefing}
+                  onBriefingSeen={() => setHasSeenScanBriefing(true)}
+                  onClose={() => setScanFlowVisible(false)}
+                  onComplete={() => {
+                    setHasSavedScan(true);
+                    setScanFlowVisible(false);
+                  }}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -519,6 +557,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fee8e3',
+  },
+  flowModalRoot: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#170C11',
+  },
+  flowModalCanvas: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+    overflow: 'hidden',
+    borderRadius: 40,
+    backgroundColor: '#170C11',
   },
   scaledCanvas: {
     width: DESIGN_WIDTH,
@@ -538,7 +589,6 @@ const styles = StyleSheet.create({
     top: -15,
     width: DESIGN_WIDTH,
     height: 869,
-    transform: [{ scaleY: -1 }],
   },
   header: {
     position: 'absolute',
@@ -548,6 +598,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerFadeGradient: {
+    top: 0,
+    zIndex: 4,
+  },
+  navbarFadeGradient: {
+    bottom: 0,
+    zIndex: 4,
   },
   headerCircle: {
     width: 48,
@@ -608,36 +666,36 @@ const styles = StyleSheet.create({
     left: 16,
     width: 370,
     height: 370,
-    borderRadius: 50,
+    borderRadius: 150,
     overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.20)',
   },
   scannerFrame: {
     position: 'absolute',
-    left: 16,
-    top: 16,
+    left: 15,
+    top: 15,
   },
   scannerCopy: {
     position: 'absolute',
-    top: 105,
-    left: 40,
-    width: 290,
+    top: 116,
+    left: 61,
+    width: 249,
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
   },
   sphere: {
     color: '#ea4087',
-    fontSize: 32,
-    lineHeight: 35,
-    letterSpacing: -0.64,
+    fontSize: 27,
+    lineHeight: 30,
+    letterSpacing: -0.54,
   },
   scannerDescription: {
-    width: 290,
+    width: 249,
     color: '#ea4087',
     textAlign: 'center',
-    fontSize: 19,
-    lineHeight: 22,
-    letterSpacing: -0.38,
+    fontSize: 17,
+    lineHeight: 19,
+    letterSpacing: -0.34,
   },
   scanButton: {
     position: 'absolute',
@@ -664,82 +722,24 @@ const styles = StyleSheet.create({
     left: 0,
     top: 513,
   },
-  previousButton: {
+  instructionNavigation: {
     position: 'absolute',
     left: 11,
     top: 524,
-    width: 40,
+    width: 380,
     height: 40,
-    transform: [{ rotate: '180deg' }],
-  },
-  nextButton: {
-    position: 'absolute',
-    right: 11,
-    top: 524,
-    width: 40,
-    height: 40,
-  },
-  arrowPressed: {
-    opacity: 0.64,
-  },
-  arrowDisabled: {
-    opacity: 0.7,
   },
   instructions: {
     position: 'absolute',
     left: 0,
-    top: 591,
+    top: 570,
     width: DESIGN_WIDTH,
-    height: 100,
+    height: INSTRUCTION_CARD_HEIGHT,
   },
   instructionsContent: {
     paddingLeft: 16,
     paddingRight: 26,
     gap: INSTRUCTION_GAP,
-  },
-  instructionCard: {
-    width: INSTRUCTION_CARD_WIDTH,
-    height: 100,
-    paddingLeft: 23,
-    paddingRight: 16,
-    borderRadius: 30,
-    backgroundColor: '#fdece5',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  instructionNumberRow: {
-    width: 68,
-    height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    transform: [{ translateX: -6 }, { translateY: 3 }],
-  },
-  instructionNumber: {
-    width: 68,
-    height: 100,
-    color: '#171717',
-    fontSize: 62,
-    lineHeight: 100,
-    letterSpacing: -1.24,
-    textAlign: 'center',
-  },
-  instructionCopy: {
-    width: 245,
-    gap: 3,
-    justifyContent: 'center',
-  },
-  instructionTitle: {
-    color: '#171717',
-    fontSize: 20,
-    lineHeight: 22,
-    letterSpacing: -0.4,
-  },
-  instructionBody: {
-    color: '#171717',
-    fontSize: 17,
-    lineHeight: 19,
-    letterSpacing: -0.34,
   },
   divider: {
     position: 'absolute',
