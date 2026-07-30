@@ -33,7 +33,7 @@ import type {
 } from './health-types';
 import { emptySnapshot, newLocalId } from './health-types';
 
-const backendApi = api as any;
+const backendApi = api;
 
 type OnboardingInput = {
   displayName: string;
@@ -143,7 +143,7 @@ export function HealthStoreProvider({
       labResults: remoteSnapshot.labResults,
       scanResults: remoteSnapshot.scanResults,
       reminders: remoteSnapshot.reminders,
-    } as never).then(refresh);
+    }).then(refresh);
   }, [refresh, remoteSnapshot]);
 
   const syncNow = useCallback(async () => {

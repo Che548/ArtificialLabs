@@ -33,6 +33,26 @@ Push notifications are intentionally out of scope for the initial integration.
 Do not install or configure `@convex-dev/expo-push-notifications` until a
 separate feature explicitly requires it.
 
+## Health data architecture
+
+- Native iOS and Android are local-first. Write records to SQLCipher SQLite and
+  its idempotent outbox before syncing structured values to Convex.
+- The database key belongs in Expo SecureStore with
+  `WHEN_UNLOCKED_THIS_DEVICE_ONLY`; never hard-code or sync it.
+- Scan photos and source lab documents remain in app document storage on the
+  device. Never add their URI or bytes to a Convex mutation or file storage.
+- All personal queries and mutations require Convex Auth and enforce ownership
+  server-side. Public catalog data must not expose personal or medical data.
+- Expo web is a read-only demonstration. Do not enable account, camera, journal,
+  lab, scan, or other medical-data writes on web without a separate review.
+- Current scan results are manually confirmed (`manual-v1`). Do not describe
+  them as OCR, CV, or diagnostic output.
+- Email verification, password reset, OCR/CV, AI chat, push notifications, and
+  the admin panel are deferred milestones. Do not imply they are operational.
+
+SQLCipher and camera changes require a native development/release build; Expo
+Go is not sufficient for verification after native plugin changes.
+
 # Web deployment
 
 GitHub Actions builds the Expo web export into

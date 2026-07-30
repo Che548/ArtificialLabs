@@ -20,6 +20,16 @@ type OutboxRow = {
   payload: string;
 };
 
+type RemoteSnapshot = {
+  [K in HealthEntityName]: Array<
+    HealthEntityMap[K] & {
+      _id?: unknown;
+      _creationTime?: number;
+      profileId?: unknown;
+    }
+  >;
+};
+
 async function databaseKey() {
   const existing = await SecureStore.getItemAsync(DATABASE_KEY_NAME);
   if (existing) return existing;
@@ -195,9 +205,7 @@ export async function acknowledgeOutbox(ids: number[]) {
   await db.runAsync(`DELETE FROM outbox WHERE id IN (${placeholders})`, ids);
 }
 
-export async function mergeRemoteSnapshot(
-  remote: Omit<HealthSnapshot, 'profile'>,
-) {
+export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
   const local = await loadLocalSnapshot();
   for (const entity of [
     'programs',
@@ -215,11 +223,7 @@ export async function mergeRemoteSnapshot(
         _creationTime: _remoteCreationTime,
         profileId: _remoteProfileId,
         ...portableItem
-      } = remoteItem as typeof remoteItem & {
-        _id?: string;
-        _creationTime?: number;
-        profileId?: string;
-      };
+      } = remoteItem;
       const merged =
         entity === 'scanResults' && localItem && 'localImageUri' in localItem
           ? { ...portableItem, localImageUri: localItem.localImageUri }
