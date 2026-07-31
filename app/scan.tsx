@@ -15,6 +15,7 @@ import { useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import {
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -45,7 +46,16 @@ import HistoryIcon from '../assets/figma/scan-screen/history.svg';
 import InfoIcon from '../assets/figma/scan-screen/info.svg';
 import NextIcon from '../assets/figma/scan-screen/next.svg';
 import ScanIcon from '../assets/figma/scan-screen/scan.svg';
-import ScannerFrame from '../assets/figma/scan-screen/scanner-frame.svg';
+import ScannerFrame from '../assets/figma/scan-screen/circle.svg';
+import {
+  colors,
+  EdgeFadeGradient,
+  InstructionCard,
+  InstructionIntroCard,
+  InstructionNavigation,
+  ScanBackgroundMotion,
+  ScanFlowOverlay,
+} from '../design-system';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
@@ -53,28 +63,35 @@ const FONT_SF_REGULAR = 'SFProDisplay-Regular';
 const FONT_SF_MEDIUM = 'SFProDisplay-Medium';
 const FONT_YARO_RG = 'YaroRg-Regular';
 const INSTRUCTION_CARD_WIDTH = 360;
+const INSTRUCTION_CARD_HEIGHT = 100;
 const INSTRUCTION_GAP = 10;
 const INSTRUCTION_SNAP = INSTRUCTION_CARD_WIDTH + INSTRUCTION_GAP;
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 const instructions = [
   {
-    title: 'Ознакомление',
-    body: 'Вскройте коробку, внимательно\nизучите инструкции.',
+    title: 'Подготовьте ёмкость',
+    body: 'Соберите мочу в чистую сухую емкость.',
   },
   {
-    title: 'Анализ и подготовка',
-    body: 'Используйте тест и разместите\nего на однотонном фоне.',
+    title: 'Откройте упаковку',
+    body: 'Вскройте фольгированную упаковку и достаньте тест-полоску.',
   },
   {
-    title: 'Проверьте освещение',
-    body: 'Избегайте теней, бликов и\nслишком тёмных мест.',
+    title: 'Опустите тест',
+    body: 'Опустите тест-полоску в мочу до отметки ”MAX” на 3–5 секунд.',
   },
   {
-    title: 'Наведите камеру',
-    body: 'Поместите весь тест в рамку\nи держите телефон неподвижно.',
+    title: 'Положите тест',
+    body: 'Достаньте тест-полоску и положите её на ровную сухую поверхность.',
+  },
+  {
+    title: 'Отсканируйте',
+    body: 'Спустя 3-7 минут отсканируйте результат в приложении.',
   },
 ];
+
+const INSTRUCTION_SLIDE_COUNT = instructions.length + 1;
 
 type GlassControlProps = {
   accessibilityLabel: string;
@@ -210,10 +227,11 @@ function GlassControl({
     >
       <LiquidGlassSurface
         variant="clear"
+        tintColor={colors.surface.headerGlassWash}
         colorScheme="light"
         fallbackTint="systemUltraThinMaterialLight"
         intensity={58}
-        washColor="transparent"
+        washColor={colors.surface.headerGlassWash}
         highlight="light"
       >
         {children}
@@ -262,6 +280,9 @@ export default function ScanScreen() {
   >('pregnancy-strip');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [scanFlowVisible, setScanFlowVisible] = useState(false);
+  const [hasSeenScanBriefing, setHasSeenScanBriefing] = useState(false);
+  const hasSavedScan = scanResults.some((result) => !result.deletedAt);
   const [fontsLoaded] = useFonts({
     [FONT_SF_REGULAR]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
     [FONT_SF_MEDIUM]: require('../assets/fonts/SF-Pro-Display-Medium.otf'),
@@ -269,8 +290,8 @@ export default function ScanScreen() {
   });
 
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
-  const headerTop = Math.max(16, insets.top / scale + 12);
-  const scannerTop = Math.max(110, headerTop + 62);
+  const headerTop = Math.max(16, insets.top / scale + 8);
+  const scannerTop = Math.max(123, headerTop + 79);
   const sfRegular = fontsLoaded
     ? FONT_SF_REGULAR
     : Platform.OS === 'ios'
@@ -288,7 +309,7 @@ export default function ScanScreen() {
       : 'sans-serif';
 
   const scrollToInstruction = (index: number) => {
-    const nextIndex = Math.max(0, Math.min(instructions.length - 1, index));
+    const nextIndex = Math.max(0, Math.min(INSTRUCTION_SLIDE_COUNT - 1, index));
     setActiveInstruction(nextIndex);
     instructionRef.current?.scrollTo({
       x: nextIndex * INSTRUCTION_SNAP,
@@ -302,7 +323,9 @@ export default function ScanScreen() {
     const index = Math.round(
       event.nativeEvent.contentOffset.x / INSTRUCTION_SNAP,
     );
-    setActiveInstruction(Math.max(0, Math.min(instructions.length - 1, index)));
+    setActiveInstruction(
+      Math.max(0, Math.min(INSTRUCTION_SLIDE_COUNT - 1, index)),
+    );
   };
 
   const showPlaceholder = (title: string) => {
@@ -329,6 +352,21 @@ export default function ScanScreen() {
     if (!picture) return;
     setCapturedUri(await persistScanImage(picture.uri));
     setCameraOpen(false);
+  };
+
+  const acceptFlowCapture = async (uri: string) => {
+    setScanFlowVisible(false);
+    if (readOnly) {
+      setNotice('В web-демо сохранение медицинских данных отключено.');
+      return;
+    }
+
+    try {
+      setCapturedUri(await persistScanImage(uri));
+    } catch (cause) {
+      console.error('Persisting scan image failed', cause);
+      setNotice('Не удалось сохранить снимок. Попробуйте ещё раз.');
+    }
   };
 
   const pickImage = async () => {
@@ -433,8 +471,8 @@ export default function ScanScreen() {
               style={{ top: scannerTop }}
             >
               <ScannerFrame
-                width={339}
-                height={339}
+                width={340}
+                height={340}
                 style={styles.scannerFrame}
               />
 
@@ -457,7 +495,7 @@ export default function ScanScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Начать сканирование"
-                onPress={() => void openCamera()}
+                onPress={() => setScanFlowVisible(true)}
                 className="absolute left-[86px] top-[200px] h-[46px] min-w-[198px] flex-row items-center justify-center gap-2.5 rounded-full bg-brand-primary px-3.5 active:opacity-[0.72]"
               >
                 <ScanIcon width={20} height={20} />
@@ -465,7 +503,9 @@ export default function ScanScreen() {
                   className="text-[15px] leading-[17px] tracking-[-0.3px] text-white"
                   style={{ fontFamily: sfRegular }}
                 >
-                  Начать сканирование
+                  {hasSavedScan
+                    ? 'Сканировать снова'
+                    : 'Начать сканирование'}
                 </Text>
               </Pressable>
             </View>
@@ -494,11 +534,11 @@ export default function ScanScreen() {
               accessibilityRole="button"
               accessibilityLabel="Следующий шаг"
               accessibilityState={{
-                disabled: activeInstruction === instructions.length - 1,
+                disabled: activeInstruction === INSTRUCTION_SLIDE_COUNT - 1,
               }}
-              disabled={activeInstruction === instructions.length - 1}
+              disabled={activeInstruction === INSTRUCTION_SLIDE_COUNT - 1}
               onPress={() => scrollToInstruction(activeInstruction + 1)}
-              className={`absolute right-[11px] top-[524px] h-10 w-10 active:opacity-[0.64] ${activeInstruction === instructions.length - 1 ? 'opacity-70' : ''}`}
+              className={`absolute right-[11px] top-[524px] h-10 w-10 active:opacity-[0.64] ${activeInstruction === INSTRUCTION_SLIDE_COUNT - 1 ? 'opacity-70' : ''}`}
             >
               <NextIcon width={40} height={40} />
             </Pressable>
@@ -515,6 +555,13 @@ export default function ScanScreen() {
               onMomentumScrollEnd={handleInstructionScrollEnd}
               className="absolute left-0 top-[591px] h-[100px] w-[402px]"
             >
+              <InstructionIntroCard
+                title="Инструкция по использованию"
+                illustration={require('../assets/instructions/step-4-test-strip.png')}
+                variant="classic"
+                height={INSTRUCTION_CARD_HEIGHT}
+              />
+
               {instructions.map((instruction, index) => (
                 <View
                   key={instruction.title}
@@ -742,11 +789,64 @@ export default function ScanScreen() {
           </View>
         </View>
       </View>
+
+      <Modal
+        animationType="fade"
+        presentationStyle="fullScreen"
+        statusBarTranslucent={false}
+        visible={scanFlowVisible}
+        onRequestClose={() => setScanFlowVisible(false)}
+      >
+        <View style={styles.flowModalRoot}>
+          <StatusBar style="light" hidden={false} />
+          <View
+            style={{
+              width: DESIGN_WIDTH * scale,
+              height: DESIGN_HEIGHT * scale,
+            }}
+          >
+            <View
+              style={[
+                styles.scaledCanvas,
+                { transform: [{ scale }] },
+              ]}
+            >
+              <View style={styles.flowModalCanvas}>
+                <ScanFlowOverlay
+                  headerTop={headerTop}
+                  visible={scanFlowVisible}
+                  showBriefing={!hasSeenScanBriefing}
+                  onBriefingSeen={() => setHasSeenScanBriefing(true)}
+                  onClose={() => setScanFlowVisible(false)}
+                  onComplete={(uri) => void acceptFlowCapture(uri)}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  flowModalRoot: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#170C11',
+  },
+  scaledCanvas: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+    transformOrigin: 'top left',
+  },
+  flowModalCanvas: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+    overflow: 'hidden',
+    backgroundColor: '#170C11',
+  },
   header: {
     position: 'absolute',
     zIndex: 5,
@@ -789,8 +889,8 @@ const styles = StyleSheet.create({
   },
   scannerFrame: {
     position: 'absolute',
-    left: 16,
-    top: 16,
+    left: 15,
+    top: 15,
   },
   contentShape: {
     position: 'absolute',

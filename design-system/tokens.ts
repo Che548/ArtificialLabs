@@ -26,6 +26,7 @@ export const colors = {
     warm: '#FDECE5',
     rose: '#FEE8E3',
     glassWash: 'rgba(255,255,255,0.20)',
+    headerGlassWash: 'rgba(255,255,255,0.70)',
     divider: '#EDEDED',
   },
   state: {
@@ -113,4 +114,3 @@ export const motion = {
   pressedScale: 1.035,
   pressedOpacity: 0.72,
 } as const;
-
