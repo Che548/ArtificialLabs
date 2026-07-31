@@ -34,6 +34,7 @@ import type {
   ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
 import ContentShape from '../assets/figma/content-shape.svg';
 import CalendarIcon from '../assets/figma/calendar-icon.svg';
@@ -50,7 +51,11 @@ import {
   InstructionIntroCard,
   InstructionNavigation,
   ScanBackgroundMotion,
+  ScanCorrectionScreen,
   ScanFlowOverlay,
+  ScanHistoryPreview,
+  ScanResultScreen,
+  type ScanHistoryRecord,
 } from '../design-system';
 
 const DESIGN_WIDTH = 402;
@@ -263,12 +268,32 @@ function ActionButton({ icon, label, onPress }: ActionButtonProps) {
   );
 }
 
+function HistoryBackIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 22 22">
+      <Path
+        d="M13.5 5.5 8 11l5.5 5.5"
+        fill="none"
+        stroke="#D31471"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export default function ScanScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const instructionRef = useRef<ScrollViewType>(null);
   const [activeInstruction, setActiveInstruction] = useState(0);
   const [scanFlowVisible, setScanFlowVisible] = useState(false);
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [selectedHistoryResult, setSelectedHistoryResult] =
+    useState<ScanHistoryRecord | null>(null);
+  const [historyCorrectionVisible, setHistoryCorrectionVisible] =
+    useState(false);
   const [hasSeenScanBriefing, setHasSeenScanBriefing] = useState(false);
   const [hasSavedScan, setHasSavedScan] = useState(false);
   const [fontsLoaded] = useFonts({
@@ -347,10 +372,14 @@ export default function ScanScreen() {
             >
               <GlassControl
                 accessibilityLabel="Открыть историю"
-                onPress={() => showPlaceholder('История')}
+                onPress={() => setHistoryVisible(true)}
                 style={styles.headerCircle}
               >
-                <HeaderHistoryIcon width={22} height={22} />
+                <HeaderHistoryIcon
+                  width={22}
+                  height={22}
+                  color="#D31471"
+                />
               </GlassControl>
 
               <GlassControl
@@ -369,7 +398,7 @@ export default function ScanScreen() {
                 style={styles.headerCircle}
               >
                 <View style={styles.headerIconOrientation}>
-                  <CalendarIcon width={22} height={22} />
+                  <CalendarIcon width={22} height={22} color="#D31471" />
                 </View>
               </GlassControl>
             </GlassContainer>
@@ -489,7 +518,7 @@ export default function ScanScreen() {
               />
               <ActionButton
                 label="История"
-                onPress={() => showPlaceholder('История')}
+                onPress={() => setHistoryVisible(true)}
                 icon={<HistoryIcon width={19} height={19} />}
               />
             </View>
@@ -547,6 +576,122 @@ export default function ScanScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        animationType="fade"
+        presentationStyle="fullScreen"
+        statusBarTranslucent={false}
+        visible={historyVisible}
+        onRequestClose={() => {
+          if (historyCorrectionVisible) {
+            setHistoryCorrectionVisible(false);
+            return;
+          }
+
+          if (selectedHistoryResult) {
+            setSelectedHistoryResult(null);
+            return;
+          }
+
+          setHistoryVisible(false);
+        }}
+      >
+        <View style={styles.historyModalRoot}>
+          <StatusBar style="dark" hidden={false} />
+          <View
+            style={{
+              width: DESIGN_WIDTH * scale,
+              height: DESIGN_HEIGHT * scale,
+            }}
+          >
+            <View
+              style={[
+                styles.scaledCanvas,
+                { transform: [{ scale }] },
+              ]}
+            >
+              <View style={styles.historyModalCanvas}>
+                {selectedHistoryResult ? (
+                  <View style={styles.historyResultOverlay}>
+                    {historyCorrectionVisible ? (
+                      <ScanCorrectionScreen
+                        fromHistory
+                        headerTop={headerTop}
+                        resultData={selectedHistoryResult}
+                        onClose={() =>
+                          setHistoryCorrectionVisible(false)
+                        }
+                        onSubmit={() =>
+                          setHistoryCorrectionVisible(false)
+                        }
+                        onRetake={() => {
+                          setHistoryCorrectionVisible(false);
+                          setSelectedHistoryResult(null);
+                          setHistoryVisible(false);
+                          setScanFlowVisible(true);
+                        }}
+                        onHelp={() => undefined}
+                      />
+                    ) : (
+                      <ScanResultScreen
+                        fromHistory
+                        headerTop={headerTop}
+                        hideReadyHeading
+                        resultData={selectedHistoryResult}
+                        onClose={() => {
+                          setHistoryCorrectionVisible(false);
+                          setSelectedHistoryResult(null);
+                        }}
+                        onConfirm={() => {
+                          setHistoryCorrectionVisible(false);
+                          setSelectedHistoryResult(null);
+                        }}
+                        onCorrection={() =>
+                          setHistoryCorrectionVisible(true)
+                        }
+                        onHelp={() => undefined}
+                      />
+                    )}
+                  </View>
+                ) : (
+                  <>
+                    <GlassControl
+                      accessibilityLabel="Вернуться к сканированию"
+                      onPress={() => {
+                        setSelectedHistoryResult(null);
+                        setHistoryVisible(false);
+                      }}
+                      style={[styles.historyBackButton, { top: headerTop }]}
+                    >
+                      <HistoryBackIcon />
+                    </GlassControl>
+
+                    <ScrollView
+                      contentInsetAdjustmentBehavior="never"
+                      showsVerticalScrollIndicator={false}
+                      style={styles.historyModalScroll}
+                      contentContainerStyle={[
+                        styles.historyModalScrollContent,
+                        { paddingTop: headerTop + 66 },
+                      ]}
+                    >
+                      <ScanHistoryPreview
+                        hideFilter
+                        variant="gallery"
+                        standalone
+                        onResultPress={(record) => {
+                          setHistoryCorrectionVisible(false);
+                          setSelectedHistoryResult(record);
+                        }}
+                      />
+                    </ScrollView>
+                  </>
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -570,6 +715,42 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 40,
     backgroundColor: '#170C11',
+  },
+  historyModalRoot: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FAF8F8',
+  },
+  historyModalCanvas: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+    overflow: 'hidden',
+    borderRadius: 40,
+    backgroundColor: '#FAF8F8',
+  },
+  historyResultOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
+    backgroundColor: '#FFF8F5',
+  },
+  historyBackButton: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 2,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyModalScroll: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+  },
+  historyModalScrollContent: {
+    paddingBottom: 40,
+    alignItems: 'center',
   },
   scaledCanvas: {
     width: DESIGN_WIDTH,
@@ -622,7 +803,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dateText: {
-    color: '#212123',
+    color: '#D31471',
     fontSize: 18,
     lineHeight: 20,
     letterSpacing: -0.36,

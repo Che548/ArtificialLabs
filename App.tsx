@@ -1,6 +1,7 @@
 import { BlurView } from "expo-blur";
 import type { BlurTint } from "expo-blur";
 import { useFonts } from "expo-font";
+import * as Haptics from "expo-haptics";
 import {
   GlassContainer,
   GlassView,
@@ -37,7 +38,7 @@ import ArrowCard from "./assets/figma/arrow-card.svg";
 import CalendarIcon from "./assets/figma/calendar-icon.svg";
 import ContentShape from "./assets/figma/content-shape.svg";
 import MonitoringIcon from "./assets/figma/monitoring-icon.svg";
-import { colors, EdgeFadeGradient, JournalAssessment } from "./design-system";
+import { colors, JournalAssessment } from "./design-system";
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
@@ -48,7 +49,7 @@ const FontReadyContext = createContext(false);
 const hasNativeLiquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
 const MAX_PREGNANCY_WEEK = 42;
 const INITIAL_WEEK = 7;
-const WEEK_ITEM_WIDTH = 76;
+const WEEK_ITEM_WIDTH = 84;
 const WEEK_BUBBLE_SIZE = 75;
 const WEEK_CENTER_PADDING = (DESIGN_WIDTH - WEEK_ITEM_WIDTH) / 2;
 const weeks = Array.from(
@@ -278,6 +279,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
   const [checkupsCompleted, setCheckupsCompleted] = useState(false);
   const fontsReady = useContext(FontReadyContext);
   const weekScrollRef = useRef<ScrollView>(null);
+  const hapticWeekRef = useRef(INITIAL_WEEK);
   const scrollX = useRef(
     new Animated.Value((INITIAL_WEEK - 1) * WEEK_ITEM_WIDTH),
   ).current;
@@ -298,7 +300,33 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
       Math.max(1, Math.round(offsetX / WEEK_ITEM_WIDTH) + 1),
     );
 
+    hapticWeekRef.current = nextWeek;
     setActiveWeek(nextWeek);
+  };
+
+  const handleWeekScroll = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const centeredWeek = Math.min(
+      MAX_PREGNANCY_WEEK,
+      Math.max(
+        1,
+        Math.round(
+          event.nativeEvent.contentOffset.x / WEEK_ITEM_WIDTH,
+        ) + 1,
+      ),
+    );
+
+    if (centeredWeek === hapticWeekRef.current) {
+      return;
+    }
+
+    hapticWeekRef.current = centeredWeek;
+    setActiveWeek(centeredWeek);
+
+    if (Platform.OS !== "web") {
+      void Haptics.selectionAsync();
+    }
   };
 
   const handleWeekScrollEnd = (
@@ -308,7 +336,6 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
   };
 
   const scrollToWeek = (week: number) => {
-    setActiveWeek(week);
     weekScrollRef.current?.scrollTo({
       x: (week - 1) * WEEK_ITEM_WIDTH,
       animated: true,
@@ -318,15 +345,16 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
   return (
     <View style={styles.canvas}>
       <Image
-        source={require("./assets/figma/pregnancy-background.png")}
+        source={require("./assets/figma/today-pregnancy-background.png")}
         resizeMode="cover"
         style={styles.heroImage}
       />
 
       <LinearGradient
-        colors={["rgba(130,53,55,0.96)", "rgba(130,53,55,0)"]}
-        locations={[0, 0.96]}
-        style={styles.heroGradient}
+        pointerEvents="none"
+        colors={["rgba(252,231,220,1)", "rgba(252,231,220,0)"]}
+        locations={[0, 1]}
+        style={styles.headerFadeGradient}
       />
 
       <GlassContainer spacing={12} style={[styles.topBar, { top: headerTop }]}>
@@ -349,7 +377,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
             highlight="light"
           >
             <View style={styles.headerIconOrientation}>
-              <MonitoringIcon width={22} height={22} />
+              <MonitoringIcon width={22} height={22} color="#D31471" />
             </View>
           </LiquidGlassSurface>
         </Pressable>
@@ -395,7 +423,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
             highlight="light"
           >
             <View style={styles.headerIconOrientation}>
-              <CalendarIcon width={22} height={22} />
+              <CalendarIcon width={22} height={22} color="#D31471" />
             </View>
           </LiquidGlassSurface>
         </Pressable>
@@ -431,7 +459,10 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
             onScrollEndDrag={handleWeekScrollEnd}
             onScroll={Animated.event(
               [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-              { useNativeDriver: true },
+              {
+                useNativeDriver: true,
+                listener: handleWeekScroll,
+              },
             )}
             scrollEventThrottle={16}
           >
@@ -644,6 +675,13 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
           </View>
         </View>
       </ScrollView>
+
+      <LinearGradient
+        pointerEvents="none"
+        colors={["rgba(255,255,255,0)", "rgba(255,255,255,1)"]}
+        locations={[0, 1]}
+        style={styles.navbarFadeGradient}
+      />
     </View>
   );
 }
@@ -668,7 +706,7 @@ export default function App() {
   return (
     <FontReadyContext.Provider value={fontsLoaded && !fontError}>
       <View style={styles.root}>
-        <StatusBar style="light" hidden={false} />
+        <StatusBar style="dark" hidden={false} />
         <View
           style={{
             width: DESIGN_WIDTH * scale,
@@ -689,7 +727,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#823537",
+    backgroundColor: "#FDECE5",
   },
   scaledCanvas: {
     width: DESIGN_WIDTH,
@@ -700,22 +738,15 @@ const styles = StyleSheet.create({
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
     overflow: "hidden",
-    backgroundColor: "#f2f2f2",
+    backgroundColor: "#FDECE5",
     borderRadius: 40,
   },
   heroImage: {
     position: "absolute",
-    left: -159,
-    top: -12,
-    width: 717,
-    height: 573,
-  },
-  heroGradient: {
-    position: "absolute",
-    top: 0,
     left: 0,
+    top: 48,
     width: DESIGN_WIDTH,
-    height: 100,
+    height: 714,
   },
   topBar: {
     position: "absolute",
@@ -727,11 +758,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   headerFadeGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
     top: 0,
+    height: 132,
     zIndex: 9,
   },
   navbarFadeGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
     bottom: 0,
+    height: 148,
     zIndex: 8,
   },
   topCircle: {
@@ -749,7 +788,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dateText: {
-    color: "#212123",
+    color: "#D31471",
     fontFamily: FONT_SF_REGULAR,
     fontSize: 18,
     letterSpacing: -0.36,
@@ -840,7 +879,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.92)",
   },
   weekNumber: {
-    color: "#ffffff",
+    color: "#F2A8CB",
     fontFamily: FONT_SF_REGULAR,
     fontSize: 18,
     lineHeight: 19,
@@ -848,14 +887,14 @@ const styles = StyleSheet.create({
   },
   weekLabel: {
     marginTop: -2,
-    color: "#ffffff",
+    color: "#F2A8CB",
     fontFamily: FONT_SF_REGULAR,
     fontSize: 14,
     lineHeight: 15,
     letterSpacing: -0.24,
   },
   weekTextSelected: {
-    color: "#171717",
+    color: "#D31471",
   },
   contentShape: {
     position: "absolute",
