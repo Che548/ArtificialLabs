@@ -1,14 +1,17 @@
-import { Platform } from "react-native";
-
 import StripCvModule from "./StripCvModule";
 import type { AnalysisResult, AnalyzeStripRequest } from "./StripCv.types";
 
-export const isStripCvAvailable =
-  Platform.OS === "ios" || Platform.OS === "android" || Platform.OS === "web";
+export const isStripCvAvailable = StripCvModule !== null;
 
 export async function analyzeStripAsync(
   request: AnalyzeStripRequest,
 ): Promise<AnalysisResult> {
+  if (StripCvModule === null) {
+    throw new Error(
+      "StripCV недоступен в Expo Go. Для анализа теста откройте приложение в development build.",
+    );
+  }
+
   const payload = {
     imageUri: request.imageUri,
     assayProfile: request.assayProfile,

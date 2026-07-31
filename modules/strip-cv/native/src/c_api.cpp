@@ -1,5 +1,9 @@
 #include "stripcv/c_api.h"
 
+#ifndef STRIPCV_VERSION
+#define STRIPCV_VERSION "0.3.1"
+#endif
+
 #include <cstdlib>
 #include <cstring>
 #include <exception>

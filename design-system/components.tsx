@@ -43,6 +43,7 @@ import {
   spacing,
   typeScale,
 } from './tokens';
+import type { StoredScanRecord } from '../services/scanning';
 
 const hasNativeLiquidGlass =
   Platform.OS === 'ios' && isLiquidGlassAvailable();
@@ -2794,18 +2795,13 @@ export type ScanHistoryVariant =
   | 'comparison'
   | 'gallery';
 
-export type ScanHistoryRecord = {
-  batch: string;
-  confidence: number;
-  date: string;
-  day: string;
-  result: 'Положительный' | 'Отрицательный' | 'Пик ЛГ';
-  time: string;
-  type: 'Ovulation LH' | 'Pregnancy hCG';
-};
+export type ScanHistoryRecord = StoredScanRecord;
 
 const scanHistoryRecords: ScanHistoryRecord[] = [
   {
+    id: 'fixture-30-july',
+    capturedAt: Date.UTC(2026, 6, 30, 11, 26),
+    imageUri: '',
     day: '30',
     date: '30 июля',
     time: '14:26',
@@ -2815,6 +2811,9 @@ const scanHistoryRecords: ScanHistoryRecord[] = [
     confidence: 96,
   },
   {
+    id: 'fixture-28-july',
+    capturedAt: Date.UTC(2026, 6, 28, 6, 12),
+    imageUri: '',
     day: '28',
     date: '28 июля',
     time: '09:12',
@@ -2824,6 +2823,9 @@ const scanHistoryRecords: ScanHistoryRecord[] = [
     confidence: 98,
   },
   {
+    id: 'fixture-24-july',
+    capturedAt: Date.UTC(2026, 6, 24, 15, 40),
+    imageUri: '',
     day: '24',
     date: '24 июля',
     time: '18:40',
@@ -3797,26 +3799,30 @@ function ComparisonHistory() {
 }
 
 function GalleryHistory({
+  records = scanHistoryRecords,
   showHeader = true,
   showFilter = true,
   onResultPress,
 }: {
+  records?: ScanHistoryRecord[];
   showHeader?: boolean;
   showFilter?: boolean;
   onResultPress?: (record: ScanHistoryRecord) => void;
 }) {
   const [activeTab, setActiveTab] = useState(0);
-  const filteredRecords = scanHistoryRecords.filter((record) => {
-    if (activeTab === 1) {
-      return record.type === 'Pregnancy hCG';
-    }
+  const filteredRecords = [...records]
+    .sort((left, right) => right.capturedAt - left.capturedAt)
+    .filter((record) => {
+      if (activeTab === 1) {
+        return record.type === 'Pregnancy hCG';
+      }
 
-    if (activeTab === 2) {
-      return record.type === 'Ovulation LH';
-    }
+      if (activeTab === 2) {
+        return record.type === 'Ovulation LH';
+      }
 
-    return true;
-  });
+      return true;
+    });
   const featuredRecord = filteredRecords[0];
 
   return (
@@ -3839,11 +3845,17 @@ function GalleryHistory({
           style={styles.galleryFeatured}
         >
           <View style={styles.galleryImageFrame}>
-            <Image
-              source={require('../assets/figma/scan-screen/scan-test-strip.png')}
-              resizeMode="contain"
-              style={styles.galleryTestImage}
-            />
+            {featuredRecord.imageUri ? (
+              <Image
+                source={{ uri: featuredRecord.imageUri }}
+                resizeMode="cover"
+                style={styles.galleryCapturedImage}
+              />
+            ) : (
+              <AppText role="label" color={colors.text.secondary}>
+                Снимок недоступен
+              </AppText>
+            )}
             {featuredRecord.result !== 'Пик ЛГ' ? (
               <View style={styles.galleryPlainResult}>
                 <HistoryStatus
@@ -3867,22 +3879,44 @@ function GalleryHistory({
           </View>
         </Pressable>
       ) : null}
+      {!featuredRecord ? (
+        <View style={styles.galleryEmptyState}>
+          <AppText role="heading" weight="semibold">
+            Снимков пока нет
+          </AppText>
+          <AppText
+            role="label"
+            color={colors.text.secondary}
+            style={styles.galleryEmptyDescription}
+          >
+            После первого подтверждённого сканирования здесь появится реальный
+            снимок теста.
+          </AppText>
+        </View>
+      ) : null}
       <View style={styles.galleryList}>
         {filteredRecords.slice(1).map((record, index) => (
           <Pressable
-            key={`${record.date}-${record.time}`}
+            key={record.id}
             onPress={() => onResultPress?.(record)}
             style={styles.galleryRow}
           >
             <View style={styles.galleryThumbnail}>
-              <Image
-                source={require('../assets/figma/scan-screen/scan-test-strip.png')}
-                resizeMode="contain"
-                style={[
-                  styles.galleryTestImage,
-                  index === 0 && styles.galleryTestImageMuted,
-                ]}
-              />
+              {record.imageUri ? (
+                <Image
+                  source={{ uri: record.imageUri }}
+                  resizeMode="cover"
+                  style={styles.galleryCapturedImage}
+                />
+              ) : (
+                <AppText
+                  role="caption"
+                  color={colors.text.secondary}
+                  style={styles.galleryUnavailableText}
+                >
+                  Снимок недоступен
+                </AppText>
+              )}
             </View>
             <View style={styles.compactType}>
               <AppText role="label" weight="semibold">
@@ -3903,11 +3937,13 @@ function GalleryHistory({
 
 export function ScanHistoryPreview({
   hideFilter = false,
+  records,
   variant = 'timeline',
   standalone = false,
   onResultPress,
 }: {
   hideFilter?: boolean;
+  records?: ScanHistoryRecord[];
   variant?: ScanHistoryVariant;
   standalone?: boolean;
   onResultPress?: (record: ScanHistoryRecord) => void;
@@ -3930,6 +3966,7 @@ export function ScanHistoryPreview({
       {variant === 'comparison' ? <ComparisonHistory /> : null}
       {variant === 'gallery' ? (
         <GalleryHistory
+          records={records}
           showFilter={!hideFilter}
           showHeader={!standalone}
           onResultPress={onResultPress}
@@ -6231,6 +6268,24 @@ const styles = StyleSheet.create({
   },
   galleryTestImageMuted: {
     opacity: 0.62,
+  },
+  galleryCapturedImage: {
+    width: '100%',
+    height: '100%',
+  },
+  galleryUnavailableText: {
+    textAlign: 'center',
+  },
+  galleryEmptyState: {
+    minHeight: 230,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  galleryEmptyDescription: {
+    maxWidth: 280,
+    textAlign: 'center',
   },
   galleryPlainResult: {
     position: 'absolute',

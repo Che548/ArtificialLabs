@@ -44,7 +44,7 @@ const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 const FONT_SF_REGULAR = "SFProDisplay-Regular";
 const FONT_SF_SEMIBOLD = "SFProDisplay-Semibold";
-const FONT_YARO_RG = "YaroRg-Regular";
+const FONT_YARO_RG = "YaroRg";
 const FontReadyContext = createContext(false);
 const hasNativeLiquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
 const MAX_PREGNANCY_WEEK = 42;
@@ -689,11 +689,15 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
 export default function App() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [fontsLoaded, fontError] = useFonts({
-    [FONT_SF_REGULAR]: require("./assets/fonts/SF-Pro-Display-Regular.otf"),
-    [FONT_SF_SEMIBOLD]: require("./assets/fonts/SF-Pro-Display-Semibold.otf"),
-    [FONT_YARO_RG]: require("./assets/fonts/Yaro-Rg-Regular.otf"),
-  });
+  const [fontsLoaded, fontError] = useFonts(
+    Platform.OS === "web"
+      ? {
+          [FONT_SF_REGULAR]: require("./assets/fonts/SF-Pro-Display-Regular.otf"),
+          [FONT_SF_SEMIBOLD]: require("./assets/fonts/SF-Pro-Display-Semibold.otf"),
+          [FONT_YARO_RG]: require("./assets/fonts/Yaro-Rg-Regular.otf"),
+        }
+      : {},
+  );
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
   const headerTop = Math.max(16, insets.top / scale + 8);
 

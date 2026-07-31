@@ -4,6 +4,7 @@ import {
   type BarcodeScanningResult,
 } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
+import { deleteAsync } from "expo-file-system/legacy";
 import {
   GlassContainer,
   GlassView,
@@ -38,6 +39,8 @@ import type { AnalysisResult } from "../modules/strip-cv";
 import {
   scanningService,
   type ActiveCvConfiguration,
+  type PendingScanRecord,
+  type StoredScanRecord,
 } from "../services/scanning";
 
 const hasNativeFlowGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
@@ -51,7 +54,7 @@ type ScanFlowOverlayProps = {
   showBriefing: boolean;
   onBriefingSeen: () => void;
   onClose: () => void;
-  onComplete: () => void;
+  onComplete: (record: PendingScanRecord) => void | Promise<void>;
 };
 
 type FlowIconName =
@@ -63,7 +66,8 @@ type FlowIconName =
   | 'light'
   | 'surface'
   | 'steady'
-  | 'check';
+  | 'check'
+  | 'error';
 
 function FlowIcon({
   name,
@@ -218,6 +222,21 @@ function FlowIcon({
           strokeWidth="1.55"
           strokeLinecap="round"
           strokeLinejoin="round"
+        />
+      </Svg>
+    );
+  }
+
+  if (name === "error") {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Circle cx="12" cy="12" r="10" fill={color} />
+        <Path
+          d="m8.4 8.4 7.2 7.2m0-7.2-7.2 7.2"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="2"
+          strokeLinecap="round"
         />
       </Svg>
     );
@@ -542,13 +561,11 @@ function BriefingScreen({
         onClose={onClose}
         onHelp={() => undefined}
         showClose={!hideClose}
+        showHelp={false}
         top={headerTop}
       />
 
       <View style={styles.briefingHero}>
-        <View style={styles.briefingIcon}>
-          <FlowIcon name="test" color={colors.brand.primary} size={34} />
-        </View>
         <AppText role="title" weight="semibold" style={styles.centerText}>
           Перед сканированием
         </AppText>
@@ -805,32 +822,153 @@ function QrScannerScreen({
   );
 }
 
-const qualityHints: Array<{
+type CvLiveHint = {
   kind: ScanTooltipKind;
   text: string;
   tone: "neutral" | "warning" | "success";
-}> = [
-  {
+};
+
+const initialCvHint: CvLiveHint = {
+  kind: "test",
+  text: "Наведите камеру на тест",
+  tone: "neutral",
+};
+
+const cvReasonHints: Record<string, CvLiveHint> = {
+  unsupported_or_too_small_image: {
     kind: "test",
-    text: "Наведите камеру на тест",
-    tone: "neutral",
+    text: "Разместите весь тест внутри рамки",
+    tone: "warning",
   },
-  {
+  geometry_unreliable: {
+    kind: "test",
+    text: "Разместите тест целиком внутри рамки",
+    tone: "warning",
+  },
+  geometry_edge_support_insufficient: {
+    kind: "test",
+    text: "Края теста не видны — измените положение",
+    tone: "warning",
+  },
+  degenerate_projective_geometry: {
+    kind: "test",
+    text: "Держите камеру параллельно тесту",
+    tone: "warning",
+  },
+  retake_more_overhead: {
+    kind: "test",
+    text: "Снимайте тест строго сверху",
+    tone: "warning",
+  },
+  check_detected_corners: {
+    kind: "test",
+    text: "Совместите края теста с рамкой",
+    tone: "warning",
+  },
+  strip_endpoints_out_of_frame: {
+    kind: "test",
+    text: "Покажите тест в кадре целиком",
+    tone: "warning",
+  },
+  strip_resolution_too_low: {
+    kind: "test",
+    text: "Приблизьте камеру к тесту",
+    tone: "warning",
+  },
+  move_closer: {
+    kind: "test",
+    text: "Приблизьте камеру к тесту",
+    tone: "warning",
+  },
+  image_too_blurry: {
+    kind: "test",
+    text: "Изображение размыто — зафиксируйте камеру",
+    tone: "warning",
+  },
+  hold_camera_steady: {
+    kind: "test",
+    text: "Зафиксируйте камеру",
+    tone: "warning",
+  },
+  exposure_clipping: {
     kind: "lowLight",
-    text: "Слишком темно — добавьте света",
+    text: "Слишком ярко — уберите прямой свет",
     tone: "warning",
   },
-  {
+  adjust_exposure: {
+    kind: "lowLight",
+    text: "Измените освещение теста",
+    tone: "warning",
+  },
+  glare_crosses_control_line: {
+    kind: "lowLight",
+    text: "Блик перекрывает контрольную зону",
+    tone: "warning",
+  },
+  reduce_glare: {
+    kind: "lowLight",
+    text: "Уберите блики с поверхности теста",
+    tone: "warning",
+  },
+  broad_shadow_or_illumination_gradient: {
     kind: "background",
-    text: "Переместите тест на однородный фон",
+    text: "Сделайте освещение равномерным",
     tone: "warning",
   },
-  {
-    kind: "locked",
-    text: "Отлично, не двигайте камеру",
-    tone: "success",
+  broad_stain_or_smeared_line: {
+    kind: "background",
+    text: "Зона результата размыта или загрязнена",
+    tone: "warning",
   },
-];
+  insufficient_valid_membrane_pixels: {
+    kind: "background",
+    text: "Положите тест на однородный светлый фон",
+    tone: "warning",
+  },
+  control_not_detected: {
+    kind: "test",
+    text: "Контрольная линия пока не распознана",
+    tone: "warning",
+  },
+  control_denominator_too_small: {
+    kind: "test",
+    text: "Контрольная линия слишком слабая",
+    tone: "warning",
+  },
+  ambiguous_extra_line_peak: {
+    kind: "test",
+    text: "В зоне результата видны лишние отметки",
+    tone: "warning",
+  },
+  color_calibration_validation_failed: {
+    kind: "background",
+    text: "Цвет снимка искажён — измените освещение",
+    tone: "warning",
+  },
+};
+
+function getCvLiveHint(result: AnalysisResult, validStreak: number): CvLiveHint {
+  if (result.status === "valid" && validStreak >= 2) {
+    return {
+      kind: "locked",
+      text: "Условия подходят — не двигайте камеру",
+      tone: "success",
+    };
+  }
+
+  const reasonHint = result.reason_codes
+    .map((code) => cvReasonHints[code])
+    .find((hint) => hint !== undefined);
+
+  return reasonHint ?? {
+    kind: "test",
+    text:
+      result.status === "valid"
+        ? "Проверяем стабильность кадра"
+        : "Совместите тест с рамкой",
+    tone: result.status === "valid" ? "neutral" : "warning",
+  };
+}
 
 function BatchChip({
   configuration,
@@ -897,25 +1035,88 @@ function TestScannerScreen({
   onClose: () => void;
   onHelp: () => void;
 }) {
-  const [qualityStep, setQualityStep] = useState(0);
+  const [currentHint, setCurrentHint] = useState<CvLiveHint>(initialCvHint);
+  const [ready, setReady] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  const previewBusy = useRef(false);
+  const validStreak = useRef(0);
 
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setQualityStep(1), 1300),
-      setTimeout(() => setQualityStep(2), 2700),
-      setTimeout(() => setQualityStep(3), 4100),
-    ];
+    if (!cameraReady || capturing) {
+      return;
+    }
 
-    return () => timers.forEach(clearTimeout);
-  }, []);
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-  const currentHint = qualityHints[qualityStep];
-  const ready = currentHint.tone === "success";
+    const scheduleNextCheck = (delay = 900) => {
+      if (active) {
+        timer = setTimeout(() => {
+          void inspectCurrentFrame();
+        }, delay);
+      }
+    };
+
+    const inspectCurrentFrame = async () => {
+      if (!active || previewBusy.current) {
+        scheduleNextCheck();
+        return;
+      }
+
+      previewBusy.current = true;
+      let previewUri: string | null = null;
+
+      try {
+        const photo = await cameraRef.current?.takePictureAsync({
+          quality: 0.3,
+          skipProcessing: true,
+          base64: false,
+          exif: false,
+          shutterSound: false,
+        });
+        previewUri = photo?.uri ?? null;
+        if (!previewUri || !active) {
+          return;
+        }
+
+        const result = await scanningService.analyze(previewUri);
+        if (!active) {
+          return;
+        }
+
+        validStreak.current =
+          result.status === "valid" ? validStreak.current + 1 : 0;
+        const nextHint = getCvLiveHint(result, validStreak.current);
+        setCurrentHint(nextHint);
+        setReady(nextHint.tone === "success");
+      } catch {
+        if (active) {
+          validStreak.current = 0;
+          setReady(false);
+          setCurrentHint(initialCvHint);
+        }
+      } finally {
+        if (previewUri) {
+          void deleteAsync(previewUri, { idempotent: true }).catch(() => undefined);
+        }
+        previewBusy.current = false;
+        scheduleNextCheck();
+      }
+    };
+
+    scheduleNextCheck(500);
+    return () => {
+      active = false;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [cameraReady, capturing, configuration]);
+
   const handleCapture = async () => {
-    if (!ready || !cameraReady || capturing) {
+    if (!ready || !cameraReady || capturing || previewBusy.current) {
       return;
     }
 
@@ -1041,9 +1242,11 @@ function ProcessingScreen() {
 
 function ResultPreview({
   analysisResult,
+  imageUri,
   savedResult,
 }: {
   analysisResult?: AnalysisResult | null;
+  imageUri?: string | null;
   savedResult?: ScanResultData['result'];
 }) {
   const usesAnalysis = analysisResult !== undefined;
@@ -1058,30 +1261,32 @@ function ResultPreview({
     : testDetected
       ? "Обе зоны распознаны"
       : "Распознана контрольная зона";
+  const needsRetake =
+    analysisResult?.status === "invalid" || !controlDetected;
 
   return (
     <View style={styles.resultPreview}>
-      <LinearGradient
-        colors={["#FCEDE8", "#FFF9F6"]}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <View style={styles.resultStrip}>
-        <View style={styles.resultStripTip} />
-        <View style={styles.resultWindow}>
-          {controlDetected ? <View style={styles.resultLineStrong} /> : null}
-          {testDetected ? <View style={styles.resultLineSoft} /> : null}
-          <View style={styles.resultControlLabel}>
-            <AppText numeric role="caption" color={colors.text.secondary}>
-              C
-            </AppText>
-            <AppText numeric role="caption" color={colors.text.secondary}>
-              T
-            </AppText>
-          </View>
+      {imageUri ? (
+        <Image
+          accessible
+          accessibilityLabel="Снимок отсканированного теста"
+          resizeMode="cover"
+          source={{ uri: imageUri }}
+          style={styles.resultCapturedImage}
+        />
+      ) : (
+        <View style={styles.resultImageUnavailable}>
+          <AppText role="label" color={colors.text.secondary}>
+            Снимок теста недоступен
+          </AppText>
         </View>
-      </View>
+      )}
       <View style={styles.detectedBadge}>
-        <FlowIcon name="check" color={colors.brand.success} size={18} />
+        <FlowIcon
+          name={needsRetake ? "error" : "check"}
+          color={needsRetake ? colors.state.error : colors.brand.success}
+          size={18}
+        />
         <AppText role="caption" weight="medium">
           {detectionLabel}
         </AppText>
@@ -1090,16 +1295,15 @@ function ResultPreview({
   );
 }
 
-export type ScanResultData = {
-  batch: string;
-  confidence: number;
-  result: 'Положительный' | 'Отрицательный' | 'Пик ЛГ';
-  type: 'Ovulation LH' | 'Pregnancy hCG';
-};
+export type ScanResultData = Pick<
+  StoredScanRecord,
+  'batch' | 'confidence' | 'imageUri' | 'result' | 'type'
+>;
 
 const defaultScanResult: ScanResultData = {
   batch: 'A24-071',
   confidence: 96,
+  imageUri: '',
   result: 'Положительный',
   type: 'Ovulation LH',
 };
@@ -1108,6 +1312,7 @@ export function ScanResultScreen({
   fromHistory = false,
   configuration,
   headerTop,
+  imageUri,
   error,
   result,
   onClose,
@@ -1121,6 +1326,7 @@ export function ScanResultScreen({
   fromHistory?: boolean;
   configuration?: ActiveCvConfiguration;
   headerTop: number;
+  imageUri?: string | null;
   error?: string | null;
   result?: AnalysisResult | null;
   onClose: () => void;
@@ -1131,20 +1337,11 @@ export function ScanResultScreen({
   hideReadyHeading?: boolean;
   resultData?: ScanResultData;
 }) {
-  const reasonMessages: Record<string, string> = {
-    move_closer: "Приблизьте камеру к тесту.",
-    hold_camera_steady: "Зафиксируйте камеру и сделайте новый снимок.",
-    glare_crosses_control_line: "Уберите блик с контрольной зоны.",
-    broad_shadow_or_illumination_gradient:
-      "Сделайте освещение более равномерным.",
-    broad_stain_or_smeared_line: "Линия размыта или перекрыта пятном.",
-    perspective_too_extreme: "Держите камеру параллельно тесту.",
-    check_detected_corners: "Разместите тест целиком внутри рамки.",
-    control_not_detected: "Контрольная линия не распознана.",
-  };
   const usesSavedResult = fromHistory || resultData !== undefined;
   const savedResult = resultData ?? defaultScanResult;
   const canConfirm = usesSavedResult || result?.status === "valid";
+  const needsRetake =
+    !usesSavedResult && (Boolean(error) || result?.status === "invalid");
   const heading = error
     ? "Не удалось выполнить анализ"
     : result?.status === "invalid"
@@ -1179,7 +1376,7 @@ export function ScanResultScreen({
       ),
   );
   const qualityMessage = result?.reason_codes
-    .map((code) => reasonMessages[code])
+    .map((code) => cvReasonHints[code]?.text)
     .find((message) => message !== undefined);
   const displayedResult =
     usesSavedResult
@@ -1216,8 +1413,19 @@ export function ScanResultScreen({
       >
         {!hideReadyHeading ? (
           <>
-            <View style={styles.resultSuccessIcon}>
-              <FlowIcon name="check" color={colors.brand.success} size={28} />
+            <View
+              style={[
+                styles.resultSuccessIcon,
+                needsRetake && styles.resultErrorIcon,
+              ]}
+            >
+              <FlowIcon
+                name={needsRetake ? "error" : "check"}
+                color={
+                  needsRetake ? colors.state.error : colors.brand.success
+                }
+                size={28}
+              />
             </View>
             <AppText
               role="title"
@@ -1248,6 +1456,7 @@ export function ScanResultScreen({
 
       <ResultPreview
         analysisResult={usesSavedResult ? undefined : result}
+        imageUri={usesSavedResult ? savedResult.imageUri : imageUri}
         savedResult={usesSavedResult ? savedResult.result : undefined}
       />
 
@@ -1322,6 +1531,7 @@ const correctionOptions = [
 export function ScanCorrectionScreen({
   fromHistory = false,
   headerTop,
+  imageUri,
   onClose,
   onHelp,
   onRetake,
@@ -1331,10 +1541,11 @@ export function ScanCorrectionScreen({
 }: {
   fromHistory?: boolean;
   headerTop: number;
+  imageUri?: string | null;
   onClose: () => void;
   onHelp: () => void;
   onRetake: () => void;
-  onSubmit: () => void;
+  onSubmit: (result: 'Положительный' | 'Отрицательный') => void;
   result?: AnalysisResult | null;
   resultData?: ScanResultData;
 }) {
@@ -1377,6 +1588,7 @@ export function ScanCorrectionScreen({
 
       <ResultPreview
         analysisResult={fromHistory ? undefined : result}
+        imageUri={fromHistory ? resultData?.imageUri : imageUri}
         savedResult={fromHistory ? resultData?.result : undefined}
       />
 
@@ -1411,7 +1623,11 @@ export function ScanCorrectionScreen({
         <PrimaryButton
           label="Сохранить интерпретацию"
           disabled={selected === null}
-          onPress={onSubmit}
+          onPress={() =>
+            onSubmit(
+              selected === 0 ? 'Положительный' : 'Отрицательный',
+            )
+          }
         />
         {!fromHistory ? (
           <Pressable
@@ -1459,6 +1675,7 @@ export function ScanFlowOverlay({
     null,
   );
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
   const analysisRequestId = useRef(0);
   const transition = useRef(new Animated.Value(1)).current;
 
@@ -1468,6 +1685,7 @@ export function ScanFlowOverlay({
       setReturnStage(null);
       setAnalysisResult(null);
       setAnalysisError(null);
+      setCapturedImageUri(null);
       setConfiguration(scanningService.getConfiguration());
       setStage(showBriefing ? "briefing" : "qr");
     } else {
@@ -1518,6 +1736,59 @@ export function ScanFlowOverlay({
       ],
     );
   };
+  const retakeTest = () => {
+    if (capturedImageUri) {
+      void deleteAsync(capturedImageUri, { idempotent: true }).catch(
+        () => undefined,
+      );
+    }
+    setCapturedImageUri(null);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setStage("test");
+  };
+  const completeScan = (
+    correctedResult?: 'Положительный' | 'Отрицательный',
+  ) => {
+    if (!capturedImageUri) {
+      Alert.alert(
+        "Снимок не найден",
+        "Переснимите тест, чтобы сохранить результат.",
+      );
+      return;
+    }
+
+    const confidence = Math.round(
+      100 *
+        Math.max(
+          0,
+          Math.min(
+            1,
+            analysisResult?.quality.peak_pair_confidence ??
+              analysisResult?.quality.locator_confidence ??
+              0,
+          ),
+        ),
+    );
+    const productIdentity = `${configuration.product.label} ${configuration.assayProfile.id}`.toLowerCase();
+    const type = /pregnancy|hcg|беремен/.test(productIdentity)
+      ? 'Pregnancy hCG'
+      : 'Ovulation LH';
+    const detectedResult =
+      analysisResult?.signal.classification === "POS" ||
+      (analysisResult?.signal.classification === null &&
+        analysisResult?.peaks.test.detected)
+        ? 'Положительный'
+        : 'Отрицательный';
+
+    void onComplete({
+      batch: configuration.product.batch,
+      confidence,
+      imageUri: capturedImageUri,
+      result: correctedResult ?? detectedResult,
+      type,
+    });
+  };
 
   const content =
     stage === "briefing" ? (
@@ -1566,6 +1837,7 @@ export function ScanFlowOverlay({
         onHelp={() => openBriefing("test")}
         onCapture={(imageUri) => {
           const requestId = ++analysisRequestId.current;
+          setCapturedImageUri(imageUri);
           setAnalysisResult(null);
           setAnalysisError(null);
           setStage("processing");
@@ -1596,10 +1868,11 @@ export function ScanFlowOverlay({
     ) : stage === 'correction' ? (
       <ScanCorrectionScreen
         headerTop={headerTop}
+        imageUri={capturedImageUri}
         onClose={requestClose}
         onHelp={() => openBriefing("correction")}
-        onRetake={() => setStage("test")}
-        onSubmit={onComplete}
+        onRetake={retakeTest}
+        onSubmit={completeScan}
         result={analysisResult}
       />
     ) : (
@@ -1607,11 +1880,12 @@ export function ScanFlowOverlay({
         configuration={configuration}
         error={analysisError}
         headerTop={headerTop}
+        imageUri={capturedImageUri}
         onClose={requestClose}
-        onConfirm={onComplete}
+        onConfirm={() => completeScan()}
         onCorrection={() => setStage("correction")}
         onHelp={() => openBriefing("result")}
-        onRetake={() => setStage("test")}
+        onRetake={retakeTest}
         result={analysisResult}
       />
     );
@@ -1731,7 +2005,7 @@ const styles = StyleSheet.create({
     width: 144,
     height: 144,
     overflow: "hidden",
-    opacity: 0.5,
+    opacity: 0.3,
   },
   qrImage: {
     width: "100%",
@@ -1795,7 +2069,7 @@ const styles = StyleSheet.create({
   testStripImage: {
     width: 308,
     height: 30,
-    opacity: 0.5,
+    opacity: 0.3,
   },
   cameraPrimaryAction: {
     width: 260,
@@ -1806,19 +2080,11 @@ const styles = StyleSheet.create({
   },
   briefingHero: {
     position: "absolute",
-    top: 132,
+    top: 205,
     left: 24,
     right: 24,
     alignItems: "center",
     gap: 9,
-  },
-  briefingIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(211,20,113,0.10)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   briefingSubtitle: {
     width: 338,
@@ -1944,6 +2210,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  resultErrorIcon: {
+    backgroundColor: "rgba(217,56,56,0.12)",
+  },
   resultPreview: {
     position: "absolute",
     left: 16,
@@ -1954,6 +2223,16 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
+  },
+  resultCapturedImage: {
+    width: "100%",
+    height: "100%",
+  },
+  resultImageUnavailable: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FCEDE8",
   },
   resultStrip: {
     width: 292,

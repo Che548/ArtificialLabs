@@ -10,6 +10,7 @@ import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import {
+  useEffect,
   useRef,
   useState,
 } from 'react';
@@ -57,11 +58,15 @@ import {
   ScanResultScreen,
   type ScanHistoryRecord,
 } from '../design-system';
+import {
+  loadScanHistory,
+  saveScanToHistory,
+} from '../services/scanning';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 const FONT_SF_REGULAR = 'SFProDisplay-Regular';
-const FONT_YARO_RG = 'YaroRg-Regular';
+const FONT_YARO_RG = 'YaroRg';
 const INSTRUCTION_CARD_WIDTH = 360;
 const INSTRUCTION_CARD_HEIGHT = 130;
 const INSTRUCTION_GAP = 10;
@@ -290,16 +295,37 @@ export default function ScanScreen() {
   const [activeInstruction, setActiveInstruction] = useState(0);
   const [scanFlowVisible, setScanFlowVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryRecord[]>([]);
   const [selectedHistoryResult, setSelectedHistoryResult] =
     useState<ScanHistoryRecord | null>(null);
   const [historyCorrectionVisible, setHistoryCorrectionVisible] =
     useState(false);
   const [hasSeenScanBriefing, setHasSeenScanBriefing] = useState(false);
   const [hasSavedScan, setHasSavedScan] = useState(false);
-  const [fontsLoaded] = useFonts({
-    [FONT_SF_REGULAR]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
-    [FONT_YARO_RG]: require('../assets/fonts/Yaro-Rg-Regular.otf'),
-  });
+  const [fontsLoaded] = useFonts(
+    Platform.OS === 'web'
+      ? {
+          [FONT_SF_REGULAR]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
+          [FONT_YARO_RG]: require('../assets/fonts/Yaro-Rg-Regular.otf'),
+        }
+      : {},
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    void loadScanHistory().then((records) => {
+      if (!active) {
+        return;
+      }
+      setScanHistory(records);
+      setHasSavedScan(records.length > 0);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
   const headerTop = Math.max(16, insets.top / scale + 8);
@@ -566,9 +592,23 @@ export default function ScanScreen() {
                   showBriefing={!hasSeenScanBriefing}
                   onBriefingSeen={() => setHasSeenScanBriefing(true)}
                   onClose={() => setScanFlowVisible(false)}
-                  onComplete={() => {
-                    setHasSavedScan(true);
-                    setScanFlowVisible(false);
+                  onComplete={async (pendingRecord) => {
+                    try {
+                      const record = await saveScanToHistory(pendingRecord);
+                      setScanHistory((current) =>
+                        [record, ...current].sort(
+                          (left, right) =>
+                            right.capturedAt - left.capturedAt,
+                        ),
+                      );
+                      setHasSavedScan(true);
+                      setScanFlowVisible(false);
+                    } catch {
+                      Alert.alert(
+                        'Не удалось сохранить снимок',
+                        'Попробуйте подтвердить результат ещё раз.',
+                      );
+                    }
                   }}
                 />
               </View>
@@ -677,6 +717,7 @@ export default function ScanScreen() {
                     >
                       <ScanHistoryPreview
                         hideFilter
+                        records={scanHistory}
                         variant="gallery"
                         standalone
                         onResultPress={(record) => {

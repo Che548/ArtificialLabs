@@ -1,7 +1,7 @@
-import { requireNativeModule } from 'expo';
+import { requireOptionalNativeModule } from 'expo';
 
 type StripCvNativeModule = {
   analyzeStripJsonAsync(requestJson: string): Promise<string>;
 };
 
-export default requireNativeModule<StripCvNativeModule>('StripCv');
+export default requireOptionalNativeModule<StripCvNativeModule>('StripCv');

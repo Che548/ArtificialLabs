@@ -20,19 +20,12 @@ public final class StripCvModule: Module {
         ? nil
         : try request["cardProfile"].map(Self.encodeJson)
       let optionsJson = try Self.encodeJson(options)
-      var nativeError: NSError?
-      guard let result = StripCvBridge.analyzeImage(
+      let result = try StripCvBridge.analyzeImage(
         at: imageURL,
         assayProfileJson: assayJson,
         cardProfileJson: cardJson,
-        optionsJson: optionsJson,
-        error: &nativeError
-      ) else {
-        if let nativeError {
-          throw nativeError
-        }
-        throw AnalysisException()
-      }
+        optionsJson: optionsJson
+      )
       return result
     }
   }
@@ -48,8 +41,4 @@ public final class StripCvModule: Module {
 
 private final class InvalidRequestException: Exception {
   override var reason: String { "StripCV received an invalid analysis request." }
-}
-
-private final class AnalysisException: Exception {
-  override var reason: String { "StripCV analysis failed." }
 }

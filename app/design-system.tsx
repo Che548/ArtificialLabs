@@ -443,13 +443,17 @@ function Section({
 export default function DesignSystemScreen() {
   const insets = useSafeAreaInsets();
   const [complete, setComplete] = useState(false);
-  const [fontsLoaded] = useFonts({
-    [fonts.sfRegular]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
-    [fonts.sfMedium]: require('../assets/fonts/SF-Pro-Display-Medium.otf'),
-    [fonts.sfSemibold]: require('../assets/fonts/SF-Pro-Display-Semibold.otf'),
-    [fonts.sfBold]: require('../assets/fonts/SF-Pro-Display-Bold.otf'),
-    [fonts.yaroRegular]: require('../assets/fonts/Yaro-Rg-Regular.otf'),
-  });
+  const [fontsLoaded] = useFonts(
+    Platform.OS === 'web'
+      ? {
+          [fonts.sfRegular]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
+          [fonts.sfMedium]: require('../assets/fonts/SF-Pro-Display-Medium.otf'),
+          [fonts.sfSemibold]: require('../assets/fonts/SF-Pro-Display-Semibold.otf'),
+          [fonts.sfBold]: require('../assets/fonts/SF-Pro-Display-Bold.otf'),
+          [fonts.yaroRegular]: require('../assets/fonts/Yaro-Rg-Regular.otf'),
+        }
+      : {},
+  );
 
   if (!fontsLoaded) {
     return <View style={styles.loading} />;
