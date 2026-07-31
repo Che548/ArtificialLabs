@@ -1163,6 +1163,7 @@ function ResultScreen({
   imageUri,
   error,
   result,
+  isCompleting,
   onClose,
   onConfirm,
   onCorrection,
@@ -1174,6 +1175,7 @@ function ResultScreen({
   imageUri: string | null;
   error: string | null;
   result: AnalysisResult | null;
+  isCompleting: boolean;
   onClose: () => void;
   onConfirm: () => void;
   onCorrection: () => void;
@@ -1234,6 +1236,7 @@ function ResultScreen({
         light={false}
         onClose={onClose}
         onHelp={onHelp}
+        showClose={!isCompleting}
         top={headerTop}
       />
 
@@ -1304,16 +1307,25 @@ function ResultScreen({
 
       <View style={styles.resultActions}>
         <PrimaryButton
-          label={canConfirm ? 'Подтвердить результат' : 'Переснять тест'}
+          disabled={isCompleting}
+          label={
+            isCompleting
+              ? 'Сохраняем результат…'
+              : canConfirm
+                ? 'Подтвердить результат'
+                : 'Переснять тест'
+          }
           onPress={canConfirm ? onConfirm : onRetake}
         />
         {canConfirm ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Исправить интерпретацию"
+            disabled={isCompleting}
             onPress={onCorrection}
             style={({ pressed }) => [
               styles.resultSecondaryButton,
+              isCompleting && { opacity: 0.5 },
               pressed && styles.pressed,
             ]}
           >
@@ -1448,14 +1460,19 @@ export function ScanFlowOverlay({
     null,
   );
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const capturedUriRef = useRef<string | null>(null);
   const analysisRequestId = useRef(0);
   const completingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   const transition = useRef(new Animated.Value(1)).current;
 
   const clearCapturedUri = () => {
     completingRef.current = false;
+    setIsCompleting(false);
     const uri = capturedUriRef.current;
     capturedUriRef.current = null;
     setCapturedUri(null);
@@ -1466,6 +1483,7 @@ export function ScanFlowOverlay({
 
   useEffect(
     () => () => {
+      mountedRef.current = false;
       const uri = capturedUriRef.current;
       if (uri) {
         void discardTemporaryScanImage(uri).catch(() => {});
@@ -1517,6 +1535,9 @@ export function ScanFlowOverlay({
     setStage('briefing');
   };
   const requestClose = () => {
+    if (completingRef.current) {
+      return;
+    }
     Alert.alert(
       'Завершить сканирование?',
       'Текущий прогресс сканирования не будет сохранён.',
@@ -1534,6 +1555,9 @@ export function ScanFlowOverlay({
     );
   };
   const retake = () => {
+    if (completingRef.current) {
+      return;
+    }
     analysisRequestId.current += 1;
     clearCapturedUri();
     setAnalysisResult(null);
@@ -1553,9 +1577,15 @@ export function ScanFlowOverlay({
       return;
     }
     completingRef.current = true;
+    setIsCompleting(true);
+    setStage('result');
     Promise.resolve(onComplete(capturedUri, confirmedInterpretation)).catch(
       (error: unknown) => {
+        if (!mountedRef.current || !visibleRef.current) {
+          return;
+        }
         completingRef.current = false;
+        setIsCompleting(false);
         Alert.alert(
           'Не удалось принять снимок',
           error instanceof Error ? error.message : 'Попробуйте ещё раз.',
@@ -1665,6 +1695,7 @@ export function ScanFlowOverlay({
         error={analysisError}
         headerTop={headerTop}
         imageUri={capturedUri}
+        isCompleting={isCompleting}
         onClose={requestClose}
         onConfirm={confirmCapture}
         onCorrection={() => setStage('correction')}

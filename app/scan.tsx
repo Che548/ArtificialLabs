@@ -447,6 +447,12 @@ export default function ScanScreen() {
       throw new Error('В web-демо сохранение медицинских данных отключено.');
     }
 
+    if (savingRef.current) {
+      throw new Error('Сохранение результата уже выполняется.');
+    }
+    savingRef.current = true;
+    setSaving(true);
+
     let localUri: string | null = null;
     try {
       localUri = await persistScanImage(uri);
@@ -460,16 +466,23 @@ export default function ScanScreen() {
         hasLocalImage: true,
         localImageUri: localUri,
       });
-      setScanFlowVisible(false);
-      setNotice(
-        'Результат подтверждён и сохранён. Фото осталось только на этом устройстве.',
-      );
+      if (mountedRef.current) {
+        setScanFlowVisible(false);
+        setNotice(
+          'Результат подтверждён и сохранён. Фото осталось только на этом устройстве.',
+        );
+      }
     } catch (cause) {
       if (localUri) {
         await discardPersistedScanImage(localUri).catch(() => {});
       }
       console.error('Persisting scan image failed', cause);
       throw new Error('Не удалось сохранить результат. Попробуйте ещё раз.');
+    } finally {
+      savingRef.current = false;
+      if (mountedRef.current) {
+        setSaving(false);
+      }
     }
   };
 
@@ -919,7 +932,11 @@ export default function ScanScreen() {
         presentationStyle="fullScreen"
         statusBarTranslucent={false}
         visible={scanFlowVisible}
-        onRequestClose={() => setScanFlowVisible(false)}
+        onRequestClose={() => {
+          if (!savingRef.current) {
+            setScanFlowVisible(false);
+          }
+        }}
       >
         <View style={styles.flowModalRoot}>
           <StatusBar style="light" hidden={false} />
