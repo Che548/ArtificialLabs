@@ -19,6 +19,7 @@ import {
   pendingOutbox,
   saveLocalProfile,
   saveLocalRecord,
+  saveScanResultWithJournal,
 } from './local-database';
 import type {
   HealthGoal,
@@ -267,8 +268,7 @@ export function HealthStoreProvider({
         localId: newLocalId('scan'),
         updatedAt: Date.now(),
       };
-      await saveLocalRecord('scanResults', result);
-      await saveLocalRecord('journalEntries', {
+      const journalEntry: JournalEntry = {
         localId: newLocalId('journal'),
         occurredAt: result.capturedAt,
         kind: 'measurement',
@@ -280,8 +280,11 @@ export function HealthStoreProvider({
         source: 'scan',
         sourceLocalId: result.localId,
         updatedAt: result.updatedAt,
+      };
+      await saveScanResultWithJournal(result, journalEntry);
+      await refresh().catch((cause: unknown) => {
+        console.error('Refreshing health data after scan save failed', cause);
       });
-      await refresh();
     },
     [readOnly, refresh],
   );

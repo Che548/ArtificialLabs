@@ -6,7 +6,9 @@ import type {
   HealthEntityMap,
   HealthEntityName,
   HealthSnapshot,
+  JournalEntry,
   LocalProfile,
+  ScanResult,
 } from './health-types';
 import { emptySnapshot } from './health-types';
 
@@ -165,7 +167,8 @@ export async function saveLocalProfile(profile: LocalProfile) {
   });
 }
 
-export async function saveLocalRecord<K extends HealthEntityName>(
+async function writeLocalRecord<K extends HealthEntityName>(
+  transaction: SQLite.SQLiteDatabase,
   entity: K,
   item: HealthEntityMap[K],
   enqueue = true,
@@ -181,34 +184,52 @@ export async function saveLocalRecord<K extends HealthEntityName>(
           : 'dueAt' in item
             ? item.dueAt
             : item.startedAt;
-  await withWriteTransaction(async (transaction) => {
-    await transaction.runAsync(
-      `INSERT INTO records (entity, local_id, payload, occurred_at, updated_at)
+  await transaction.runAsync(
+    `INSERT INTO records (entity, local_id, payload, occurred_at, updated_at)
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(entity, local_id) DO UPDATE SET
          payload = excluded.payload,
          occurred_at = excluded.occurred_at,
          updated_at = excluded.updated_at
        WHERE excluded.updated_at >= records.updated_at`,
-      entity,
-      item.localId,
-      payload,
-      occurredAt,
-      item.updatedAt,
-    );
-    if (enqueue) {
-      await transaction.runAsync(
-        `INSERT INTO outbox (entity, local_id, payload, updated_at)
+    entity,
+    item.localId,
+    payload,
+    occurredAt,
+    item.updatedAt,
+  );
+  if (enqueue) {
+    await transaction.runAsync(
+      `INSERT INTO outbox (entity, local_id, payload, updated_at)
          VALUES (?, ?, ?, ?)
          ON CONFLICT(entity, local_id) DO UPDATE SET
            payload = excluded.payload,
            updated_at = excluded.updated_at`,
-        entity,
-        item.localId,
-        payload,
-        item.updatedAt,
-      );
-    }
+      entity,
+      item.localId,
+      payload,
+      item.updatedAt,
+    );
+  }
+}
+
+export async function saveLocalRecord<K extends HealthEntityName>(
+  entity: K,
+  item: HealthEntityMap[K],
+  enqueue = true,
+) {
+  await withWriteTransaction(async (transaction) => {
+    await writeLocalRecord(transaction, entity, item, enqueue);
+  });
+}
+
+export async function saveScanResultWithJournal(
+  result: ScanResult,
+  journalEntry: JournalEntry,
+) {
+  await withWriteTransaction(async (transaction) => {
+    await writeLocalRecord(transaction, 'scanResults', result);
+    await writeLocalRecord(transaction, 'journalEntries', journalEntry);
   });
 }
 

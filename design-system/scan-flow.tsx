@@ -40,6 +40,7 @@ import {
   scanningService,
   type ActiveCvConfiguration,
 } from '../services/scanning';
+import { deriveDetectedInterpretation } from '../services/scanning/result-interpretation';
 
 const hasNativeFlowGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
@@ -54,12 +55,20 @@ type ScanFlowOverlayProps = {
   onClose: () => void;
   onComplete: (
     capturedUri: string,
-    manualInterpretation?: 'positive' | 'negative',
+    manualInterpretation: 'positive' | 'negative',
   ) => void | Promise<void>;
 };
 
 type FlowIconName =
-  'close' | 'help' | 'qr' | 'test' | 'light' | 'surface' | 'steady' | 'check';
+  | 'close'
+  | 'help'
+  | 'qr'
+  | 'test'
+  | 'light'
+  | 'surface'
+  | 'steady'
+  | 'check'
+  | 'error';
 
 function FlowIcon({
   name,
@@ -199,6 +208,21 @@ function FlowIcon({
           strokeWidth="1.55"
           strokeLinecap="round"
           strokeLinejoin="round"
+        />
+      </Svg>
+    );
+  }
+
+  if (name === 'error') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Circle cx="12" cy="12" r="10" fill={color} />
+        <Path
+          d="m8.4 8.4 7.2 7.2m0-7.2-7.2 7.2"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="2"
+          strokeLinecap="round"
         />
       </Svg>
     );
@@ -812,6 +836,64 @@ const qualityHints: Array<{
   },
 ];
 
+const analysisReasonMessages: Record<string, string> = {
+  unsupported_or_too_small_image:
+    'Снимок слишком маленький: разместите весь тест внутри рамки.',
+  unsupported_image:
+    'Формат снимка не поддерживается: сделайте новый снимок камерой приложения.',
+  geometry_unreliable:
+    'Границы теста распознаны ненадёжно: разместите тест целиком внутри рамки.',
+  geometry_edge_support_insufficient:
+    'Края теста не видны: измените положение камеры.',
+  degenerate_projective_geometry:
+    'Камера расположена под слишком большим углом: снимайте тест строго сверху.',
+  perspective_too_extreme:
+    'Камера расположена под слишком большим углом: держите её параллельно тесту.',
+  retake_more_overhead: 'Снимайте тест строго сверху.',
+  check_detected_corners: 'Разместите тест целиком внутри рамки.',
+  strip_endpoints_out_of_frame: 'Покажите тест в кадре целиком.',
+  strip_resolution_too_low: 'Тест слишком мал в кадре: приблизьте камеру.',
+  move_closer: 'Тест слишком мал в кадре: приблизьте камеру.',
+  image_too_blurry: 'Изображение размыто: зафиксируйте камеру.',
+  hold_camera_steady: 'Изображение размыто: зафиксируйте камеру.',
+  exposure_clipping: 'Снимок пересвечен: уберите прямой свет.',
+  adjust_exposure: 'Освещение мешает анализу: измените его и переснимите тест.',
+  glare_crosses_control_line:
+    'Блик перекрывает контрольную зону: измените освещение.',
+  reduce_glare: 'Блики мешают анализу: измените освещение.',
+  broad_shadow_or_illumination_gradient:
+    'Тень перекрывает тест: сделайте освещение равномерным.',
+  broad_stain_or_smeared_line: 'Зона результата размыта или загрязнена.',
+  insufficient_valid_membrane_pixels:
+    'Фон мешает распознать тест: положите его на однородную светлую поверхность.',
+  strip_not_found:
+    'Тест не найден в кадре: разместите всю тест-полоску внутри рамки.',
+  strip_edge_support_insufficient:
+    'Границы теста видны недостаточно хорошо: измените фон и положение камеры.',
+  card_fiducials_not_found:
+    'Калибровочная карта не распознана: поместите её целиком в кадр.',
+  calibration_tile_not_found_using_internal_reference:
+    'Калибровочная карта не распознана; использована внутренняя цветовая шкала теста.',
+  card_print_batch_not_enrolled:
+    'Партия калибровочной карты не зарегистрирована для надёжного анализа.',
+  onnx_locator_not_built_or_model_not_loaded:
+    'Модель поиска теста недоступна; автоматическое распознавание ограничено.',
+  control_not_detected:
+    'Контрольная линия не распознана, поэтому результат недействителен.',
+  control_denominator_too_small:
+    'Контрольная линия слишком слабая для надёжного результата.',
+  ambiguous_extra_line_peak:
+    'В зоне результата обнаружены лишние отметки, поэтому результат неоднозначен.',
+  color_calibration_validation_failed:
+    'Цвет снимка искажён: измените освещение и переснимите тест.',
+};
+
+function getAnalysisReason(result: AnalysisResult | null) {
+  return result?.reason_codes
+    .map((code) => analysisReasonMessages[code])
+    .find((message) => message !== undefined);
+}
+
 function BatchChip({
   configuration,
   top,
@@ -881,15 +963,20 @@ function TestScannerScreen({
   const [cameraReady, setCameraReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  const activeRef = useRef(true);
 
   useEffect(() => {
+    activeRef.current = true;
     const timers = [
       setTimeout(() => setQualityStep(1), 1300),
       setTimeout(() => setQualityStep(2), 2700),
       setTimeout(() => setQualityStep(3), 4100),
     ];
 
-    return () => timers.forEach(clearTimeout);
+    return () => {
+      activeRef.current = false;
+      timers.forEach(clearTimeout);
+    };
   }, []);
 
   const currentHint = qualityHints[qualityStep];
@@ -911,6 +998,10 @@ function TestScannerScreen({
       });
       if (!picture?.uri) {
         throw new Error('Camera returned no local image URI.');
+      }
+      if (!activeRef.current) {
+        await discardTemporaryScanImage(picture.uri).catch(() => {});
+        return;
       }
       onCapture(picture.uri);
     } catch {
@@ -1019,7 +1110,13 @@ function ProcessingScreen() {
   );
 }
 
-function ResultPreview({ result }: { result: AnalysisResult | null }) {
+function ResultPreview({
+  imageUri,
+  result,
+}: {
+  imageUri: string | null;
+  result: AnalysisResult | null;
+}) {
   const controlDetected = result?.peaks.control.detected === true;
   const testDetected = result?.peaks.test.detected === true;
   const detectionLabel = !controlDetected
@@ -1027,30 +1124,31 @@ function ResultPreview({ result }: { result: AnalysisResult | null }) {
     : testDetected
       ? 'Обе зоны распознаны'
       : 'Распознана контрольная зона';
+  const needsRetake = result?.status !== 'valid' || !controlDetected;
 
   return (
     <View style={styles.resultPreview}>
-      <LinearGradient
-        colors={['#FCEDE8', '#FFF9F6']}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.resultStrip}>
-        <View style={styles.resultStripTip} />
-        <View style={styles.resultWindow}>
-          {controlDetected ? <View style={styles.resultLineStrong} /> : null}
-          {testDetected ? <View style={styles.resultLineSoft} /> : null}
-          <View style={styles.resultControlLabel}>
-            <AppText numeric role="caption" color={colors.text.secondary}>
-              C
-            </AppText>
-            <AppText numeric role="caption" color={colors.text.secondary}>
-              T
-            </AppText>
-          </View>
+      {imageUri ? (
+        <Image
+          accessible
+          accessibilityLabel="Снимок отсканированного теста"
+          resizeMode="cover"
+          source={{ uri: imageUri }}
+          style={styles.resultCapturedImage}
+        />
+      ) : (
+        <View style={styles.resultImageUnavailable}>
+          <AppText role="label" color={colors.text.secondary}>
+            Снимок теста недоступен
+          </AppText>
         </View>
-      </View>
+      )}
       <View style={styles.detectedBadge}>
-        <FlowIcon name="check" color={colors.brand.success} size={18} />
+        <FlowIcon
+          name={needsRetake ? 'error' : 'check'}
+          color={needsRetake ? colors.state.error : colors.brand.success}
+          size={18}
+        />
         <AppText role="caption" weight="medium">
           {detectionLabel}
         </AppText>
@@ -1062,6 +1160,7 @@ function ResultPreview({ result }: { result: AnalysisResult | null }) {
 function ResultScreen({
   configuration,
   headerTop,
+  imageUri,
   error,
   result,
   onClose,
@@ -1072,6 +1171,7 @@ function ResultScreen({
 }: {
   configuration: ActiveCvConfiguration;
   headerTop: number;
+  imageUri: string | null;
   error: string | null;
   result: AnalysisResult | null;
   onClose: () => void;
@@ -1080,39 +1180,31 @@ function ResultScreen({
   onHelp: () => void;
   onRetake: () => void;
 }) {
-  const reasonMessages: Record<string, string> = {
-    move_closer: 'Приблизьте камеру к тесту.',
-    hold_camera_steady: 'Зафиксируйте камеру и сделайте новый снимок.',
-    glare_crosses_control_line: 'Уберите блик с контрольной зоны.',
-    broad_shadow_or_illumination_gradient:
-      'Сделайте освещение более равномерным.',
-    broad_stain_or_smeared_line: 'Линия размыта или перекрыта пятном.',
-    perspective_too_extreme: 'Держите камеру параллельно тесту.',
-    check_detected_corners: 'Разместите тест целиком внутри рамки.',
-    control_not_detected: 'Контрольная линия не распознана.',
-  };
-  const canConfirm = result?.status === 'valid';
+  const detectedValue = deriveDetectedInterpretation(result);
+  const detectedInterpretation =
+    detectedValue === 'positive'
+      ? 'Положительный'
+      : detectedValue === 'negative'
+        ? 'Отрицательный'
+        : null;
+  const canConfirm = result?.status === 'valid' && detectedInterpretation;
+  const requiresReview =
+    result?.status === 'review' ||
+    (result?.status === 'valid' && !detectedInterpretation);
   const heading = error
     ? 'Не удалось выполнить анализ'
     : result?.status === 'invalid'
       ? 'Нужен новый снимок'
-      : result?.status === 'review'
+      : requiresReview
         ? 'Требуется проверка'
         : 'Результат готов';
   const interpretation = error
     ? 'Ошибка анализа'
     : result?.status === 'invalid'
       ? 'Недействительный снимок'
-      : result?.status === 'review'
+      : requiresReview
         ? 'Не сохраняется'
-        : result?.signal.classification === 'POS'
-          ? 'Положительный'
-          : result?.signal.classification === 'NEG'
-            ? 'Отрицательный'
-            : result?.signal.value !== null &&
-                result?.signal.value !== undefined
-              ? `T/C ${result.signal.value.toFixed(3)}`
-              : 'Без классификации';
+        : (detectedInterpretation ?? 'Без классификации');
   const confidence = Math.round(
     100 *
       Math.max(
@@ -1125,9 +1217,16 @@ function ResultScreen({
         ),
       ),
   );
-  const qualityMessage = result?.reason_codes
-    .map((code) => reasonMessages[code])
-    .find((message) => message !== undefined);
+  const qualityMessage = getAnalysisReason(result);
+  const stateMessage = error
+    ? `Техническая ошибка: ${error}`
+    : (qualityMessage ??
+      (result?.status === 'invalid'
+        ? 'Контрольная линия или качество снимка не позволяют подтвердить результат.'
+        : requiresReview
+          ? 'Анализ не смог однозначно определить результат. Переснимите тест.'
+          : 'Проверьте, правильно ли приложение определило линии.'));
+  const needsRetake = !canConfirm;
 
   return (
     <View style={styles.resultScreen}>
@@ -1139,8 +1238,17 @@ function ResultScreen({
       />
 
       <View style={styles.resultHeading}>
-        <View style={styles.resultSuccessIcon}>
-          <FlowIcon name="check" color={colors.brand.success} size={28} />
+        <View
+          style={[
+            styles.resultSuccessIcon,
+            needsRetake && styles.resultErrorIcon,
+          ]}
+        >
+          <FlowIcon
+            name={needsRetake ? 'error' : 'check'}
+            color={needsRetake ? colors.state.error : colors.brand.success}
+            size={28}
+          />
         </View>
         <AppText role="title" weight="semibold" style={styles.centerText}>
           {heading}
@@ -1150,15 +1258,11 @@ function ResultScreen({
           color={colors.text.secondary}
           style={styles.centerText}
         >
-          {error ??
-            qualityMessage ??
-            (canConfirm
-              ? 'Проверьте, правильно ли приложение определило линии.'
-              : 'Измерение не будет сохранено — переснимите тест.')}
+          {stateMessage}
         </AppText>
       </View>
 
-      <ResultPreview result={result} />
+      <ResultPreview imageUri={imageUri} result={result} />
 
       <View style={styles.interpretationCard}>
         <View style={styles.interpretationHeader}>
@@ -1172,7 +1276,7 @@ function ResultScreen({
           </View>
           <View style={styles.confidenceBadge}>
             <AppText numeric role="label" color={colors.brand.success}>
-              {confidence}%
+              {canConfirm ? `${confidence}%` : '—'}
             </AppText>
           </View>
         </View>
@@ -1224,12 +1328,13 @@ function ResultScreen({
 }
 
 const correctionOptions = [
-  { label: 'Вижу две линии', value: 'positive' },
-  { label: 'Вижу только контрольную линию', value: 'negative' },
+  { label: 'Положительный', value: 'positive' },
+  { label: 'Отрицательный', value: 'negative' },
 ] as const;
 
 function CorrectionScreen({
   headerTop,
+  imageUri,
   onClose,
   onHelp,
   onRetake,
@@ -1237,6 +1342,7 @@ function CorrectionScreen({
   result,
 }: {
   headerTop: number;
+  imageUri: string | null;
   onClose: () => void;
   onHelp: () => void;
   onRetake: () => void;
@@ -1256,15 +1362,14 @@ function CorrectionScreen({
 
       <View style={styles.correctionHeading}>
         <AppText role="title" weight="semibold">
-          Что вы видите на тесте?
+          Выберите вариант
         </AppText>
         <AppText role="body" color={colors.text.secondary}>
-          Выберите вариант или переснимите тест. Итог можно подтвердить после
-          проверки фотографии.
+          Укажите правильную интерпретацию результата или переснимите тест.
         </AppText>
       </View>
 
-      <ResultPreview result={result} />
+      <ResultPreview imageUri={imageUri} result={result} />
 
       <View style={styles.correctionOptions}>
         {correctionOptions.map((option, index) => {
@@ -1295,7 +1400,7 @@ function CorrectionScreen({
 
       <View style={styles.correctionActions}>
         <PrimaryButton
-          label="Продолжить с интерпретацией"
+          label="Сохранить интерпретацию"
           disabled={selected === null}
           onPress={() => {
             if (selected !== null) {
@@ -1436,15 +1541,19 @@ export function ScanFlowOverlay({
     setStage('test');
   };
   const confirmCapture = (manualInterpretation?: 'positive' | 'negative') => {
+    const detectedInterpretation = deriveDetectedInterpretation(analysisResult);
+    const confirmedInterpretation =
+      manualInterpretation ?? detectedInterpretation;
     if (
       completingRef.current ||
       !capturedUri ||
-      analysisResult?.status !== 'valid'
+      analysisResult?.status !== 'valid' ||
+      !confirmedInterpretation
     ) {
       return;
     }
     completingRef.current = true;
-    Promise.resolve(onComplete(capturedUri, manualInterpretation)).catch(
+    Promise.resolve(onComplete(capturedUri, confirmedInterpretation)).catch(
       (error: unknown) => {
         completingRef.current = false;
         Alert.alert(
@@ -1543,6 +1652,7 @@ export function ScanFlowOverlay({
     ) : stage === 'correction' ? (
       <CorrectionScreen
         headerTop={headerTop}
+        imageUri={capturedUri}
         onClose={requestClose}
         onHelp={() => openBriefing('correction')}
         onRetake={retake}
@@ -1554,6 +1664,7 @@ export function ScanFlowOverlay({
         configuration={configuration}
         error={analysisError}
         headerTop={headerTop}
+        imageUri={capturedUri}
         onClose={requestClose}
         onConfirm={confirmCapture}
         onCorrection={() => setStage('correction')}
@@ -1883,6 +1994,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  resultErrorIcon: {
+    backgroundColor: 'rgba(217,56,56,0.12)',
+  },
   resultPreview: {
     position: 'absolute',
     left: 16,
@@ -1893,6 +2007,17 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  resultCapturedImage: {
+    width: '100%',
+    height: '100%',
+  },
+  resultImageUnavailable: {
+    position: 'absolute',
+    inset: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FCEDE8',
   },
   resultStrip: {
     width: 292,

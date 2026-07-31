@@ -11,9 +11,10 @@ import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import {
+  Alert,
   Image,
   Modal,
   Platform,
@@ -59,6 +60,8 @@ import {
   InstructionNavigation,
   ScanBackgroundMotion,
   ScanFlowOverlay,
+  ScanHistoryPreview,
+  type ScanHistoryRecord,
 } from '../design-system';
 
 const DESIGN_WIDTH = 402;
@@ -320,6 +323,44 @@ export default function ScanScreen() {
   const [scanFlowVisible, setScanFlowVisible] = useState(false);
   const [hasSeenScanBriefing, setHasSeenScanBriefing] = useState(false);
   const hasSavedScan = scanResults.some((result) => !result.deletedAt);
+  const scanHistory = useMemo<ScanHistoryRecord[]>(
+    () =>
+      scanResults
+        .filter((result) => !result.deletedAt)
+        .map<ScanHistoryRecord>((result) => {
+          const capturedDate = new Date(result.capturedAt);
+          return {
+            id: result.localId,
+            capturedAt: result.capturedAt,
+            imageUri: result.localImageUri ?? '',
+            batch: 'Подтверждено вручную',
+            confidence: 0,
+            date: new Intl.DateTimeFormat('ru-RU', {
+              day: 'numeric',
+              month: 'long',
+            }).format(capturedDate),
+            day: new Intl.DateTimeFormat('ru-RU', { day: 'numeric' }).format(
+              capturedDate,
+            ),
+            result:
+              result.confirmedValue === 'positive'
+                ? 'Положительный'
+                : result.confirmedValue === 'negative'
+                  ? 'Отрицательный'
+                  : 'Недействительный',
+            time: new Intl.DateTimeFormat('ru-RU', {
+              hour: '2-digit',
+              minute: '2-digit',
+            }).format(capturedDate),
+            type:
+              result.testSystemKey === 'ovulation-strip'
+                ? 'Ovulation LH'
+                : 'Pregnancy hCG',
+          };
+        })
+        .sort((left, right) => right.capturedAt - left.capturedAt),
+    [scanResults],
+  );
   const [fontsLoaded] = useFonts({
     [FONT_SF_REGULAR]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
     [FONT_SF_MEDIUM]: require('../assets/fonts/SF-Pro-Display-Medium.otf'),
@@ -400,28 +441,35 @@ export default function ScanScreen() {
 
   const acceptFlowCapture = async (
     uri: string,
-    manualInterpretation?: 'positive' | 'negative',
+    manualInterpretation: 'positive' | 'negative',
   ) => {
     if (readOnly) {
-      setScanFlowVisible(false);
-      setNotice('В web-демо сохранение медицинских данных отключено.');
-      return;
+      throw new Error('В web-демо сохранение медицинских данных отключено.');
     }
 
+    let localUri: string | null = null;
     try {
-      const localUri = await persistScanImage(uri);
-      if (!(await registerPersistedImage(localUri))) return;
-      setSuggestedResult(manualInterpretation ?? null);
+      localUri = await persistScanImage(uri);
+      await addScanResult({
+        testSystemKey,
+        capturedAt: Date.now(),
+        confirmedValue: manualInterpretation,
+        confidence: 'manual',
+        qualityFlags: [],
+        algorithmVersion: 'manual-v1',
+        hasLocalImage: true,
+        localImageUri: localUri,
+      });
+      setScanFlowVisible(false);
+      setNotice(
+        'Результат подтверждён и сохранён. Фото осталось только на этом устройстве.',
+      );
     } catch (cause) {
+      if (localUri) {
+        await discardPersistedScanImage(localUri).catch(() => {});
+      }
       console.error('Persisting scan image failed', cause);
-      if (mountedRef.current) {
-        setNotice('Не удалось сохранить снимок. Попробуйте ещё раз.');
-      }
-    } finally {
-      await discardTemporaryScanImage(uri).catch(() => {});
-      if (mountedRef.current) {
-        setScanFlowVisible(false);
-      }
+      throw new Error('Не удалось сохранить результат. Попробуйте ещё раз.');
     }
   };
 
@@ -586,7 +634,23 @@ export default function ScanScreen() {
                     );
                     return;
                   }
-                  setScanFlowVisible(true);
+                  Alert.alert('Выберите тип теста', undefined, [
+                    {
+                      text: 'Беременность',
+                      onPress: () => {
+                        setTestSystemKey('pregnancy-strip');
+                        setScanFlowVisible(true);
+                      },
+                    },
+                    {
+                      text: 'Овуляция',
+                      onPress: () => {
+                        setTestSystemKey('ovulation-strip');
+                        setScanFlowVisible(true);
+                      },
+                    },
+                    { text: 'Отмена', style: 'cancel' },
+                  ]);
                 }}
                 className="absolute left-[86px] top-[200px] h-[46px] min-w-[198px] flex-row items-center justify-center gap-2.5 rounded-full bg-brand-primary px-3.5 active:opacity-[0.72]"
               >
@@ -838,43 +902,10 @@ export default function ScanScreen() {
                     </Pressable>
                   </View>
                   <ScrollView className="mt-2">
-                    {scanResults.filter((item) => !item.deletedAt).length ? (
-                      scanResults
-                        .filter((item) => !item.deletedAt)
-                        .map((result) => (
-                          <View
-                            key={result.localId}
-                            className="mt-3 rounded-2xl bg-[#f2f2f7] p-4"
-                          >
-                            <Text className="font-sf-semibold text-[15px] text-ink">
-                              {result.testSystemKey === 'ovulation-strip'
-                                ? 'Тест на овуляцию'
-                                : 'Тест на беременность'}
-                            </Text>
-                            <Text className="text-text-secondary mt-1 font-sf text-[13px]">
-                              {new Date(result.capturedAt).toLocaleString(
-                                'ru-RU',
-                              )}{' '}
-                              ·{' '}
-                              {
-                                {
-                                  positive: 'положительный',
-                                  negative: 'отрицательный',
-                                  invalid: 'недействительный',
-                                }[result.confirmedValue]
-                              }
-                            </Text>
-                            <Text className="text-text-secondary mt-1 font-sf text-[11px]">
-                              Подтверждено пользователем · фото только на
-                              устройстве
-                            </Text>
-                          </View>
-                        ))
-                    ) : (
-                      <Text className="text-text-secondary py-8 text-center font-sf text-[14px]">
-                        Сохранённых тестов пока нет.
-                      </Text>
-                    )}
+                    <ScanHistoryPreview
+                      records={scanHistory}
+                      variant="gallery"
+                    />
                   </ScrollView>
                 </View>
               </View>
@@ -906,9 +937,7 @@ export default function ScanScreen() {
                   showBriefing={!hasSeenScanBriefing}
                   onBriefingSeen={() => setHasSeenScanBriefing(true)}
                   onClose={() => setScanFlowVisible(false)}
-                  onComplete={(uri, manualInterpretation) =>
-                    void acceptFlowCapture(uri, manualInterpretation)
-                  }
+                  onComplete={acceptFlowCapture}
                 />
               </View>
             </View>

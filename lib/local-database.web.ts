@@ -2,7 +2,9 @@ import type {
   HealthEntityMap,
   HealthEntityName,
   HealthSnapshot,
+  JournalEntry,
   LocalProfile,
+  ScanResult,
 } from './health-types';
 import { emptySnapshot } from './health-types';
 
@@ -36,11 +38,38 @@ export async function saveLocalRecord<K extends HealthEntityName>(
 ) {
   snapshot = {
     ...snapshot,
-    [entity]: [item, ...snapshot[entity].filter((row) => row.localId !== item.localId)],
+    [entity]: [
+      item,
+      ...snapshot[entity].filter((row) => row.localId !== item.localId),
+    ],
   } as HealthSnapshot;
 }
+export async function saveScanResultWithJournal(
+  result: ScanResult,
+  journalEntry: JournalEntry,
+) {
+  snapshot = {
+    ...snapshot,
+    scanResults: [
+      result,
+      ...snapshot.scanResults.filter((row) => row.localId !== result.localId),
+    ],
+    journalEntries: [
+      journalEntry,
+      ...snapshot.journalEntries.filter(
+        (row) => row.localId !== journalEntry.localId,
+      ),
+    ],
+  };
+}
 export async function pendingOutbox() {
-  return [] as Array<{ id: number; entity: HealthEntityName; payload: HealthEntityMap[HealthEntityName] }>;
+  return [] as Array<{
+    id: number;
+    entity: HealthEntityName;
+    payload: HealthEntityMap[HealthEntityName];
+  }>;
 }
 export async function acknowledgeOutbox(_ids: number[]) {}
-export async function mergeRemoteSnapshot(_remote: Omit<HealthSnapshot, 'profile'>) {}
+export async function mergeRemoteSnapshot(
+  _remote: Omit<HealthSnapshot, 'profile'>,
+) {}

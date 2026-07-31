@@ -1,13 +1,7 @@
 import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
-import {
-  GlassView,
-  isLiquidGlassAvailable,
-} from 'expo-glass-effect';
-import type {
-  GlassColorScheme,
-  GlassStyle,
-} from 'expo-glass-effect';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import type { ComponentType, PropsWithChildren, ReactNode } from 'react';
@@ -52,8 +46,7 @@ import {
 
 const SvgDefs = Defs as unknown as ComponentType<PropsWithChildren>;
 
-const hasNativeLiquidGlass =
-  Platform.OS === 'ios' && isLiquidGlassAvailable();
+const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 type EdgeFadeGradientProps = {
   edge: 'top' | 'bottom';
@@ -181,12 +174,7 @@ function ScanSphereVisual({
         </RadialGradient>
       </SvgDefs>
       <Circle cx="50" cy="50" r="50" fill="url(#sphereFill)" />
-      <Circle
-        cx="34"
-        cy="27"
-        r="17"
-        fill="rgba(255,255,255,0.13)"
-      />
+      <Circle cx="34" cy="27" r="17" fill="rgba(255,255,255,0.13)" />
     </Svg>
   );
 }
@@ -426,7 +414,7 @@ export function ScanBackgroundMotion({
                   ...threePoint,
                   outputRange: [-8, 8, -8],
                 })
-        : 0;
+              : 0;
   const translateY =
     variant === 'drift'
       ? progress.interpolate({
@@ -458,7 +446,7 @@ export function ScanBackgroundMotion({
                     ...threePoint,
                     outputRange: [-10, 10, -10],
                   })
-          : 0;
+                : 0;
   const scale =
     variant === 'breathe'
       ? progress.interpolate({
@@ -480,7 +468,7 @@ export function ScanBackgroundMotion({
                       ...threePoint,
                       outputRange: [1.05, 1.14, 1.05],
                     })
-            : 1.035;
+                  : 1.035;
   const rotate =
     variant === 'sway'
       ? progress.interpolate({
@@ -492,7 +480,7 @@ export function ScanBackgroundMotion({
             ...threePoint,
             outputRange: ['-0.8deg', '0.8deg', '-0.8deg'],
           })
-      : '0deg';
+        : '0deg';
   const horizontalOverscan = 0.04;
   const verticalOverscan = 0.04;
   const activeSpeedMultiplier =
@@ -502,12 +490,7 @@ export function ScanBackgroundMotion({
   const visibleSphereCount = variant === 'activeOrbit' ? 5 : 7;
 
   return (
-    <View
-      style={[
-        styles.scanBackgroundMotion,
-        { width, height },
-      ]}
-    >
+    <View style={[styles.scanBackgroundMotion, { width, height }]}>
       {isActive ? (
         <LinearGradient
           colors={['#fff9f6', '#ffefec', '#fff8f4']}
@@ -660,11 +643,7 @@ export function LiquidGlassSurface({
   radius = radii.pill,
   showFallbackDecoration = true,
 }: LiquidGlassSurfaceProps) {
-  const fallbackHighlight: readonly [
-    ColorValue,
-    ColorValue,
-    ColorValue,
-  ] = [
+  const fallbackHighlight: readonly [ColorValue, ColorValue, ColorValue] = [
     'rgba(255,255,255,0.44)',
     'rgba(255,255,255,0.08)',
     'rgba(255,255,255,0.16)',
@@ -695,12 +674,7 @@ export function LiquidGlassSurface({
       ) : (
         <>
           {Platform.OS === 'web' ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                styles.webGlassFallback,
-              ]}
-            />
+            <View style={[StyleSheet.absoluteFill, styles.webGlassFallback]} />
           ) : (
             <BlurView
               tint={fallbackTint}
@@ -710,10 +684,7 @@ export function LiquidGlassSurface({
             />
           )}
           <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: washColor },
-            ]}
+            style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
           />
           {showFallbackDecoration ? (
             <>
@@ -724,12 +695,7 @@ export function LiquidGlassSurface({
                 end={{ x: 0.95, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <View
-                style={[
-                  styles.fallbackStroke,
-                  { borderRadius: radius },
-                ]}
-              />
+              <View style={[styles.fallbackStroke, { borderRadius: radius }]} />
             </>
           ) : null}
           <View pointerEvents="none" style={styles.centerFill}>
@@ -802,11 +768,7 @@ export function PrimaryButton({
       ]}
     >
       {icon}
-      <AppText
-        role="label"
-        weight="medium"
-        color={colors.text.inverse}
-      >
+      <AppText role="label" weight="medium" color={colors.text.inverse}>
         {label}
       </AppText>
     </Pressable>
@@ -818,11 +780,7 @@ type AppCardProps = PropsWithChildren<{
   tone?: 'white' | 'warm' | 'accent';
 }>;
 
-export function AppCard({
-  children,
-  style,
-  tone = 'white',
-}: AppCardProps) {
+export function AppCard({ children, style, tone = 'white' }: AppCardProps) {
   return (
     <View
       style={[
@@ -843,10 +801,7 @@ type ProgressMeterProps = {
   total?: number;
 };
 
-export function ProgressMeter({
-  value,
-  total = 24,
-}: ProgressMeterProps) {
+export function ProgressMeter({ value, total = 24 }: ProgressMeterProps) {
   return (
     <View
       accessibilityRole="progressbar"
@@ -860,9 +815,7 @@ export function ProgressMeter({
             styles.progressBar,
             {
               backgroundColor:
-                index < value
-                  ? colors.brand.success
-                  : colors.surface.divider,
+                index < value ? colors.brand.success : colors.surface.divider,
             },
           ]}
         />
@@ -936,14 +889,10 @@ export function MetricActionButton({
     variant === 'split' ||
     variant === 'iconLeading' ||
     variant === 'completed';
-  const labelColor = usesLightText
-    ? colors.text.inverse
-    : colors.brand.primary;
+  const labelColor = usesLightText ? colors.text.inverse : colors.brand.primary;
   const canUseProvidedIcon =
     icon &&
-    (variant === 'solid' ||
-      variant === 'burgundy' ||
-      variant === 'completed');
+    (variant === 'solid' || variant === 'burgundy' || variant === 'completed');
   const arrow = canUseProvidedIcon ? (
     icon
   ) : (
@@ -1066,10 +1015,8 @@ export function ScanActionGroup({
       style={[
         styles.scanActionGroup,
         isSegmented && styles.scanActionGroupSegmented,
-        variant === 'segmentedSolid' &&
-          styles.scanActionGroupSegmentedSolid,
-        variant === 'segmentedSoft' &&
-          styles.scanActionGroupSegmentedSoft,
+        variant === 'segmentedSolid' && styles.scanActionGroupSegmentedSolid,
+        variant === 'segmentedSoft' && styles.scanActionGroupSegmentedSoft,
       ]}
     >
       {actions.map((action, index) => {
@@ -1084,15 +1031,11 @@ export function ScanActionGroup({
             <View
               style={[
                 styles.scanActionIcon,
-                variant === 'outlinePills' &&
-                  styles.scanActionIconTransparent,
-                variant === 'segmentedSoft' &&
-                  styles.scanActionIconSoft,
+                variant === 'outlinePills' && styles.scanActionIconTransparent,
+                variant === 'segmentedSoft' && styles.scanActionIconSoft,
                 variant === 'tiles' && styles.scanActionIconWarm,
-                variant === 'minimal' &&
-                  styles.scanActionIconTransparent,
-                variant === 'floating' &&
-                  styles.scanActionIconFloating,
+                variant === 'minimal' && styles.scanActionIconTransparent,
+                variant === 'floating' && styles.scanActionIconFloating,
               ]}
             >
               {action.icon}
@@ -1100,8 +1043,7 @@ export function ScanActionGroup({
             <AppText
               style={[
                 styles.scanActionLabel,
-                variant === 'floating' &&
-                  styles.scanActionLabelFloating,
+                variant === 'floating' && styles.scanActionLabelFloating,
               ]}
               color={labelColor}
             >
@@ -1124,9 +1066,7 @@ export function ScanActionGroup({
               variant === 'whitePills' && styles.scanActionWhite,
               variant === 'glassPills' && styles.scanActionGlass,
               isSegmented && styles.scanActionSegment,
-              isSegmented &&
-                index > 0 &&
-                styles.scanActionSegmentDivider,
+              isSegmented && index > 0 && styles.scanActionSegmentDivider,
               variant === 'tiles' && styles.scanActionTile,
               variant === 'minimal' && styles.scanActionMinimal,
               variant === 'floating' && styles.scanActionFloating,
@@ -1207,16 +1147,14 @@ export function InstructionCard({
                 {step}
               </AppText>
             </View>
-            <TokenLabel>Шаг {step} из {total}</TokenLabel>
+            <TokenLabel>
+              Шаг {step} из {total}
+            </TokenLabel>
           </View>
-          <AppText style={styles.instructionIllustratedBody}>
-            {text}
-          </AppText>
+          <AppText style={styles.instructionIllustratedBody}>{text}</AppText>
         </View>
 
-        <View
-          style={[styles.instructionIllustratedMedia, { height }]}
-        >
+        <View style={[styles.instructionIllustratedMedia, { height }]}>
           {illustration ? (
             <Image
               source={illustration}
@@ -1266,11 +1204,7 @@ export function InstructionCard({
   if (variant === 'ring') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionRing,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionRing, { height }]}
       >
         <View style={styles.instructionRingNumber}>
           <AppText
@@ -1282,7 +1216,9 @@ export function InstructionCard({
           </AppText>
         </View>
         <View style={styles.instructionRingCopy}>
-          <TokenLabel>Инструкция · {step}/{total}</TokenLabel>
+          <TokenLabel>
+            Инструкция · {step}/{total}
+          </TokenLabel>
           <AppText style={styles.instructionNewBody}>{text}</AppText>
         </View>
       </View>
@@ -1292,11 +1228,7 @@ export function InstructionCard({
   if (variant === 'corner') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionCorner,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionCorner, { height }]}
       >
         <AppText
           numeric
@@ -1306,7 +1238,9 @@ export function InstructionCard({
           {step}
         </AppText>
         <View style={styles.instructionCornerCopy}>
-          <TokenLabel>ШАГ {step} / {total}</TokenLabel>
+          <TokenLabel>
+            ШАГ {step} / {total}
+          </TokenLabel>
           <AppText style={styles.instructionNewBody}>{text}</AppText>
         </View>
       </View>
@@ -1316,11 +1250,7 @@ export function InstructionCard({
   if (variant === 'segments') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionSegments,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionSegments, { height }]}
       >
         <View style={styles.instructionSegmentsTrack}>
           {Array.from({ length: total }, (_, index) => (
@@ -1328,19 +1258,14 @@ export function InstructionCard({
               key={index}
               style={[
                 styles.instructionSegmentsPart,
-                index < step &&
-                  styles.instructionSegmentsPartFilled,
+                index < step && styles.instructionSegmentsPartFilled,
               ]}
             />
           ))}
         </View>
         <View style={styles.instructionSegmentsMeta}>
           <TokenLabel>Порядок действий</TokenLabel>
-          <AppText
-            numeric
-            role="caption"
-            color={colors.brand.primary}
-          >
+          <AppText numeric role="caption" color={colors.brand.primary}>
             {step}/{total}
           </AppText>
         </View>
@@ -1352,11 +1277,7 @@ export function InstructionCard({
   if (variant === 'ticket') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionTicket,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionTicket, { height }]}
       >
         <View style={[styles.instructionTicketStub, { height }]}>
           <AppText
@@ -1366,11 +1287,7 @@ export function InstructionCard({
           >
             {step})
           </AppText>
-          <AppText
-            numeric
-            role="caption"
-            color="rgba(255,255,255,0.70)"
-          >
+          <AppText numeric role="caption" color="rgba(255,255,255,0.70)">
             {step}/{total}
           </AppText>
         </View>
@@ -1386,11 +1303,7 @@ export function InstructionCard({
   if (variant === 'glass') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionGlass,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionGlass, { height }]}
       >
         <View style={styles.instructionGlassBackdrop} />
         <LiquidGlassSurface
@@ -1411,10 +1324,10 @@ export function InstructionCard({
               </AppText>
             </View>
             <View style={styles.instructionGlassCopy}>
-              <TokenLabel>Шаг {step} из {total}</TokenLabel>
-              <AppText style={styles.instructionGlassBody}>
-                {text}
-              </AppText>
+              <TokenLabel>
+                Шаг {step} из {total}
+              </TokenLabel>
+              <AppText style={styles.instructionGlassBody}>{text}</AppText>
             </View>
           </View>
         </LiquidGlassSurface>
@@ -1439,11 +1352,11 @@ export function InstructionCard({
           >
             {step})
           </AppText>
-          <TokenLabel>{step} из {total}</TokenLabel>
+          <TokenLabel>
+            {step} из {total}
+          </TokenLabel>
         </View>
-        <AppText style={styles.instructionNumberTopBody}>
-          {text}
-        </AppText>
+        <AppText style={styles.instructionNumberTopBody}>{text}</AppText>
       </View>
     );
   }
@@ -1451,11 +1364,7 @@ export function InstructionCard({
   if (variant === 'timeline') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionTimeline,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionTimeline, { height }]}
       >
         <View style={styles.instructionTimelineRail}>
           <View style={styles.instructionTimelineLine} />
@@ -1464,17 +1373,14 @@ export function InstructionCard({
               key={index}
               style={[
                 styles.instructionTimelineDot,
-                index < step &&
-                  styles.instructionTimelineDotFilled,
+                index < step && styles.instructionTimelineDotFilled,
               ]}
             />
           ))}
         </View>
         <View style={styles.instructionTimelineCopy}>
           <TokenLabel>Этап {step}</TokenLabel>
-          <AppText style={styles.instructionTimelineBody}>
-            {text}
-          </AppText>
+          <AppText style={styles.instructionTimelineBody}>{text}</AppText>
         </View>
       </View>
     );
@@ -1483,11 +1389,7 @@ export function InstructionCard({
   if (variant === 'inverse') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionInverse,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionInverse, { height }]}
       >
         <View style={styles.instructionInverseHeader}>
           <AppText
@@ -1497,10 +1399,7 @@ export function InstructionCard({
           >
             {step})
           </AppText>
-          <AppText
-            role="caption"
-            color="rgba(255,255,255,0.68)"
-          >
+          <AppText role="caption" color="rgba(255,255,255,0.68)">
             ШАГ {step} / {total}
           </AppText>
         </View>
@@ -1517,11 +1416,7 @@ export function InstructionCard({
   if (variant === 'minimal') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionMinimal,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionMinimal, { height }]}
       >
         <View style={styles.instructionMinimalTrack}>
           <View
@@ -1533,17 +1428,11 @@ export function InstructionCard({
         </View>
         <View style={styles.instructionMinimalMeta}>
           <TokenLabel>Инструкция</TokenLabel>
-          <AppText
-            numeric
-            role="caption"
-            color={colors.brand.primary}
-          >
+          <AppText numeric role="caption" color={colors.brand.primary}>
             {step}/{total}
           </AppText>
         </View>
-        <AppText style={styles.instructionMinimalBody}>
-          {text}
-        </AppText>
+        <AppText style={styles.instructionMinimalBody}>{text}</AppText>
       </View>
     );
   }
@@ -1551,11 +1440,7 @@ export function InstructionCard({
   if (variant === 'badge') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionBadge,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionBadge, { height }]}
       >
         <View style={styles.instructionBadgeNumber}>
           <AppText
@@ -1567,7 +1452,9 @@ export function InstructionCard({
           </AppText>
         </View>
         <View style={styles.instructionBadgeCopy}>
-          <TokenLabel>Шаг {step} из {total}</TokenLabel>
+          <TokenLabel>
+            Шаг {step} из {total}
+          </TokenLabel>
           <AppText style={styles.instructionBody}>{text}</AppText>
         </View>
       </View>
@@ -1577,11 +1464,7 @@ export function InstructionCard({
   if (variant === 'accent') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionAccent,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionAccent, { height }]}
       >
         <View style={[styles.instructionAccentRail, { height }]}>
           <AppText
@@ -1591,10 +1474,7 @@ export function InstructionCard({
           >
             {step})
           </AppText>
-          <AppText
-            role="caption"
-            color="rgba(255,255,255,0.74)"
-          >
+          <AppText role="caption" color="rgba(255,255,255,0.74)">
             из {total}
           </AppText>
         </View>
@@ -1620,10 +1500,10 @@ export function InstructionCard({
           {step}
         </AppText>
         <View style={styles.instructionEditorialCopy}>
-          <TokenLabel>Инструкция · {step}/{total}</TokenLabel>
-          <AppText style={styles.instructionEditorialBody}>
-            {text}
-          </AppText>
+          <TokenLabel>
+            Инструкция · {step}/{total}
+          </TokenLabel>
+          <AppText style={styles.instructionEditorialBody}>{text}</AppText>
         </View>
       </View>
     );
@@ -1632,42 +1512,31 @@ export function InstructionCard({
   if (variant === 'progress') {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionProgress,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionProgress, { height }]}
       >
         <View style={styles.instructionProgressHeader}>
-          <TokenLabel>Шаг {step} из {total}</TokenLabel>
+          <TokenLabel>
+            Шаг {step} из {total}
+          </TokenLabel>
           <View style={styles.instructionProgressDots}>
             {Array.from({ length: total }, (_, index) => (
               <View
                 key={index}
                 style={[
                   styles.instructionProgressDot,
-                  index < step &&
-                    styles.instructionProgressDotFilled,
+                  index < step && styles.instructionProgressDotFilled,
                 ]}
               />
             ))}
           </View>
         </View>
-        <AppText style={styles.instructionProgressBody}>
-          {text}
-        </AppText>
+        <AppText style={styles.instructionProgressBody}>{text}</AppText>
       </View>
     );
   }
 
   return (
-    <View
-      style={[
-        styles.instructionCard,
-        styles.instructionRail,
-        { height },
-      ]}
-    >
+    <View style={[styles.instructionCard, styles.instructionRail, { height }]}>
       <View style={[styles.instructionRailNumber, { height }]}>
         <AppText numeric style={styles.instructionRailNumberText}>
           {step})
@@ -1720,10 +1589,7 @@ export function InstructionIntroCard({
         />
         <View style={styles.instructionIntroSplitCopy}>
           <TokenLabel>Сфера</TokenLabel>
-          <AppText
-            weight="semibold"
-            style={styles.instructionIntroSplitTitle}
-          >
+          <AppText weight="semibold" style={styles.instructionIntroSplitTitle}>
             {title}
           </AppText>
         </View>
@@ -1771,17 +1637,11 @@ export function InstructionIntroCard({
       ) : null}
       <AppText
         weight={variant === 'minimal' ? 'regular' : 'semibold'}
-        color={
-          variant === 'brand'
-            ? colors.text.inverse
-            : colors.text.primary
-        }
+        color={variant === 'brand' ? colors.text.inverse : colors.text.primary}
         style={[
           styles.instructionIntroTitle,
-          variant === 'editorial' &&
-            styles.instructionIntroEditorialTitle,
-          variant === 'minimal' &&
-            styles.instructionIntroMinimalTitle,
+          variant === 'editorial' && styles.instructionIntroEditorialTitle,
+          variant === 'minimal' && styles.instructionIntroMinimalTitle,
         ]}
       >
         {title}
@@ -2040,9 +1900,7 @@ export function JournalAssessment({
               strokeWidth={7}
               strokeLinecap="round"
               strokeDasharray={gaugeLength}
-              strokeDashoffset={
-                gaugeLength * (1 - percentage / 100)
-              }
+              strokeDashoffset={gaugeLength * (1 - percentage / 100)}
             />
           </Svg>
           <AppText style={styles.gaugeValue}>{percentage}%</AppText>
@@ -2142,8 +2000,7 @@ export function JournalAssessment({
               <AppText
                 style={[
                   styles.numberedDotLabel,
-                  index < completedCount &&
-                    styles.numberedDotLabelFilled,
+                  index < completedCount && styles.numberedDotLabelFilled,
                 ]}
               >
                 {index + 1}
@@ -2183,15 +2040,11 @@ export function JournalAssessment({
         <AppText style={styles.journalTitle}>{title}</AppText>
         <View style={styles.balanceRow}>
           <View style={[styles.balancePill, styles.balancePillDone]}>
-            <AppText style={styles.balanceValue}>
-              {completedCount}
-            </AppText>
+            <AppText style={styles.balanceValue}>{completedCount}</AppText>
             <AppText style={styles.balanceLabel}>пройдено</AppText>
           </View>
           <View style={[styles.balancePill, styles.balancePillLeft]}>
-            <AppText style={styles.balanceValueMuted}>
-              {remainingCount}
-            </AppText>
+            <AppText style={styles.balanceValueMuted}>{remainingCount}</AppText>
             <AppText style={styles.balanceLabel}>осталось</AppText>
           </View>
         </View>
@@ -2214,8 +2067,7 @@ export function JournalAssessment({
               <AppText
                 style={[
                   styles.matrixCellText,
-                  index < completedCount &&
-                    styles.matrixCellTextFilled,
+                  index < completedCount && styles.matrixCellTextFilled,
                 ]}
               >
                 {index < completedCount ? '✓' : index + 1}
@@ -2245,55 +2097,37 @@ export function JournalAssessment({
               strokeWidth={7}
               strokeLinecap="round"
               strokeDasharray={ringCircumference}
-              strokeDashoffset={
-                ringCircumference * (1 - percentage / 100)
-              }
+              strokeDashoffset={ringCircumference * (1 - percentage / 100)}
               transform="rotate(-90 29 29)"
             />
           </Svg>
           <AppText style={styles.ringValue}>{percentage}%</AppText>
         </View>
         <View style={styles.ringCopy}>
-          <AppText style={styles.ringTitle}>
-            {title}
-          </AppText>
-          <AppText style={styles.ringStatus}>
-            {status}
-          </AppText>
+          <AppText style={styles.ringTitle}>{title}</AppText>
+          <AppText style={styles.ringStatus}>{status}</AppText>
         </View>
       </View>
     ) : variant === 'comparison' ? (
       <View style={styles.journalComparison}>
-        <AppText style={styles.journalTitle}>
-          {title}
-        </AppText>
+        <AppText style={styles.journalTitle}>{title}</AppText>
         <View style={styles.comparisonRow}>
           <AppText style={styles.comparisonLabel}>
             {comparisonPrimaryLabel}
           </AppText>
           <View style={styles.comparisonTrack}>
             <View
-              style={[
-                styles.comparisonFill,
-                { width: `${percentage}%` },
-              ]}
+              style={[styles.comparisonFill, { width: `${percentage}%` }]}
             />
           </View>
-          <AppText style={styles.comparisonValue}>
-            {percentage}%
-          </AppText>
+          <AppText style={styles.comparisonValue}>{percentage}%</AppText>
         </View>
         <View style={styles.comparisonRow}>
           <AppText style={styles.comparisonLabel}>
             {comparisonSecondaryLabel}
           </AppText>
           <View style={styles.comparisonTrack}>
-            <View
-              style={[
-                styles.comparisonFillMuted,
-                { width: '46%' },
-              ]}
-            />
+            <View style={[styles.comparisonFillMuted, { width: '46%' }]} />
           </View>
           <AppText style={styles.comparisonValue}>46%</AppText>
         </View>
@@ -2301,28 +2135,15 @@ export function JournalAssessment({
     ) : variant === 'continuous' ? (
       <View style={styles.journalContinuous}>
         <View style={styles.journalTitleRow}>
-          <AppText style={styles.journalTitle}>
-            {title}
-          </AppText>
-          <AppText style={styles.journalPercent}>
-            {percentage}%
-          </AppText>
+          <AppText style={styles.journalTitle}>{title}</AppText>
+          <AppText style={styles.journalPercent}>{percentage}%</AppText>
         </View>
         <View style={styles.continuousTrack}>
-          <View
-            style={[
-              styles.continuousFill,
-              { width: `${percentage}%` },
-            ]}
-          />
+          <View style={[styles.continuousFill, { width: `${percentage}%` }]} />
         </View>
         <View style={styles.journalResults}>
-          <AppText style={styles.journalResult}>
-            {leftCaption}
-          </AppText>
-          <AppText style={styles.journalResult}>
-            {rightCaption}
-          </AppText>
+          <AppText style={styles.journalResult}>{leftCaption}</AppText>
+          <AppText style={styles.journalResult}>{rightCaption}</AppText>
         </View>
       </View>
     ) : variant === 'week' ? (
@@ -2331,42 +2152,32 @@ export function JournalAssessment({
           Активность за последние 7 дней
         </AppText>
         <View style={styles.weekDays}>
-          {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(
-            (day, index) => (
-              <View key={day} style={styles.weekDay}>
-                <View
-                  style={[
-                    styles.weekDot,
-                    index < completedDays && styles.weekDotFilled,
-                  ]}
-                />
-                <AppText style={styles.weekDayLabel}>{day}</AppText>
-              </View>
-            ),
-          )}
+          {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day, index) => (
+            <View key={day} style={styles.weekDay}>
+              <View
+                style={[
+                  styles.weekDot,
+                  index < completedDays && styles.weekDotFilled,
+                ]}
+              />
+              <AppText style={styles.weekDayLabel}>{day}</AppText>
+            </View>
+          ))}
         </View>
       </View>
     ) : variant === 'score' ? (
       <View style={styles.journalScore}>
         <AppText style={styles.scoreValue}>{percentage}%</AppText>
         <View style={styles.scoreCopy}>
-          <AppText style={styles.journalTitle}>
-            {title}
-          </AppText>
-          <AppText style={styles.scoreStatus}>
-            {status}
-          </AppText>
+          <AppText style={styles.journalTitle}>{title}</AppText>
+          <AppText style={styles.scoreStatus}>{status}</AppText>
         </View>
       </View>
     ) : variant === 'levels' ? (
       <View style={styles.journalLevels}>
         <View style={styles.journalTitleRow}>
-          <AppText style={styles.journalTitle}>
-            {title}
-          </AppText>
-          <AppText style={styles.levelStatus}>
-            {completedLevels}/5
-          </AppText>
+          <AppText style={styles.journalTitle}>{title}</AppText>
+          <AppText style={styles.levelStatus}>{completedLevels}/5</AppText>
         </View>
         <View style={styles.levelBars}>
           {Array.from({ length: 5 }, (_, index) => (
@@ -2379,15 +2190,11 @@ export function JournalAssessment({
             />
           ))}
         </View>
-        <AppText style={styles.journalResult}>
-          {status}
-        </AppText>
+        <AppText style={styles.journalResult}>{status}</AppText>
       </View>
     ) : (
       <View style={styles.journalSegments}>
-        <AppText style={styles.journalTitle}>
-          {title}
-        </AppText>
+        <AppText style={styles.journalTitle}>{title}</AppText>
 
         <View
           accessibilityRole="progressbar"
@@ -2436,11 +2243,7 @@ export function JournalAssessment({
 }
 
 export type ScanTooltipKind =
-  | 'qr'
-  | 'test'
-  | 'lowLight'
-  | 'background'
-  | 'locked';
+  'qr' | 'test' | 'lowLight' | 'background' | 'locked';
 
 export type ScanTooltipVariant =
   | 'glass'
@@ -2611,8 +2414,7 @@ export function ScanTooltip({
   const content = scanTooltipContent[kind];
   const tooltipMessage = message ?? content.message;
   const floatingTextLimit = Math.max(1, floatingMaxWidth - 77);
-  const floatingMeasurementKey =
-    `${tooltipMessage}:${floatingTextLimit}`;
+  const floatingMeasurementKey = `${tooltipMessage}:${floatingTextLimit}`;
   const [floatingMeasurement, setFloatingMeasurement] = useState({
     message: '',
     width: floatingTextLimit,
@@ -2639,8 +2441,7 @@ export function ScanTooltip({
   const secondaryColor = usesLightCopy
     ? 'rgba(255,255,255,0.64)'
     : colors.text.secondary;
-  const iconColor =
-    variant === 'brand' ? '#FFFFFF' : accentColor;
+  const iconColor = variant === 'brand' ? '#FFFFFF' : accentColor;
   const body = (
     <>
       {variant === 'status' ? (
@@ -2695,32 +2496,22 @@ export function ScanTooltip({
           role={variant === 'compact' ? 'caption' : 'label'}
           weight="medium"
           color={primaryColor}
-          numberOfLines={
-            variant === 'floating' && singleLine ? 1 : 2
-          }
+          numberOfLines={variant === 'floating' && singleLine ? 1 : 2}
           style={styles.scanTooltipMessage}
           onTextLayout={
             variant === 'floating'
               ? (event) => {
-                  if (
-                    floatingMeasurement.message ===
-                    floatingMeasurementKey
-                  ) {
+                  if (floatingMeasurement.message === floatingMeasurementKey) {
                     return;
                   }
 
                   const measuredWidth = Math.ceil(
                     Math.max(
                       1,
-                      ...event.nativeEvent.lines.map(
-                        (line) => line.width,
-                      ),
+                      ...event.nativeEvent.lines.map((line) => line.width),
                     ),
                   );
-                  const nextWidth = Math.min(
-                    floatingTextLimit,
-                    measuredWidth,
-                  );
+                  const nextWidth = Math.min(floatingTextLimit, measuredWidth);
 
                   setFloatingMeasurement({
                     message: floatingMeasurementKey,
@@ -2741,9 +2532,7 @@ export function ScanTooltip({
           ]}
         />
       ) : null}
-      {variant === 'bubble' ? (
-        <View style={styles.scanTooltipTail} />
-      ) : null}
+      {variant === 'bubble' ? <View style={styles.scanTooltipTail} /> : null}
     </>
   );
 
@@ -2792,24 +2581,26 @@ export function ScanTooltip({
 }
 
 export type ScanHistoryVariant =
-  | 'timeline'
-  | 'cards'
-  | 'compact'
-  | 'calendar'
-  | 'insights';
+  'timeline' | 'cards' | 'compact' | 'calendar' | 'insights' | 'gallery';
 
-type ScanHistoryRecord = {
+export type ScanHistoryRecord = {
+  id: string;
+  capturedAt: number;
+  imageUri: string;
   batch: string;
   confidence: number;
   date: string;
   day: string;
-  result: 'Положительный' | 'Отрицательный' | 'Пик ЛГ';
+  result: 'Положительный' | 'Отрицательный' | 'Недействительный' | 'Пик ЛГ';
   time: string;
   type: 'Ovulation LH' | 'Pregnancy hCG';
 };
 
 const scanHistoryRecords: ScanHistoryRecord[] = [
   {
+    id: 'fixture-30-july',
+    capturedAt: Date.UTC(2026, 6, 30, 11, 26),
+    imageUri: '',
     day: '30',
     date: '30 июля',
     time: '14:26',
@@ -2819,6 +2610,9 @@ const scanHistoryRecords: ScanHistoryRecord[] = [
     confidence: 96,
   },
   {
+    id: 'fixture-28-july',
+    capturedAt: Date.UTC(2026, 6, 28, 6, 12),
+    imageUri: '',
     day: '28',
     date: '28 июля',
     time: '09:12',
@@ -2828,6 +2622,9 @@ const scanHistoryRecords: ScanHistoryRecord[] = [
     confidence: 98,
   },
   {
+    id: 'fixture-24-july',
+    capturedAt: Date.UTC(2026, 6, 24, 15, 40),
+    imageUri: '',
     day: '24',
     date: '24 июля',
     time: '18:40',
@@ -2874,11 +2671,18 @@ function HistoryStatus({
   result: ScanHistoryRecord['result'];
   compact?: boolean;
 }) {
-  const positive = result !== 'Отрицательный';
-  const color = positive ? colors.brand.primary : colors.text.secondary;
-  const backgroundColor = positive
-    ? 'rgba(211,20,113,0.10)'
-    : 'rgba(115,110,108,0.10)';
+  const invalid = result === 'Недействительный';
+  const positive = result !== 'Отрицательный' && !invalid;
+  const color = invalid
+    ? colors.state.error
+    : positive
+      ? colors.brand.primary
+      : colors.text.secondary;
+  const backgroundColor = invalid
+    ? 'rgba(217,56,56,0.10)'
+    : positive
+      ? 'rgba(211,20,113,0.10)'
+      : 'rgba(115,110,108,0.10)';
 
   return (
     <View
@@ -2889,12 +2693,7 @@ function HistoryStatus({
       ]}
     >
       <View style={[styles.historyStatusDot, { backgroundColor: color }]} />
-      <AppText
-        role="caption"
-        weight="medium"
-        color={color}
-        numberOfLines={1}
-      >
+      <AppText role="caption" weight="medium" color={color} numberOfLines={1}>
         {result}
       </AppText>
     </View>
@@ -2922,9 +2721,7 @@ function HistoryFilter({
             role="caption"
             weight={index === active ? 'semibold' : 'medium'}
             color={
-              index === active
-                ? colors.text.inverse
-                : colors.text.secondary
+              index === active ? colors.text.inverse : colors.text.secondary
             }
             numberOfLines={1}
           >
@@ -2936,11 +2733,7 @@ function HistoryFilter({
   );
 }
 
-function HistoryHeader({
-  subtitle,
-}: {
-  subtitle?: string;
-}) {
+function HistoryHeader({ subtitle }: { subtitle?: string }) {
   return (
     <View style={styles.historyHeader}>
       <View style={styles.historyHeaderCopy}>
@@ -2967,16 +2760,15 @@ function TimelineHistory() {
       <HistoryFilter />
       <View style={styles.historyTimeline}>
         {scanHistoryRecords.map((record, index) => (
-          <View key={`${record.date}-${record.time}`} style={styles.timelineRow}>
+          <View
+            key={`${record.date}-${record.time}`}
+            style={styles.timelineRow}
+          >
             <View style={styles.timelineRail}>
               <AppText
                 numeric
                 style={styles.timelineDay}
-                color={
-                  index === 0
-                    ? colors.brand.primary
-                    : colors.text.primary
-                }
+                color={index === 0 ? colors.brand.primary : colors.text.primary}
               >
                 {record.day}
               </AppText>
@@ -3037,9 +2829,7 @@ function CardsHistory() {
                   role="heading"
                   weight="semibold"
                   color={
-                    index === 0
-                      ? colors.text.inverse
-                      : colors.text.primary
+                    index === 0 ? colors.text.inverse : colors.text.primary
                   }
                 >
                   {record.type}
@@ -3047,9 +2837,7 @@ function CardsHistory() {
               </View>
               <HistoryChevron
                 color={
-                  index === 0
-                    ? 'rgba(255,255,255,0.76)'
-                    : colors.text.secondary
+                  index === 0 ? 'rgba(255,255,255,0.76)' : colors.text.secondary
                 }
               />
             </View>
@@ -3071,9 +2859,7 @@ function CardsHistory() {
                 numeric
                 role="caption"
                 color={
-                  index === 0
-                    ? 'rgba(255,255,255,0.72)'
-                    : colors.text.secondary
+                  index === 0 ? 'rgba(255,255,255,0.72)' : colors.text.secondary
                 }
               >
                 {record.confidence}% · {record.batch}
@@ -3103,10 +2889,7 @@ function CompactHistory() {
         {scanHistoryRecords.map((record, index) => (
           <Pressable
             key={`${record.date}-${record.time}`}
-            style={[
-              styles.compactRow,
-              index > 0 && styles.compactRowBorder,
-            ]}
+            style={[styles.compactRow, index > 0 && styles.compactRowBorder]}
           >
             <View style={styles.compactDate}>
               <AppText numeric style={styles.compactDay}>
@@ -3126,11 +2909,7 @@ function CompactHistory() {
             </View>
             <View style={styles.compactResult}>
               <HistoryStatus result={record.result} compact />
-              <AppText
-                numeric
-                role="caption"
-                color={colors.text.secondary}
-              >
+              <AppText numeric role="caption" color={colors.text.secondary}>
                 {record.confidence}%
               </AppText>
             </View>
@@ -3151,11 +2930,41 @@ function CompactHistory() {
 }
 
 const calendarDays = [
-  '', '', '1', '2', '3', '4', '5',
-  '6', '7', '8', '9', '10', '11', '12',
-  '13', '14', '15', '16', '17', '18', '19',
-  '20', '21', '22', '23', '24', '25', '26',
-  '27', '28', '29', '30', '', '', '',
+  '',
+  '',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+  '11',
+  '12',
+  '13',
+  '14',
+  '15',
+  '16',
+  '17',
+  '18',
+  '19',
+  '20',
+  '21',
+  '22',
+  '23',
+  '24',
+  '25',
+  '26',
+  '27',
+  '28',
+  '29',
+  '30',
+  '',
+  '',
+  '',
 ];
 
 function CalendarHistory() {
@@ -3202,11 +3011,7 @@ function CalendarHistory() {
                 <AppText
                   numeric
                   role="caption"
-                  color={
-                    selected
-                      ? colors.text.inverse
-                      : colors.text.primary
-                  }
+                  color={selected ? colors.text.inverse : colors.text.primary}
                 >
                   {day}
                 </AppText>
@@ -3259,10 +3064,7 @@ function InsightsHistory() {
           >
             7
           </AppText>
-          <AppText
-            role="caption"
-            color="rgba(255,255,255,0.72)"
-          >
+          <AppText role="caption" color="rgba(255,255,255,0.72)">
             сканирований
           </AppText>
         </View>
@@ -3343,9 +3145,106 @@ function InsightsHistory() {
   );
 }
 
+function GalleryHistory({ records }: { records: ScanHistoryRecord[] }) {
+  const sortedRecords = [...records].sort(
+    (left, right) => right.capturedAt - left.capturedAt,
+  );
+  const featuredRecord = sortedRecords[0];
+
+  if (!featuredRecord) {
+    return (
+      <View style={styles.galleryEmptyState}>
+        <AppText role="heading" weight="semibold">
+          Снимков пока нет
+        </AppText>
+        <AppText
+          role="label"
+          color={colors.text.secondary}
+          style={styles.galleryEmptyDescription}
+        >
+          После первого подтверждённого сканирования здесь появится снимок
+          теста, сохранённый на этом устройстве.
+        </AppText>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <View style={styles.galleryFeatured}>
+        <View style={styles.galleryImageFrame}>
+          {featuredRecord.imageUri ? (
+            <Image
+              accessible
+              accessibilityLabel="Снимок отсканированного теста"
+              source={{ uri: featuredRecord.imageUri }}
+              resizeMode="cover"
+              style={styles.galleryCapturedImage}
+            />
+          ) : (
+            <AppText role="label" color={colors.text.secondary}>
+              Снимок недоступен
+            </AppText>
+          )}
+          <View style={styles.galleryResultBadge}>
+            <HistoryStatus result={featuredRecord.result} compact />
+          </View>
+        </View>
+        <View style={styles.galleryFeaturedCopy}>
+          <View style={styles.compactType}>
+            <AppText role="heading" weight="semibold">
+              {featuredRecord.date}
+            </AppText>
+            <AppText role="caption" color={colors.text.secondary}>
+              {featuredRecord.type} · {featuredRecord.time}
+            </AppText>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.galleryList}>
+        {sortedRecords.slice(1).map((record) => (
+          <View key={record.id} style={styles.galleryRow}>
+            <View style={styles.galleryThumbnail}>
+              {record.imageUri ? (
+                <Image
+                  accessible
+                  accessibilityLabel="Снимок отсканированного теста"
+                  source={{ uri: record.imageUri }}
+                  resizeMode="cover"
+                  style={styles.galleryCapturedImage}
+                />
+              ) : (
+                <AppText
+                  role="caption"
+                  color={colors.text.secondary}
+                  style={styles.galleryUnavailableText}
+                >
+                  Снимок недоступен
+                </AppText>
+              )}
+            </View>
+            <View style={styles.compactType}>
+              <AppText role="label" weight="semibold">
+                {record.date}
+              </AppText>
+              <AppText role="caption" color={colors.text.secondary}>
+                {record.type} · {record.time}
+              </AppText>
+              <HistoryStatus result={record.result} compact />
+            </View>
+          </View>
+        ))}
+      </View>
+    </>
+  );
+}
+
 export function ScanHistoryPreview({
+  records,
   variant = 'timeline',
 }: {
+  records?: ScanHistoryRecord[];
   variant?: ScanHistoryVariant;
 }) {
   return (
@@ -3355,13 +3254,14 @@ export function ScanHistoryPreview({
       {variant === 'compact' ? <CompactHistory /> : null}
       {variant === 'calendar' ? <CalendarHistory /> : null}
       {variant === 'insights' ? <InsightsHistory /> : null}
+      {variant === 'gallery' ? (
+        <GalleryHistory records={records ?? scanHistoryRecords} />
+      ) : null}
     </View>
   );
 }
 
-export function TokenLabel({
-  children,
-}: PropsWithChildren) {
+export function TokenLabel({ children }: PropsWithChildren) {
   return (
     <AppText
       role="caption"
@@ -5072,6 +4972,71 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(33,33,35,0.07)',
+  },
+  galleryFeatured: {
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  galleryImageFrame: {
+    height: 190,
+    backgroundColor: colors.surface.warm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  galleryCapturedImage: {
+    width: '100%',
+    height: '100%',
+  },
+  galleryResultBadge: {
+    position: 'absolute',
+    left: spacing.md,
+    top: spacing.md,
+  },
+  galleryFeaturedCopy: {
+    minHeight: 78,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  galleryEmptyState: {
+    minHeight: 230,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  galleryEmptyDescription: {
+    maxWidth: 280,
+    textAlign: 'center',
+  },
+  galleryList: {
+    gap: spacing.sm,
+  },
+  galleryRow: {
+    minHeight: 102,
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.raised,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#DED8D6',
+  },
+  galleryThumbnail: {
+    width: 92,
+    height: 72,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface.warm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  galleryUnavailableText: {
+    textAlign: 'center',
   },
   historyHeader: {
     minHeight: 54,

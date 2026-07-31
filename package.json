@@ -63,7 +63,7 @@
     "test:strip-cv-server": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/smoke-strip-cv-server.mjs",
     "web:serve": "node scripts/web-server.mjs",
     "web:full": "npm run build:web && npm run build:strip-cv && npm run web:serve",
-    "test": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test services/scanning/profile-qr.test.ts modules/strip-cv/src/StripCv.web-request.test.ts",
+    "test": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts modules/strip-cv/src/StripCv.web-request.test.ts",
     "verify": "npm run check:expo && npm run typecheck && npm run doctor && npm run build:web"
   },
   "engines": {
