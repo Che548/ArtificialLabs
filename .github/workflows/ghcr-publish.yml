@@ -1,13 +1,10 @@
 name: Build and Publish Web Image
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      deployment_ref:
-        description: Branch or commit to deploy
-        required: true
-        default: feature/convex-init
-        type: string
 
 concurrency:
   group: web-deploy
@@ -27,12 +24,10 @@ jobs:
       packages: write
 
     steps:
-      - name: Check out selected revision
+      - name: Check out repository
         uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.deployment_ref }}
 
-      - name: Require an Expo deployment revision
+      - name: Require Expo deployment files
         run: |
           test -f package.json
           test -f package-lock.json
@@ -74,6 +69,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=sha
+            type=ref,event=branch
             type=raw,value=latest
 
       - name: Build and push image

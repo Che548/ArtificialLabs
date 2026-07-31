@@ -1,62 +1,68 @@
 # ArtificialLabs
 
-> [!IMPORTANT]
-> **Этот репозиторий содержит бывший прототип интерфейса ArtificialLabs.** Сейчас разрабатывается новый интерфейс, который полностью заменит представленную здесь версию. Репозиторий сохраняется как архив ранней продуктовой и визуальной концепции и не отражает актуальное состояние продукта.
+Expo SDK 57 application for pregnancy planning and pregnancy monitoring. The
+current milestone implements a secure local-first health diary with
+self-hosted Convex synchronization.
 
-ArtificialLabs — концепция мобильной платформы для персонального мониторинга здоровья. Продукт должен объединить медицинский профиль, дневник наблюдений, персональные программы, результаты анализов, сканирование домашних экспресс-тестов и AI-ассистента.
+## Implemented core
 
-## Что реализовано в прототипе
+- Email/password accounts through Convex Auth.
+- One planning or pregnancy monitoring program per profile.
+- Daily symptoms, mood, energy, and nutrition journal.
+- Manual laboratory results with optional source image.
+- Pregnancy/ovulation test capture or gallery import with manual confirmation.
+- In-app reminders and pause/resume program controls.
+- Idempotent structured-data synchronization through a local outbox.
 
-В репозитории находится нативный iOS-прототип на SwiftUI со следующими разделами:
+Medical records are written to SQLCipher SQLite first. Scan images and lab
+source documents remain in app document storage on the device and are never
+included in Convex mutations. The web build is a read-only product demo.
 
-- **Programs** — подключаемые программы наблюдения за здоровьем;
-- **Scan** — интерфейс сканирования экспресс-тестов и история результатов;
-- **Chat** — экран взаимодействия с AI-ассистентом;
-- **Labs** — список анализов, чекапов и добавленных результатов;
-- **Profile** — медицинский профиль, документы и настройки данных;
-- **Journal** — дневник симптомов, показателей, питания и наблюдений;
-- **Notifications** — напоминания о тестах, результатах и изменениях программы.
+OCR/CV, medical interpretation, AI chat, push notifications, and the admin
+panel are intentionally deferred. A manually confirmed scan result is never
+presented as an automated recognition result.
 
-Большая часть данных и действий внутри приложения демонстрационная. Прототип предназначен для проверки структуры продукта, навигации и визуального подхода. Он не содержит готовой медицинской логики, серверной инфраструктуры или рабочего AI/CV-модуля.
+## Run
 
-## Технологии
+Use Node.js 22 or newer and create the public app configuration:
 
-- Swift и SwiftUI;
-- iOS 17.0+;
-- XcodeGen для генерации проекта;
-- нативные компоненты Liquid Glass на iOS 26+;
-- `Material` как визуальный fallback для более ранних версий iOS;
-- локальные шрифты и векторные PDF-ассеты.
-
-## Запуск проекта
-
-### 1. Установите XcodeGen
-
-```sh
-brew install xcodegen
+```bash
+npm install
+cp .env.example .env.local
+npm run start
 ```
 
-### 2. Сгенерируйте Xcode-проект
+`EXPO_PUBLIC_CONVEX_URL` must point at the Convex backend. Because SQLCipher is
+enabled through the Expo config plugin, encrypted native storage requires a
+development build or release build after changing native configuration; Expo
+Go is not the verification target.
 
-```sh
-xcodegen generate
+## Convex development
+
+Add `CONVEX_SELF_HOSTED_URL` and a freshly generated
+`CONVEX_SELF_HOSTED_ADMIN_KEY` to the untracked `.env.local`, then run:
+
+```bash
+npm run convex:dev
+npm run convex:deploy
+npm run convex:codegen
 ```
 
-### 3. Запустите приложение
+`JWT_PRIVATE_KEY` and `JWKS` are deployment secrets for Convex Auth. Set them
+with `npx convex env set`; do not place them in Expo environment files or Git.
 
-Откройте `ArtificialLabs.xcodeproj` в Xcode, выберите симулятор iPhone и нажмите `Cmd + R`.
+## Verify
 
-## Структура
-
-```text
-ArtificialLabs/
-├── ArtificialLabs/
-│   ├── Sources/            # SwiftUI-интерфейс приложения
-│   └── Resources/          # шрифты и графические ассеты
-├── project.yml             # конфигурация XcodeGen
-└── README.md
+```bash
+npm run verify
 ```
 
-## Ограничения
+The supplied Figma assets and project fonts live in `assets/figma` and
+`assets/fonts`, so builds do not depend on temporary design URLs.
 
-Проект является интерфейсным прототипом и не предназначен для медицинской диагностики или принятия решений о лечении. Представленные результаты, рекомендации и пользовательские данные являются демонстрационными.
+## Preserved Swift baseline
+
+The original native Swift/Xcode prototype remains in `ArtificialLabs/`,
+`ArtificialLabs.xcodeproj/`, and `project.yml`. Its pre-migration checkpoint is
+commit `62cc12b9e734e3357f68c1dfb1d8d21ba24a8216`, so the native baseline and its
+history can be restored independently of the Expo application.

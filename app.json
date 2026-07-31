@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Private",
+    "slug": "private-expo",
+    "scheme": "private-expo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#823537",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-router",
+      "expo-web-browser",
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Разрешите ArtificialLabs использовать камеру для сканирования QR-кодов и фотографирования домашних тестов. Снимки останутся только на этом устройстве.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Разрешите ArtificialLabs защищать локальные медицинские данные."
+        }
+      ]
+    ]
+  }
+}
