@@ -9,12 +9,7 @@ import {
   GlassView,
   isLiquidGlassAvailable,
 } from 'expo-glass-effect';
-import {
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-} from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -37,25 +32,19 @@ import {
   ScanTooltip,
   type ScanTooltipKind,
 } from './components';
-import {
-  colors,
-  motion,
-  radii,
-  shadows,
-  spacing,
-} from './tokens';
+import { colors, motion, radii, shadows, spacing } from './tokens';
 import ScanFlowFrame from '../assets/figma/scan-screen/scan-flow-frame.svg';
+import type { AnalysisResult } from '../modules/strip-cv';
+import { discardTemporaryScanImage } from '../lib/local-files';
+import {
+  scanningService,
+  type ActiveCvConfiguration,
+} from '../services/scanning';
 
-const hasNativeFlowGlass =
-  Platform.OS === 'ios' && isLiquidGlassAvailable();
+const hasNativeFlowGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 type ScanFlowStage =
-  | 'briefing'
-  | 'qr'
-  | 'test'
-  | 'processing'
-  | 'result'
-  | 'correction';
+  'briefing' | 'qr' | 'test' | 'processing' | 'result' | 'correction';
 
 type ScanFlowOverlayProps = {
   headerTop: number;
@@ -63,18 +52,14 @@ type ScanFlowOverlayProps = {
   showBriefing: boolean;
   onBriefingSeen: () => void;
   onClose: () => void;
-  onComplete: (capturedUri: string) => void;
+  onComplete: (
+    capturedUri: string,
+    manualInterpretation?: 'positive' | 'negative',
+  ) => void | Promise<void>;
 };
 
 type FlowIconName =
-  | 'close'
-  | 'help'
-  | 'qr'
-  | 'test'
-  | 'light'
-  | 'surface'
-  | 'steady'
-  | 'check';
+  'close' | 'help' | 'qr' | 'test' | 'light' | 'surface' | 'steady' | 'check';
 
 function FlowIcon({
   name,
@@ -320,10 +305,7 @@ function FlowHeader({
   ) : null;
 
   return (
-    <GlassContainer
-      spacing={12}
-      style={[styles.flowHeader, { top }]}
-    >
+    <GlassContainer spacing={12} style={[styles.flowHeader, { top }]}>
       {showClose ? (
         <RoundGlassButton
           accessibilityLabel="Закрыть сканирование"
@@ -385,6 +367,14 @@ function CameraBackdrop({
   const requestedPermission = useRef(false);
 
   useEffect(() => {
+    // Browsers require camera permission requests to happen from a user gesture.
+    // Keep the explicit button visible on web instead of opening a browser-level
+    // permission sheet from an effect, which can leave the sheet non-interactive
+    // on mobile Safari/Chrome.
+    if (Platform.OS === 'web') {
+      return;
+    }
+
     if (
       permission &&
       !permission.granted &&
@@ -466,10 +456,7 @@ function CameraBackdrop({
           </View>
         </LinearGradient>
       )}
-      <View
-        pointerEvents="none"
-        style={styles.cameraReadabilityScrim}
-      />
+      <View pointerEvents="none" style={styles.cameraReadabilityScrim} />
     </View>
   );
 }
@@ -529,8 +516,8 @@ function BriefingScreen({
           color={colors.text.secondary}
           style={styles.briefingSubtitle}
         >
-          Это займёт меньше минуты. Инструктаж показывается только перед
-          первым сканированием.
+          Это займёт меньше минуты. Инструктаж показывается только перед первым
+          сканированием.
         </AppText>
       </View>
 
@@ -577,34 +564,32 @@ function QrScannerScreen({
   headerTop: number;
   onClose: () => void;
   onHelp: () => void;
-  onScanned: () => void;
+  onScanned: (data?: string) => boolean;
 }) {
   const scanned = useRef(false);
-  const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completionAnimation = useRef<Animated.CompositeAnimation | null>(null);
   const [detected, setDetected] = useState(false);
-  const { height: screenHeight, width: screenWidth } =
-    useWindowDimensions();
+  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const frameLeft = useRef(new Animated.Value(71)).current;
-  const frameTop = useRef(
-    new Animated.Value(headerTop + 203),
-  ).current;
+  const frameTop = useRef(new Animated.Value(headerTop + 203)).current;
   const frameSize = useRef(new Animated.Value(260)).current;
   const qrOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(
     () => () => {
+      scanned.current = true;
+      completionAnimation.current?.stop();
+      completionAnimation.current = null;
       if (completionTimer.current) {
         clearTimeout(completionTimer.current);
+        completionTimer.current = null;
       }
     },
     [],
   );
 
-  const handleBarcodeScanned = (
-    result: BarcodeScanningResult,
-  ) => {
+  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
     if (scanned.current) {
       return;
     }
@@ -642,19 +627,13 @@ function QrScannerScreen({
     const padding = 14;
     const targetSize = hasUsableBounds
       ? Math.min(
-          Math.max(
-            Math.max(detectedWidth, detectedHeight) + padding * 2,
-            112,
-          ),
+          Math.max(Math.max(detectedWidth, detectedHeight) + padding * 2, 112),
           screenWidth - 32,
         )
       : 260;
     const targetLeft = hasUsableBounds
       ? Math.min(
-          Math.max(
-            originX + detectedWidth / 2 - targetSize / 2,
-            16,
-          ),
+          Math.max(originX + detectedWidth / 2 - targetSize / 2, 16),
           screenWidth - targetSize - 16,
         )
       : 71;
@@ -672,7 +651,7 @@ function QrScannerScreen({
         )
       : headerTop + 203;
 
-    Animated.parallel([
+    completionAnimation.current = Animated.parallel([
       Animated.timing(qrOpacity, {
         toValue: 0,
         duration: 120,
@@ -697,16 +676,30 @@ function QrScannerScreen({
         easing: Easing.inOut(Easing.cubic),
         useNativeDriver: false,
       }),
-    ]).start(() => {
-      completionTimer.current = setTimeout(onScanned, 360);
+    ]);
+    completionAnimation.current.start(({ finished }) => {
+      completionAnimation.current = null;
+      if (!finished) {
+        return;
+      }
+      completionTimer.current = setTimeout(() => {
+        completionTimer.current = null;
+        if (onScanned(result.data)) {
+          return;
+        }
+        scanned.current = false;
+        setDetected(false);
+        frameLeft.setValue(71);
+        frameTop.setValue(headerTop + 203);
+        frameSize.setValue(260);
+        qrOpacity.setValue(1);
+      }, 360);
     });
   };
 
   return (
     <View style={styles.cameraScreen}>
-      <CameraBackdrop
-        onBarcodeScanned={handleBarcodeScanned}
-      />
+      <CameraBackdrop onBarcodeScanned={handleBarcodeScanned} />
       <FlowHeader
         currentStep="Шаг 1 из 2"
         onClose={onClose}
@@ -714,12 +707,7 @@ function QrScannerScreen({
         top={headerTop}
       />
 
-      <View
-        style={[
-          styles.cameraTitle,
-          { top: headerTop + 84 },
-        ]}
-      >
+      <View style={[styles.cameraTitle, { top: headerTop + 84 }]}>
         <AppText
           role="heading"
           weight="semibold"
@@ -771,11 +759,7 @@ function QrScannerScreen({
           <ScanTooltip
             floatingMaxWidth={370}
             kind={detected ? 'locked' : 'qr'}
-            message={
-              detected
-                ? 'QR-код найден'
-                : 'Наведите камеру на QR-код'
-            }
+            message={detected ? 'QR-код найден' : 'Наведите камеру на QR-код'}
             singleLine
             variant="floating"
           />
@@ -783,17 +767,17 @@ function QrScannerScreen({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Ввести код вручную"
+          accessibilityLabel="Пропустить QR-код"
           accessibilityState={{ disabled: detected }}
           disabled={detected}
-          onPress={onScanned}
+          onPress={() => onScanned()}
           style={({ pressed }) => [
             styles.secondaryCameraAction,
             pressed && styles.pressed,
           ]}
         >
           <AppText role="label" weight="medium" color="#ffffff">
-            Ввести код вручную
+            Пропустить QR-код
           </AppText>
         </Pressable>
       </View>
@@ -828,23 +812,26 @@ const qualityHints: Array<{
   },
 ];
 
-function BatchChip({ top }: { top: number }) {
+function BatchChip({
+  configuration,
+  top,
+}: {
+  configuration: ActiveCvConfiguration;
+  top: number;
+}) {
   const content = (
     <View style={styles.batchChipContent}>
       <View style={styles.batchStatus} />
       <View style={styles.batchCopy}>
-        <AppText
-          role="caption"
-          color="rgba(255,255,255,0.66)"
-        >
+        <AppText role="caption" color="rgba(255,255,255,0.66)">
           Тест определён
         </AppText>
         <AppText role="label" weight="medium" color="#ffffff">
-          Ovulation LH · Партия A24-071
+          {configuration.product.label} · {configuration.product.batch}
         </AppText>
       </View>
       <AppText numeric role="caption" color="#ffffff">
-        08.2027
+        {configuration.product.expiresAt}
       </AppText>
     </View>
   );
@@ -878,11 +865,13 @@ function BatchChip({ top }: { top: number }) {
 }
 
 function TestScannerScreen({
+  configuration,
   headerTop,
   onCapture,
   onClose,
   onHelp,
 }: {
+  configuration: ActiveCvConfiguration;
   headerTop: number;
   onCapture: (capturedUri: string) => void;
   onClose: () => void;
@@ -914,11 +903,14 @@ function TestScannerScreen({
 
     try {
       const picture = await cameraRef.current?.takePictureAsync({
-        quality: 0.82,
+        quality: 1,
+        skipProcessing: false,
+        base64: false,
+        exif: false,
         shutterSound: false,
       });
-      if (!picture) {
-        throw new Error('Camera did not return a picture');
+      if (!picture?.uri) {
+        throw new Error('Camera returned no local image URI.');
       }
       onCapture(picture.uri);
     } catch {
@@ -942,14 +934,9 @@ function TestScannerScreen({
         onHelp={onHelp}
         top={headerTop}
       />
-      <BatchChip top={headerTop + 64} />
+      <BatchChip configuration={configuration} top={headerTop + 64} />
 
-      <View
-        style={[
-          styles.testTarget,
-          { top: headerTop + 182 },
-        ]}
-      >
+      <View style={[styles.testTarget, { top: headerTop + 182 }]}>
         <ScanFlowFrame
           width="100%"
           height="100%"
@@ -1007,11 +994,7 @@ function ProcessingScreen() {
         <View style={styles.processingIndicator}>
           <ActivityIndicator size="large" color={colors.brand.primary} />
         </View>
-        <AppText
-          role="title"
-          weight="semibold"
-          style={styles.centerText}
-        >
+        <AppText role="title" weight="semibold" style={styles.centerText}>
           Анализируем результат
         </AppText>
         <AppText
@@ -1019,8 +1002,7 @@ function ProcessingScreen() {
           color={colors.text.secondary}
           style={styles.processingDescription}
         >
-          Проверяем качество снимка и определяем контрольную и тестовую
-          линии.
+          Проверяем качество снимка и определяем контрольную и тестовую линии.
         </AppText>
         <View style={styles.processingSteps}>
           <View style={styles.processingStepDone}>
@@ -1037,7 +1019,15 @@ function ProcessingScreen() {
   );
 }
 
-function ResultPreview() {
+function ResultPreview({ result }: { result: AnalysisResult | null }) {
+  const controlDetected = result?.peaks.control.detected === true;
+  const testDetected = result?.peaks.test.detected === true;
+  const detectionLabel = !controlDetected
+    ? 'Контрольная зона не распознана'
+    : testDetected
+      ? 'Обе зоны распознаны'
+      : 'Распознана контрольная зона';
+
   return (
     <View style={styles.resultPreview}>
       <LinearGradient
@@ -1047,8 +1037,8 @@ function ResultPreview() {
       <View style={styles.resultStrip}>
         <View style={styles.resultStripTip} />
         <View style={styles.resultWindow}>
-          <View style={styles.resultLineStrong} />
-          <View style={styles.resultLineSoft} />
+          {controlDetected ? <View style={styles.resultLineStrong} /> : null}
+          {testDetected ? <View style={styles.resultLineSoft} /> : null}
           <View style={styles.resultControlLabel}>
             <AppText numeric role="caption" color={colors.text.secondary}>
               C
@@ -1062,7 +1052,7 @@ function ResultPreview() {
       <View style={styles.detectedBadge}>
         <FlowIcon name="check" color={colors.brand.success} size={18} />
         <AppText role="caption" weight="medium">
-          Обе зоны распознаны
+          {detectionLabel}
         </AppText>
       </View>
     </View>
@@ -1070,18 +1060,75 @@ function ResultPreview() {
 }
 
 function ResultScreen({
+  configuration,
   headerTop,
+  error,
+  result,
   onClose,
   onConfirm,
   onCorrection,
   onHelp,
+  onRetake,
 }: {
+  configuration: ActiveCvConfiguration;
   headerTop: number;
+  error: string | null;
+  result: AnalysisResult | null;
   onClose: () => void;
   onConfirm: () => void;
   onCorrection: () => void;
   onHelp: () => void;
+  onRetake: () => void;
 }) {
+  const reasonMessages: Record<string, string> = {
+    move_closer: 'Приблизьте камеру к тесту.',
+    hold_camera_steady: 'Зафиксируйте камеру и сделайте новый снимок.',
+    glare_crosses_control_line: 'Уберите блик с контрольной зоны.',
+    broad_shadow_or_illumination_gradient:
+      'Сделайте освещение более равномерным.',
+    broad_stain_or_smeared_line: 'Линия размыта или перекрыта пятном.',
+    perspective_too_extreme: 'Держите камеру параллельно тесту.',
+    check_detected_corners: 'Разместите тест целиком внутри рамки.',
+    control_not_detected: 'Контрольная линия не распознана.',
+  };
+  const canConfirm = result?.status === 'valid';
+  const heading = error
+    ? 'Не удалось выполнить анализ'
+    : result?.status === 'invalid'
+      ? 'Нужен новый снимок'
+      : result?.status === 'review'
+        ? 'Требуется проверка'
+        : 'Результат готов';
+  const interpretation = error
+    ? 'Ошибка анализа'
+    : result?.status === 'invalid'
+      ? 'Недействительный снимок'
+      : result?.status === 'review'
+        ? 'Не сохраняется'
+        : result?.signal.classification === 'POS'
+          ? 'Положительный'
+          : result?.signal.classification === 'NEG'
+            ? 'Отрицательный'
+            : result?.signal.value !== null &&
+                result?.signal.value !== undefined
+              ? `T/C ${result.signal.value.toFixed(3)}`
+              : 'Без классификации';
+  const confidence = Math.round(
+    100 *
+      Math.max(
+        0,
+        Math.min(
+          1,
+          result?.quality.peak_pair_confidence ??
+            result?.quality.locator_confidence ??
+            0,
+        ),
+      ),
+  );
+  const qualityMessage = result?.reason_codes
+    .map((code) => reasonMessages[code])
+    .find((message) => message !== undefined);
+
   return (
     <View style={styles.resultScreen}>
       <FlowHeader
@@ -1096,18 +1143,22 @@ function ResultScreen({
           <FlowIcon name="check" color={colors.brand.success} size={28} />
         </View>
         <AppText role="title" weight="semibold" style={styles.centerText}>
-          Результат готов
+          {heading}
         </AppText>
         <AppText
           role="label"
           color={colors.text.secondary}
           style={styles.centerText}
         >
-          Проверьте, правильно ли приложение определило линии.
+          {error ??
+            qualityMessage ??
+            (canConfirm
+              ? 'Проверьте, правильно ли приложение определило линии.'
+              : 'Измерение не будет сохранено — переснимите тест.')}
         </AppText>
       </View>
 
-      <ResultPreview />
+      <ResultPreview result={result} />
 
       <View style={styles.interpretationCard}>
         <View style={styles.interpretationHeader}>
@@ -1116,12 +1167,12 @@ function ResultScreen({
               Интерпретация
             </AppText>
             <AppText role="heading" weight="semibold">
-              Положительный
+              {interpretation}
             </AppText>
           </View>
           <View style={styles.confidenceBadge}>
             <AppText numeric role="label" color={colors.brand.success}>
-              96%
+              {confidence}%
             </AppText>
           </View>
         </View>
@@ -1132,7 +1183,7 @@ function ResultScreen({
               Тип теста
             </AppText>
             <AppText role="label" weight="medium">
-              Ovulation LH
+              {configuration.product.label}
             </AppText>
           </View>
           <View style={styles.resultMetaDivider} />
@@ -1141,35 +1192,40 @@ function ResultScreen({
               Партия
             </AppText>
             <AppText numeric role="label" weight="medium">
-              A24-071
+              {configuration.product.batch}
             </AppText>
           </View>
         </View>
       </View>
 
       <View style={styles.resultActions}>
-        <PrimaryButton label="Подтвердить результат" onPress={onConfirm} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Исправить интерпретацию"
-          onPress={onCorrection}
-          style={({ pressed }) => [
-            styles.resultSecondaryButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <AppText role="label" weight="medium" color={colors.brand.primary}>
-            Результат определён неверно
-          </AppText>
-        </Pressable>
+        <PrimaryButton
+          label={canConfirm ? 'Подтвердить результат' : 'Переснять тест'}
+          onPress={canConfirm ? onConfirm : onRetake}
+        />
+        {canConfirm ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Исправить интерпретацию"
+            onPress={onCorrection}
+            style={({ pressed }) => [
+              styles.resultSecondaryButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <AppText role="label" weight="medium" color={colors.brand.primary}>
+              Результат определён неверно
+            </AppText>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
 }
 
 const correctionOptions = [
-  'Вижу две линии',
-  'Вижу только контрольную линию',
+  { label: 'Вижу две линии', value: 'positive' },
+  { label: 'Вижу только контрольную линию', value: 'negative' },
 ] as const;
 
 function CorrectionScreen({
@@ -1178,12 +1234,14 @@ function CorrectionScreen({
   onHelp,
   onRetake,
   onSubmit,
+  result,
 }: {
   headerTop: number;
   onClose: () => void;
   onHelp: () => void;
   onRetake: () => void;
-  onSubmit: () => void;
+  onSubmit: (value: 'positive' | 'negative') => void;
+  result: AnalysisResult | null;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
 
@@ -1201,12 +1259,12 @@ function CorrectionScreen({
           Что вы видите на тесте?
         </AppText>
         <AppText role="body" color={colors.text.secondary}>
-          Выберите вариант или переснимите тест. Итог можно подтвердить
-          после проверки фотографии.
+          Выберите вариант или переснимите тест. Итог можно подтвердить после
+          проверки фотографии.
         </AppText>
       </View>
 
-      <ResultPreview />
+      <ResultPreview result={result} />
 
       <View style={styles.correctionOptions}>
         {correctionOptions.map((option, index) => {
@@ -1214,7 +1272,7 @@ function CorrectionScreen({
 
           return (
             <Pressable
-              key={option}
+              key={option.value}
               accessibilityRole="radio"
               accessibilityState={{ checked: active }}
               onPress={() => setSelected(index)}
@@ -1224,16 +1282,11 @@ function CorrectionScreen({
                 pressed && styles.pressed,
               ]}
             >
-              <View
-                style={[
-                  styles.radio,
-                  active && styles.radioActive,
-                ]}
-              >
+              <View style={[styles.radio, active && styles.radioActive]}>
                 {active ? <View style={styles.radioDot} /> : null}
               </View>
               <AppText role="label" weight="medium">
-                {option}
+                {option.label}
               </AppText>
             </Pressable>
           );
@@ -1242,9 +1295,13 @@ function CorrectionScreen({
 
       <View style={styles.correctionActions}>
         <PrimaryButton
-          label="Сохранить интерпретацию"
+          label="Продолжить с интерпретацией"
           disabled={selected === null}
-          onPress={onSubmit}
+          onPress={() => {
+            if (selected !== null) {
+              onSubmit(correctionOptions[selected].value);
+            }
+          }}
         />
         <Pressable
           accessibilityRole="button"
@@ -1275,14 +1332,56 @@ export function ScanFlowOverlay({
   const [stage, setStage] = useState<ScanFlowStage>(
     showBriefing ? 'briefing' : 'qr',
   );
-  const [returnStage, setReturnStage] =
-    useState<Exclude<ScanFlowStage, 'briefing'> | null>(null);
+  const [returnStage, setReturnStage] = useState<Exclude<
+    ScanFlowStage,
+    'briefing'
+  > | null>(null);
+  const [configuration, setConfiguration] = useState(
+    scanningService.getConfiguration(),
+  );
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
+    null,
+  );
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [capturedUri, setCapturedUri] = useState<string | null>(null);
+  const capturedUriRef = useRef<string | null>(null);
+  const analysisRequestId = useRef(0);
+  const completingRef = useRef(false);
   const transition = useRef(new Animated.Value(1)).current;
+
+  const clearCapturedUri = () => {
+    completingRef.current = false;
+    const uri = capturedUriRef.current;
+    capturedUriRef.current = null;
+    setCapturedUri(null);
+    if (uri) {
+      void discardTemporaryScanImage(uri).catch(() => {});
+    }
+  };
+
+  useEffect(
+    () => () => {
+      const uri = capturedUriRef.current;
+      if (uri) {
+        void discardTemporaryScanImage(uri).catch(() => {});
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (visible) {
+      analysisRequestId.current += 1;
+      const initialConfiguration = scanningService.resetConfiguration();
       setReturnStage(null);
+      setAnalysisResult(null);
+      setAnalysisError(null);
+      clearCapturedUri();
+      setConfiguration(initialConfiguration);
       setStage(showBriefing ? 'briefing' : 'qr');
+    } else {
+      analysisRequestId.current += 1;
+      clearCapturedUri();
     }
   }, [showBriefing, visible]);
 
@@ -1301,15 +1400,6 @@ export function ScanFlowOverlay({
     animation.start();
     return () => animation.stop();
   }, [stage, transition, visible]);
-
-  useEffect(() => {
-    if (!visible || stage !== 'processing') {
-      return;
-    }
-
-    const timer = setTimeout(() => setStage('result'), 2100);
-    return () => clearTimeout(timer);
-  }, [stage, visible]);
 
   if (!visible) {
     return null;
@@ -1338,6 +1428,32 @@ export function ScanFlowOverlay({
       ],
     );
   };
+  const retake = () => {
+    analysisRequestId.current += 1;
+    clearCapturedUri();
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setStage('test');
+  };
+  const confirmCapture = (manualInterpretation?: 'positive' | 'negative') => {
+    if (
+      completingRef.current ||
+      !capturedUri ||
+      analysisResult?.status !== 'valid'
+    ) {
+      return;
+    }
+    completingRef.current = true;
+    Promise.resolve(onComplete(capturedUri, manualInterpretation)).catch(
+      (error: unknown) => {
+        completingRef.current = false;
+        Alert.alert(
+          'Не удалось принять снимок',
+          error instanceof Error ? error.message : 'Попробуйте ещё раз.',
+        );
+      },
+    );
+  };
 
   const content =
     stage === 'briefing' ? (
@@ -1361,14 +1477,66 @@ export function ScanFlowOverlay({
         headerTop={headerTop}
         onClose={requestClose}
         onHelp={() => openBriefing('qr')}
-        onScanned={() => setStage('test')}
+        onScanned={(data) => {
+          if (!data) {
+            setConfiguration(scanningService.getConfiguration());
+            setStage('test');
+            return true;
+          }
+          try {
+            if (!scanningService.applyQrConfiguration(data)) {
+              Alert.alert(
+                'Профиль QR-кода отклонён',
+                'QR-код не содержит совместимый профиль StripCV.',
+              );
+              return false;
+            }
+          } catch (error) {
+            Alert.alert(
+              'Профиль QR-кода отклонён',
+              error instanceof Error ? error.message : 'Некорректный профиль.',
+            );
+            return false;
+          }
+          setConfiguration(scanningService.getConfiguration());
+          setStage('test');
+          return true;
+        }}
       />
     ) : stage === 'test' ? (
       <TestScannerScreen
+        configuration={configuration}
         headerTop={headerTop}
         onClose={requestClose}
         onHelp={() => openBriefing('test')}
-        onCapture={onComplete}
+        onCapture={(imageUri) => {
+          const requestId = ++analysisRequestId.current;
+          capturedUriRef.current = imageUri;
+          setCapturedUri(imageUri);
+          setAnalysisResult(null);
+          setAnalysisError(null);
+          setStage('processing');
+          void scanningService
+            .analyze(imageUri)
+            .then((result) => {
+              if (analysisRequestId.current !== requestId) {
+                return;
+              }
+              setAnalysisResult(result);
+              setStage('result');
+            })
+            .catch((error: unknown) => {
+              if (analysisRequestId.current !== requestId) {
+                return;
+              }
+              setAnalysisError(
+                error instanceof Error
+                  ? error.message
+                  : 'Неизвестная ошибка анализа.',
+              );
+              setStage('result');
+            });
+        }}
       />
     ) : stage === 'processing' ? (
       <ProcessingScreen />
@@ -1377,16 +1545,21 @@ export function ScanFlowOverlay({
         headerTop={headerTop}
         onClose={requestClose}
         onHelp={() => openBriefing('correction')}
-        onRetake={() => setStage('test')}
-        onSubmit={() => setStage('test')}
+        onRetake={retake}
+        onSubmit={confirmCapture}
+        result={analysisResult}
       />
     ) : (
       <ResultScreen
+        configuration={configuration}
+        error={analysisError}
         headerTop={headerTop}
         onClose={requestClose}
-        onConfirm={() => setStage('test')}
+        onConfirm={confirmCapture}
         onCorrection={() => setStage('correction')}
         onHelp={() => openBriefing('result')}
+        onRetake={retake}
+        result={analysisResult}
       />
     );
 

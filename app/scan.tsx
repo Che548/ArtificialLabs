@@ -11,7 +11,7 @@ import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import {
   Image,
@@ -36,7 +36,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useHealthStore } from '../lib/health-store';
 import type { ScanResult } from '../lib/health-types';
-import { persistScanImage } from '../lib/local-files';
+import {
+  discardPersistedScanImage,
+  discardTemporaryScanImage,
+  persistScanImage,
+} from '../lib/local-files';
 
 import ContentShape from '../assets/figma/content-shape.svg';
 import CalendarIcon from '../assets/figma/calendar-icon.svg';
@@ -275,6 +279,39 @@ export default function ScanScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string>();
+  const capturedUriRef = useRef<string | undefined>(undefined);
+  const mountedRef = useRef(true);
+  const savingRef = useRef(false);
+  const [suggestedResult, setSuggestedResult] = useState<
+    ScanResult['confirmedValue'] | null
+  >(null);
+
+  const updateCapturedUri = (uri?: string) => {
+    capturedUriRef.current = uri;
+    if (mountedRef.current) {
+      setCapturedUri(uri);
+    }
+  };
+
+  const registerPersistedImage = async (uri: string) => {
+    if (!mountedRef.current) {
+      await discardPersistedScanImage(uri).catch(() => {});
+      return false;
+    }
+    updateCapturedUri(uri);
+    return true;
+  };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      const uri = capturedUriRef.current;
+      if (uri && !savingRef.current) {
+        void discardPersistedScanImage(uri);
+      }
+    };
+  }, []);
   const [testSystemKey, setTestSystemKey] = useState<
     'pregnancy-strip' | 'ovulation-strip'
   >('pregnancy-strip');
@@ -350,22 +387,41 @@ export default function ScanScreen() {
   const capture = async () => {
     const picture = await cameraRef.current?.takePictureAsync({ quality: 0.9 });
     if (!picture) return;
-    setCapturedUri(await persistScanImage(picture.uri));
+    let localUri: string;
+    try {
+      localUri = await persistScanImage(picture.uri);
+    } finally {
+      await discardTemporaryScanImage(picture.uri).catch(() => {});
+    }
+    if (!(await registerPersistedImage(localUri))) return;
+    setSuggestedResult(null);
     setCameraOpen(false);
   };
 
-  const acceptFlowCapture = async (uri: string) => {
-    setScanFlowVisible(false);
+  const acceptFlowCapture = async (
+    uri: string,
+    manualInterpretation?: 'positive' | 'negative',
+  ) => {
     if (readOnly) {
+      setScanFlowVisible(false);
       setNotice('В web-демо сохранение медицинских данных отключено.');
       return;
     }
 
     try {
-      setCapturedUri(await persistScanImage(uri));
+      const localUri = await persistScanImage(uri);
+      if (!(await registerPersistedImage(localUri))) return;
+      setSuggestedResult(manualInterpretation ?? null);
     } catch (cause) {
       console.error('Persisting scan image failed', cause);
-      setNotice('Не удалось сохранить снимок. Попробуйте ещё раз.');
+      if (mountedRef.current) {
+        setNotice('Не удалось сохранить снимок. Попробуйте ещё раз.');
+      }
+    } finally {
+      await discardTemporaryScanImage(uri).catch(() => {});
+      if (mountedRef.current) {
+        setScanFlowVisible(false);
+      }
     }
   };
 
@@ -379,7 +435,9 @@ export default function ScanScreen() {
       quality: 0.9,
     });
     if (!result.canceled) {
-      setCapturedUri(await persistScanImage(result.assets[0].uri));
+      const localUri = await persistScanImage(result.assets[0].uri);
+      if (!(await registerPersistedImage(localUri))) return;
+      setSuggestedResult(null);
       setCameraOpen(false);
     }
   };
@@ -387,7 +445,9 @@ export default function ScanScreen() {
   const saveConfirmedResult = async (
     confirmedValue: ScanResult['confirmedValue'],
   ) => {
-    if (!capturedUri) return;
+    if (!capturedUri || savingRef.current) return;
+    const imageUri = capturedUri;
+    savingRef.current = true;
     setSaving(true);
     try {
       await addScanResult({
@@ -398,15 +458,39 @@ export default function ScanScreen() {
         qualityFlags: [],
         algorithmVersion: 'manual-v1',
         hasLocalImage: true,
-        localImageUri: capturedUri,
+        localImageUri: imageUri,
       });
-      setCapturedUri(undefined);
-      setNotice('Результат сохранён. Фото осталось только на этом устройстве.');
+      updateCapturedUri(undefined);
+      if (mountedRef.current) {
+        setSuggestedResult(null);
+        setNotice(
+          'Результат сохранён. Фото осталось только на этом устройстве.',
+        );
+      }
     } catch (cause) {
       console.error('Saving scan result failed', cause);
-      setNotice('Не удалось сохранить результат. Попробуйте ещё раз.');
+      if (mountedRef.current) {
+        setNotice('Не удалось сохранить результат. Попробуйте ещё раз.');
+      } else {
+        await discardPersistedScanImage(imageUri).catch(() => {});
+      }
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (mountedRef.current) {
+        setSaving(false);
+      }
+    }
+  };
+
+  const discardCurrentCapture = async () => {
+    const uri = capturedUri;
+    setSuggestedResult(null);
+    updateCapturedUri(undefined);
+    if (uri) {
+      await discardPersistedScanImage(uri).catch((cause) => {
+        console.error('Deleting discarded scan image failed', cause);
+        setNotice('Не удалось удалить отклонённый снимок с устройства.');
+      });
     }
   };
 
@@ -495,7 +579,15 @@ export default function ScanScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Начать сканирование"
-                onPress={() => setScanFlowVisible(true)}
+                onPress={() => {
+                  if (readOnly) {
+                    setNotice(
+                      'В web-демо камера и сохранение медицинских данных отключены.',
+                    );
+                    return;
+                  }
+                  setScanFlowVisible(true);
+                }}
                 className="absolute left-[86px] top-[200px] h-[46px] min-w-[198px] flex-row items-center justify-center gap-2.5 rounded-full bg-brand-primary px-3.5 active:opacity-[0.72]"
               >
                 <ScanIcon width={20} height={20} />
@@ -503,9 +595,7 @@ export default function ScanScreen() {
                   className="text-[15px] leading-[17px] tracking-[-0.3px] text-white"
                   style={{ fontFamily: sfRegular }}
                 >
-                  {hasSavedScan
-                    ? 'Сканировать снова'
-                    : 'Начать сканирование'}
+                  {hasSavedScan ? 'Сканировать снова' : 'Начать сканирование'}
                 </Text>
               </Pressable>
             </View>
@@ -672,7 +762,8 @@ export default function ScanScreen() {
                       Подтвердите результат
                     </Text>
                     <Pressable
-                      onPress={() => setCapturedUri(undefined)}
+                      disabled={saving}
+                      onPress={() => void discardCurrentCapture()}
                       className="h-10 w-10 items-center justify-center rounded-full bg-[#f2f2f7]"
                     >
                       <Text className="text-[22px] text-ink">×</Text>
@@ -684,8 +775,8 @@ export default function ScanScreen() {
                     className="mt-3 h-[170px] w-full rounded-2xl bg-[#f2f2f7]"
                   />
                   <Text className="text-text-secondary mt-3 font-sf text-[13px] leading-[18px]">
-                    Автоматическое распознавание пока не выполняется. Выберите
-                    тип теста и визуально подтверждённый результат.
+                    StripCV выполнил локальный анализ снимка. Выберите тип теста
+                    и вручную подтвердите результат перед сохранением.
                   </Text>
                   <View className="mt-3 flex-row gap-2">
                     {(['pregnancy-strip', 'ovulation-strip'] as const).map(
@@ -718,9 +809,11 @@ export default function ScanScreen() {
                         key={value}
                         disabled={saving}
                         onPress={() => void saveConfirmedResult(value)}
-                        className="min-h-11 flex-1 items-center justify-center rounded-2xl border border-brand-primary px-1"
+                        className={`min-h-11 flex-1 items-center justify-center rounded-2xl border border-brand-primary px-1 ${suggestedResult === value ? 'bg-brand-primary' : 'bg-white'}`}
                       >
-                        <Text className="text-center font-sf-medium text-[11px] text-brand-primary">
+                        <Text
+                          className={`text-center font-sf-medium text-[11px] ${suggestedResult === value ? 'text-white' : 'text-brand-primary'}`}
+                        >
                           {label}
                         </Text>
                       </Pressable>
@@ -805,12 +898,7 @@ export default function ScanScreen() {
               height: DESIGN_HEIGHT * scale,
             }}
           >
-            <View
-              style={[
-                styles.scaledCanvas,
-                { transform: [{ scale }] },
-              ]}
-            >
+            <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
               <View style={styles.flowModalCanvas}>
                 <ScanFlowOverlay
                   headerTop={headerTop}
@@ -818,7 +906,9 @@ export default function ScanScreen() {
                   showBriefing={!hasSeenScanBriefing}
                   onBriefingSeen={() => setHasSeenScanBriefing(true)}
                   onClose={() => setScanFlowVisible(false)}
-                  onComplete={(uri) => void acceptFlowCapture(uri)}
+                  onComplete={(uri, manualInterpretation) =>
+                    void acceptFlowCapture(uri, manualInterpretation)
+                  }
                 />
               </View>
             </View>

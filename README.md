@@ -1,8 +1,9 @@
 # ArtificialLabs
 
-Expo SDK 57 application for pregnancy planning and pregnancy monitoring. The
-current milestone implements a secure local-first health diary with
-self-hosted Convex synchronization.
+Expo SDK 57 / React Native 0.86 application for pregnancy planning and
+pregnancy monitoring. It combines a secure local-first health diary,
+self-hosted Convex synchronization, and the local StripCV image-analysis
+pipeline.
 
 ## Implemented core
 
@@ -10,17 +11,19 @@ self-hosted Convex synchronization.
 - One planning or pregnancy monitoring program per profile.
 - Daily symptoms, mood, energy, and nutrition journal.
 - Manual laboratory results with optional source image.
-- Pregnancy/ovulation test capture or gallery import with manual confirmation.
+- Pregnancy/ovulation test capture with local StripCV analysis followed by
+  explicit manual confirmation.
 - In-app reminders and pause/resume program controls.
 - Idempotent structured-data synchronization through a local outbox.
 
 Medical records are written to SQLCipher SQLite first. Scan images and lab
 source documents remain in app document storage on the device and are never
-included in Convex mutations. The web build is a read-only product demo.
+included in Convex mutations. StripCV results help the user inspect a scan,
+but the saved health record remains the user's manual positive, negative, or
+invalid confirmation (`manual-v1`). The web build is a read-only product demo.
 
-OCR/CV, medical interpretation, AI chat, push notifications, and the admin
-panel are intentionally deferred. A manually confirmed scan result is never
-presented as an automated recognition result.
+Email verification, password reset, medical interpretation, AI chat, push
+notifications, and the admin panel are deferred.
 
 ## Run
 
@@ -32,10 +35,36 @@ cp .env.example .env.local
 npm run start
 ```
 
-`EXPO_PUBLIC_CONVEX_URL` must point at the Convex backend. Because SQLCipher is
-enabled through the Expo config plugin, encrypted native storage requires a
-development build or release build after changing native configuration; Expo
-Go is not the verification target.
+`EXPO_PUBLIC_CONVEX_URL` must point at the Convex backend. SQLCipher and the
+StripCV native module require a development or release build; Expo Go is not a
+verification target. Generate and run native projects with `npm run android`
+or `npm run ios` (wrappers around `expo run:android` and `expo run:ios`).
+
+## StripCV
+
+`services/scanning` owns the app-facing API, bundled profiles, and QR profile
+validation. `modules/strip-cv` contains the portable C++/OpenCV core plus its
+Kotlin/JNI, Swift/Objective-C++, TypeScript, browser, and Node adapters.
+
+Native iOS and Android analyze the captured local image through the Expo
+module. For local web-adapter development, export the app, build the C++ helper,
+and run the combined static/API server (bound to `127.0.0.1` by default; set
+`HOST` explicitly only when LAN access is required):
+
+```bash
+npm run web:full
+```
+
+`npm run build:strip-cv` requires CMake and a compatible OpenCV 4+ development
+installation. Android uses the OpenCV 5 AAR/Prefab dependency and iOS uses the
+OpenCV 4.10 XCFramework pod configured by the StripCV module.
+
+The bundled profile is `handled-paper-two-line-strip` version
+`1.0-observed-real-layout`. It has no validated biological cutoff. QR payloads
+are parsed and schema-validated locally, but unsigned QR data cannot override
+the algorithm, calibration profile, or cutoff. Until signed profile envelopes
+are implemented, only an exact bundled profile with no cutoff is accepted; QR
+product metadata remains display-only.
 
 ## Convex development
 
@@ -54,7 +83,9 @@ with `npx convex env set`; do not place them in Expo environment files or Git.
 ## Verify
 
 ```bash
+npm test
 npm run verify
+npm run test:strip-cv
 ```
 
 The supplied Figma assets and project fonts live in `assets/figma` and

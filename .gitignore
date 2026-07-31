@@ -10,6 +10,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Local AI/tooling configuration
+.claude/
+
 # Native
 .kotlin/
 *.orig.*
