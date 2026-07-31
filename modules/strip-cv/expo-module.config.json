@@ -1,0 +1,10 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["StripCvModule"],
+    "podspecPath": "StripCv.podspec"
+  },
+  "android": {
+    "modules": ["expo.modules.stripcv.StripCvModule"]
+  }
+}

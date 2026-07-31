@@ -14,37 +14,33 @@
     "expo-linking": "~8.0.12",
     "expo-router": "~6.0.24",
     "expo-status-bar": "~3.0.9",
-    "expo-symbols": "~1.0.8",
-    "expo-web-browser": "~15.0.11",
-    "nativewind": "4.2.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
-    "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
-    "react-native-web": "^0.21.2",
-    "react-native-worklets": "0.5.1"
+    "react-native-web": "^0.21.2"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
     "babel-preset-expo": "~54.0.10",
     "prettier": "^3.9.6",
-    "prettier-plugin-tailwindcss": "^0.5.14",
     "react-native-svg-transformer": "^1.5.3",
-    "tailwindcss": "^3.4.19",
     "typescript": "~5.9.2"
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "check:expo": "expo install --check",
     "doctor": "npx --yes expo-doctor@latest",
     "build:web": "expo export --platform web --output-dir dist",
+    "build:strip-cv": "node scripts/build-strip-cv.mjs",
+    "web:serve": "node scripts/web-server.mjs",
+    "web:full": "npm run build:web && npm run build:strip-cv && npm run web:serve",
     "verify": "npm run check:expo && npm run typecheck && npm run doctor && npm run build:web"
   },
   "engines": {

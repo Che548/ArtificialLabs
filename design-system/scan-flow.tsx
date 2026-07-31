@@ -2,19 +2,14 @@ import {
   CameraView,
   useCameraPermissions,
   type BarcodeScanningResult,
-} from 'expo-camera';
-import { LinearGradient } from 'expo-linear-gradient';
+} from "expo-camera";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   GlassContainer,
   GlassView,
   isLiquidGlassAvailable,
-} from 'expo-glass-effect';
-import {
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-} from 'react';
+} from "expo-glass-effect";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -27,8 +22,8 @@ import {
   StyleSheet,
   useWindowDimensions,
   View,
-} from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+} from "react-native";
+import Svg, { Circle, Path, Rect } from "react-native-svg";
 
 import {
   AppText,
@@ -36,26 +31,19 @@ import {
   PrimaryButton,
   ScanTooltip,
   type ScanTooltipKind,
-} from './components';
+} from "./components";
+import { colors, motion, radii, shadows, spacing } from "./tokens";
+import ScanFlowFrame from "../assets/figma/scan-screen/scan-flow-frame.svg";
+import type { AnalysisResult } from "../modules/strip-cv";
 import {
-  colors,
-  motion,
-  radii,
-  shadows,
-  spacing,
-} from './tokens';
-import ScanFlowFrame from '../assets/figma/scan-screen/scan-flow-frame.svg';
+  scanningService,
+  type ActiveCvConfiguration,
+} from "../services/scanning";
 
-const hasNativeFlowGlass =
-  Platform.OS === 'ios' && isLiquidGlassAvailable();
+const hasNativeFlowGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
 
 type ScanFlowStage =
-  | 'briefing'
-  | 'qr'
-  | 'test'
-  | 'processing'
-  | 'result'
-  | 'correction';
+  "briefing" | "qr" | "test" | "processing" | "result" | "correction";
 
 type ScanFlowOverlayProps = {
   headerTop: number;
@@ -67,14 +55,7 @@ type ScanFlowOverlayProps = {
 };
 
 type FlowIconName =
-  | 'close'
-  | 'help'
-  | 'qr'
-  | 'test'
-  | 'light'
-  | 'surface'
-  | 'steady'
-  | 'check';
+  "close" | "help" | "qr" | "test" | "light" | "surface" | "steady" | "check";
 
 function FlowIcon({
   name,
@@ -85,7 +66,7 @@ function FlowIcon({
   color?: string;
   size?: number;
 }) {
-  if (name === 'close') {
+  if (name === "close") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -98,7 +79,7 @@ function FlowIcon({
     );
   }
 
-  if (name === 'help') {
+  if (name === "help") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Circle
@@ -120,7 +101,7 @@ function FlowIcon({
     );
   }
 
-  if (name === 'qr') {
+  if (name === "qr") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -138,7 +119,7 @@ function FlowIcon({
     );
   }
 
-  if (name === 'test') {
+  if (name === "test") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Rect
@@ -162,7 +143,7 @@ function FlowIcon({
     );
   }
 
-  if (name === 'light') {
+  if (name === "light") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Circle
@@ -183,7 +164,7 @@ function FlowIcon({
     );
   }
 
-  if (name === 'surface') {
+  if (name === "surface") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -204,7 +185,7 @@ function FlowIcon({
     );
   }
 
-  if (name === 'steady') {
+  if (name === "steady") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -248,7 +229,7 @@ function RoundGlassButton({
   const iconElement = (
     <FlowIcon
       name={icon}
-      color={darkContent ? colors.text.primary : '#ffffff'}
+      color={darkContent ? colors.text.primary : "#ffffff"}
     />
   );
 
@@ -312,7 +293,7 @@ function FlowHeader({
   showClose?: boolean;
   top: number;
 }) {
-  const color = light ? '#ffffff' : colors.text.primary;
+  const color = light ? "#ffffff" : colors.text.primary;
   const stepLabel = currentStep ? (
     <AppText role="label" weight="medium" color={color}>
       {currentStep}
@@ -320,10 +301,7 @@ function FlowHeader({
   ) : null;
 
   return (
-    <GlassContainer
-      spacing={12}
-      style={[styles.flowHeader, { top }]}
-    >
+    <GlassContainer spacing={12} style={[styles.flowHeader, { top }]}>
       {showClose ? (
         <RoundGlassButton
           accessibilityLabel="Закрыть сканирование"
@@ -385,6 +363,14 @@ function CameraBackdrop({
   const requestedPermission = useRef(false);
 
   useEffect(() => {
+    // Browsers require camera permission requests to happen from a user gesture.
+    // Keep the explicit button visible on web instead of opening a browser-level
+    // permission sheet from an effect, which can leave the sheet non-interactive
+    // on mobile Safari/Chrome.
+    if (Platform.OS === "web") {
+      return;
+    }
+
     if (
       permission &&
       !permission.granted &&
@@ -404,7 +390,7 @@ function CameraBackdrop({
         <CameraView
           ref={cameraRef}
           barcodeScannerSettings={
-            onBarcodeScanned ? { barcodeTypes: ['qr'] } : undefined
+            onBarcodeScanned ? { barcodeTypes: ["qr"] } : undefined
           }
           facing="back"
           mode="picture"
@@ -414,7 +400,7 @@ function CameraBackdrop({
         />
       ) : (
         <LinearGradient
-          colors={['#251119', '#4A2433', '#170C11']}
+          colors={["#251119", "#4A2433", "#170C11"]}
           locations={[0, 0.52, 1]}
           start={{ x: 0.08, y: 0 }}
           end={{ x: 0.94, y: 1 }}
@@ -449,8 +435,8 @@ function CameraBackdrop({
                   <PrimaryButton
                     label={
                       permission.canAskAgain
-                        ? 'Разрешить доступ'
-                        : 'Открыть настройки'
+                        ? "Разрешить доступ"
+                        : "Открыть настройки"
                     }
                     onPress={() => {
                       if (permission.canAskAgain) {
@@ -466,10 +452,7 @@ function CameraBackdrop({
           </View>
         </LinearGradient>
       )}
-      <View
-        pointerEvents="none"
-        style={styles.cameraReadabilityScrim}
-      />
+      <View pointerEvents="none" style={styles.cameraReadabilityScrim} />
     </View>
   );
 }
@@ -491,19 +474,19 @@ function BriefingScreen({
     body: string;
   }> = [
     {
-      icon: 'qr',
-      title: 'Сначала QR-код',
-      body: 'Мы определим тип теста, партию и срок годности.',
+      icon: "qr",
+      title: "Сначала QR-код",
+      body: "Мы определим тип теста, партию и срок годности.",
     },
     {
-      icon: 'surface',
-      title: 'Подготовьте поверхность',
-      body: 'Положите тест ровно на светлый однородный фон.',
+      icon: "surface",
+      title: "Подготовьте поверхность",
+      body: "Положите тест ровно на светлый однородный фон.",
     },
     {
-      icon: 'light',
-      title: 'Проверьте освещение',
-      body: 'Избегайте теней и бликов на диагностическом окне.',
+      icon: "light",
+      title: "Проверьте освещение",
+      body: "Избегайте теней и бликов на диагностическом окне.",
     },
   ];
 
@@ -529,8 +512,8 @@ function BriefingScreen({
           color={colors.text.secondary}
           style={styles.briefingSubtitle}
         >
-          Это займёт меньше минуты. Инструктаж показывается только перед
-          первым сканированием.
+          Это займёт меньше минуты. Инструктаж показывается только перед первым
+          сканированием.
         </AppText>
       </View>
 
@@ -577,19 +560,14 @@ function QrScannerScreen({
   headerTop: number;
   onClose: () => void;
   onHelp: () => void;
-  onScanned: () => void;
+  onScanned: (data?: string) => void;
 }) {
   const scanned = useRef(false);
-  const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [detected, setDetected] = useState(false);
-  const { height: screenHeight, width: screenWidth } =
-    useWindowDimensions();
+  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const frameLeft = useRef(new Animated.Value(71)).current;
-  const frameTop = useRef(
-    new Animated.Value(headerTop + 203),
-  ).current;
+  const frameTop = useRef(new Animated.Value(headerTop + 203)).current;
   const frameSize = useRef(new Animated.Value(260)).current;
   const qrOpacity = useRef(new Animated.Value(1)).current;
 
@@ -602,9 +580,7 @@ function QrScannerScreen({
     [],
   );
 
-  const handleBarcodeScanned = (
-    result: BarcodeScanningResult,
-  ) => {
+  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
     if (scanned.current) {
       return;
     }
@@ -642,19 +618,13 @@ function QrScannerScreen({
     const padding = 14;
     const targetSize = hasUsableBounds
       ? Math.min(
-          Math.max(
-            Math.max(detectedWidth, detectedHeight) + padding * 2,
-            112,
-          ),
+          Math.max(Math.max(detectedWidth, detectedHeight) + padding * 2, 112),
           screenWidth - 32,
         )
       : 260;
     const targetLeft = hasUsableBounds
       ? Math.min(
-          Math.max(
-            originX + detectedWidth / 2 - targetSize / 2,
-            16,
-          ),
+          Math.max(originX + detectedWidth / 2 - targetSize / 2, 16),
           screenWidth - targetSize - 16,
         )
       : 71;
@@ -698,15 +668,13 @@ function QrScannerScreen({
         useNativeDriver: false,
       }),
     ]).start(() => {
-      completionTimer.current = setTimeout(onScanned, 360);
+      completionTimer.current = setTimeout(() => onScanned(result.data), 360);
     });
   };
 
   return (
     <View style={styles.cameraScreen}>
-      <CameraBackdrop
-        onBarcodeScanned={handleBarcodeScanned}
-      />
+      <CameraBackdrop onBarcodeScanned={handleBarcodeScanned} />
       <FlowHeader
         currentStep="Шаг 1 из 2"
         onClose={onClose}
@@ -714,12 +682,7 @@ function QrScannerScreen({
         top={headerTop}
       />
 
-      <View
-        style={[
-          styles.cameraTitle,
-          { top: headerTop + 84 },
-        ]}
-      >
+      <View style={[styles.cameraTitle, { top: headerTop + 84 }]}>
         <AppText
           role="heading"
           weight="semibold"
@@ -759,7 +722,7 @@ function QrScannerScreen({
             <Image
               accessible={false}
               resizeMode="contain"
-              source={require('../assets/figma/scan-screen/scan-flow-qr-final.png')}
+              source={require("../assets/figma/scan-screen/scan-flow-qr-final.png")}
               style={styles.qrImage}
             />
           </View>
@@ -770,12 +733,8 @@ function QrScannerScreen({
         <View style={styles.cameraTooltipSlot}>
           <ScanTooltip
             floatingMaxWidth={370}
-            kind={detected ? 'locked' : 'qr'}
-            message={
-              detected
-                ? 'QR-код найден'
-                : 'Наведите камеру на QR-код'
-            }
+            kind={detected ? "locked" : "qr"}
+            message={detected ? "QR-код найден" : "Наведите камеру на QR-код"}
             singleLine
             variant="floating"
           />
@@ -786,7 +745,7 @@ function QrScannerScreen({
           accessibilityLabel="Ввести код вручную"
           accessibilityState={{ disabled: detected }}
           disabled={detected}
-          onPress={onScanned}
+          onPress={() => onScanned()}
           style={({ pressed }) => [
             styles.secondaryCameraAction,
             pressed && styles.pressed,
@@ -804,47 +763,50 @@ function QrScannerScreen({
 const qualityHints: Array<{
   kind: ScanTooltipKind;
   text: string;
-  tone: 'neutral' | 'warning' | 'success';
+  tone: "neutral" | "warning" | "success";
 }> = [
   {
-    kind: 'test',
-    text: 'Наведите камеру на тест',
-    tone: 'neutral',
+    kind: "test",
+    text: "Наведите камеру на тест",
+    tone: "neutral",
   },
   {
-    kind: 'lowLight',
-    text: 'Слишком темно — добавьте света',
-    tone: 'warning',
+    kind: "lowLight",
+    text: "Слишком темно — добавьте света",
+    tone: "warning",
   },
   {
-    kind: 'background',
-    text: 'Переместите тест на однородный фон',
-    tone: 'warning',
+    kind: "background",
+    text: "Переместите тест на однородный фон",
+    tone: "warning",
   },
   {
-    kind: 'locked',
-    text: 'Отлично, не двигайте камеру',
-    tone: 'success',
+    kind: "locked",
+    text: "Отлично, не двигайте камеру",
+    tone: "success",
   },
 ];
 
-function BatchChip({ top }: { top: number }) {
+function BatchChip({
+  configuration,
+  top,
+}: {
+  configuration: ActiveCvConfiguration;
+  top: number;
+}) {
   const content = (
     <View style={styles.batchChipContent}>
       <View style={styles.batchStatus} />
       <View style={styles.batchCopy}>
-        <AppText
-          role="caption"
-          color="rgba(255,255,255,0.66)"
-        >
+        <AppText role="caption" color="rgba(255,255,255,0.66)">
           Тест определён
         </AppText>
         <AppText role="label" weight="medium" color="#ffffff">
-          Ovulation LH · Партия A24-071
+          {configuration.product.label} · {configuration.product.batch}
         </AppText>
       </View>
       <AppText numeric role="caption" color="#ffffff">
-        08.2027
+        {configuration.product.expiresAt}
       </AppText>
     </View>
   );
@@ -878,13 +840,15 @@ function BatchChip({ top }: { top: number }) {
 }
 
 function TestScannerScreen({
+  configuration,
   headerTop,
   onCapture,
   onClose,
   onHelp,
 }: {
+  configuration: ActiveCvConfiguration;
   headerTop: number;
-  onCapture: () => void;
+  onCapture: (imageUri: string) => void;
   onClose: () => void;
   onHelp: () => void;
 }) {
@@ -904,7 +868,7 @@ function TestScannerScreen({
   }, []);
 
   const currentHint = qualityHints[qualityStep];
-  const ready = currentHint.tone === 'success';
+  const ready = currentHint.tone === "success";
   const handleCapture = async () => {
     if (!ready || !cameraReady || capturing) {
       return;
@@ -913,15 +877,21 @@ function TestScannerScreen({
     setCapturing(true);
 
     try {
-      await cameraRef.current?.takePictureAsync({
-        quality: 0.82,
+      const photo = await cameraRef.current?.takePictureAsync({
+        quality: 1,
+        skipProcessing: false,
+        base64: false,
+        exif: true,
         shutterSound: false,
       });
-      onCapture();
+      if (!photo?.uri) {
+        throw new Error("Camera returned no local image URI.");
+      }
+      onCapture(photo.uri);
     } catch {
       Alert.alert(
-        'Не удалось сделать снимок',
-        'Проверьте доступ к камере и попробуйте ещё раз.',
+        "Не удалось сделать снимок",
+        "Проверьте доступ к камере и попробуйте ещё раз.",
       );
       setCapturing(false);
     }
@@ -939,14 +909,9 @@ function TestScannerScreen({
         onHelp={onHelp}
         top={headerTop}
       />
-      <BatchChip top={headerTop + 64} />
+      <BatchChip configuration={configuration} top={headerTop + 64} />
 
-      <View
-        style={[
-          styles.testTarget,
-          { top: headerTop + 182 },
-        ]}
-      >
+      <View style={[styles.testTarget, { top: headerTop + 182 }]}>
         <ScanFlowFrame
           width="100%"
           height="100%"
@@ -956,7 +921,7 @@ function TestScannerScreen({
         <Image
           accessible={false}
           resizeMode="contain"
-          source={require('../assets/figma/scan-screen/scan-test-strip.png')}
+          source={require("../assets/figma/scan-screen/scan-test-strip.png")}
           style={styles.testStripImage}
         />
       </View>
@@ -976,10 +941,10 @@ function TestScannerScreen({
           <PrimaryButton
             label={
               capturing
-                ? 'Делаем снимок…'
+                ? "Делаем снимок…"
                 : ready
-                  ? 'Сканировать тест'
-                  : 'Проверяем условия'
+                  ? "Сканировать тест"
+                  : "Проверяем условия"
             }
             disabled={!ready || !cameraReady || capturing}
             onPress={() => {
@@ -996,7 +961,7 @@ function ProcessingScreen() {
   return (
     <View style={styles.processingScreen}>
       <LinearGradient
-        colors={['#FFF8F5', '#FEE8E3', '#FFF8F6']}
+        colors={["#FFF8F5", "#FEE8E3", "#FFF8F6"]}
         locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFillObject}
       />
@@ -1004,11 +969,7 @@ function ProcessingScreen() {
         <View style={styles.processingIndicator}>
           <ActivityIndicator size="large" color={colors.brand.primary} />
         </View>
-        <AppText
-          role="title"
-          weight="semibold"
-          style={styles.centerText}
-        >
+        <AppText role="title" weight="semibold" style={styles.centerText}>
           Анализируем результат
         </AppText>
         <AppText
@@ -1016,8 +977,7 @@ function ProcessingScreen() {
           color={colors.text.secondary}
           style={styles.processingDescription}
         >
-          Проверяем качество снимка и определяем контрольную и тестовую
-          линии.
+          Проверяем качество снимка и определяем контрольную и тестовую линии.
         </AppText>
         <View style={styles.processingSteps}>
           <View style={styles.processingStepDone}>
@@ -1034,18 +994,26 @@ function ProcessingScreen() {
   );
 }
 
-function ResultPreview() {
+function ResultPreview({ result }: { result: AnalysisResult | null }) {
+  const controlDetected = result?.peaks.control.detected === true;
+  const testDetected = result?.peaks.test.detected === true;
+  const detectionLabel = !controlDetected
+    ? "Контрольная зона не распознана"
+    : testDetected
+      ? "Обе зоны распознаны"
+      : "Распознана контрольная зона";
+
   return (
     <View style={styles.resultPreview}>
       <LinearGradient
-        colors={['#FCEDE8', '#FFF9F6']}
+        colors={["#FCEDE8", "#FFF9F6"]}
         style={StyleSheet.absoluteFillObject}
       />
       <View style={styles.resultStrip}>
         <View style={styles.resultStripTip} />
         <View style={styles.resultWindow}>
-          <View style={styles.resultLineStrong} />
-          <View style={styles.resultLineSoft} />
+          {controlDetected ? <View style={styles.resultLineStrong} /> : null}
+          {testDetected ? <View style={styles.resultLineSoft} /> : null}
           <View style={styles.resultControlLabel}>
             <AppText numeric role="caption" color={colors.text.secondary}>
               C
@@ -1059,7 +1027,7 @@ function ResultPreview() {
       <View style={styles.detectedBadge}>
         <FlowIcon name="check" color={colors.brand.success} size={18} />
         <AppText role="caption" weight="medium">
-          Обе зоны распознаны
+          {detectionLabel}
         </AppText>
       </View>
     </View>
@@ -1067,18 +1035,75 @@ function ResultPreview() {
 }
 
 function ResultScreen({
+  configuration,
   headerTop,
+  error,
+  result,
   onClose,
   onConfirm,
   onCorrection,
   onHelp,
+  onRetake,
 }: {
+  configuration: ActiveCvConfiguration;
   headerTop: number;
+  error: string | null;
+  result: AnalysisResult | null;
   onClose: () => void;
   onConfirm: () => void;
   onCorrection: () => void;
   onHelp: () => void;
+  onRetake: () => void;
 }) {
+  const reasonMessages: Record<string, string> = {
+    move_closer: "Приблизьте камеру к тесту.",
+    hold_camera_steady: "Зафиксируйте камеру и сделайте новый снимок.",
+    glare_crosses_control_line: "Уберите блик с контрольной зоны.",
+    broad_shadow_or_illumination_gradient:
+      "Сделайте освещение более равномерным.",
+    broad_stain_or_smeared_line: "Линия размыта или перекрыта пятном.",
+    perspective_too_extreme: "Держите камеру параллельно тесту.",
+    check_detected_corners: "Разместите тест целиком внутри рамки.",
+    control_not_detected: "Контрольная линия не распознана.",
+  };
+  const canConfirm = result?.status === "valid";
+  const heading = error
+    ? "Не удалось выполнить анализ"
+    : result?.status === "invalid"
+      ? "Нужен новый снимок"
+      : result?.status === "review"
+        ? "Требуется проверка"
+        : "Результат готов";
+  const interpretation = error
+    ? "Ошибка анализа"
+    : result?.status === "invalid"
+      ? "Недействительный снимок"
+      : result?.status === "review"
+        ? "Не сохраняется"
+        : result?.signal.classification === "POS"
+          ? "Положительный"
+          : result?.signal.classification === "NEG"
+            ? "Отрицательный"
+            : result?.signal.value !== null &&
+                result?.signal.value !== undefined
+              ? `T/C ${result.signal.value.toFixed(3)}`
+              : "Без классификации";
+  const confidence = Math.round(
+    100 *
+      Math.max(
+        0,
+        Math.min(
+          1,
+          result?.quality.peak_pair_confidence ??
+            result?.quality.locator_confidence ??
+            0,
+        ),
+      ),
+  );
+  const qualityMessage = result?.reason_codes
+    .map((code) => reasonMessages[code])
+    .find((message) => message !== undefined);
+
   return (
     <View style={styles.resultScreen}>
       <FlowHeader
@@ -1093,18 +1118,22 @@ function ResultScreen({
           <FlowIcon name="check" color={colors.brand.success} size={28} />
         </View>
         <AppText role="title" weight="semibold" style={styles.centerText}>
-          Результат готов
+          {heading}
         </AppText>
         <AppText
           role="label"
           color={colors.text.secondary}
           style={styles.centerText}
         >
-          Проверьте, правильно ли приложение определило линии.
+          {error ??
+            qualityMessage ??
+            (canConfirm
+              ? "Проверьте, правильно ли приложение определило линии."
+              : "Измерение не будет сохранено — переснимите тест.")}
         </AppText>
       </View>
 
-      <ResultPreview />
+      <ResultPreview result={result} />
 
       <View style={styles.interpretationCard}>
         <View style={styles.interpretationHeader}>
@@ -1113,12 +1142,12 @@ function ResultScreen({
               Интерпретация
             </AppText>
             <AppText role="heading" weight="semibold">
-              Положительный
+              {interpretation}
             </AppText>
           </View>
           <View style={styles.confidenceBadge}>
             <AppText numeric role="label" color={colors.brand.success}>
-              96%
+              {confidence}%
             </AppText>
           </View>
         </View>
@@ -1129,7 +1158,7 @@ function ResultScreen({
               Тип теста
             </AppText>
             <AppText role="label" weight="medium">
-              Ovulation LH
+              {configuration.product.label}
             </AppText>
           </View>
           <View style={styles.resultMetaDivider} />
@@ -1138,35 +1167,40 @@ function ResultScreen({
               Партия
             </AppText>
             <AppText numeric role="label" weight="medium">
-              A24-071
+              {configuration.product.batch}
             </AppText>
           </View>
         </View>
       </View>
 
       <View style={styles.resultActions}>
-        <PrimaryButton label="Подтвердить результат" onPress={onConfirm} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Исправить интерпретацию"
-          onPress={onCorrection}
-          style={({ pressed }) => [
-            styles.resultSecondaryButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <AppText role="label" weight="medium" color={colors.brand.primary}>
-            Результат определён неверно
-          </AppText>
-        </Pressable>
+        <PrimaryButton
+          label={canConfirm ? "Подтвердить результат" : "Переснять тест"}
+          onPress={canConfirm ? onConfirm : onRetake}
+        />
+        {canConfirm ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Исправить интерпретацию"
+            onPress={onCorrection}
+            style={({ pressed }) => [
+              styles.resultSecondaryButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <AppText role="label" weight="medium" color={colors.brand.primary}>
+              Результат определён неверно
+            </AppText>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
 }
 
 const correctionOptions = [
-  'Вижу две линии',
-  'Вижу только контрольную линию',
+  "Вижу две линии",
+  "Вижу только контрольную линию",
 ] as const;
 
 function CorrectionScreen({
@@ -1175,12 +1209,14 @@ function CorrectionScreen({
   onHelp,
   onRetake,
   onSubmit,
+  result,
 }: {
   headerTop: number;
   onClose: () => void;
   onHelp: () => void;
   onRetake: () => void;
   onSubmit: () => void;
+  result: AnalysisResult | null;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
 
@@ -1198,12 +1234,12 @@ function CorrectionScreen({
           Что вы видите на тесте?
         </AppText>
         <AppText role="body" color={colors.text.secondary}>
-          Выберите вариант или переснимите тест. Итог можно подтвердить
-          после проверки фотографии.
+          Выберите вариант или переснимите тест. Итог можно подтвердить после
+          проверки фотографии.
         </AppText>
       </View>
 
-      <ResultPreview />
+      <ResultPreview result={result} />
 
       <View style={styles.correctionOptions}>
         {correctionOptions.map((option, index) => {
@@ -1221,12 +1257,7 @@ function CorrectionScreen({
                 pressed && styles.pressed,
               ]}
             >
-              <View
-                style={[
-                  styles.radio,
-                  active && styles.radioActive,
-                ]}
-              >
+              <View style={[styles.radio, active && styles.radioActive]}>
                 {active ? <View style={styles.radioDot} /> : null}
               </View>
               <AppText role="label" weight="medium">
@@ -1270,16 +1301,32 @@ export function ScanFlowOverlay({
   onComplete,
 }: ScanFlowOverlayProps) {
   const [stage, setStage] = useState<ScanFlowStage>(
-    showBriefing ? 'briefing' : 'qr',
+    showBriefing ? "briefing" : "qr",
   );
-  const [returnStage, setReturnStage] =
-    useState<Exclude<ScanFlowStage, 'briefing'> | null>(null);
+  const [returnStage, setReturnStage] = useState<Exclude<
+    ScanFlowStage,
+    "briefing"
+  > | null>(null);
+  const [configuration, setConfiguration] = useState(
+    scanningService.getConfiguration(),
+  );
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
+    null,
+  );
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const analysisRequestId = useRef(0);
   const transition = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (visible) {
+      analysisRequestId.current += 1;
       setReturnStage(null);
-      setStage(showBriefing ? 'briefing' : 'qr');
+      setAnalysisResult(null);
+      setAnalysisError(null);
+      setConfiguration(scanningService.getConfiguration());
+      setStage(showBriefing ? "briefing" : "qr");
+    } else {
+      analysisRequestId.current += 1;
     }
   }, [showBriefing, visible]);
 
@@ -1299,37 +1346,28 @@ export function ScanFlowOverlay({
     return () => animation.stop();
   }, [stage, transition, visible]);
 
-  useEffect(() => {
-    if (!visible || stage !== 'processing') {
-      return;
-    }
-
-    const timer = setTimeout(() => setStage('result'), 2100);
-    return () => clearTimeout(timer);
-  }, [stage, visible]);
-
   if (!visible) {
     return null;
   }
 
   const openBriefing = (
-    currentStage: Exclude<ScanFlowStage, 'briefing' | 'processing'>,
+    currentStage: Exclude<ScanFlowStage, "briefing" | "processing">,
   ) => {
     setReturnStage(currentStage);
-    setStage('briefing');
+    setStage("briefing");
   };
   const requestClose = () => {
     Alert.alert(
-      'Завершить сканирование?',
-      'Текущий прогресс сканирования не будет сохранён.',
+      "Завершить сканирование?",
+      "Текущий прогресс сканирования не будет сохранён.",
       [
         {
-          text: 'Продолжить сканирование',
-          style: 'cancel',
+          text: "Продолжить сканирование",
+          style: "cancel",
         },
         {
-          text: 'Завершить',
-          style: 'destructive',
+          text: "Завершить",
+          style: "destructive",
           onPress: onClose,
         },
       ],
@@ -1337,7 +1375,7 @@ export function ScanFlowOverlay({
   };
 
   const content =
-    stage === 'briefing' ? (
+    stage === "briefing" ? (
       <BriefingScreen
         headerTop={headerTop}
         hideClose={returnStage !== null}
@@ -1349,41 +1387,87 @@ export function ScanFlowOverlay({
             setStage(nextStage);
           } else {
             onBriefingSeen();
-            setStage('qr');
+            setStage("qr");
           }
         }}
       />
-    ) : stage === 'qr' ? (
+    ) : stage === "qr" ? (
       <QrScannerScreen
         headerTop={headerTop}
         onClose={requestClose}
-        onHelp={() => openBriefing('qr')}
-        onScanned={() => setStage('test')}
+        onHelp={() => openBriefing("qr")}
+        onScanned={(data) => {
+          if (data) {
+            try {
+              scanningService.applyQrConfiguration(data);
+            } catch (error) {
+              Alert.alert(
+                "Профиль QR-кода отклонён",
+                error instanceof Error
+                  ? error.message
+                  : "Некорректный профиль.",
+              );
+            }
+          }
+          setConfiguration(scanningService.getConfiguration());
+          setStage("test");
+        }}
       />
-    ) : stage === 'test' ? (
+    ) : stage === "test" ? (
       <TestScannerScreen
+        configuration={configuration}
         headerTop={headerTop}
         onClose={requestClose}
-        onHelp={() => openBriefing('test')}
-        onCapture={() => setStage('processing')}
+        onHelp={() => openBriefing("test")}
+        onCapture={(imageUri) => {
+          const requestId = ++analysisRequestId.current;
+          setAnalysisResult(null);
+          setAnalysisError(null);
+          setStage("processing");
+          void scanningService
+            .analyze(imageUri)
+            .then((result) => {
+              if (analysisRequestId.current !== requestId) {
+                return;
+              }
+              setAnalysisResult(result);
+              setStage("result");
+            })
+            .catch((error: unknown) => {
+              if (analysisRequestId.current !== requestId) {
+                return;
+              }
+              setAnalysisError(
+                error instanceof Error
+                  ? error.message
+                  : "Неизвестная ошибка анализа.",
+              );
+              setStage("result");
+            });
+        }}
       />
-    ) : stage === 'processing' ? (
+    ) : stage === "processing" ? (
       <ProcessingScreen />
-    ) : stage === 'correction' ? (
+    ) : stage === "correction" ? (
       <CorrectionScreen
         headerTop={headerTop}
         onClose={requestClose}
-        onHelp={() => openBriefing('correction')}
-        onRetake={() => setStage('test')}
+        onHelp={() => openBriefing("correction")}
+        onRetake={() => setStage("test")}
         onSubmit={onComplete}
+        result={analysisResult}
       />
     ) : (
       <ResultScreen
+        configuration={configuration}
+        error={analysisError}
         headerTop={headerTop}
         onClose={requestClose}
         onConfirm={onComplete}
-        onCorrection={() => setStage('correction')}
-        onHelp={() => openBriefing('result')}
+        onCorrection={() => setStage("correction")}
+        onHelp={() => openBriefing("result")}
+        onRetake={() => setStage("test")}
+        result={analysisResult}
       />
     );
 
@@ -1412,9 +1496,9 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 30,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 40,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: "#FFF8F5",
   },
   pressed: {
     opacity: motion.pressedOpacity,
@@ -1424,25 +1508,25 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.035 }],
   },
   flowHeader: {
-    position: 'absolute',
+    position: "absolute",
     zIndex: 6,
     left: 16,
     right: 16,
     height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   roundButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    overflow: 'visible',
+    overflow: "visible",
   },
   flowGlassPressTarget: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerSpacer: {
     width: 48,
@@ -1452,48 +1536,48 @@ const styles = StyleSheet.create({
     width: 156,
     height: 48,
     borderRadius: 24,
-    overflow: 'visible',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: "visible",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cameraScreen: {
     flex: 1,
-    backgroundColor: '#170C11',
+    backgroundColor: "#170C11",
   },
   cameraReadabilityScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.18)',
+    backgroundColor: "rgba(0,0,0,0.18)",
   },
   cameraPermissionState: {
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 12,
   },
   cameraPermissionCopy: {
     maxWidth: 290,
     lineHeight: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   cameraPermissionAction: {
     width: 240,
     marginTop: 8,
   },
   cameraTitle: {
-    position: 'absolute',
+    position: "absolute",
     left: 32,
     right: 32,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 5,
   },
   centerText: {
-    textAlign: 'center',
+    textAlign: "center",
   },
   qrTarget: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
   },
   scanFlowFrame: {
     ...StyleSheet.absoluteFillObject,
@@ -1501,37 +1585,37 @@ const styles = StyleSheet.create({
   qrArtwork: {
     width: 144,
     height: 144,
-    overflow: 'hidden',
+    overflow: "hidden",
     opacity: 0.5,
   },
   qrImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   cameraBottomGroup: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     right: 16,
     bottom: 86,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 18,
   },
   cameraTooltipSlot: {
     width: 370,
-    alignSelf: 'center',
-    alignItems: 'center',
+    alignSelf: "center",
+    alignItems: "center",
   },
   secondaryCameraAction: {
     height: 44,
     paddingHorizontal: 20,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "rgba(255,255,255,0.28)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   batchChip: {
-    position: 'absolute',
+    position: "absolute",
     zIndex: 4,
     left: 16,
     right: 16,
@@ -1541,8 +1625,8 @@ const styles = StyleSheet.create({
   batchChipContent: {
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   batchStatus: {
@@ -1556,12 +1640,12 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   testTarget: {
-    position: 'absolute',
+    position: "absolute",
     left: 36,
     width: 330,
     height: 330,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   testStripImage: {
     width: 308,
@@ -1573,31 +1657,31 @@ const styles = StyleSheet.create({
   },
   briefingScreen: {
     flex: 1,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: "#FFF8F5",
   },
   briefingHero: {
-    position: 'absolute',
+    position: "absolute",
     top: 132,
     left: 24,
     right: 24,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 9,
   },
   briefingIcon: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(211,20,113,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(211,20,113,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   briefingSubtitle: {
     width: 338,
     lineHeight: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   briefingList: {
-    position: 'absolute',
+    position: "absolute",
     top: 348,
     left: 16,
     right: 16,
@@ -1608,9 +1692,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     ...shadows.card,
   },
@@ -1618,9 +1702,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: '#FDECE5',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#FDECE5",
+    alignItems: "center",
+    justifyContent: "center",
   },
   briefingRowCopy: {
     flex: 1,
@@ -1629,40 +1713,40 @@ const styles = StyleSheet.create({
   },
   briefingRowNumber: {
     width: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   bottomAction: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     right: 16,
     bottom: 108,
   },
   processingScreen: {
     flex: 1,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: "#FFF8F5",
   },
   processingContent: {
-    position: 'absolute',
+    position: "absolute",
     left: 30,
     right: 30,
     top: 230,
-    alignItems: 'center',
+    alignItems: "center",
   },
   processingIndicator: {
     width: 92,
     height: 92,
     marginBottom: 28,
     borderRadius: 46,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
     ...shadows.card,
   },
   processingDescription: {
     maxWidth: 315,
     marginTop: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
   processingSteps: {
     width: 290,
@@ -1670,13 +1754,13 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   processingStepDone: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   processingStepActive: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   processingDot: {
@@ -1688,14 +1772,14 @@ const styles = StyleSheet.create({
   },
   resultScreen: {
     flex: 1,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: "#FFF8F5",
   },
   resultHeading: {
-    position: 'absolute',
+    position: "absolute",
     top: 126,
     left: 24,
     right: 24,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 7,
   },
   resultSuccessIcon: {
@@ -1703,47 +1787,47 @@ const styles = StyleSheet.create({
     height: 48,
     marginBottom: 3,
     borderRadius: 24,
-    backgroundColor: 'rgba(31,187,116,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(31,187,116,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   resultPreview: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     top: 246,
     width: 370,
     height: 180,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   resultStrip: {
     width: 292,
     height: 70,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    transform: [{ rotate: '-3deg' }],
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    transform: [{ rotate: "-3deg" }],
     ...shadows.card,
   },
   resultStripTip: {
     width: 82,
-    alignSelf: 'stretch',
+    alignSelf: "stretch",
     borderTopLeftRadius: 20,
     borderBottomLeftRadius: 20,
-    backgroundColor: '#F7B2C8',
+    backgroundColor: "#F7B2C8",
   },
   resultWindow: {
     width: 108,
     height: 42,
     marginLeft: 24,
     borderRadius: 13,
-    backgroundColor: '#FFF3F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#FFF3F6",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 24,
   },
   resultLineStrong: {
@@ -1756,52 +1840,52 @@ const styles = StyleSheet.create({
     width: 4,
     height: 29,
     borderRadius: 2,
-    backgroundColor: 'rgba(211,20,113,0.56)',
+    backgroundColor: "rgba(211,20,113,0.56)",
   },
   resultControlLabel: {
-    position: 'absolute',
+    position: "absolute",
     left: 22,
     right: 22,
     bottom: -17,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   detectedBadge: {
-    position: 'absolute',
+    position: "absolute",
     right: 14,
     bottom: 14,
     minHeight: 34,
     paddingHorizontal: 10,
     borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.88)",
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   interpretationCard: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     top: 442,
     width: 370,
     minHeight: 126,
     padding: 18,
     borderRadius: 28,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     ...shadows.card,
   },
   interpretationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   confidenceBadge: {
     minWidth: 58,
     height: 36,
     paddingHorizontal: 10,
     borderRadius: 18,
-    backgroundColor: 'rgba(31,187,116,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(31,187,116,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   resultRule: {
     height: 1,
@@ -1809,8 +1893,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.divider,
   },
   resultMeta: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
+    flexDirection: "row",
+    alignItems: "stretch",
     gap: 16,
   },
   resultMetaItem: {
@@ -1822,7 +1906,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.divider,
   },
   resultActions: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     right: 16,
     bottom: 94,
@@ -1831,19 +1915,19 @@ const styles = StyleSheet.create({
   resultSecondaryButton: {
     height: 46,
     borderRadius: 23,
-    backgroundColor: 'rgba(211,20,113,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(211,20,113,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   correctionHeading: {
-    position: 'absolute',
+    position: "absolute",
     top: 132,
     left: 20,
     right: 20,
     gap: 8,
   },
   correctionOptions: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     right: 16,
     top: 444,
@@ -1854,15 +1938,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(33,33,35,0.08)',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderColor: "rgba(33,33,35,0.08)",
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
     gap: 11,
   },
   correctionOptionActive: {
     borderColor: colors.brand.primary,
-    backgroundColor: 'rgba(211,20,113,0.06)',
+    backgroundColor: "rgba(211,20,113,0.06)",
   },
   radio: {
     width: 22,
@@ -1870,8 +1954,8 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     borderWidth: 1.5,
     borderColor: colors.state.disabled,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   radioActive: {
     borderColor: colors.brand.primary,
@@ -1883,7 +1967,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primary,
   },
   correctionActions: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     right: 16,
     bottom: 94,

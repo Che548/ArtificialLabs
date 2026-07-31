@@ -9,7 +9,8 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#823537",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.privateexpo"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +19,11 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "package": "com.anonymous.privateexpo"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -26,7 +31,6 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser",
       [
         "expo-camera",
         {
