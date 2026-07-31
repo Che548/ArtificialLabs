@@ -14,7 +14,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       CI: true
       EXPO_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
