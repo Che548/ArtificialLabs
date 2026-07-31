@@ -67,6 +67,7 @@ type ScanFlowOverlayProps = {
 };
 
 type FlowIconName =
+  | 'back'
   | 'close'
   | 'help'
   | 'qr'
@@ -85,6 +86,21 @@ function FlowIcon({
   color?: string;
   size?: number;
 }) {
+  if (name === 'back') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path
+          d="m14.5 6-6 6 6 6"
+          fill="none"
+          stroke={color}
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    );
+  }
+
   if (name === 'close') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -238,17 +254,22 @@ function RoundGlassButton({
   accessibilityLabel,
   darkContent = false,
   icon,
+  iconColor,
   onPress,
 }: {
   accessibilityLabel: string;
   darkContent?: boolean;
   icon: FlowIconName;
+  iconColor?: string;
   onPress: () => void;
 }) {
   const iconElement = (
     <FlowIcon
       name={icon}
-      color={darkContent ? colors.text.primary : '#ffffff'}
+      color={
+        iconColor ??
+        (darkContent ? colors.text.primary : '#ffffff')
+      }
     />
   );
 
@@ -299,17 +320,21 @@ function RoundGlassButton({
 
 function FlowHeader({
   currentStep,
+  leadingIcon = 'close',
   light = true,
   onClose,
   onHelp,
   showClose = true,
+  showHelp = true,
   top,
 }: {
   currentStep?: string;
+  leadingIcon?: 'back' | 'close';
   light?: boolean;
   onClose: () => void;
   onHelp: () => void;
   showClose?: boolean;
+  showHelp?: boolean;
   top: number;
 }) {
   const color = light ? '#ffffff' : colors.text.primary;
@@ -326,9 +351,18 @@ function FlowHeader({
     >
       {showClose ? (
         <RoundGlassButton
-          accessibilityLabel="Закрыть сканирование"
+          accessibilityLabel={
+            leadingIcon === 'back'
+              ? 'Вернуться к истории'
+              : 'Закрыть сканирование'
+          }
           darkContent={!light}
-          icon="close"
+          icon={leadingIcon}
+          iconColor={
+            leadingIcon === 'back'
+              ? colors.brand.primary
+              : undefined
+          }
           onPress={onClose}
         />
       ) : (
@@ -362,12 +396,16 @@ function FlowHeader({
         <View />
       )}
 
-      <RoundGlassButton
-        accessibilityLabel="Открыть инструктаж"
-        darkContent={!light}
-        icon="help"
-        onPress={onHelp}
-      />
+      {showHelp ? (
+        <RoundGlassButton
+          accessibilityLabel="Открыть инструктаж"
+          darkContent={!light}
+          icon="help"
+          onPress={onHelp}
+        />
+      ) : (
+        <View style={styles.headerSpacer} />
+      )}
     </GlassContainer>
   );
 }
@@ -1034,7 +1072,13 @@ function ProcessingScreen() {
   );
 }
 
-function ResultPreview() {
+function ResultPreview({
+  result = 'Положительный',
+}: {
+  result?: ScanResultData['result'];
+}) {
+  const isNegative = result === 'Отрицательный';
+
   return (
     <View style={styles.resultPreview}>
       <LinearGradient
@@ -1045,7 +1089,7 @@ function ResultPreview() {
         <View style={styles.resultStripTip} />
         <View style={styles.resultWindow}>
           <View style={styles.resultLineStrong} />
-          <View style={styles.resultLineSoft} />
+          {!isNegative ? <View style={styles.resultLineSoft} /> : null}
           <View style={styles.resultControlLabel}>
             <AppText numeric role="caption" color={colors.text.secondary}>
               C
@@ -1059,52 +1103,93 @@ function ResultPreview() {
       <View style={styles.detectedBadge}>
         <FlowIcon name="check" color={colors.brand.success} size={18} />
         <AppText role="caption" weight="medium">
-          Обе зоны распознаны
+          {isNegative ? 'Контрольная зона распознана' : 'Обе зоны распознаны'}
         </AppText>
       </View>
     </View>
   );
 }
 
-function ResultScreen({
+export type ScanResultData = {
+  batch: string;
+  confidence: number;
+  result: 'Положительный' | 'Отрицательный' | 'Пик ЛГ';
+  type: 'Ovulation LH' | 'Pregnancy hCG';
+};
+
+const defaultScanResult: ScanResultData = {
+  batch: 'A24-071',
+  confidence: 96,
+  result: 'Положительный',
+  type: 'Ovulation LH',
+};
+
+export function ScanResultScreen({
+  fromHistory = false,
   headerTop,
   onClose,
   onConfirm,
   onCorrection,
   onHelp,
+  hideReadyHeading = false,
+  resultData = defaultScanResult,
 }: {
+  fromHistory?: boolean;
   headerTop: number;
   onClose: () => void;
   onConfirm: () => void;
   onCorrection: () => void;
   onHelp: () => void;
+  hideReadyHeading?: boolean;
+  resultData?: ScanResultData;
 }) {
+  const displayedResult =
+    resultData.result === 'Пик ЛГ' ? 'Положительный' : resultData.result;
+
   return (
     <View style={styles.resultScreen}>
       <FlowHeader
+        leadingIcon={fromHistory ? 'back' : 'close'}
         light={false}
         onClose={onClose}
         onHelp={onHelp}
+        showHelp={!fromHistory}
         top={headerTop}
       />
 
-      <View style={styles.resultHeading}>
-        <View style={styles.resultSuccessIcon}>
-          <FlowIcon name="check" color={colors.brand.success} size={28} />
-        </View>
-        <AppText role="title" weight="semibold" style={styles.centerText}>
-          Результат готов
-        </AppText>
+      <View
+        style={[
+          styles.resultHeading,
+          fromHistory && styles.historyResultHeading,
+        ]}
+      >
+        {!hideReadyHeading ? (
+          <>
+            <View style={styles.resultSuccessIcon}>
+              <FlowIcon name="check" color={colors.brand.success} size={28} />
+            </View>
+            <AppText
+              role="title"
+              weight="semibold"
+              style={styles.centerText}
+            >
+              Результат готов
+            </AppText>
+          </>
+        ) : null}
         <AppText
-          role="label"
-          color={colors.text.secondary}
-          style={styles.centerText}
+          role={fromHistory ? 'body' : 'label'}
+          color={fromHistory ? '#171717' : colors.text.secondary}
+          style={[
+            styles.centerText,
+            fromHistory && styles.historyResultDescription,
+          ]}
         >
           Проверьте, правильно ли приложение определило линии.
         </AppText>
       </View>
 
-      <ResultPreview />
+      <ResultPreview result={resultData.result} />
 
       <View style={styles.interpretationCard}>
         <View style={styles.interpretationHeader}>
@@ -1113,12 +1198,12 @@ function ResultScreen({
               Интерпретация
             </AppText>
             <AppText role="heading" weight="semibold">
-              Положительный
+              {displayedResult}
             </AppText>
           </View>
           <View style={styles.confidenceBadge}>
             <AppText numeric role="label" color={colors.brand.success}>
-              96%
+              {resultData.confidence}%
             </AppText>
           </View>
         </View>
@@ -1129,7 +1214,7 @@ function ResultScreen({
               Тип теста
             </AppText>
             <AppText role="label" weight="medium">
-              Ovulation LH
+              {resultData.type}
             </AppText>
           </View>
           <View style={styles.resultMetaDivider} />
@@ -1138,7 +1223,7 @@ function ResultScreen({
               Партия
             </AppText>
             <AppText numeric role="label" weight="medium">
-              A24-071
+              {resultData.batch}
             </AppText>
           </View>
         </View>
@@ -1169,41 +1254,61 @@ const correctionOptions = [
   'Вижу только контрольную линию',
 ] as const;
 
-function CorrectionScreen({
+export function ScanCorrectionScreen({
+  fromHistory = false,
   headerTop,
   onClose,
   onHelp,
   onRetake,
   onSubmit,
+  resultData = defaultScanResult,
 }: {
+  fromHistory?: boolean;
   headerTop: number;
   onClose: () => void;
   onHelp: () => void;
   onRetake: () => void;
   onSubmit: () => void;
+  resultData?: ScanResultData;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
 
   return (
     <View style={styles.resultScreen}>
       <FlowHeader
+        leadingIcon={fromHistory ? 'back' : 'close'}
         light={false}
         onClose={onClose}
         onHelp={onHelp}
+        showHelp={!fromHistory}
         top={headerTop}
       />
 
-      <View style={styles.correctionHeading}>
-        <AppText role="title" weight="semibold">
-          Что вы видите на тесте?
-        </AppText>
-        <AppText role="body" color={colors.text.secondary}>
+      <View
+        style={[
+          styles.correctionHeading,
+          fromHistory && styles.historyCorrectionHeading,
+        ]}
+      >
+        {!fromHistory ? (
+          <AppText role="title" weight="semibold">
+            Что вы видите на тесте?
+          </AppText>
+        ) : null}
+        <AppText
+          role="body"
+          color={fromHistory ? '#171717' : colors.text.secondary}
+          style={[
+            fromHistory && styles.centerText,
+            fromHistory && styles.historyResultDescription,
+          ]}
+        >
           Выберите вариант или переснимите тест. Итог можно подтвердить
-          после проверки фотографии.
+          после проверки.
         </AppText>
       </View>
 
-      <ResultPreview />
+      <ResultPreview result={resultData.result} />
 
       <View style={styles.correctionOptions}>
         {correctionOptions.map((option, index) => {
@@ -1243,19 +1348,25 @@ function CorrectionScreen({
           disabled={selected === null}
           onPress={onSubmit}
         />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Переснять тест"
-          onPress={onRetake}
-          style={({ pressed }) => [
-            styles.resultSecondaryButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <AppText role="label" weight="medium" color={colors.brand.primary}>
-            Переснять тест
-          </AppText>
-        </Pressable>
+        {!fromHistory ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Переснять тест"
+            onPress={onRetake}
+            style={({ pressed }) => [
+              styles.resultSecondaryButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <AppText
+              role="label"
+              weight="medium"
+              color={colors.brand.primary}
+            >
+              Переснять тест
+            </AppText>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -1370,7 +1481,7 @@ export function ScanFlowOverlay({
     ) : stage === 'processing' ? (
       <ProcessingScreen />
     ) : stage === 'correction' ? (
-      <CorrectionScreen
+      <ScanCorrectionScreen
         headerTop={headerTop}
         onClose={requestClose}
         onHelp={() => openBriefing('correction')}
@@ -1378,7 +1489,7 @@ export function ScanFlowOverlay({
         onSubmit={onComplete}
       />
     ) : (
-      <ResultScreen
+      <ScanResultScreen
         headerTop={headerTop}
         onClose={requestClose}
         onConfirm={onComplete}
@@ -1698,6 +1809,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
+  historyResultHeading: {
+    top: 168,
+  },
+  historyResultDescription: {
+    fontSize: 19,
+    lineHeight: 23,
+    letterSpacing: -0.38,
+  },
   resultSuccessIcon: {
     width: 48,
     height: 48,
@@ -1841,6 +1960,10 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     gap: 8,
+  },
+  historyCorrectionHeading: {
+    top: 168,
+    alignItems: 'center',
   },
   correctionOptions: {
     position: 'absolute',

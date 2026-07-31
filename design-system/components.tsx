@@ -1,13 +1,7 @@
 import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
-import {
-  GlassView,
-  isLiquidGlassAvailable,
-} from 'expo-glass-effect';
-import type {
-  GlassColorScheme,
-  GlassStyle,
-} from 'expo-glass-effect';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren, ReactNode } from 'react';
@@ -179,12 +173,7 @@ function ScanSphereVisual({
         </RadialGradient>
       </Defs>
       <Circle cx="50" cy="50" r="50" fill="url(#sphereFill)" />
-      <Circle
-        cx="34"
-        cy="27"
-        r="17"
-        fill="rgba(255,255,255,0.13)"
-      />
+      <Circle cx="34" cy="27" r="17" fill="rgba(255,255,255,0.13)" />
     </Svg>
   );
 }
@@ -424,7 +413,7 @@ export function ScanBackgroundMotion({
                   ...threePoint,
                   outputRange: [-8, 8, -8],
                 })
-        : 0;
+              : 0;
   const translateY =
     variant === 'drift'
       ? progress.interpolate({
@@ -456,7 +445,7 @@ export function ScanBackgroundMotion({
                     ...threePoint,
                     outputRange: [-10, 10, -10],
                   })
-          : 0;
+                : 0;
   const scale =
     variant === 'breathe'
       ? progress.interpolate({
@@ -478,7 +467,7 @@ export function ScanBackgroundMotion({
                       ...threePoint,
                       outputRange: [1.05, 1.14, 1.05],
                     })
-            : 1.035;
+                  : 1.035;
   const rotate =
     variant === 'sway'
       ? progress.interpolate({
@@ -490,22 +479,25 @@ export function ScanBackgroundMotion({
             ...threePoint,
             outputRange: ['-0.8deg', '0.8deg', '-0.8deg'],
           })
-      : '0deg';
+        : '0deg';
   const horizontalOverscan = 0.04;
   const verticalOverscan = 0.04;
   const activeSpeedMultiplier =
-    variant === 'activeSweep' ? 0.78 : variant === 'activePulse' ? 0.9 : 1;
+    variant === 'activeSweep'
+      ? 0.78
+      : variant === 'activePulse'
+        ? 0.9
+        : 1;
   const activeSizeMultiplier =
-    variant === 'activePulse' ? 1.1 : variant === 'activeSweep' ? 0.9 : 1;
+    variant === 'activePulse'
+      ? 1.1
+      : variant === 'activeSweep'
+        ? 0.9
+        : 1;
   const visibleSphereCount = variant === 'activeOrbit' ? 5 : 7;
 
   return (
-    <View
-      style={[
-        styles.scanBackgroundMotion,
-        { width, height },
-      ]}
-    >
+    <View style={[styles.scanBackgroundMotion, { width, height }]}>
       {isActive ? (
         <LinearGradient
           colors={['#fff9f6', '#ffefec', '#fff8f4']}
@@ -526,24 +518,26 @@ export function ScanBackgroundMotion({
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
-          {scanSphereSeeds.slice(0, visibleSphereCount).map((sphere, index) => {
-            const size = width * sphere.size * activeSizeMultiplier;
-            const maxTop = Math.max(0, height - size);
+          {scanSphereSeeds
+            .slice(0, visibleSphereCount)
+            .map((sphere, index) => {
+              const size = width * sphere.size * activeSizeMultiplier;
+              const maxTop = Math.max(0, height - size);
 
-            return (
-              <MovingScanSphere
-                key={`${variant}-${index}`}
-                containerWidth={width}
-                duration={sphere.duration * activeSpeedMultiplier}
-                initialPhase={sphere.phase}
-                palette={sphere.palette}
-                reduceMotion={reduceMotion}
-                size={size}
-                staticX={sphere.phase}
-                top={Math.min(height * sphere.top, maxTop)}
-              />
-            );
-          })}
+              return (
+                <MovingScanSphere
+                  key={`${variant}-${index}`}
+                  containerWidth={width}
+                  duration={sphere.duration * activeSpeedMultiplier}
+                  initialPhase={sphere.phase}
+                  palette={sphere.palette}
+                  reduceMotion={reduceMotion}
+                  size={size}
+                  staticX={sphere.phase}
+                  top={Math.min(height * sphere.top, maxTop)}
+                />
+              );
+            })}
         </LinearGradient>
       ) : (
         <Animated.Image
@@ -624,7 +618,9 @@ export function AppText({
         typeScale[role],
         {
           color,
-          fontFamily: numeric ? fonts.yaroRegular : sfByWeight[weight],
+          fontFamily: numeric
+            ? fonts.yaroRegular
+            : sfByWeight[weight],
         },
         style,
       ]}
@@ -684,7 +680,10 @@ export function LiquidGlassSurface({
           tintColor={tintColor}
           colorScheme={colorScheme}
           isInteractive
-          style={[StyleSheet.absoluteFillObject, { borderRadius: radius }]}
+          style={[
+            StyleSheet.absoluteFillObject,
+            { borderRadius: radius },
+          ]}
         >
           <View pointerEvents="none" style={styles.centerFill}>
             {children}
@@ -848,7 +847,11 @@ export function ProgressMeter({
   return (
     <View
       accessibilityRole="progressbar"
-      accessibilityValue={{ min: 0, max: total, now: value }}
+      accessibilityValue={{
+        min: 0,
+        max: total,
+        now: value,
+      }}
       style={styles.progress}
     >
       {Array.from({ length: total }, (_, index) => (
@@ -1075,8 +1078,10 @@ export function ScanActionGroup({
           <View
             style={[
               styles.scanActionContent,
-              variant === 'minimal' && styles.scanActionContentMinimal,
-              variant === 'floating' && styles.scanActionContentFloating,
+              variant === 'minimal' &&
+                styles.scanActionContentMinimal,
+              variant === 'floating' &&
+                styles.scanActionContentFloating,
             ]}
           >
             <View
@@ -1205,7 +1210,9 @@ export function InstructionCard({
                 {step}
               </AppText>
             </View>
-            <TokenLabel>Шаг {step} из {total}</TokenLabel>
+            <TokenLabel>
+              Шаг {step} из {total}
+            </TokenLabel>
           </View>
           <AppText style={styles.instructionIllustratedBody}>
             {text}
@@ -1280,7 +1287,9 @@ export function InstructionCard({
           </AppText>
         </View>
         <View style={styles.instructionRingCopy}>
-          <TokenLabel>Инструкция · {step}/{total}</TokenLabel>
+          <TokenLabel>
+            Инструкция · {step}/{total}
+          </TokenLabel>
           <AppText style={styles.instructionNewBody}>{text}</AppText>
         </View>
       </View>
@@ -1304,7 +1313,9 @@ export function InstructionCard({
           {step}
         </AppText>
         <View style={styles.instructionCornerCopy}>
-          <TokenLabel>ШАГ {step} / {total}</TokenLabel>
+          <TokenLabel>
+            ШАГ {step} / {total}
+          </TokenLabel>
           <AppText style={styles.instructionNewBody}>{text}</AppText>
         </View>
       </View>
@@ -1326,8 +1337,7 @@ export function InstructionCard({
               key={index}
               style={[
                 styles.instructionSegmentsPart,
-                index < step &&
-                  styles.instructionSegmentsPartFilled,
+                index < step && styles.instructionSegmentsPartFilled,
               ]}
             />
           ))}
@@ -1409,7 +1419,9 @@ export function InstructionCard({
               </AppText>
             </View>
             <View style={styles.instructionGlassCopy}>
-              <TokenLabel>Шаг {step} из {total}</TokenLabel>
+              <TokenLabel>
+                Шаг {step} из {total}
+              </TokenLabel>
               <AppText style={styles.instructionGlassBody}>
                 {text}
               </AppText>
@@ -1437,7 +1449,9 @@ export function InstructionCard({
           >
             {step})
           </AppText>
-          <TokenLabel>{step} из {total}</TokenLabel>
+          <TokenLabel>
+            {step} из {total}
+          </TokenLabel>
         </View>
         <AppText style={styles.instructionNumberTopBody}>
           {text}
@@ -1462,8 +1476,7 @@ export function InstructionCard({
               key={index}
               style={[
                 styles.instructionTimelineDot,
-                index < step &&
-                  styles.instructionTimelineDotFilled,
+                index < step && styles.instructionTimelineDotFilled,
               ]}
             />
           ))}
@@ -1495,10 +1508,7 @@ export function InstructionCard({
           >
             {step})
           </AppText>
-          <AppText
-            role="caption"
-            color="rgba(255,255,255,0.68)"
-          >
+          <AppText role="caption" color="rgba(255,255,255,0.68)">
             ШАГ {step} / {total}
           </AppText>
         </View>
@@ -1565,7 +1575,9 @@ export function InstructionCard({
           </AppText>
         </View>
         <View style={styles.instructionBadgeCopy}>
-          <TokenLabel>Шаг {step} из {total}</TokenLabel>
+          <TokenLabel>
+            Шаг {step} из {total}
+          </TokenLabel>
           <AppText style={styles.instructionBody}>{text}</AppText>
         </View>
       </View>
@@ -1589,10 +1601,7 @@ export function InstructionCard({
           >
             {step})
           </AppText>
-          <AppText
-            role="caption"
-            color="rgba(255,255,255,0.74)"
-          >
+          <AppText role="caption" color="rgba(255,255,255,0.74)">
             из {total}
           </AppText>
         </View>
@@ -1618,7 +1627,9 @@ export function InstructionCard({
           {step}
         </AppText>
         <View style={styles.instructionEditorialCopy}>
-          <TokenLabel>Инструкция · {step}/{total}</TokenLabel>
+          <TokenLabel>
+            Инструкция · {step}/{total}
+          </TokenLabel>
           <AppText style={styles.instructionEditorialBody}>
             {text}
           </AppText>
@@ -1637,15 +1648,16 @@ export function InstructionCard({
         ]}
       >
         <View style={styles.instructionProgressHeader}>
-          <TokenLabel>Шаг {step} из {total}</TokenLabel>
+          <TokenLabel>
+            Шаг {step} из {total}
+          </TokenLabel>
           <View style={styles.instructionProgressDots}>
             {Array.from({ length: total }, (_, index) => (
               <View
                 key={index}
                 style={[
                   styles.instructionProgressDot,
-                  index < step &&
-                    styles.instructionProgressDotFilled,
+                  index < step && styles.instructionProgressDotFilled,
                 ]}
               />
             ))}
@@ -1745,7 +1757,10 @@ export function InstructionIntroCard({
           style={StyleSheet.absoluteFillObject}
         />
         <View style={styles.instructionIntroHeroTitle}>
-          <AppText weight="semibold" style={styles.instructionIntroHeroText}>
+          <AppText
+            weight="semibold"
+            style={styles.instructionIntroHeroText}
+          >
             {title}
           </AppText>
         </View>
@@ -1790,7 +1805,8 @@ export function InstructionIntroCard({
         style={[
           styles.instructionIntroImage,
           variant === 'brand' && styles.instructionIntroBrandImage,
-          variant === 'minimal' && styles.instructionIntroMinimalImage,
+          variant === 'minimal' &&
+            styles.instructionIntroMinimalImage,
           variant !== 'minimal' && {
             top: height <= 130 ? 44 : 50,
             height: height <= 130 ? 72 : 82,
@@ -2038,9 +2054,7 @@ export function JournalAssessment({
               strokeWidth={7}
               strokeLinecap="round"
               strokeDasharray={gaugeLength}
-              strokeDashoffset={
-                gaugeLength * (1 - percentage / 100)
-              }
+              strokeDashoffset={gaugeLength * (1 - percentage / 100)}
             />
           </Svg>
           <AppText style={styles.gaugeValue}>{percentage}%</AppText>
@@ -2120,7 +2134,9 @@ export function JournalAssessment({
             <View style={styles.checklistIconMuted}>
               <AppText style={styles.checklistCheckMuted}>•</AppText>
             </View>
-            <AppText style={styles.checklistLabel}>Расширенные</AppText>
+            <AppText style={styles.checklistLabel}>
+              Расширенные
+            </AppText>
             <AppText style={styles.checklistValue}>1/3</AppText>
           </View>
         </View>
@@ -2252,19 +2268,13 @@ export function JournalAssessment({
           <AppText style={styles.ringValue}>{percentage}%</AppText>
         </View>
         <View style={styles.ringCopy}>
-          <AppText style={styles.ringTitle}>
-            {title}
-          </AppText>
-          <AppText style={styles.ringStatus}>
-            {status}
-          </AppText>
+          <AppText style={styles.ringTitle}>{title}</AppText>
+          <AppText style={styles.ringStatus}>{status}</AppText>
         </View>
       </View>
     ) : variant === 'comparison' ? (
       <View style={styles.journalComparison}>
-        <AppText style={styles.journalTitle}>
-          {title}
-        </AppText>
+        <AppText style={styles.journalTitle}>{title}</AppText>
         <View style={styles.comparisonRow}>
           <AppText style={styles.comparisonLabel}>
             {comparisonPrimaryLabel}
@@ -2287,10 +2297,7 @@ export function JournalAssessment({
           </AppText>
           <View style={styles.comparisonTrack}>
             <View
-              style={[
-                styles.comparisonFillMuted,
-                { width: '46%' },
-              ]}
+              style={[styles.comparisonFillMuted, { width: '46%' }]}
             />
           </View>
           <AppText style={styles.comparisonValue}>46%</AppText>
@@ -2299,9 +2306,7 @@ export function JournalAssessment({
     ) : variant === 'continuous' ? (
       <View style={styles.journalContinuous}>
         <View style={styles.journalTitleRow}>
-          <AppText style={styles.journalTitle}>
-            {title}
-          </AppText>
+          <AppText style={styles.journalTitle}>{title}</AppText>
           <AppText style={styles.journalPercent}>
             {percentage}%
           </AppText>
@@ -2348,20 +2353,14 @@ export function JournalAssessment({
       <View style={styles.journalScore}>
         <AppText style={styles.scoreValue}>{percentage}%</AppText>
         <View style={styles.scoreCopy}>
-          <AppText style={styles.journalTitle}>
-            {title}
-          </AppText>
-          <AppText style={styles.scoreStatus}>
-            {status}
-          </AppText>
+          <AppText style={styles.journalTitle}>{title}</AppText>
+          <AppText style={styles.scoreStatus}>{status}</AppText>
         </View>
       </View>
     ) : variant === 'levels' ? (
       <View style={styles.journalLevels}>
         <View style={styles.journalTitleRow}>
-          <AppText style={styles.journalTitle}>
-            {title}
-          </AppText>
+          <AppText style={styles.journalTitle}>{title}</AppText>
           <AppText style={styles.levelStatus}>
             {completedLevels}/5
           </AppText>
@@ -2377,19 +2376,19 @@ export function JournalAssessment({
             />
           ))}
         </View>
-        <AppText style={styles.journalResult}>
-          {status}
-        </AppText>
+        <AppText style={styles.journalResult}>{status}</AppText>
       </View>
     ) : (
       <View style={styles.journalSegments}>
-        <AppText style={styles.journalTitle}>
-          {title}
-        </AppText>
+        <AppText style={styles.journalTitle}>{title}</AppText>
 
         <View
           accessibilityRole="progressbar"
-          accessibilityValue={{ min: 0, max: total, now: value }}
+          accessibilityValue={{
+            min: 0,
+            max: total,
+            now: value,
+          }}
           style={styles.journalBars}
         >
           {Array.from({ length: total }, (_, index) => (
@@ -2434,11 +2433,7 @@ export function JournalAssessment({
 }
 
 export type ScanTooltipKind =
-  | 'qr'
-  | 'test'
-  | 'lowLight'
-  | 'background'
-  | 'locked';
+  'qr' | 'test' | 'lowLight' | 'background' | 'locked';
 
 export type ScanTooltipVariant =
   | 'glass'
@@ -2609,8 +2604,7 @@ export function ScanTooltip({
   const content = scanTooltipContent[kind];
   const tooltipMessage = message ?? content.message;
   const floatingTextLimit = Math.max(1, floatingMaxWidth - 77);
-  const floatingMeasurementKey =
-    `${tooltipMessage}:${floatingTextLimit}`;
+  const floatingMeasurementKey = `${tooltipMessage}:${floatingTextLimit}`;
   const [floatingMeasurement, setFloatingMeasurement] = useState({
     message: '',
     width: floatingTextLimit,
@@ -2633,12 +2627,13 @@ export function ScanTooltip({
     variant === 'outline' ||
     variant === 'status' ||
     variant === 'bubble';
-  const primaryColor = usesLightCopy ? '#FFFFFF' : colors.text.primary;
+  const primaryColor = usesLightCopy
+    ? '#FFFFFF'
+    : colors.text.primary;
   const secondaryColor = usesLightCopy
     ? 'rgba(255,255,255,0.64)'
     : colors.text.secondary;
-  const iconColor =
-    variant === 'brand' ? '#FFFFFF' : accentColor;
+  const iconColor = variant === 'brand' ? '#FFFFFF' : accentColor;
   const body = (
     <>
       {variant === 'status' ? (
@@ -2693,9 +2688,7 @@ export function ScanTooltip({
           role={variant === 'compact' ? 'caption' : 'label'}
           weight="medium"
           color={primaryColor}
-          numberOfLines={
-            variant === 'floating' && singleLine ? 1 : 2
-          }
+          numberOfLines={variant === 'floating' && singleLine ? 1 : 2}
           style={styles.scanTooltipMessage}
           onTextLayout={
             variant === 'floating'
@@ -2794,9 +2787,14 @@ export type ScanHistoryVariant =
   | 'cards'
   | 'compact'
   | 'calendar'
-  | 'insights';
+  | 'insights'
+  | 'grouped'
+  | 'testTypes'
+  | 'archive'
+  | 'comparison'
+  | 'gallery';
 
-type ScanHistoryRecord = {
+export type ScanHistoryRecord = {
   batch: string;
   confidence: number;
   date: string;
@@ -2836,7 +2834,11 @@ const scanHistoryRecords: ScanHistoryRecord[] = [
   },
 ];
 
-function HistoryChevron({ color = colors.text.secondary }: { color?: string }) {
+function HistoryChevron({
+  color = colors.text.secondary,
+}: {
+  color?: string;
+}) {
   return (
     <Svg width={18} height={18} viewBox="0 0 18 18">
       <Path
@@ -2868,12 +2870,16 @@ function HistoryFilterGlyph() {
 function HistoryStatus({
   result,
   compact = false,
+  plain = false,
 }: {
   result: ScanHistoryRecord['result'];
   compact?: boolean;
+  plain?: boolean;
 }) {
   const positive = result !== 'Отрицательный';
-  const color = positive ? colors.brand.primary : colors.text.secondary;
+  const color = positive
+    ? colors.brand.primary
+    : colors.text.secondary;
   const backgroundColor = positive
     ? 'rgba(211,20,113,0.10)'
     : 'rgba(115,110,108,0.10)';
@@ -2883,10 +2889,13 @@ function HistoryStatus({
       style={[
         styles.historyStatus,
         compact && styles.historyStatusCompact,
-        { backgroundColor },
+        plain && styles.historyStatusPlain,
+        { backgroundColor: plain ? 'transparent' : backgroundColor },
       ]}
     >
-      <View style={[styles.historyStatusDot, { backgroundColor: color }]} />
+      <View
+        style={[styles.historyStatusDot, { backgroundColor: color }]}
+      />
       <AppText
         role="caption"
         weight="medium"
@@ -2902,43 +2911,86 @@ function HistoryStatus({
 function HistoryFilter({
   labels = ['Все', 'Овуляция', 'Беременность'],
   active = 0,
+  activeColor = colors.brand.burgundy,
+  glass = false,
+  onChange,
 }: {
   labels?: string[];
   active?: number;
+  activeColor?: string;
+  glass?: boolean;
+  onChange?: (index: number) => void;
 }) {
   return (
-    <View style={styles.historyFilter}>
+    <View
+      style={[
+        styles.historyFilter,
+        glass && styles.historyFilterGlass,
+      ]}
+    >
+      {glass ? (
+        <LiquidGlassSurface
+          variant="clear"
+          tintColor="rgba(255,255,255,0.34)"
+          colorScheme="light"
+          fallbackTint="systemUltraThinMaterialLight"
+          intensity={64}
+          washColor="rgba(255,255,255,0.16)"
+          radius={19}
+        />
+      ) : null}
       {labels.map((label, index) => (
-        <View
+        <Pressable
           key={label}
+          accessibilityRole="button"
+          accessibilityState={{ selected: index === active }}
+          onPress={onChange ? () => onChange(index) : undefined}
           style={[
             styles.historyFilterItem,
-            index === active && styles.historyFilterItemActive,
+            index === active &&
+              !glass && { backgroundColor: activeColor },
           ]}
         >
-          <AppText
-            role="caption"
-            weight={index === active ? 'semibold' : 'medium'}
-            color={
-              index === active
-                ? colors.text.inverse
-                : colors.text.secondary
-            }
-            numberOfLines={1}
-          >
-            {label}
-          </AppText>
-        </View>
+          {index === active && glass ? (
+            <LiquidGlassSurface
+              variant="clear"
+              tintColor={activeColor}
+              colorScheme="light"
+              fallbackTint="systemMaterialLight"
+              intensity={72}
+              washColor="rgba(211,20,113,0.78)"
+              radius={16}
+            >
+              <AppText
+                role="caption"
+                weight="semibold"
+                color={colors.text.inverse}
+                numberOfLines={1}
+              >
+                {label}
+              </AppText>
+            </LiquidGlassSurface>
+          ) : (
+            <AppText
+              role="caption"
+              weight={index === active ? 'semibold' : 'medium'}
+              color={
+                index === active
+                  ? colors.text.inverse
+                  : colors.text.secondary
+              }
+              numberOfLines={1}
+            >
+              {label}
+            </AppText>
+          )}
+        </Pressable>
       ))}
     </View>
   );
 }
 
-function HistoryHeader({
-  subtitle,
-}: {
-  subtitle?: string;
-}) {
+function HistoryHeader({ subtitle }: { subtitle?: string }) {
   return (
     <View style={styles.historyHeader}>
       <View style={styles.historyHeaderCopy}>
@@ -2965,7 +3017,10 @@ function TimelineHistory() {
       <HistoryFilter />
       <View style={styles.historyTimeline}>
         {scanHistoryRecords.map((record, index) => (
-          <View key={`${record.date}-${record.time}`} style={styles.timelineRow}>
+          <View
+            key={`${record.date}-${record.time}`}
+            style={styles.timelineRow}
+          >
             <View style={styles.timelineRail}>
               <AppText
                 numeric
@@ -3149,11 +3204,41 @@ function CompactHistory() {
 }
 
 const calendarDays = [
-  '', '', '1', '2', '3', '4', '5',
-  '6', '7', '8', '9', '10', '11', '12',
-  '13', '14', '15', '16', '17', '18', '19',
-  '20', '21', '22', '23', '24', '25', '26',
-  '27', '28', '29', '30', '', '', '',
+  '',
+  '',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+  '11',
+  '12',
+  '13',
+  '14',
+  '15',
+  '16',
+  '17',
+  '18',
+  '19',
+  '20',
+  '21',
+  '22',
+  '23',
+  '24',
+  '25',
+  '26',
+  '27',
+  '28',
+  '29',
+  '30',
+  '',
+  '',
+  '',
 ];
 
 function CalendarHistory() {
@@ -3186,7 +3271,8 @@ function CalendarHistory() {
         </View>
         <View style={styles.calendarGrid}>
           {calendarDays.map((day, index) => {
-            const hasScan = day === '24' || day === '28' || day === '30';
+            const hasScan =
+              day === '24' || day === '28' || day === '30';
             const selected = day === '30';
 
             return (
@@ -3257,10 +3343,7 @@ function InsightsHistory() {
           >
             7
           </AppText>
-          <AppText
-            role="caption"
-            color="rgba(255,255,255,0.72)"
-          >
+          <AppText role="caption" color="rgba(255,255,255,0.72)">
             сканирований
           </AppText>
         </View>
@@ -3290,7 +3373,11 @@ function InsightsHistory() {
       </View>
       <View style={styles.insightsStats}>
         <View style={styles.insightsStat}>
-          <AppText numeric role="heading" color={colors.brand.primary}>
+          <AppText
+            numeric
+            role="heading"
+            color={colors.brand.primary}
+          >
             96%
           </AppText>
           <AppText role="caption" color={colors.text.secondary}>
@@ -3341,25 +3428,518 @@ function InsightsHistory() {
   );
 }
 
-export function ScanHistoryPreview({
-  variant = 'timeline',
+function GroupedHistory() {
+  return (
+    <>
+      <HistoryHeader subtitle="Сгруппировано по дням" />
+      <HistoryFilter labels={['Все', 'Эта неделя', 'Ранее']} />
+      <View style={styles.groupedMonthHeader}>
+        <AppText role="label" weight="semibold">
+          Июль 2026
+        </AppText>
+        <AppText numeric role="caption" color={colors.text.secondary}>
+          3 результата
+        </AppText>
+      </View>
+      <View style={styles.groupedHistoryList}>
+        {scanHistoryRecords.map((record, index) => (
+          <View
+            key={`${record.date}-${record.time}`}
+            style={styles.groupedDay}
+          >
+            <View style={styles.groupedDateBlock}>
+              <AppText
+                numeric
+                style={styles.groupedDateNumber}
+                color={
+                  index === 0
+                    ? colors.brand.primary
+                    : colors.text.primary
+                }
+              >
+                {record.day}
+              </AppText>
+              <AppText role="caption" color={colors.text.secondary}>
+                {index === 0 ? 'сегодня' : 'июля'}
+              </AppText>
+            </View>
+            <Pressable style={styles.groupedResultRow}>
+              <View style={styles.groupedResultCopy}>
+                <View style={styles.historyRowTop}>
+                  <AppText role="label" weight="semibold">
+                    {record.type}
+                  </AppText>
+                  <AppText
+                    numeric
+                    role="caption"
+                    color={colors.text.secondary}
+                  >
+                    {record.time}
+                  </AppText>
+                </View>
+                <HistoryStatus result={record.result} compact />
+                <AppText role="caption" color={colors.text.secondary}>
+                  Партия {record.batch} · уверенность{' '}
+                  {record.confidence}%
+                </AppText>
+              </View>
+              <HistoryChevron />
+            </Pressable>
+          </View>
+        ))}
+      </View>
+    </>
+  );
+}
+
+function TestTypesHistory() {
+  const ovulationRecords = scanHistoryRecords.filter(
+    (record) => record.type === 'Ovulation LH',
+  );
+  const pregnancyRecord = scanHistoryRecords.find(
+    (record) => record.type === 'Pregnancy hCG',
+  );
+
+  return (
+    <>
+      <HistoryHeader subtitle="Результаты по категории" />
+      <View style={styles.testTypeSummaryRow}>
+        <View
+          style={[
+            styles.testTypeSummary,
+            styles.testTypeSummaryActive,
+          ]}
+        >
+          <AppText role="caption" color="rgba(255,255,255,0.68)">
+            ОВУЛЯЦИЯ · LH
+          </AppText>
+          <AppText
+            numeric
+            style={styles.testTypeSummaryValue}
+            color={colors.text.inverse}
+          >
+            2
+          </AppText>
+          <AppText role="caption" color="rgba(255,255,255,0.76)">
+            последний: пик ЛГ
+          </AppText>
+        </View>
+        <View style={styles.testTypeSummary}>
+          <AppText role="caption" color={colors.text.secondary}>
+            БЕРЕМЕННОСТЬ · hCG
+          </AppText>
+          <AppText numeric style={styles.testTypeSummaryValue}>
+            1
+          </AppText>
+          <AppText role="caption" color={colors.text.secondary}>
+            отрицательный
+          </AppText>
+        </View>
+      </View>
+      <View style={styles.testTypeSection}>
+        <View style={styles.testTypeSectionHeader}>
+          <AppText role="label" weight="semibold">
+            Овуляция
+          </AppText>
+          <AppText role="caption" color={colors.brand.primary}>
+            Смотреть все
+          </AppText>
+        </View>
+        {ovulationRecords.map((record, index) => (
+          <Pressable
+            key={`${record.date}-${record.time}`}
+            style={[
+              styles.testTypeRow,
+              index > 0 && styles.compactRowBorder,
+            ]}
+          >
+            <View style={styles.testTypeDate}>
+              <AppText numeric role="heading">
+                {record.day}
+              </AppText>
+              <AppText role="caption" color={colors.text.secondary}>
+                июля
+              </AppText>
+            </View>
+            <View style={styles.compactType}>
+              <HistoryStatus result={record.result} compact />
+              <AppText role="caption" color={colors.text.secondary}>
+                {record.time} · {record.confidence}%
+              </AppText>
+            </View>
+            <HistoryChevron />
+          </Pressable>
+        ))}
+      </View>
+      {pregnancyRecord ? (
+        <Pressable style={styles.testTypePregnancyRow}>
+          <View style={styles.compactType}>
+            <AppText role="label" weight="semibold">
+              Беременность
+            </AppText>
+            <AppText role="caption" color={colors.text.secondary}>
+              {pregnancyRecord.date} · {pregnancyRecord.time}
+            </AppText>
+          </View>
+          <HistoryStatus result={pregnancyRecord.result} compact />
+          <HistoryChevron />
+        </Pressable>
+      ) : null}
+    </>
+  );
+}
+
+function ArchiveHistory() {
+  return (
+    <>
+      <HistoryHeader subtitle="Архив за 2026 год" />
+      <HistoryFilter labels={['2026', '2025', 'Все годы']} />
+      <View style={styles.archiveHero}>
+        <View>
+          <AppText role="caption" color="rgba(255,255,255,0.68)">
+            ВСЕГО ЗА ГОД
+          </AppText>
+          <AppText
+            numeric
+            style={styles.archiveHeroValue}
+            color={colors.text.inverse}
+          >
+            18
+          </AppText>
+        </View>
+        <View style={styles.archiveHeroStats}>
+          <AppText role="caption" color="rgba(255,255,255,0.76)">
+            12 LH
+          </AppText>
+          <AppText role="caption" color="rgba(255,255,255,0.76)">
+            6 hCG
+          </AppText>
+        </View>
+      </View>
+      <View style={styles.archiveMonths}>
+        {[
+          {
+            month: 'Июль',
+            count: 3,
+            detail: '2 LH · 1 hCG',
+            open: true,
+          },
+          {
+            month: 'Июнь',
+            count: 5,
+            detail: '4 LH · 1 hCG',
+            open: false,
+          },
+          {
+            month: 'Май',
+            count: 4,
+            detail: '3 LH · 1 hCG',
+            open: false,
+          },
+          {
+            month: 'Апрель',
+            count: 6,
+            detail: '3 LH · 3 hCG',
+            open: false,
+          },
+        ].map((month, index) => (
+          <Pressable
+            key={month.month}
+            style={[
+              styles.archiveMonthRow,
+              index > 0 && styles.compactRowBorder,
+            ]}
+          >
+            <View style={styles.archiveMonthCopy}>
+              <AppText role="label" weight="semibold">
+                {month.month}
+              </AppText>
+              <AppText role="caption" color={colors.text.secondary}>
+                {month.detail}
+              </AppText>
+            </View>
+            <View style={styles.archiveMonthCount}>
+              <AppText
+                numeric
+                role="heading"
+                color={
+                  month.open
+                    ? colors.brand.primary
+                    : colors.text.primary
+                }
+              >
+                {month.count}
+              </AppText>
+              <View
+                style={
+                  month.open ? styles.archiveChevronOpen : undefined
+                }
+              >
+                <HistoryChevron />
+              </View>
+            </View>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.archiveFootnote}>
+        <AppText role="caption" color={colors.text.secondary}>
+          Результаты хранятся на устройстве и доступны без интернета
+        </AppText>
+      </View>
+    </>
+  );
+}
+
+function ComparisonHistory() {
+  const current = scanHistoryRecords[0];
+  const previous = scanHistoryRecords[2];
+
+  return (
+    <>
+      <HistoryHeader subtitle="Сравните динамику результата" />
+      <HistoryFilter labels={['Овуляция', 'Беременность']} />
+      <View style={styles.comparisonHero}>
+        <AppText role="caption" color={colors.text.secondary}>
+          ИЗМЕНЕНИЕ ЗА 6 ДНЕЙ
+        </AppText>
+        <View style={styles.comparisonMetricRow}>
+          <AppText
+            numeric
+            style={styles.comparisonMetric}
+            color={colors.brand.primary}
+          >
+            +18%
+          </AppText>
+          <View style={styles.comparisonTrendPill}>
+            <AppText
+              role="caption"
+              weight="semibold"
+              color={colors.brand.primary}
+            >
+              рост сигнала
+            </AppText>
+          </View>
+        </View>
+        <View style={styles.comparisonLineTrack}>
+          <View style={styles.comparisonLineFill} />
+          <View
+            style={[
+              styles.comparisonLineDot,
+              styles.comparisonLineDotStart,
+            ]}
+          />
+          <View
+            style={[
+              styles.comparisonLineDot,
+              styles.comparisonLineDotEnd,
+            ]}
+          />
+        </View>
+        <View style={styles.comparisonLineLabels}>
+          <AppText role="caption" color={colors.text.secondary}>
+            24 июля
+          </AppText>
+          <AppText role="caption" color={colors.text.secondary}>
+            30 июля
+          </AppText>
+        </View>
+      </View>
+      <View style={styles.comparisonColumns}>
+        {[previous, current].map((record, index) => (
+          <Pressable
+            key={`${record.date}-${record.time}`}
+            style={[
+              styles.comparisonResult,
+              index === 1 && styles.comparisonResultCurrent,
+            ]}
+          >
+            <AppText role="caption" color={colors.text.secondary}>
+              {index === 1 ? 'ТЕКУЩИЙ' : 'ПРЕДЫДУЩИЙ'}
+            </AppText>
+            <AppText
+              numeric
+              style={styles.comparisonDay}
+              color={
+                index === 1
+                  ? colors.brand.primary
+                  : colors.text.primary
+              }
+            >
+              {record.day}
+            </AppText>
+            <AppText role="caption" color={colors.text.secondary}>
+              июля · {record.time}
+            </AppText>
+            <HistoryStatus result={record.result} compact />
+            <AppText
+              numeric
+              role="caption"
+              color={colors.text.secondary}
+            >
+              уверенность {record.confidence}%
+            </AppText>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.comparisonNote}>
+        <View style={styles.comparisonNoteDot} />
+        <AppText
+          role="caption"
+          color={colors.text.secondary}
+          style={styles.comparisonNoteText}
+        >
+          Интенсивность тестовой линии выросла. Последний результат
+          соответствует пику ЛГ.
+        </AppText>
+      </View>
+    </>
+  );
+}
+
+function GalleryHistory({
+  showHeader = true,
+  showFilter = true,
+  onResultPress,
 }: {
+  showHeader?: boolean;
+  showFilter?: boolean;
+  onResultPress?: (record: ScanHistoryRecord) => void;
+}) {
+  const [activeTab, setActiveTab] = useState(0);
+  const filteredRecords = scanHistoryRecords.filter((record) => {
+    if (activeTab === 1) {
+      return record.type === 'Pregnancy hCG';
+    }
+
+    if (activeTab === 2) {
+      return record.type === 'Ovulation LH';
+    }
+
+    return true;
+  });
+  const featuredRecord = filteredRecords[0];
+
+  return (
+    <>
+      {showHeader ? (
+        <HistoryHeader subtitle="Снимки и результаты" />
+      ) : null}
+      {showFilter ? (
+        <HistoryFilter
+          labels={['Все', 'Беременность', 'Овуляция']}
+          active={activeTab}
+          activeColor={colors.brand.primary}
+          glass
+          onChange={setActiveTab}
+        />
+      ) : null}
+      {featuredRecord ? (
+        <Pressable
+          onPress={() => onResultPress?.(featuredRecord)}
+          style={styles.galleryFeatured}
+        >
+          <View style={styles.galleryImageFrame}>
+            <Image
+              source={require('../assets/figma/scan-screen/scan-test-strip.png')}
+              resizeMode="contain"
+              style={styles.galleryTestImage}
+            />
+            {featuredRecord.result !== 'Пик ЛГ' ? (
+              <View style={styles.galleryPlainResult}>
+                <HistoryStatus
+                  result={featuredRecord.result}
+                  compact
+                  plain
+                />
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.galleryFeaturedCopy}>
+            <View style={styles.compactType}>
+              <AppText role="heading" weight="semibold">
+                {featuredRecord.date}
+              </AppText>
+              <AppText role="caption" color={colors.text.secondary}>
+                {featuredRecord.type} · {featuredRecord.time}
+              </AppText>
+            </View>
+            <HistoryChevron />
+          </View>
+        </Pressable>
+      ) : null}
+      <View style={styles.galleryList}>
+        {filteredRecords.slice(1).map((record, index) => (
+          <Pressable
+            key={`${record.date}-${record.time}`}
+            onPress={() => onResultPress?.(record)}
+            style={styles.galleryRow}
+          >
+            <View style={styles.galleryThumbnail}>
+              <Image
+                source={require('../assets/figma/scan-screen/scan-test-strip.png')}
+                resizeMode="contain"
+                style={[
+                  styles.galleryTestImage,
+                  index === 0 && styles.galleryTestImageMuted,
+                ]}
+              />
+            </View>
+            <View style={styles.compactType}>
+              <AppText role="label" weight="semibold">
+                {record.date}
+              </AppText>
+              <AppText role="caption" color={colors.text.secondary}>
+                {record.type} · {record.time}
+              </AppText>
+              <HistoryStatus result={record.result} compact plain />
+            </View>
+            <HistoryChevron />
+          </Pressable>
+        ))}
+      </View>
+    </>
+  );
+}
+
+export function ScanHistoryPreview({
+  hideFilter = false,
+  variant = 'timeline',
+  standalone = false,
+  onResultPress,
+}: {
+  hideFilter?: boolean;
   variant?: ScanHistoryVariant;
+  standalone?: boolean;
+  onResultPress?: (record: ScanHistoryRecord) => void;
 }) {
   return (
-    <View style={styles.scanHistoryPreview}>
+    <View
+      style={[
+        styles.scanHistoryPreview,
+        standalone && styles.scanHistoryScreen,
+      ]}
+    >
       {variant === 'timeline' ? <TimelineHistory /> : null}
       {variant === 'cards' ? <CardsHistory /> : null}
       {variant === 'compact' ? <CompactHistory /> : null}
       {variant === 'calendar' ? <CalendarHistory /> : null}
       {variant === 'insights' ? <InsightsHistory /> : null}
+      {variant === 'grouped' ? <GroupedHistory /> : null}
+      {variant === 'testTypes' ? <TestTypesHistory /> : null}
+      {variant === 'archive' ? <ArchiveHistory /> : null}
+      {variant === 'comparison' ? <ComparisonHistory /> : null}
+      {variant === 'gallery' ? (
+        <GalleryHistory
+          showFilter={!hideFilter}
+          showHeader={!standalone}
+          onResultPress={onResultPress}
+        />
+      ) : null}
     </View>
   );
 }
 
-export function TokenLabel({
-  children,
-}: PropsWithChildren) {
+export function TokenLabel({ children }: PropsWithChildren) {
   return (
     <AppText
       role="caption"
@@ -5071,6 +5651,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(33,33,35,0.07)',
   },
+  scanHistoryScreen: {
+    minHeight: 0,
+    padding: 0,
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+    overflow: 'visible',
+    borderWidth: 0,
+  },
   historyHeader: {
     minHeight: 54,
     flexDirection: 'row',
@@ -5100,6 +5688,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
+  historyFilterGlass: {
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
   historyFilterItem: {
     flex: 1,
     height: 32,
@@ -5107,9 +5699,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  historyFilterItemActive: {
-    backgroundColor: colors.brand.burgundy,
   },
   historyTimeline: {
     marginTop: spacing.xs,
@@ -5162,6 +5751,11 @@ const styles = StyleSheet.create({
     minHeight: 22,
     paddingHorizontal: 8,
     borderRadius: 11,
+  },
+  historyStatusPlain: {
+    minHeight: 18,
+    paddingHorizontal: 0,
+    borderRadius: 0,
   },
   historyStatusDot: {
     width: 6,
@@ -5374,6 +5968,305 @@ const styles = StyleSheet.create({
   insightsRecentDate: {
     width: 52,
     alignItems: 'center',
+  },
+  groupedMonthHeader: {
+    paddingHorizontal: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  groupedHistoryList: {
+    gap: spacing.xs,
+  },
+  groupedDay: {
+    minHeight: 116,
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  groupedDateBlock: {
+    width: 54,
+    paddingTop: spacing.sm,
+    alignItems: 'center',
+  },
+  groupedDateNumber: {
+    fontSize: 32,
+    lineHeight: 34,
+    letterSpacing: -0.64,
+  },
+  groupedResultRow: {
+    flex: 1,
+    minHeight: 108,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.raised,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    ...shadows.card,
+  },
+  groupedResultCopy: {
+    flex: 1,
+    gap: 7,
+  },
+  testTypeSummaryRow: {
+    minHeight: 142,
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  testTypeSummary: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.raised,
+    justifyContent: 'space-between',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#DED8D6',
+  },
+  testTypeSummaryActive: {
+    backgroundColor: colors.brand.burgundy,
+    borderColor: colors.brand.burgundy,
+  },
+  testTypeSummaryValue: {
+    fontSize: 38,
+    lineHeight: 40,
+    letterSpacing: -0.76,
+  },
+  testTypeSection: {
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.raised,
+  },
+  testTypeSectionHeader: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  testTypeRow: {
+    minHeight: 86,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  testTypeDate: {
+    width: 48,
+    alignItems: 'center',
+  },
+  testTypePregnancyRow: {
+    minHeight: 76,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.rose,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  archiveHero: {
+    minHeight: 132,
+    padding: spacing.md,
+    borderRadius: radii.lg,
+    backgroundColor: colors.brand.burgundy,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  archiveHeroValue: {
+    marginTop: spacing.xs,
+    fontSize: 46,
+    lineHeight: 48,
+    letterSpacing: -0.92,
+  },
+  archiveHeroStats: {
+    alignItems: 'flex-end',
+    gap: 5,
+  },
+  archiveMonths: {
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.raised,
+  },
+  archiveMonthRow: {
+    minHeight: 78,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  archiveMonthCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  archiveMonthCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  archiveChevronOpen: {
+    transform: [{ rotate: '90deg' }],
+  },
+  archiveFootnote: {
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+  },
+  comparisonHero: {
+    minHeight: 174,
+    padding: spacing.md,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#DED8D6',
+  },
+  comparisonMetricRow: {
+    marginTop: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  comparisonMetric: {
+    fontSize: 42,
+    lineHeight: 44,
+    letterSpacing: -0.84,
+  },
+  comparisonTrendPill: {
+    paddingHorizontal: 10,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(211,20,113,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  comparisonLineTrack: {
+    height: 3,
+    marginTop: spacing.lg,
+    borderRadius: 2,
+    backgroundColor: '#E8E1DF',
+  },
+  comparisonLineFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.brand.primary,
+  },
+  comparisonLineDot: {
+    position: 'absolute',
+    top: -5,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: colors.surface.raised,
+    borderWidth: 3,
+    borderColor: colors.brand.primary,
+  },
+  comparisonLineDotStart: {
+    left: 0,
+  },
+  comparisonLineDotEnd: {
+    right: 0,
+  },
+  comparisonLineLabels: {
+    marginTop: spacing.xs,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  comparisonColumns: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  comparisonResult: {
+    flex: 1,
+    minHeight: 188,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.raised,
+    gap: spacing.xs,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#DED8D6',
+  },
+  comparisonResultCurrent: {
+    backgroundColor: colors.surface.rose,
+    borderColor: 'rgba(211,20,113,0.18)',
+  },
+  comparisonDay: {
+    fontSize: 38,
+    lineHeight: 40,
+    letterSpacing: -0.76,
+  },
+  comparisonNote: {
+    minHeight: 68,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.warm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  comparisonNoteDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.brand.primary,
+  },
+  comparisonNoteText: {
+    flex: 1,
+  },
+  galleryFeatured: {
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  galleryImageFrame: {
+    height: 190,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface.warm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  galleryTestImage: {
+    width: '100%',
+    height: 64,
+  },
+  galleryTestImageMuted: {
+    opacity: 0.62,
+  },
+  galleryPlainResult: {
+    position: 'absolute',
+    left: spacing.md,
+    top: spacing.md,
+  },
+  galleryFeaturedCopy: {
+    minHeight: 78,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  galleryList: {
+    gap: spacing.sm,
+  },
+  galleryRow: {
+    minHeight: 102,
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.raised,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#DED8D6',
+  },
+  galleryThumbnail: {
+    width: 92,
+    height: 72,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface.warm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   tokenLabel: {
     textTransform: 'uppercase',

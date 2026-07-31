@@ -131,23 +131,44 @@ const spacingTokens = [
 ];
 
 const journalVariants = [
-  { label: '01 / Сегментная', variant: 'segments' as const },
-  { label: '02 / Линейная', variant: 'continuous' as const },
+  {
+    label: '01 / Сегментная',
+    variant: 'segments' as const,
+  },
+  {
+    label: '02 / Линейная',
+    variant: 'continuous' as const,
+  },
   { label: '03 / Недельная', variant: 'week' as const },
   { label: '04 / Числовая', variant: 'score' as const },
   { label: '05 / Уровневая', variant: 'levels' as const },
   { label: '06 / Кольцевая', variant: 'ring' as const },
-  { label: '07 / Сравнительная', variant: 'comparison' as const },
+  {
+    label: '07 / Сравнительная',
+    variant: 'comparison' as const,
+  },
 ];
 
 const checkupVariants = [
   { label: '01 / Кольцевая', variant: 'ring' as const },
-  { label: '02 / Линейная', variant: 'continuous' as const },
+  {
+    label: '02 / Линейная',
+    variant: 'continuous' as const,
+  },
   { label: '03 / Числовая', variant: 'score' as const },
   { label: '04 / Уровневая', variant: 'levels' as const },
-  { label: '05 / Сравнительная', variant: 'comparison' as const },
-  { label: '06 / Сегментная', variant: 'segments' as const },
-  { label: '07 / Нумерованные точки', variant: 'dots' as const },
+  {
+    label: '05 / Сравнительная',
+    variant: 'comparison' as const,
+  },
+  {
+    label: '06 / Сегментная',
+    variant: 'segments' as const,
+  },
+  {
+    label: '07 / Нумерованные точки',
+    variant: 'dots' as const,
+  },
   { label: '08 / Этапы', variant: 'milestones' as const },
   { label: '09 / Баланс', variant: 'balance' as const },
   { label: '10 / Матрица', variant: 'matrix' as const },
@@ -155,7 +176,10 @@ const checkupVariants = [
   { label: '12 / Дробная', variant: 'fraction' as const },
   { label: '13 / Heatmap', variant: 'heatmap' as const },
   { label: '14 / Ступени', variant: 'ladder' as const },
-  { label: '15 / Checklist', variant: 'checklist' as const },
+  {
+    label: '15 / Checklist',
+    variant: 'checklist' as const,
+  },
 ];
 
 const metricButtonVariants: Array<{
@@ -163,13 +187,41 @@ const metricButtonVariants: Array<{
   variant: MetricActionButtonVariant;
   metric: 'journal' | 'checkups';
 }> = [
-  { label: '01 / Основная', variant: 'solid', metric: 'journal' },
-  { label: '02 / Мягкая', variant: 'soft', metric: 'checkups' },
-  { label: '03 / Контурная', variant: 'outline', metric: 'journal' },
-  { label: '04 / Белая', variant: 'white', metric: 'checkups' },
-  { label: '05 / Бордовая', variant: 'burgundy', metric: 'journal' },
-  { label: '06 / Liquid Glass', variant: 'glass', metric: 'checkups' },
-  { label: '07 / Split', variant: 'split', metric: 'journal' },
+  {
+    label: '01 / Основная',
+    variant: 'solid',
+    metric: 'journal',
+  },
+  {
+    label: '02 / Мягкая',
+    variant: 'soft',
+    metric: 'checkups',
+  },
+  {
+    label: '03 / Контурная',
+    variant: 'outline',
+    metric: 'journal',
+  },
+  {
+    label: '04 / Белая',
+    variant: 'white',
+    metric: 'checkups',
+  },
+  {
+    label: '05 / Бордовая',
+    variant: 'burgundy',
+    metric: 'journal',
+  },
+  {
+    label: '06 / Liquid Glass',
+    variant: 'glass',
+    metric: 'checkups',
+  },
+  {
+    label: '07 / Split',
+    variant: 'split',
+    metric: 'journal',
+  },
   {
     label: '08 / Ведущая иконка',
     variant: 'iconLeading',
@@ -196,8 +248,14 @@ const scanActionVariants: Array<{
   { label: '03 / Контурные', variant: 'outlinePills' },
   { label: '04 / Белые', variant: 'whitePills' },
   { label: '05 / Liquid Glass', variant: 'glassPills' },
-  { label: '06 / Segmented accent', variant: 'segmentedSolid' },
-  { label: '07 / Segmented soft', variant: 'segmentedSoft' },
+  {
+    label: '06 / Segmented accent',
+    variant: 'segmentedSolid',
+  },
+  {
+    label: '07 / Segmented soft',
+    variant: 'segmentedSoft',
+  },
   { label: '08 / Плитки', variant: 'tiles' },
   { label: '09 / Минимальные', variant: 'minimal' },
   { label: '10 / Плавающие', variant: 'floating' },
@@ -287,9 +345,18 @@ const scanBackgroundMotionVariants: Array<{
   { label: '03 / Диагональный поток', variant: 'diagonal' },
   { label: '04 / Покачивание', variant: 'sway' },
   { label: '05 / Вертикальный поток', variant: 'vertical' },
-  { label: '06 / Горизонтальный поток', variant: 'activeOrbit' },
-  { label: '07 / Диагональный проход', variant: 'activeSweep' },
-  { label: '08 / Поток с глубиной', variant: 'activePulse' },
+  {
+    label: '06 / Горизонтальный поток',
+    variant: 'activeOrbit',
+  },
+  {
+    label: '07 / Диагональный проход',
+    variant: 'activeSweep',
+  },
+  {
+    label: '08 / Поток с глубиной',
+    variant: 'activePulse',
+  },
 ];
 
 const instructionNavigationVariants: Array<{
@@ -344,6 +411,11 @@ const scanHistoryVariants: Array<{
   { label: '03 / Компактный журнал', variant: 'compact' },
   { label: '04 / Календарь', variant: 'calendar' },
   { label: '05 / Динамика', variant: 'insights' },
+  { label: '06 / По дням', variant: 'grouped' },
+  { label: '07 / По типу теста', variant: 'testTypes' },
+  { label: '08 / Архив месяцев', variant: 'archive' },
+  { label: '09 / Сравнение', variant: 'comparison' },
+  { label: '10 / Лента снимков', variant: 'gallery' },
 ];
 
 function Section({
@@ -391,7 +463,9 @@ export default function DesignSystemScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 16) + 112 },
+          {
+            paddingBottom: Math.max(insets.bottom, 16) + 112,
+          },
         ]}
       >
         <View
@@ -479,10 +553,7 @@ export default function DesignSystemScreen() {
               >
                 402
               </AppText>
-              <AppText
-                role="caption"
-                color="rgba(255,255,255,0.62)"
-              >
+              <AppText role="caption" color="rgba(255,255,255,0.62)">
                 base width
               </AppText>
             </View>
@@ -494,10 +565,7 @@ export default function DesignSystemScreen() {
               >
                 48
               </AppText>
-              <AppText
-                role="caption"
-                color="rgba(255,255,255,0.62)"
-              >
+              <AppText role="caption" color="rgba(255,255,255,0.62)">
                 min touch
               </AppText>
             </View>
@@ -509,10 +577,7 @@ export default function DesignSystemScreen() {
               >
                 16
               </AppText>
-              <AppText
-                role="caption"
-                color="rgba(255,255,255,0.62)"
-              >
+              <AppText role="caption" color="rgba(255,255,255,0.62)">
                 gutter
               </AppText>
             </View>
@@ -553,7 +618,10 @@ export default function DesignSystemScreen() {
 
           <View style={styles.rule} />
 
-          <Section eyebrow="02 / Typography" title="Два шрифтовых голоса">
+          <Section
+            eyebrow="02 / Typography"
+            title="Два шрифтовых голоса"
+          >
             <AppCard style={styles.typeCard}>
               {typeSpecimens.map((specimen, index) => (
                 <View
@@ -611,21 +679,30 @@ export default function DesignSystemScreen() {
                   accessibilityLabel="Мониторинг"
                   style={styles.glassCircle}
                 >
-                  <MonitoringIcon width={sizes.icon} height={sizes.icon} />
+                  <MonitoringIcon
+                    width={sizes.icon}
+                    height={sizes.icon}
+                  />
                 </GlassControl>
                 <GlassControl
                   accessibilityLabel="Дата"
                   style={styles.glassPill}
                 >
                   <AppText role="body">
-                    <AppText numeric role="body">21</AppText> июля
+                    <AppText numeric role="body">
+                      21
+                    </AppText>{' '}
+                    июля
                   </AppText>
                 </GlassControl>
                 <GlassControl
                   accessibilityLabel="Календарь"
                   style={styles.glassCircle}
                 >
-                  <CalendarIcon width={sizes.icon} height={sizes.icon} />
+                  <CalendarIcon
+                    width={sizes.icon}
+                    height={sizes.icon}
+                  />
                 </GlassControl>
               </GlassContainer>
               <AppText
@@ -651,18 +728,19 @@ export default function DesignSystemScreen() {
                 <PrimaryButton compact label="Купить" />
                 <PrimaryButton compact disabled label="Недоступно" />
               </View>
-              <AppText
-                role="caption"
-                color={colors.text.secondary}
-              >
-                Нажмите «Заполнить», чтобы проверить интерактивное состояние.
+              <AppText role="caption" color={colors.text.secondary}>
+                Нажмите «Заполнить», чтобы проверить интерактивное
+                состояние.
               </AppText>
             </View>
           </Section>
 
           <View style={styles.rule} />
 
-          <Section eyebrow="05 / Cards" title="Контентные поверхности">
+          <Section
+            eyebrow="05 / Cards"
+            title="Контентные поверхности"
+          >
             <View style={styles.cardRow}>
               <AppCard tone="accent" style={styles.demoCard}>
                 <AppText
@@ -682,10 +760,7 @@ export default function DesignSystemScreen() {
               </AppCard>
               <AppCard tone="warm" style={styles.demoCard}>
                 <View style={styles.cardArrow}>
-                  <AppText
-                    role="body"
-                    color={colors.brand.primary}
-                  >
+                  <AppText role="body" color={colors.brand.primary}>
                     ↗
                   </AppText>
                 </View>
@@ -757,8 +832,8 @@ export default function DesignSystemScreen() {
             title="Прохождение чекапов"
           >
             <AppText role="body" color={colors.text.secondary}>
-              Пятнадцать production-вариантов одной метрики. Все реализации
-              имеют размер 370×58 и кнопку «Пройти».
+              Пятнадцать production-вариантов одной метрики. Все
+              реализации имеют размер 370×58 и кнопку «Пройти».
             </AppText>
 
             <View style={styles.journalVariants}>
@@ -837,9 +912,7 @@ export default function DesignSystemScreen() {
                     <JournalAssessment
                       value={isCompleted ? 6 : isCheckups ? 3 : 16}
                       total={isCheckups ? 6 : 24}
-                      variant={
-                        isCheckups ? 'continuous' : 'ring'
-                      }
+                      variant={isCheckups ? 'continuous' : 'ring'}
                       title={
                         isCheckups
                           ? 'Прохождение чекапов'
@@ -908,8 +981,9 @@ export default function DesignSystemScreen() {
             title="Карточки инструкции"
           >
             <AppText role="body" color={colors.text.secondary}>
-              Шестнадцать горизонтальных каруселей по пять шагов. Карточки
-              имеют production-размер 360×150 и snap-прокрутку.
+              Шестнадцать горизонтальных каруселей по пять шагов.
+              Карточки имеют production-размер 360×150 и
+              snap-прокрутку.
             </AppText>
 
             <View style={styles.instructionVariants}>
@@ -942,9 +1016,7 @@ export default function DesignSystemScreen() {
                         ? instructionIntroCard
                         : undefined
                     }
-                    cardHeight={
-                      item.variant === 'accent' ? 130 : 150
-                    }
+                    cardHeight={item.variant === 'accent' ? 130 : 150}
                   />
                 </View>
               ))}
@@ -1129,8 +1201,9 @@ export default function DesignSystemScreen() {
             title="История результатов сканирования"
           >
             <AppText role="body" color={colors.text.secondary}>
-              Пять самостоятельных композиций страницы: хронология,
-              карточки, плотный журнал, календарь и динамика.
+              Десять самостоятельных композиций страницы: от
+              хронологии и календаря до сравнения результатов и ленты
+              снимков.
             </AppText>
 
             <View style={styles.scanHistoryVariants}>
@@ -1185,10 +1258,7 @@ export default function DesignSystemScreen() {
                     {value}
                   </AppText>
                   <View
-                    style={[
-                      styles.spacingBar,
-                      { width: value * 3 },
-                    ]}
+                    style={[styles.spacingBar, { width: value * 3 }]}
                   />
                 </View>
               ))}
@@ -1201,10 +1271,7 @@ export default function DesignSystemScreen() {
               <AppText role="label" weight="medium">
                 Private Design System
               </AppText>
-              <AppText
-                role="caption"
-                color={colors.text.secondary}
-              >
+              <AppText role="caption" color={colors.text.secondary}>
                 Expo 54 · React Native · native Liquid Glass
               </AppText>
             </View>
