@@ -1328,6 +1328,7 @@ export function ScanResultScreen({
   onCorrection,
   onHelp,
   onRetake,
+  isCompleting = false,
   hideReadyHeading = false,
   resultData,
 }: {
@@ -1342,12 +1343,15 @@ export function ScanResultScreen({
   onCorrection: () => void;
   onHelp: () => void;
   onRetake?: () => void;
+  isCompleting?: boolean;
   hideReadyHeading?: boolean;
   resultData?: ScanResultData;
 }) {
   const usesSavedResult = fromHistory || resultData !== undefined;
   const savedResult = resultData ?? defaultScanResult;
-  const canConfirm = usesSavedResult || result?.status === "valid";
+  const canConfirm =
+    usesSavedResult ||
+    (result?.status === "valid" && result.signal.classification !== null);
   const needsRetake =
     !usesSavedResult && (Boolean(error) || result?.status === "invalid");
   const heading = error
@@ -1508,16 +1512,25 @@ export function ScanResultScreen({
 
       <View style={styles.resultActions}>
         <PrimaryButton
-          label={canConfirm ? "Подтвердить результат" : "Переснять тест"}
+          disabled={isCompleting}
+          label={
+            isCompleting
+              ? "Сохраняем результат…"
+              : canConfirm
+                ? "Подтвердить результат"
+                : "Переснять тест"
+          }
           onPress={canConfirm ? onConfirm : () => onRetake?.()}
         />
         {canConfirm ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Исправить интерпретацию"
+            disabled={isCompleting}
             onPress={onCorrection}
             style={({ pressed }) => [
               styles.resultSecondaryButton,
+              isCompleting && { opacity: 0.5 },
               pressed && styles.pressed,
             ]}
           >
@@ -1684,22 +1697,57 @@ export function ScanFlowOverlay({
   );
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const analysisRequestId = useRef(0);
+  const capturedImageUriRef = useRef<string | null>(null);
+  const completingRef = useRef(false);
+  const mountedRef = useRef(true);
   const transition = useRef(new Animated.Value(1)).current;
   const transitionIntent = useRef<PageTransitionIntent>("fade");
   const skipNextStageAnimation = useRef(true);
 
+  const updateCapturedImageUri = (uri: string | null) => {
+    capturedImageUriRef.current = uri;
+    if (mountedRef.current) {
+      setCapturedImageUri(uri);
+    }
+  };
+
+  const discardCapturedImage = async () => {
+    const uri = capturedImageUriRef.current;
+    capturedImageUriRef.current = null;
+    if (mountedRef.current) {
+      setCapturedImageUri(null);
+    }
+    if (uri) {
+      await deleteAsync(uri, { idempotent: true }).catch(() => undefined);
+    }
+  };
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      const uri = capturedImageUriRef.current;
+      if (uri) {
+        void deleteAsync(uri, { idempotent: true }).catch(() => undefined);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (visible) {
       analysisRequestId.current += 1;
+      completingRef.current = false;
+      setIsCompleting(false);
       skipNextStageAnimation.current = true;
       transition.setValue(1);
       setReturnStage(null);
       setAnalysisResult(null);
       setAnalysisError(null);
-      setCapturedImageUri(null);
-      setConfiguration(scanningService.getConfiguration());
+      void discardCapturedImage();
+      setConfiguration(scanningService.resetConfiguration());
       setStage(showBriefing ? "briefing" : "qr");
     } else {
       analysisRequestId.current += 1;
@@ -1775,18 +1823,17 @@ export function ScanFlowOverlay({
         {
           text: "Завершить",
           style: "destructive",
-          onPress: onClose,
+          onPress: () => {
+            analysisRequestId.current += 1;
+            void discardCapturedImage().finally(onClose);
+          },
         },
       ],
     );
   };
   const retakeTest = () => {
-    if (capturedImageUri) {
-      void deleteAsync(capturedImageUri, { idempotent: true }).catch(
-        () => undefined,
-      );
-    }
-    setCapturedImageUri(null);
+    analysisRequestId.current += 1;
+    void discardCapturedImage();
     setAnalysisResult(null);
     setAnalysisError(null);
     navigateToStage("test", "back");
@@ -1794,6 +1841,10 @@ export function ScanFlowOverlay({
   const completeScan = (
     correctedResult?: 'Положительный' | 'Отрицательный',
   ) => {
+    if (completingRef.current) {
+      return;
+    }
+
     if (!capturedImageUri) {
       Alert.alert(
         "Снимок не найден",
@@ -1825,13 +1876,24 @@ export function ScanFlowOverlay({
         ? 'Положительный'
         : 'Отрицательный';
 
-    void onComplete({
-      batch: configuration.product.batch,
-      confidence,
-      imageUri: capturedImageUri,
-      result: correctedResult ?? detectedResult,
-      type,
-    });
+    completingRef.current = true;
+    setIsCompleting(true);
+    void Promise.resolve(
+      onComplete({
+        batch: configuration.product.batch,
+        confidence,
+        imageUri: capturedImageUri,
+        result: correctedResult ?? detectedResult,
+        type,
+      }),
+    )
+      .then(() => discardCapturedImage())
+      .catch(() => {
+        completingRef.current = false;
+        if (mountedRef.current) {
+          setIsCompleting(false);
+        }
+      });
   };
 
   const content =
@@ -1857,17 +1919,26 @@ export function ScanFlowOverlay({
         onClose={requestClose}
         onHelp={() => openBriefing("qr")}
         onScanned={(data) => {
-          if (data) {
-            try {
-              scanningService.applyQrConfiguration(data);
-            } catch (error) {
+          if (!data) {
+            return;
+          }
+
+          try {
+            if (!scanningService.applyQrConfiguration(data)) {
               Alert.alert(
-                "Профиль QR-кода отклонён",
-                error instanceof Error
-                  ? error.message
-                  : "Некорректный профиль.",
+                "QR-код не распознан",
+                "Наведите камеру на QR-код из упаковки теста.",
               );
+              return;
             }
+          } catch (error) {
+            Alert.alert(
+              "Профиль QR-кода отклонён",
+              error instanceof Error
+                ? error.message
+                : "Некорректный профиль.",
+            );
+            return;
           }
           setConfiguration(scanningService.getConfiguration());
           navigateToStage("test", "forward");
@@ -1881,7 +1952,7 @@ export function ScanFlowOverlay({
         onHelp={() => openBriefing("test")}
         onCapture={(imageUri) => {
           const requestId = ++analysisRequestId.current;
-          setCapturedImageUri(imageUri);
+          updateCapturedImageUri(imageUri);
           setAnalysisResult(null);
           setAnalysisError(null);
           navigateToStage("processing", "fade");
@@ -1931,6 +2002,7 @@ export function ScanFlowOverlay({
         onHelp={() => openBriefing("result")}
         onRetake={retakeTest}
         result={analysisResult}
+        isCompleting={isCompleting}
       />
     );
 

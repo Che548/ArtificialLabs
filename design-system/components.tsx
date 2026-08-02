@@ -4,7 +4,7 @@ import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import type { GlassColorScheme, GlassStyle } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
-import type { PropsWithChildren, ReactNode } from "react";
+import type { ComponentType, PropsWithChildren, ReactNode } from "react";
 import {
   AccessibilityInfo,
   Animated,
@@ -46,6 +46,7 @@ import {
 import type { StoredScanRecord } from "../services/scanning";
 
 const hasNativeLiquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
+const SvgDefs = Defs as unknown as ComponentType<PropsWithChildren>;
 
 type EdgeFadeGradientProps = {
   edge: "top" | "bottom";
@@ -145,7 +146,7 @@ function ScanSphereVisual({
 
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Defs>
+      <SvgDefs>
         <RadialGradient
           id="sphereFill"
           cx="31%"
@@ -171,7 +172,7 @@ function ScanSphereVisual({
             stopOpacity={palette === "pale" ? 0.42 : 0.88}
           />
         </RadialGradient>
-      </Defs>
+      </SvgDefs>
       <Circle cx="50" cy="50" r="50" fill="url(#sphereFill)" />
       <Circle cx="34" cy="27" r="17" fill="rgba(255,255,255,0.13)" />
     </Svg>

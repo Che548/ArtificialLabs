@@ -59,6 +59,7 @@ import {
   ScanResultScreen,
   type ScanHistoryRecord,
 } from "../design-system";
+import { useHealthStore } from "../lib/health-store";
 import { loadScanHistory, saveScanToHistory } from "../services/scanning";
 
 const DESIGN_WIDTH = 402;
@@ -281,6 +282,7 @@ function HistoryBackIcon() {
 }
 
 export default function ScanScreen() {
+  const { addScanResult, scanResults } = useHealthStore();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const instructionRef = useRef<ScrollViewType>(null);
@@ -324,6 +326,60 @@ export default function ScanScreen() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!scanResults.length) {
+      return;
+    }
+
+    setScanHistory((current) => {
+      const knownImages = new Set(current.map((record) => record.imageUri));
+      const imported = scanResults
+        .filter(
+          (result) =>
+            !result.deletedAt &&
+            Boolean(result.localImageUri) &&
+            !knownImages.has(result.localImageUri ?? ""),
+        )
+        .map<ScanHistoryRecord>((result) => {
+          const capturedDate = new Date(result.capturedAt);
+
+          return {
+            id: result.localId,
+            capturedAt: result.capturedAt,
+            imageUri: result.localImageUri ?? "",
+            batch: "Сохранено в профиле",
+            confidence: 0,
+            date: new Intl.DateTimeFormat("ru-RU", {
+              day: "numeric",
+              month: "long",
+            }).format(capturedDate),
+            day: new Intl.DateTimeFormat("ru-RU", { day: "numeric" }).format(
+              capturedDate,
+            ),
+            result:
+              result.confirmedValue === "positive"
+                ? "Положительный"
+                : "Отрицательный",
+            time: new Intl.DateTimeFormat("ru-RU", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }).format(capturedDate),
+            type:
+              result.testSystemKey === "ovulation-strip"
+                ? "Ovulation LH"
+                : "Pregnancy hCG",
+          };
+        });
+
+      return imported.length
+        ? [...current, ...imported].sort(
+            (left, right) => right.capturedAt - left.capturedAt,
+          )
+        : current;
+    });
+    setHasSavedScan(true);
+  }, [scanResults]);
 
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
@@ -625,6 +681,23 @@ export default function ScanScreen() {
                   onComplete={async (pendingRecord) => {
                     try {
                       const record = await saveScanToHistory(pendingRecord);
+                      await addScanResult({
+                        testSystemKey:
+                          record.type === "Ovulation LH"
+                            ? "ovulation-strip"
+                            : "pregnancy-strip",
+                        capturedAt: record.capturedAt,
+                        confirmedValue:
+                          record.result === "Положительный" ||
+                          record.result === "Пик ЛГ"
+                            ? "positive"
+                            : "negative",
+                        confidence: "manual",
+                        qualityFlags: [],
+                        algorithmVersion: "manual-v1",
+                        hasLocalImage: true,
+                        localImageUri: record.imageUri,
+                      });
                       setScanHistory((current) =>
                         [record, ...current].sort(
                           (left, right) => right.capturedAt - left.capturedAt,
@@ -632,11 +705,12 @@ export default function ScanScreen() {
                       );
                       setHasSavedScan(true);
                       setScanFlowVisible(false);
-                    } catch {
+                    } catch (error) {
                       Alert.alert(
                         "Не удалось сохранить снимок",
                         "Попробуйте подтвердить результат ещё раз.",
                       );
+                      throw error;
                     }
                   }}
                 />

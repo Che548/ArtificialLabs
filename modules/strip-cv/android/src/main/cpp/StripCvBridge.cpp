@@ -71,7 +71,8 @@ Java_expo_modules_stripcv_StripCvNative_analyze(
     char* result = nullptr;
     char* error = nullptr;
     const int code = stripcv_analyze_rgb(
-        rgb.data, rgb.cols, rgb.rows, rgb.step, assay.c_str(),
+        rgb.data, rgb.cols, rgb.rows, rgb.step,
+        rgb.step[0] * static_cast<size_t>(rgb.rows), assay.c_str(),
         card.empty() ? nullptr : card.c_str(), options.c_str(), &result, &error);
     if (code != 0 || result == nullptr) {
       const std::string message = error == nullptr ? "StripCV analysis failed" : error;

@@ -29,3 +29,8 @@ target_compile_definitions(stripcv_core PUBLIC STRIPCV_VERSION="${PROJECT_VERSIO
 # second JavaScript/Python implementation of the CV algorithm.
 add_executable(stripcv_cli src/cli.cpp)
 target_link_libraries(stripcv_cli PRIVATE stripcv_core)
+
+enable_testing()
+add_executable(stripcv_c_api_boundary_test tests/c_api_boundary_test.cpp)
+target_link_libraries(stripcv_c_api_boundary_test PRIVATE stripcv_core)
+add_test(NAME stripcv_c_api_boundary COMMAND stripcv_c_api_boundary_test)

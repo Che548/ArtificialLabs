@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <set>
 #include <stdexcept>
 
 #include <opencv2/imgproc.hpp>
@@ -41,6 +42,47 @@ double distanceSquared(const cv::Point2f& a, const cv::Point2f& b) {
   return dx * dx + dy * dy;
 }
 
+bool finiteInRange(double value, double minimum, double maximum,
+                   bool include_minimum = true) {
+  return std::isfinite(value) &&
+         (include_minimum ? value >= minimum : value > minimum) &&
+         value <= maximum;
+}
+
+bool validText(const std::string& value) {
+  return !value.empty() && value.size() <= 128;
+}
+
+double crossProduct(const cv::Point2f& a, const cv::Point2f& b,
+                    const cv::Point2f& c) {
+  return (static_cast<double>(b.x) - a.x) *
+             (static_cast<double>(c.y) - b.y) -
+         (static_cast<double>(b.y) - a.y) *
+             (static_cast<double>(c.x) - b.x);
+}
+
+bool isFiniteConvexQuad(const Quad& points) {
+  double sign = 0.0;
+  for (size_t index = 0; index < points.size(); ++index) {
+    const cv::Point2f& point = points[index];
+    if (!std::isfinite(point.x) || !std::isfinite(point.y)) {
+      return false;
+    }
+    const double cross = crossProduct(
+        point, points[(index + 1) % points.size()],
+        points[(index + 2) % points.size()]);
+    if (!std::isfinite(cross) || std::abs(cross) <= 1.0e-6) {
+      return false;
+    }
+    if (sign == 0.0) {
+      sign = cross;
+    } else if ((cross > 0.0) != (sign > 0.0)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 NormalizedRect normalizedRectFromJson(const json& value) {
@@ -70,6 +112,9 @@ json normalizedRectToJson(const NormalizedRect& value) {
 }
 
 AssayProfile AssayProfile::fromJson(const json& value) {
+  if (!value.is_object()) {
+    throw std::invalid_argument("Assay profile must be an object");
+  }
   AssayProfile result;
   readIfPresent(value, "schema_version", result.schema_version);
   readIfPresent(value, "id", result.id);
@@ -94,7 +139,7 @@ AssayProfile AssayProfile::fromJson(const json& value) {
   if (value.contains("default_cutoff") && !value.at("default_cutoff").is_null()) {
     result.default_cutoff = value.at("default_cutoff").get<double>();
   }
-  if (value.contains("quality")) {
+  if (value.contains("quality") && value.at("quality").is_object()) {
     const json& quality = value.at("quality");
     readIfPresent(quality, "min_control_snr", result.quality.min_control_snr);
     readIfPresent(quality, "min_test_snr", result.quality.min_test_snr);
@@ -108,11 +153,53 @@ AssayProfile AssayProfile::fromJson(const json& value) {
     readIfPresent(quality, "max_calibration_residual",
                   result.quality.max_calibration_residual);
   }
-  if (result.canonical_width < 128 || result.canonical_height < 32 ||
-      result.min_aspect_ratio <= 1.0 ||
+  const bool complete =
+      value.contains("schema_version") && value.contains("id") &&
+      value.contains("version") && value.contains("canonical_width") &&
+      value.contains("canonical_height") &&
+      value.contains("min_aspect_ratio") &&
+      value.contains("max_aspect_ratio") && value.contains("membrane_roi") &&
+      value.contains("test_window") && value.contains("control_window") &&
+      value.contains("expected_line_width") &&
+      value.contains("integration_half_width") &&
+      value.contains("sample_to_wick") && value.contains("default_cutoff") &&
+      value.contains("positive_when") && value.contains("quality");
+  if (!complete || result.schema_version != "1.0" || !validText(result.id) ||
+      !validText(result.version) || result.canonical_width < 128 ||
+      result.canonical_width > 8192 || result.canonical_height < 32 ||
+      result.canonical_height > 4096 ||
+      !finiteInRange(result.min_aspect_ratio, 1.0, 100.0, false) ||
+      !finiteInRange(result.max_aspect_ratio, 1.0, 100.0) ||
       result.max_aspect_ratio <= result.min_aspect_ratio ||
-      result.expected_line_width <= 0.0 || result.integration_half_width <= 0.0) {
+      !finiteInRange(result.expected_line_width, 0.0, 0.5, false) ||
+      !finiteInRange(result.integration_half_width, 0.0, 0.5, false) ||
+      (result.default_cutoff &&
+       !finiteInRange(*result.default_cutoff, 0.0, 1000.0))) {
     throw std::invalid_argument("Invalid assay profile dimensions or geometry");
+  }
+  const json& quality = value.at("quality");
+  if (!quality.is_object() || !quality.contains("min_control_snr") ||
+      !quality.contains("min_test_snr") ||
+      !quality.contains("min_control_area") ||
+      !quality.contains("min_valid_fraction") ||
+      !quality.contains("min_blur_variance") ||
+      !quality.contains("max_clipped_fraction") ||
+      !quality.contains("max_glare_fraction") ||
+      !quality.contains("min_quad_area_fraction") ||
+      !quality.contains("max_calibration_residual") ||
+      !finiteInRange(result.quality.min_control_snr, 0.0, 1000.0, false) ||
+      !finiteInRange(result.quality.min_test_snr, 0.0, 1000.0, false) ||
+      !finiteInRange(result.quality.min_control_area, 0.0, 1.0, false) ||
+      !finiteInRange(result.quality.min_valid_fraction, 0.0, 1.0, false) ||
+      !finiteInRange(result.quality.min_blur_variance, 0.0, 1000000.0,
+                     false) ||
+      !finiteInRange(result.quality.max_clipped_fraction, 0.0, 1.0) ||
+      !finiteInRange(result.quality.max_glare_fraction, 0.0, 1.0) ||
+      !finiteInRange(result.quality.min_quad_area_fraction, 0.0, 1.0,
+                     false) ||
+      !finiteInRange(result.quality.max_calibration_residual, 0.0, 10.0,
+                     false)) {
+    throw std::invalid_argument("Invalid assay quality thresholds");
   }
   if (result.positive_when != "gte") {
     throw std::invalid_argument("Only positive_when='gte' is supported in v1");
@@ -158,6 +245,9 @@ json AssayProfile::toJson() const {
 }
 
 CardProfile CardProfile::fromJson(const json& value) {
+  if (!value.is_object()) {
+    throw std::invalid_argument("Card profile must be an object");
+  }
   CardProfile result;
   readIfPresent(value, "schema_version", result.schema_version);
   readIfPresent(value, "id", result.id);
@@ -174,38 +264,89 @@ CardProfile CardProfile::fromJson(const json& value) {
       !value.at("fiducial_side_px").is_null()) {
     result.fiducial_side_px = value.at("fiducial_side_px").get<double>();
   }
+  const bool complete =
+      value.contains("schema_version") && value.contains("id") &&
+      value.contains("version") && value.contains("print_batch") &&
+      value.contains("enrolled") && value.contains("canonical_width") &&
+      value.contains("canonical_height") &&
+      value.contains("physical_width_mm") &&
+      value.contains("physical_height_mm") &&
+      value.contains("min_area_fraction") &&
+      value.contains("fiducial_centers") && value.contains("patches") &&
+      value.contains("max_holdout_residual");
+  if (!complete || result.schema_version != "1.0" || !validText(result.id) ||
+      !validText(result.version) || !validText(result.print_batch) ||
+      result.canonical_width < 256 || result.canonical_width > 8192 ||
+      result.canonical_height < 256 || result.canonical_height > 8192 ||
+      std::abs(result.canonical_width - result.canonical_height) > 1 ||
+      !finiteInRange(result.physical_width_mm, 0.0, 1000.0, false) ||
+      !finiteInRange(result.physical_height_mm, 0.0, 1000.0, false) ||
+      std::abs(result.physical_width_mm - result.physical_height_mm) > 0.01 ||
+      !finiteInRange(result.min_area_fraction, 0.0, 1.0, false) ||
+      !finiteInRange(result.max_holdout_residual, 0.0, 10.0, false) ||
+      (result.fiducial_side_px &&
+       !finiteInRange(*result.fiducial_side_px, 0.0,
+                      static_cast<double>(result.canonical_width), false)) ||
+      !value.at("fiducial_centers").is_array() ||
+      !value.at("patches").is_array() || value.at("patches").empty() ||
+      value.at("patches").size() > 256) {
+    throw std::invalid_argument("Invalid or incomplete card profile");
+  }
   if (!value.contains("fiducial_centers") ||
       value.at("fiducial_centers").size() != 4) {
     throw std::invalid_argument("Card profile requires four fiducial centers");
   }
   for (size_t index = 0; index < 4; ++index) {
     const auto& point = value.at("fiducial_centers").at(index);
+    if (!point.is_array() || point.size() != 2) {
+      throw std::invalid_argument("Invalid fiducial center");
+    }
     result.fiducial_centers[index] = cv::Point2f(point.at(0).get<float>(),
                                                  point.at(1).get<float>());
-  }
-  if (value.contains("patches")) {
-    for (const auto& patch_json : value.at("patches")) {
-      CardPatch patch;
-      patch.id = patch_json.at("id").get<std::string>();
-      patch.role = patch_json.at("role").get<std::string>();
-      patch.roi = normalizedRectFromJson(patch_json.at("roi"));
-      if (patch_json.contains("reference_rgb")) {
-        for (size_t channel = 0; channel < 3; ++channel) {
-          patch.reference_rgb[channel] =
-              patch_json.at("reference_rgb").at(channel).get<double>();
-        }
-      }
-      result.patches.push_back(patch);
+    const cv::Point2f& parsed = result.fiducial_centers[index];
+    if (!finiteInRange(parsed.x, 0.0, result.canonical_width) ||
+        !finiteInRange(parsed.y, 0.0, result.canonical_height)) {
+      throw std::invalid_argument("Fiducial center is outside the card");
     }
   }
-  if (result.canonical_width < 256 || result.canonical_height < 256 ||
-      std::abs(result.canonical_width - result.canonical_height) > 1 ||
-      result.physical_width_mm <= 0.0 || result.physical_height_mm <= 0.0 ||
-      std::abs(result.physical_width_mm - result.physical_height_mm) > 0.01 ||
-      result.min_area_fraction <= 0.0 || result.min_area_fraction >= 1.0 ||
-      (result.fiducial_side_px && *result.fiducial_side_px <= 0.0) ||
-      result.patches.empty()) {
-    throw std::invalid_argument("Invalid or incomplete card profile");
+  for (size_t first = 0; first < 4; ++first) {
+    for (size_t second = first + 1; second < 4; ++second) {
+      if (distanceSquared(result.fiducial_centers[first],
+                          result.fiducial_centers[second]) <= 1.0e-6) {
+        throw std::invalid_argument("Fiducial centers must be unique");
+      }
+    }
+  }
+  if (!isFiniteConvexQuad(result.fiducial_centers)) {
+    throw std::invalid_argument("Fiducial centers must form a convex quad");
+  }
+  std::set<std::string> patch_ids;
+  const std::set<std::string> allowed_roles = {
+      "neutral", "holdout", "black", "calibration"};
+  for (const auto& patch_json : value.at("patches")) {
+    if (!patch_json.is_object() || !patch_json.contains("id") ||
+        !patch_json.contains("role") || !patch_json.contains("roi") ||
+        !patch_json.contains("reference_rgb") ||
+        !patch_json.at("reference_rgb").is_array() ||
+        patch_json.at("reference_rgb").size() != 3) {
+      throw std::invalid_argument("Invalid card patch");
+    }
+    CardPatch patch;
+    patch.id = patch_json.at("id").get<std::string>();
+    patch.role = patch_json.at("role").get<std::string>();
+    patch.roi = normalizedRectFromJson(patch_json.at("roi"));
+    if (!validText(patch.id) || !patch_ids.insert(patch.id).second ||
+        allowed_roles.count(patch.role) == 0) {
+      throw std::invalid_argument("Invalid or duplicate card patch");
+    }
+    for (size_t channel = 0; channel < 3; ++channel) {
+      patch.reference_rgb[channel] =
+          patch_json.at("reference_rgb").at(channel).get<double>();
+      if (!finiteInRange(patch.reference_rgb[channel], 0.0, 1.0)) {
+        throw std::invalid_argument("Card patch RGB must be within [0, 1]");
+      }
+    }
+    result.patches.push_back(patch);
   }
   return result;
 }
@@ -246,20 +387,36 @@ json CardProfile::toJson() const {
 }
 
 AnalysisOptions AnalysisOptions::fromJson(const json& value) {
+  if (!value.is_object()) {
+    throw std::invalid_argument("Analysis options must be an object");
+  }
   AnalysisOptions result;
   readIfPresent(value, "flip_orientation", result.flip_orientation);
   if (value.contains("cutoff") && !value.at("cutoff").is_null()) {
     result.cutoff = value.at("cutoff").get<double>();
+    if (!finiteInRange(*result.cutoff, 0.0, 1000.0)) {
+      throw std::invalid_argument("cutoff must be finite and within [0, 1000]");
+    }
   }
   if (value.contains("corner_override") && !value.at("corner_override").is_null()) {
     const auto& corners = value.at("corner_override");
-    if (corners.size() != 4) {
+    if (!corners.is_array() || corners.size() != 4) {
       throw std::invalid_argument("corner_override must contain four points");
     }
     Quad quad{};
     for (size_t index = 0; index < 4; ++index) {
+      if (!corners.at(index).is_array() || corners.at(index).size() != 2) {
+        throw std::invalid_argument("corner_override contains an invalid point");
+      }
       quad[index] = cv::Point2f(corners.at(index).at(0).get<float>(),
                                 corners.at(index).at(1).get<float>());
+      if (!finiteInRange(quad[index].x, 0.0, 32768.0) ||
+          !finiteInRange(quad[index].y, 0.0, 32768.0)) {
+        throw std::invalid_argument("corner_override is outside image bounds");
+      }
+    }
+    if (!isFiniteConvexQuad(quad)) {
+      throw std::invalid_argument("corner_override must form a convex quad");
     }
     result.corner_override = orderQuad(quad);
   }

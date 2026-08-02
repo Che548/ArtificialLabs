@@ -19,7 +19,7 @@ namespace stripcv {
 namespace {
 
 #ifndef STRIPCV_VERSION
-#define STRIPCV_VERSION "dev"
+#define STRIPCV_VERSION "0.3.1"
 #endif
 
 using Clock = std::chrono::steady_clock;

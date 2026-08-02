@@ -21,4 +21,3 @@ class Analyzer {
 };
 
 }  // namespace stripcv
-

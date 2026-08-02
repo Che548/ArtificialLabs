@@ -72,6 +72,7 @@ UIImage *normalizeImage(UIImage *image) {
     char *nativeError = nullptr;
     const int status = stripcv_analyze_rgb(
         rgb.data, rgb.cols, rgb.rows, rgb.step,
+        rgb.step[0] * static_cast<size_t>(rgb.rows),
         assayProfileJson.UTF8String,
         cardProfileJson == nil ? nullptr : cardProfileJson.UTF8String,
         optionsJson.UTF8String, &result, &nativeError);

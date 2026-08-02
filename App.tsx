@@ -20,6 +20,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -44,6 +45,8 @@ import {
   HeaderDateLabel,
   JournalAssessment,
 } from "./design-system";
+import { useHealthStore } from "./lib/health-store";
+import type { JournalKind } from "./lib/health-types";
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
@@ -53,14 +56,9 @@ const FONT_YARO_RG = "YaroRg";
 const FontReadyContext = createContext(false);
 const hasNativeLiquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
 const MAX_PREGNANCY_WEEK = 42;
-const INITIAL_WEEK = 7;
 const WEEK_ITEM_WIDTH = 84;
 const WEEK_BUBBLE_SIZE = 75;
 const WEEK_CENTER_PADDING = (DESIGN_WIDTH - WEEK_ITEM_WIDTH) / 2;
-const weeks = Array.from(
-  { length: MAX_PREGNANCY_WEEK },
-  (_, index) => index + 1,
-);
 
 function getWeekLabel(week: number) {
   const lastTwoDigits = week % 100;
@@ -285,14 +283,51 @@ function MonitoringScreen({
   headerTop: number;
   onCalendarPress: () => void;
 }) {
-  const [activeWeek, setActiveWeek] = useState(INITIAL_WEEK);
-  const [journalCompleted, setJournalCompleted] = useState(false);
-  const [checkupsCompleted, setCheckupsCompleted] = useState(false);
+  const {
+    profile,
+    journalEntries,
+    labResults,
+    scanResults,
+    addJournalEntry,
+    readOnly,
+    syncStatus,
+  } = useHealthStore();
+  const pregnancyMode = profile?.goal !== "planning";
+  const maxPeriod = pregnancyMode
+    ? MAX_PREGNANCY_WEEK
+    : (profile?.cycleLengthDays ?? 28);
+  const initialPeriod = pregnancyMode
+    ? Math.min(
+        maxPeriod,
+        Math.max(
+          1,
+          Math.floor(
+            (Date.now() - (profile?.pregnancyStartAt ?? Date.now())) /
+              (7 * 24 * 60 * 60 * 1000),
+          ) + 1,
+        ),
+      )
+    : Math.min(
+        maxPeriod,
+        Math.max(
+          1,
+          Math.floor(
+            (Date.now() - (profile?.lastPeriodStartAt ?? Date.now())) /
+              (24 * 60 * 60 * 1000),
+          ) + 1,
+        ),
+      );
+  const periods = Array.from({ length: maxPeriod }, (_, index) => index + 1);
+  const [activeWeek, setActiveWeek] = useState(initialPeriod);
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [journalKind, setJournalKind] = useState<JournalKind>("symptom");
+  const [journalText, setJournalText] = useState("");
+  const [journalError, setJournalError] = useState<string>();
   const fontsReady = useContext(FontReadyContext);
   const weekScrollRef = useRef<ScrollView>(null);
-  const hapticWeekRef = useRef(INITIAL_WEEK);
+  const hapticWeekRef = useRef(initialPeriod);
   const scrollX = useRef(
-    new Animated.Value((INITIAL_WEEK - 1) * WEEK_ITEM_WIDTH),
+    new Animated.Value((initialPeriod - 1) * WEEK_ITEM_WIDTH),
   ).current;
   const weekNumberFont = fontsReady
     ? FONT_YARO_RG
@@ -305,9 +340,21 @@ function MonitoringScreen({
       ? "System"
       : "sans-serif";
 
+  useEffect(() => {
+    hapticWeekRef.current = initialPeriod;
+    setActiveWeek(initialPeriod);
+    scrollX.setValue((initialPeriod - 1) * WEEK_ITEM_WIDTH);
+    requestAnimationFrame(() => {
+      weekScrollRef.current?.scrollTo({
+        x: (initialPeriod - 1) * WEEK_ITEM_WIDTH,
+        animated: false,
+      });
+    });
+  }, [initialPeriod, scrollX]);
+
   const selectWeekFromOffset = (offsetX: number) => {
     const nextWeek = Math.min(
-      MAX_PREGNANCY_WEEK,
+      maxPeriod,
       Math.max(1, Math.round(offsetX / WEEK_ITEM_WIDTH) + 1),
     );
 
@@ -317,7 +364,7 @@ function MonitoringScreen({
 
   const handleWeekScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const centeredWeek = Math.min(
-      MAX_PREGNANCY_WEEK,
+      maxPeriod,
       Math.max(
         1,
         Math.round(event.nativeEvent.contentOffset.x / WEEK_ITEM_WIDTH) + 1,
@@ -347,6 +394,40 @@ function MonitoringScreen({
       x: (week - 1) * WEEK_ITEM_WIDTH,
       animated: true,
     });
+  };
+
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const journalCompleted = journalEntries.some(
+    (entry) => !entry.deletedAt && entry.occurredAt >= todayStart,
+  );
+  const completedCheckups = Math.min(
+    6,
+    labResults.filter((item) => !item.deletedAt).length +
+      scanResults.filter((item) => !item.deletedAt).length,
+  );
+
+  const saveJournal = async () => {
+    if (!journalText.trim()) {
+      setJournalError("Добавьте короткую запись.");
+      return;
+    }
+
+    await addJournalEntry({
+      occurredAt: Date.now(),
+      kind: journalKind,
+      label:
+        journalKind === "mood"
+          ? "Настроение"
+          : journalKind === "energy"
+            ? "Энергия"
+            : journalKind === "nutrition"
+              ? "Питание"
+              : "Симптомы",
+      textValue: journalText.trim(),
+    });
+    setJournalText("");
+    setJournalError(undefined);
+    setJournalOpen(false);
   };
 
   return (
@@ -453,7 +534,7 @@ function MonitoringScreen({
             accessibilityLabel="Текущая неделя беременности"
             contentInsetAdjustmentBehavior="never"
             contentOffset={{
-              x: (INITIAL_WEEK - 1) * WEEK_ITEM_WIDTH,
+              x: (initialPeriod - 1) * WEEK_ITEM_WIDTH,
               y: 0,
             }}
             contentContainerStyle={styles.weekCarouselContent}
@@ -474,9 +555,9 @@ function MonitoringScreen({
             )}
             scrollEventThrottle={16}
           >
-            {weeks.map((week, index) => {
+            {periods.map((week, index) => {
               const selected = week === activeWeek;
-              const weekLabel = getWeekLabel(week);
+              const weekLabel = pregnancyMode ? getWeekLabel(week) : "день";
               const itemOffset = index * WEEK_ITEM_WIDTH;
               const inputRange = [
                 itemOffset - WEEK_ITEM_WIDTH * 2,
@@ -567,8 +648,8 @@ function MonitoringScreen({
                 },
               ]}
             >
-              {weeks.map((week, index) => {
-                const weekLabel = getWeekLabel(week);
+              {periods.map((week, index) => {
+                const weekLabel = pregnancyMode ? getWeekLabel(week) : "день";
                 const itemOffset = index * WEEK_ITEM_WIDTH;
                 const inputRange = [
                   itemOffset - WEEK_ITEM_WIDTH * 2,
@@ -653,7 +734,7 @@ function MonitoringScreen({
               value={journalCompleted ? 24 : 16}
               actionLabel={journalCompleted ? "Готово" : "Заполнить"}
               actionVariant="outline"
-              onPress={() => setJournalCompleted((value) => !value)}
+              onPress={() => setJournalOpen(true)}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
             />
           </View>
@@ -661,15 +742,14 @@ function MonitoringScreen({
           <View style={styles.checkupsArea}>
             <JournalAssessment
               variant="fraction"
-              value={checkupsCompleted ? 6 : 3}
+              value={completedCheckups}
               total={6}
               title="Прохождение чекапов"
               status="Средняя регулярность"
-              leftCaption="Пройдено 3"
+              leftCaption={`Пройдено ${completedCheckups}`}
               rightCaption="Всего 6"
-              actionLabel={checkupsCompleted ? "Готово" : "Пройти"}
+              actionLabel={completedCheckups >= 6 ? "Готово" : "Пройти"}
               actionVariant="outline"
-              onPress={() => setCheckupsCompleted((value) => !value)}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
             />
           </View>
@@ -683,6 +763,81 @@ function MonitoringScreen({
           </View>
         </View>
       </ScrollView>
+
+      {journalOpen ? (
+        <View style={styles.journalModalBackdrop}>
+          <View style={styles.journalModalCard}>
+            <View style={styles.journalModalHeader}>
+              <ProjectText style={styles.journalModalTitle} weight="semibold">
+                Запись в дневник
+              </ProjectText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Закрыть дневник"
+                onPress={() => setJournalOpen(false)}
+                style={styles.journalModalClose}
+              >
+                <ProjectText style={styles.journalModalCloseText}>×</ProjectText>
+              </Pressable>
+            </View>
+            <View style={styles.journalKindRow}>
+              {(["symptom", "mood", "energy", "nutrition"] as const).map(
+                (kind) => (
+                  <Pressable
+                    key={kind}
+                    onPress={() => setJournalKind(kind)}
+                    style={[
+                      styles.journalKindButton,
+                      journalKind === kind && styles.journalKindButtonActive,
+                    ]}
+                  >
+                    <ProjectText
+                      style={[
+                        styles.journalKindLabel,
+                        journalKind === kind && styles.journalKindLabelActive,
+                      ]}
+                    >
+                      {{
+                        symptom: "Симптом",
+                        mood: "Настроение",
+                        energy: "Энергия",
+                        nutrition: "Питание",
+                      }[kind]}
+                    </ProjectText>
+                  </Pressable>
+                ),
+              )}
+            </View>
+            <TextInput
+              value={journalText}
+              onChangeText={setJournalText}
+              multiline
+              placeholder="Что важно отметить сегодня?"
+              style={styles.journalInput}
+            />
+            {journalError ? (
+              <ProjectText style={styles.journalError}>{journalError}</ProjectText>
+            ) : null}
+            <Pressable
+              disabled={readOnly}
+              onPress={() => void saveJournal()}
+              style={[
+                styles.journalSaveButton,
+                readOnly && styles.journalSaveButtonDisabled,
+              ]}
+            >
+              <ProjectText style={styles.journalSaveLabel}>Сохранить</ProjectText>
+            </Pressable>
+            <ProjectText style={styles.journalSyncLabel}>
+              {readOnly
+                ? "В web-демо сохранение отключено"
+                : syncStatus === "syncing"
+                  ? "Синхронизация…"
+                  : "Сначала сохраняется на устройстве"}
+            </ProjectText>
+          </View>
+        </View>
+      ) : null}
 
       <LinearGradient
         pointerEvents="none"
@@ -860,7 +1015,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   weekTextTrack: {
-    width: weeks.length * WEEK_ITEM_WIDTH + WEEK_CENTER_PADDING * 2,
+    width: MAX_PREGNANCY_WEEK * WEEK_ITEM_WIDTH + WEEK_CENTER_PADDING * 2,
     height: WEEK_BUBBLE_SIZE + 40,
     paddingHorizontal: WEEK_CENTER_PADDING,
     paddingTop: 20,
@@ -1013,6 +1168,108 @@ const styles = StyleSheet.create({
     width: DESIGN_WIDTH,
     height: 551,
     marginTop: 423,
+  },
+  journalModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 40,
+    justifyContent: "flex-end",
+    paddingHorizontal: 16,
+    paddingBottom: 92,
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
+  journalModalCard: {
+    borderRadius: 30,
+    padding: 20,
+    backgroundColor: "#ffffff",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 28,
+    elevation: 12,
+  },
+  journalModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  journalModalTitle: {
+    color: "#171717",
+    fontSize: 22,
+    lineHeight: 26,
+  },
+  journalModalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f2f2f7",
+  },
+  journalModalCloseText: {
+    color: "#171717",
+    fontSize: 22,
+    lineHeight: 24,
+  },
+  journalKindRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 16,
+  },
+  journalKindButton: {
+    flex: 1,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f2f2f7",
+  },
+  journalKindButtonActive: {
+    backgroundColor: "#D31471",
+  },
+  journalKindLabel: {
+    color: "#171717",
+    fontSize: 11.5,
+  },
+  journalKindLabelActive: {
+    color: "#ffffff",
+  },
+  journalInput: {
+    minHeight: 92,
+    marginTop: 12,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    color: "#171717",
+    fontFamily: FONT_SF_REGULAR,
+    fontSize: 16,
+    textAlignVertical: "top",
+    backgroundColor: "#f2f2f7",
+  },
+  journalError: {
+    marginTop: 8,
+    color: "#D92D20",
+    fontSize: 13,
+  },
+  journalSaveButton: {
+    height: 48,
+    marginTop: 16,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#D31471",
+  },
+  journalSaveButtonDisabled: {
+    opacity: 0.45,
+  },
+  journalSaveLabel: {
+    color: "#ffffff",
+    fontSize: 15,
+  },
+  journalSyncLabel: {
+    marginTop: 8,
+    color: "#736E6C",
+    fontSize: 11,
+    textAlign: "center",
   },
   pressed: {
     opacity: 0.72,

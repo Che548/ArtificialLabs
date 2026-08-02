@@ -6,6 +6,7 @@ node_modules/
 # Expo
 .expo/
 dist/
+/dist-ios/
 web-build/
 expo-env.d.ts
 
@@ -34,7 +35,10 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+infra/convex/.env
+infra/web/.env
 
 # typescript
 *.tsbuildinfo
@@ -42,3 +46,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Preserved Swift/Xcode baseline
+DerivedData/
+build/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.moved-aside

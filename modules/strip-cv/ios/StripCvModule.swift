@@ -24,7 +24,8 @@ public final class StripCvModule: Module {
         at: imageURL,
         assayProfileJson: assayJson,
         cardProfileJson: cardJson,
-        optionsJson: optionsJson
+        optionsJson: optionsJson,
+        error: ()
       )
       return result
     }

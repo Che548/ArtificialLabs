@@ -24,4 +24,3 @@ CardSampleResult sampleCard(const cv::Mat& rgb, const CardProfile& profile,
                             const IRegionLocator& locator);
 
 }  // namespace stripcv
-

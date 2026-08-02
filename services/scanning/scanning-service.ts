@@ -5,6 +5,7 @@ import type {
   CardProfile,
 } from '../../modules/strip-cv';
 import { parseCvProfileQr } from './profile-qr';
+import { assertTrustedCvProfileEnvelope } from './profile-trust';
 import { DEFAULT_ASSAY_PROFILE, DEFAULT_CARD_PROFILE } from './profiles';
 
 export type ScanProductMetadata = {
@@ -40,18 +41,21 @@ export class ScanningService {
     return this.activeConfiguration;
   }
 
+  resetConfiguration(): ActiveCvConfiguration {
+    this.activeConfiguration = bundledConfiguration;
+    return this.activeConfiguration;
+  }
+
   applyQrConfiguration(data: string): boolean {
     const envelope = parseCvProfileQr(data);
     if (!envelope) {
       return false;
     }
+    assertTrustedCvProfileEnvelope(envelope);
     this.activeConfiguration = {
-      assayProfile: envelope.assay_profile,
-      cardProfile:
-        envelope.card_profile === undefined
-          ? this.activeConfiguration.cardProfile
-          : envelope.card_profile,
-      cutoff: envelope.cutoff ?? envelope.assay_profile.default_cutoff,
+      assayProfile: DEFAULT_ASSAY_PROFILE,
+      cardProfile: DEFAULT_CARD_PROFILE,
+      cutoff: null,
       source: 'qr',
       product: {
         label: envelope.product?.label ?? envelope.assay_profile.id,

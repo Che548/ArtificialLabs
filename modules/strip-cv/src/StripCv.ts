@@ -1,17 +1,20 @@
-import StripCvModule from "./StripCvModule";
-import type { AnalysisResult, AnalyzeStripRequest } from "./StripCv.types";
+import { Platform } from 'react-native';
 
-export const isStripCvAvailable = StripCvModule !== null;
+import StripCvModule from './StripCvModule';
+import type { AnalysisResult, AnalyzeStripRequest } from './StripCv.types';
+
+export const isStripCvAvailable =
+  Platform.OS === 'web' || StripCvModule !== null;
 
 export async function analyzeStripAsync(
   request: AnalyzeStripRequest,
 ): Promise<AnalysisResult> {
-  if (StripCvModule === null) {
+  const nativeModule = StripCvModule;
+  if (!nativeModule) {
     throw new Error(
-      "StripCV недоступен в Expo Go. Для анализа теста откройте приложение в development build.",
+      'StripCV requires a native development build and is unavailable in Expo Go.',
     );
   }
-
   const payload = {
     imageUri: request.imageUri,
     assayProfile: request.assayProfile,
@@ -22,12 +25,12 @@ export async function analyzeStripAsync(
       flip_orientation: request.flipOrientation ?? false,
     },
   };
-  const resultJson = await StripCvModule.analyzeStripJsonAsync(
+  const resultJson = await nativeModule.analyzeStripJsonAsync(
     JSON.stringify(payload),
   );
   const result = JSON.parse(resultJson) as AnalysisResult;
 
-  if (result.schema_version !== "1.0") {
+  if (result.schema_version !== '1.0') {
     throw new Error(
       `Unsupported StripCV result schema: ${result.schema_version}`,
     );

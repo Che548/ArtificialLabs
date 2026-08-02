@@ -42,11 +42,25 @@
         }
       ],
       "expo-router",
+      "expo-web-browser",
       [
         "expo-camera",
         {
           "cameraPermission": "Разрешите приложению Private использовать камеру для сканирования QR-кодов и тестов.",
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Разрешите Private защищать локальные медицинские данные."
         }
       ],
       [
