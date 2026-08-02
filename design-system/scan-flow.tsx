@@ -12,6 +12,7 @@ import {
 } from "expo-glass-effect";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
   Animated,
@@ -47,6 +48,13 @@ const hasNativeFlowGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
 
 type ScanFlowStage =
   "briefing" | "qr" | "test" | "processing" | "result" | "correction";
+
+type PageTransitionIntent =
+  | "forward"
+  | "back"
+  | "fade"
+  | "result"
+  | "modal";
 
 type ScanFlowOverlayProps = {
   headerTop: number;
@@ -1676,12 +1684,17 @@ export function ScanFlowOverlay({
   );
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const analysisRequestId = useRef(0);
   const transition = useRef(new Animated.Value(1)).current;
+  const transitionIntent = useRef<PageTransitionIntent>("fade");
+  const skipNextStageAnimation = useRef(true);
 
   useEffect(() => {
     if (visible) {
       analysisRequestId.current += 1;
+      skipNextStageAnimation.current = true;
+      transition.setValue(1);
       setReturnStage(null);
       setAnalysisResult(null);
       setAnalysisError(null);
@@ -1694,15 +1707,36 @@ export function ScanFlowOverlay({
   }, [showBriefing, visible]);
 
   useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setReduceMotion,
+    );
+
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
     if (!visible) {
       return;
     }
 
-    transition.setValue(0);
+    if (skipNextStageAnimation.current) {
+      skipNextStageAnimation.current = false;
+      transition.setValue(1);
+      return;
+    }
+
     const animation = Animated.timing(transition, {
       toValue: 1,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
+      duration: reduceMotion
+        ? 120
+        : transitionIntent.current === "fade"
+          ? 160
+          : transitionIntent.current === "result"
+            ? 220
+            : 260,
+      easing: Easing.bezier(0.32, 0.72, 0, 1),
       useNativeDriver: true,
     });
     animation.start();
@@ -1713,11 +1747,21 @@ export function ScanFlowOverlay({
     return null;
   }
 
+  const navigateToStage = (
+    nextStage: ScanFlowStage,
+    intent: PageTransitionIntent,
+  ) => {
+    transitionIntent.current = intent;
+    transition.stopAnimation();
+    transition.setValue(0);
+    setStage(nextStage);
+  };
+
   const openBriefing = (
     currentStage: Exclude<ScanFlowStage, "briefing" | "processing">,
   ) => {
     setReturnStage(currentStage);
-    setStage("briefing");
+    navigateToStage("briefing", "modal");
   };
   const requestClose = () => {
     Alert.alert(
@@ -1745,7 +1789,7 @@ export function ScanFlowOverlay({
     setCapturedImageUri(null);
     setAnalysisResult(null);
     setAnalysisError(null);
-    setStage("test");
+    navigateToStage("test", "back");
   };
   const completeScan = (
     correctedResult?: 'Положительный' | 'Отрицательный',
@@ -1800,10 +1844,10 @@ export function ScanFlowOverlay({
           if (returnStage) {
             const nextStage = returnStage;
             setReturnStage(null);
-            setStage(nextStage);
+            navigateToStage(nextStage, "back");
           } else {
             onBriefingSeen();
-            setStage("qr");
+            navigateToStage("qr", "forward");
           }
         }}
       />
@@ -1826,7 +1870,7 @@ export function ScanFlowOverlay({
             }
           }
           setConfiguration(scanningService.getConfiguration());
-          setStage("test");
+          navigateToStage("test", "forward");
         }}
       />
     ) : stage === "test" ? (
@@ -1840,7 +1884,7 @@ export function ScanFlowOverlay({
           setCapturedImageUri(imageUri);
           setAnalysisResult(null);
           setAnalysisError(null);
-          setStage("processing");
+          navigateToStage("processing", "fade");
           void scanningService
             .analyze(imageUri)
             .then((result) => {
@@ -1848,7 +1892,7 @@ export function ScanFlowOverlay({
                 return;
               }
               setAnalysisResult(result);
-              setStage("result");
+              navigateToStage("result", "result");
             })
             .catch((error: unknown) => {
               if (analysisRequestId.current !== requestId) {
@@ -1859,7 +1903,7 @@ export function ScanFlowOverlay({
                   ? error.message
                   : "Неизвестная ошибка анализа.",
               );
-              setStage("result");
+              navigateToStage("result", "result");
             });
         }}
       />
@@ -1883,31 +1927,70 @@ export function ScanFlowOverlay({
         imageUri={capturedImageUri}
         onClose={requestClose}
         onConfirm={() => completeScan()}
-        onCorrection={() => setStage("correction")}
+        onCorrection={() => navigateToStage("correction", "forward")}
         onHelp={() => openBriefing("result")}
         onRetake={retakeTest}
         result={analysisResult}
       />
     );
 
-  return (
-    <Animated.View
-      style={[
-        styles.overlay,
-        {
-          transform: [
+  const transitionTransform = reduceMotion
+    ? []
+    : transitionIntent.current === "forward"
+      ? [
+          {
+            translateX: transition.interpolate({
+              inputRange: [0, 1],
+              outputRange: [28, 0],
+            }),
+          },
+        ]
+      : transitionIntent.current === "back"
+        ? [
             {
-              translateY: transition.interpolate({
+              translateX: transition.interpolate({
                 inputRange: [0, 1],
-                outputRange: [10, 0],
+                outputRange: [-28, 0],
               }),
             },
-          ],
-        },
-      ]}
-    >
-      {content}
-    </Animated.View>
+          ]
+        : transitionIntent.current === "modal"
+          ? [
+              {
+                translateY: transition.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0],
+                }),
+              },
+            ]
+          : transitionIntent.current === "result"
+            ? [
+                {
+                  translateY: transition.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [8, 0],
+                  }),
+                },
+              ]
+            : [];
+
+  return (
+    <View style={styles.overlay}>
+      <Animated.View
+        style={[
+          styles.pageTransition,
+          {
+            opacity: transition.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.94, 1],
+            }),
+            transform: transitionTransform,
+          },
+        ]}
+      >
+        {content}
+      </Animated.View>
+    </View>
   );
 }
 
@@ -1918,6 +2001,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderRadius: 40,
     backgroundColor: "#FFF8F5",
+  },
+  pageTransition: {
+    ...StyleSheet.absoluteFillObject,
   },
   pressed: {
     opacity: motion.pressedOpacity,

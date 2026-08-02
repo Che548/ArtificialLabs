@@ -1,22 +1,21 @@
-import { BlurView } from 'expo-blur';
-import type { BlurTint } from 'expo-blur';
-import { useFonts } from 'expo-font';
+import { BlurView } from "expo-blur";
+import type { BlurTint } from "expo-blur";
+import { useFonts } from "expo-font";
 import {
   GlassContainer,
   GlassView,
   isLiquidGlassAvailable,
-} from 'expo-glass-effect';
-import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
-import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
+} from "expo-glass-effect";
+import type { GlassColorScheme, GlassStyle } from "expo-glass-effect";
+import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useRef, useState } from "react";
+import type { PropsWithChildren } from "react";
 import {
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
-import type { PropsWithChildren } from 'react';
-import {
+  AccessibilityInfo,
   Alert,
+  Animated,
+  Easing,
   Modal,
   Platform,
   Pressable,
@@ -25,7 +24,7 @@ import {
   Text,
   useWindowDimensions,
   View,
-} from 'react-native';
+} from "react-native";
 import type {
   ColorValue,
   NativeScrollEvent,
@@ -33,21 +32,23 @@ import type {
   ScrollView as ScrollViewType,
   StyleProp,
   ViewStyle,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
-import ContentShape from '../assets/figma/content-shape.svg';
-import CalendarIcon from '../assets/figma/calendar-icon.svg';
-import BuyIcon from '../assets/figma/scan-screen/buy.svg';
-import HeaderHistoryIcon from '../assets/figma/scan-screen/header-history.svg';
-import HistoryIcon from '../assets/figma/scan-screen/history.svg';
-import InfoIcon from '../assets/figma/scan-screen/info.svg';
-import ScanIcon from '../assets/figma/scan-screen/scan.svg';
-import ScannerFrame from '../assets/figma/scan-screen/circle.svg';
+import ContentShape from "../assets/figma/content-shape.svg";
+import CalendarIcon from "../assets/figma/calendar-icon.svg";
+import BuyIcon from "../assets/figma/scan-screen/buy.svg";
+import HeaderHistoryIcon from "../assets/figma/scan-screen/header-history.svg";
+import HistoryIcon from "../assets/figma/scan-screen/history.svg";
+import InfoIcon from "../assets/figma/scan-screen/info.svg";
+import ScanIcon from "../assets/figma/scan-screen/scan.svg";
+import ScannerFrame from "../assets/figma/scan-screen/circle.svg";
 import {
+  CalendarPageModal,
   colors,
   EdgeFadeGradient,
+  HeaderDateLabel,
   InstructionCard,
   InstructionIntroCard,
   InstructionNavigation,
@@ -57,47 +58,46 @@ import {
   ScanHistoryPreview,
   ScanResultScreen,
   type ScanHistoryRecord,
-} from '../design-system';
-import {
-  loadScanHistory,
-  saveScanToHistory,
-} from '../services/scanning';
+} from "../design-system";
+import { loadScanHistory, saveScanToHistory } from "../services/scanning";
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
-const FONT_SF_REGULAR = 'SFProDisplay-Regular';
-const FONT_YARO_RG = 'YaroRg';
+const FONT_SF_REGULAR = "SFProDisplay-Regular";
+const FONT_YARO_RG = "YaroRg";
 const INSTRUCTION_CARD_WIDTH = 360;
 const INSTRUCTION_CARD_HEIGHT = 130;
 const INSTRUCTION_GAP = 10;
 const INSTRUCTION_SNAP = INSTRUCTION_CARD_WIDTH + INSTRUCTION_GAP;
-const hasNativeLiquidGlass =
-  Platform.OS === 'ios' && isLiquidGlassAvailable();
+const IOS_PAGE_DURATION = 280;
+const IOS_PAGE_EXIT_DURATION = 220;
+const IOS_PAGE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
+const hasNativeLiquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
 
 const instructions = [
   {
-    body: 'Соберите мочу в чистую сухую емкость.',
+    body: "Соберите мочу в чистую сухую емкость.",
   },
   {
-    body: 'Вскройте фольгированную упаковку и достаньте тест-полоску.',
+    body: "Вскройте фольгированную упаковку и достаньте тест-полоску.",
   },
   {
-    body: 'Опустите тест-полоску в мочу до отметки ”MAX” на 3–5 секунд.',
+    body: "Опустите тест-полоску в мочу до отметки ”MAX” на 3–5 секунд.",
   },
   {
-    body: 'Достаньте тест-полоску и положите её на ровную сухую поверхность.',
+    body: "Достаньте тест-полоску и положите её на ровную сухую поверхность.",
   },
   {
-    body: 'Спустя 3-7 минут отсканируйте результат в приложении.',
+    body: "Спустя 3-7 минут отсканируйте результат в приложении.",
   },
 ];
 
 const instructionIllustrations = [
-  require('../assets/instructions/step-1-cup.png'),
-  require('../assets/instructions/step-2-package.png'),
-  require('../assets/instructions/step-3-dip-test.png'),
-  require('../assets/instructions/step-4-test-strip.png'),
-  require('../assets/instructions/step-5-results.png'),
+  require("../assets/instructions/step-1-cup.png"),
+  require("../assets/instructions/step-2-package.png"),
+  require("../assets/instructions/step-3-dip-test.png"),
+  require("../assets/instructions/step-4-test-strip.png"),
+  require("../assets/instructions/step-5-results.png"),
 ];
 const INSTRUCTION_SLIDE_COUNT = instructions.length + 1;
 
@@ -116,38 +116,38 @@ type LiquidGlassSurfaceProps = PropsWithChildren<{
   fallbackTint?: BlurTint;
   intensity?: number;
   washColor?: string;
-  highlight?: 'light' | 'dark';
+  highlight?: "light" | "dark";
   radius?: number;
 }>;
 
 function LiquidGlassSurface({
   children,
   style,
-  variant = 'regular',
+  variant = "regular",
   tintColor,
-  colorScheme = 'auto',
-  fallbackTint = 'systemUltraThinMaterial',
+  colorScheme = "auto",
+  fallbackTint = "systemUltraThinMaterial",
   intensity = 62,
-  washColor = 'rgba(255,255,255,0.08)',
-  highlight = 'light',
+  washColor = "rgba(255,255,255,0.08)",
+  highlight = "light",
   radius = 999,
 }: LiquidGlassSurfaceProps) {
   const highlightColors: readonly [ColorValue, ColorValue, ColorValue] =
-    highlight === 'light'
+    highlight === "light"
       ? [
-          'rgba(255,255,255,0.52)',
-          'rgba(255,255,255,0.10)',
-          'rgba(255,255,255,0.18)',
+          "rgba(255,255,255,0.52)",
+          "rgba(255,255,255,0.10)",
+          "rgba(255,255,255,0.18)",
         ]
       : [
-          'rgba(255,255,255,0.26)',
-          'rgba(255,255,255,0.03)',
-          'rgba(255,255,255,0.10)',
+          "rgba(255,255,255,0.26)",
+          "rgba(255,255,255,0.03)",
+          "rgba(255,255,255,0.10)",
         ];
 
   return (
     <View
-      pointerEvents={hasNativeLiquidGlass ? 'box-none' : 'none'}
+      pointerEvents={hasNativeLiquidGlass ? "box-none" : "none"}
       style={[
         styles.glassSurface,
         !hasNativeLiquidGlass && styles.glassSurfaceClipped,
@@ -173,15 +173,15 @@ function LiquidGlassSurface({
         </GlassView>
       ) : (
         <>
-          {Platform.OS === 'web' ? (
+          {Platform.OS === "web" ? (
             <View
               style={[
                 StyleSheet.absoluteFill,
                 {
                   backgroundColor:
-                    highlight === 'dark'
-                      ? 'rgba(49,5,12,0.34)'
-                      : 'rgba(255,255,255,0.58)',
+                    highlight === "dark"
+                      ? "rgba(49,5,12,0.34)"
+                      : "rgba(255,255,255,0.58)",
                 },
               ]}
             />
@@ -194,10 +194,7 @@ function LiquidGlassSurface({
             />
           )}
           <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: washColor },
-            ]}
+            style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
           />
           <LinearGradient
             colors={highlightColors}
@@ -206,9 +203,7 @@ function LiquidGlassSurface({
             end={{ x: 0.96, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <View
-            style={[styles.glassInnerStroke, { borderRadius: radius }]}
-          />
+          <View style={[styles.glassInnerStroke, { borderRadius: radius }]} />
           <View pointerEvents="none" style={styles.nativeGlassContent}>
             {children}
           </View>
@@ -262,10 +257,7 @@ function ActionButton({ icon, label, onPress }: ActionButtonProps) {
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.actionButton,
-        pressed && styles.pressed,
-      ]}
+      style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
     >
       <View style={styles.actionIconCircle}>{icon}</View>
       <Text style={styles.actionLabel}>{label}</Text>
@@ -294,19 +286,25 @@ export default function ScanScreen() {
   const instructionRef = useRef<ScrollViewType>(null);
   const [activeInstruction, setActiveInstruction] = useState(0);
   const [scanFlowVisible, setScanFlowVisible] = useState(false);
+  const [calendarVisible, setCalendarVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanHistoryRecord[]>([]);
   const [selectedHistoryResult, setSelectedHistoryResult] =
     useState<ScanHistoryRecord | null>(null);
   const [historyCorrectionVisible, setHistoryCorrectionVisible] =
     useState(false);
+  const [openScanAfterHistoryDismiss, setOpenScanAfterHistoryDismiss] =
+    useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const [hasSeenScanBriefing, setHasSeenScanBriefing] = useState(false);
   const [hasSavedScan, setHasSavedScan] = useState(false);
+  const historyResultProgress = useRef(new Animated.Value(0)).current;
+  const historyCorrectionProgress = useRef(new Animated.Value(0)).current;
   const [fontsLoaded] = useFonts(
-    Platform.OS === 'web'
+    Platform.OS === "web"
       ? {
-          [FONT_SF_REGULAR]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
-          [FONT_YARO_RG]: require('../assets/fonts/Yaro-Rg-Regular.otf'),
+          [FONT_SF_REGULAR]: require("../assets/fonts/SF-Pro-Display-Regular.otf"),
+          [FONT_YARO_RG]: require("../assets/fonts/Yaro-Rg-Regular.otf"),
         }
       : {},
   );
@@ -327,25 +325,32 @@ export default function ScanScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setReduceMotion,
+    );
+
+    return () => subscription.remove();
+  }, []);
+
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
   const headerTop = Math.max(16, insets.top / scale + 8);
   const scannerTop = Math.max(123, headerTop + 79);
   const sfRegular = fontsLoaded
     ? FONT_SF_REGULAR
-    : Platform.OS === 'ios'
-      ? 'System'
-      : 'sans-serif';
+    : Platform.OS === "ios"
+      ? "System"
+      : "sans-serif";
   const yaro = fontsLoaded
     ? FONT_YARO_RG
-    : Platform.OS === 'ios'
-      ? 'System'
-      : 'sans-serif';
+    : Platform.OS === "ios"
+      ? "System"
+      : "sans-serif";
 
   const scrollToInstruction = (index: number) => {
-    const nextIndex = Math.max(
-      0,
-      Math.min(INSTRUCTION_SLIDE_COUNT - 1, index),
-    );
+    const nextIndex = Math.max(0, Math.min(INSTRUCTION_SLIDE_COUNT - 1, index));
     setActiveInstruction(nextIndex);
     instructionRef.current?.scrollTo({
       x: nextIndex * INSTRUCTION_SNAP,
@@ -365,15 +370,64 @@ export default function ScanScreen() {
   };
 
   const showPlaceholder = (title: string) => {
-    Alert.alert(title, 'Раздел будет подключён к соответствующему сценарию.');
+    Alert.alert(title, "Раздел будет подключён к соответствующему сценарию.");
+  };
+
+  const animatePage = (
+    progress: Animated.Value,
+    toValue: 0 | 1,
+    onComplete?: () => void,
+  ) => {
+    progress.stopAnimation();
+
+    if (reduceMotion) {
+      progress.setValue(toValue);
+      onComplete?.();
+      return;
+    }
+
+    Animated.timing(progress, {
+      toValue,
+      duration: toValue === 1 ? IOS_PAGE_DURATION : IOS_PAGE_EXIT_DURATION,
+      easing: IOS_PAGE_EASING,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        onComplete?.();
+      }
+    });
+  };
+
+  const openHistoryResult = (record: ScanHistoryRecord) => {
+    historyCorrectionProgress.setValue(0);
+    setHistoryCorrectionVisible(false);
+    historyResultProgress.setValue(0);
+    setSelectedHistoryResult(record);
+    requestAnimationFrame(() => animatePage(historyResultProgress, 1));
+  };
+
+  const closeHistoryResult = () => {
+    animatePage(historyResultProgress, 0, () => {
+      setHistoryCorrectionVisible(false);
+      setSelectedHistoryResult(null);
+    });
+  };
+
+  const openHistoryCorrection = () => {
+    historyCorrectionProgress.setValue(0);
+    setHistoryCorrectionVisible(true);
+    requestAnimationFrame(() => animatePage(historyCorrectionProgress, 1));
+  };
+
+  const closeHistoryCorrection = () => {
+    animatePage(historyCorrectionProgress, 0, () => {
+      setHistoryCorrectionVisible(false);
+    });
   };
 
   return (
     <View style={styles.root}>
-      <StatusBar
-        style={scanFlowVisible ? 'light' : 'dark'}
-        hidden={false}
-      />
+      <StatusBar style={scanFlowVisible ? "light" : "dark"} hidden={false} />
       <View
         style={{
           width: DESIGN_WIDTH * scale,
@@ -384,7 +438,7 @@ export default function ScanScreen() {
           <View style={styles.canvas}>
             <View style={styles.background}>
               <ScanBackgroundMotion
-                source={require('../assets/figma/scan-screen/background.png')}
+                source={require("../assets/figma/scan-screen/background.png")}
                 variant="drift"
                 width={DESIGN_WIDTH}
                 height={869}
@@ -401,26 +455,20 @@ export default function ScanScreen() {
                 onPress={() => setHistoryVisible(true)}
                 style={styles.headerCircle}
               >
-                <HeaderHistoryIcon
-                  width={22}
-                  height={22}
-                  color="#D31471"
-                />
+                <HeaderHistoryIcon width={22} height={22} color="#D31471" />
               </GlassControl>
 
               <GlassControl
                 accessibilityLabel="Выбрать дату"
-                onPress={() => showPlaceholder('Выбор даты')}
+                onPress={() => showPlaceholder("Выбор даты")}
                 style={styles.datePill}
               >
-                <Text style={[styles.dateText, { fontFamily: sfRegular }]}>
-                  <Text style={{ fontFamily: yaro }}>21</Text> июля
-                </Text>
+                <HeaderDateLabel />
               </GlassControl>
 
               <GlassControl
                 accessibilityLabel="Открыть календарь"
-                onPress={() => showPlaceholder('Календарь')}
+                onPress={() => setCalendarVisible(true)}
                 style={styles.headerCircle}
               >
                 <View style={styles.headerIconOrientation}>
@@ -441,12 +489,9 @@ export default function ScanScreen() {
                   сфера.
                 </Text>
                 <Text
-                  style={[
-                    styles.scannerDescription,
-                    { fontFamily: sfRegular },
-                  ]}
+                  style={[styles.scannerDescription, { fontFamily: sfRegular }]}
                 >
-                  Мгновенный анализ тестов на{'\n'}
+                  Мгновенный анализ тестов на{"\n"}
                   овуляцию или беременность
                 </Text>
               </View>
@@ -462,14 +507,9 @@ export default function ScanScreen() {
               >
                 <ScanIcon width={20} height={20} />
                 <Text
-                  style={[
-                    styles.scanButtonLabel,
-                    { fontFamily: sfRegular },
-                  ]}
+                  style={[styles.scanButtonLabel, { fontFamily: sfRegular }]}
                 >
-                  {hasSavedScan
-                    ? 'Сканировать снова'
-                    : 'Начать сканирование'}
+                  {hasSavedScan ? "Сканировать снова" : "Начать сканирование"}
                 </Text>
               </Pressable>
             </View>
@@ -488,12 +528,8 @@ export default function ScanScreen() {
                 rightDisabled={
                   activeInstruction === INSTRUCTION_SLIDE_COUNT - 1
                 }
-                onPrevious={() =>
-                  scrollToInstruction(activeInstruction - 1)
-                }
-                onNext={() =>
-                  scrollToInstruction(activeInstruction + 1)
-                }
+                onPrevious={() => scrollToInstruction(activeInstruction - 1)}
+                onNext={() => scrollToInstruction(activeInstruction + 1)}
               />
             </View>
 
@@ -511,7 +547,7 @@ export default function ScanScreen() {
             >
               <InstructionIntroCard
                 title="Инструкция по использованию"
-                illustration={require('../assets/instructions/step-4-test-strip.png')}
+                illustration={require("../assets/instructions/step-4-test-strip.png")}
                 variant="classic"
                 height={INSTRUCTION_CARD_HEIGHT}
               />
@@ -534,12 +570,12 @@ export default function ScanScreen() {
             <View style={styles.actions}>
               <ActionButton
                 label="Инфо"
-                onPress={() => showPlaceholder('Инфо')}
+                onPress={() => showPlaceholder("Инфо")}
                 icon={<InfoIcon width={19} height={19} />}
               />
               <ActionButton
                 label="Купить"
-                onPress={() => showPlaceholder('Купить')}
+                onPress={() => showPlaceholder("Купить")}
                 icon={<BuyIcon width={19} height={19} />}
               />
               <ActionButton
@@ -559,13 +595,12 @@ export default function ScanScreen() {
               height={108}
               style={styles.navbarFadeGradient}
             />
-
           </View>
         </View>
       </View>
 
       <Modal
-        animationType="fade"
+        animationType={reduceMotion ? "none" : "slide"}
         presentationStyle="fullScreen"
         statusBarTranslucent={false}
         visible={scanFlowVisible}
@@ -579,12 +614,7 @@ export default function ScanScreen() {
               height: DESIGN_HEIGHT * scale,
             }}
           >
-            <View
-              style={[
-                styles.scaledCanvas,
-                { transform: [{ scale }] },
-              ]}
-            >
+            <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
               <View style={styles.flowModalCanvas}>
                 <ScanFlowOverlay
                   headerTop={headerTop}
@@ -597,16 +627,15 @@ export default function ScanScreen() {
                       const record = await saveScanToHistory(pendingRecord);
                       setScanHistory((current) =>
                         [record, ...current].sort(
-                          (left, right) =>
-                            right.capturedAt - left.capturedAt,
+                          (left, right) => right.capturedAt - left.capturedAt,
                         ),
                       );
                       setHasSavedScan(true);
                       setScanFlowVisible(false);
                     } catch {
                       Alert.alert(
-                        'Не удалось сохранить снимок',
-                        'Попробуйте подтвердить результат ещё раз.',
+                        "Не удалось сохранить снимок",
+                        "Попробуйте подтвердить результат ещё раз.",
                       );
                     }
                   }}
@@ -617,19 +646,32 @@ export default function ScanScreen() {
         </View>
       </Modal>
 
+      <CalendarPageModal
+        visible={calendarVisible}
+        onClose={() => setCalendarVisible(false)}
+      />
+
       <Modal
-        animationType="fade"
+        animationType={reduceMotion ? "none" : "slide"}
         presentationStyle="fullScreen"
         statusBarTranslucent={false}
         visible={historyVisible}
+        onDismiss={() => {
+          if (!openScanAfterHistoryDismiss) {
+            return;
+          }
+
+          setOpenScanAfterHistoryDismiss(false);
+          setScanFlowVisible(true);
+        }}
         onRequestClose={() => {
           if (historyCorrectionVisible) {
-            setHistoryCorrectionVisible(false);
+            closeHistoryCorrection();
             return;
           }
 
           if (selectedHistoryResult) {
-            setSelectedHistoryResult(null);
+            closeHistoryResult();
             return;
           }
 
@@ -644,90 +686,124 @@ export default function ScanScreen() {
               height: DESIGN_HEIGHT * scale,
             }}
           >
-            <View
-              style={[
-                styles.scaledCanvas,
-                { transform: [{ scale }] },
-              ]}
-            >
+            <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
               <View style={styles.historyModalCanvas}>
+                <Animated.View
+                  pointerEvents={selectedHistoryResult ? "none" : "auto"}
+                  style={[
+                    styles.historyBasePage,
+                    {
+                      opacity: historyResultProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 0.96],
+                      }),
+                      transform: [
+                        {
+                          translateX: historyResultProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, -34],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <GlassControl
+                    accessibilityLabel="Вернуться к сканированию"
+                    onPress={() => setHistoryVisible(false)}
+                    style={[styles.historyBackButton, { top: headerTop }]}
+                  >
+                    <HistoryBackIcon />
+                  </GlassControl>
+
+                  <ScrollView
+                    contentInsetAdjustmentBehavior="never"
+                    showsVerticalScrollIndicator={false}
+                    style={styles.historyModalScroll}
+                    contentContainerStyle={[
+                      styles.historyModalScrollContent,
+                      { paddingTop: headerTop + 66 },
+                    ]}
+                  >
+                    <ScanHistoryPreview
+                      hideFilter
+                      records={scanHistory}
+                      variant="gallery"
+                      standalone
+                      onResultPress={openHistoryResult}
+                    />
+                  </ScrollView>
+                </Animated.View>
+
                 {selectedHistoryResult ? (
-                  <View style={styles.historyResultOverlay}>
-                    {historyCorrectionVisible ? (
-                      <ScanCorrectionScreen
-                        fromHistory
-                        headerTop={headerTop}
-                        resultData={selectedHistoryResult}
-                        onClose={() =>
-                          setHistoryCorrectionVisible(false)
-                        }
-                        onSubmit={() =>
-                          setHistoryCorrectionVisible(false)
-                        }
-                        onRetake={() => {
-                          setHistoryCorrectionVisible(false);
-                          setSelectedHistoryResult(null);
-                          setHistoryVisible(false);
-                          setScanFlowVisible(true);
-                        }}
-                        onHelp={() => undefined}
-                      />
-                    ) : (
-                      <ScanResultScreen
-                        fromHistory
-                        headerTop={headerTop}
-                        hideReadyHeading
-                        resultData={selectedHistoryResult}
-                        onClose={() => {
-                          setHistoryCorrectionVisible(false);
-                          setSelectedHistoryResult(null);
-                        }}
-                        onConfirm={() => {
-                          setHistoryCorrectionVisible(false);
-                          setSelectedHistoryResult(null);
-                        }}
-                        onCorrection={() =>
-                          setHistoryCorrectionVisible(true)
-                        }
-                        onHelp={() => undefined}
-                      />
-                    )}
-                  </View>
-                ) : (
-                  <>
-                    <GlassControl
-                      accessibilityLabel="Вернуться к сканированию"
-                      onPress={() => {
+                  <Animated.View
+                    style={[
+                      styles.historyResultOverlay,
+                      {
+                        opacity: historyResultProgress,
+                        transform: [
+                          {
+                            translateX: historyResultProgress.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [DESIGN_WIDTH, 0],
+                            }),
+                          },
+                          {
+                            translateX: historyCorrectionProgress.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, -34],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <ScanResultScreen
+                      fromHistory
+                      headerTop={headerTop}
+                      hideReadyHeading
+                      resultData={selectedHistoryResult}
+                      onClose={closeHistoryResult}
+                      onConfirm={closeHistoryResult}
+                      onCorrection={openHistoryCorrection}
+                      onHelp={() => undefined}
+                    />
+                  </Animated.View>
+                ) : null}
+
+                {selectedHistoryResult && historyCorrectionVisible ? (
+                  <Animated.View
+                    style={[
+                      styles.historyCorrectionOverlay,
+                      {
+                        opacity: historyCorrectionProgress,
+                        transform: [
+                          {
+                            translateX: historyCorrectionProgress.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [DESIGN_WIDTH, 0],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <ScanCorrectionScreen
+                      fromHistory
+                      headerTop={headerTop}
+                      resultData={selectedHistoryResult}
+                      onClose={closeHistoryCorrection}
+                      onSubmit={closeHistoryCorrection}
+                      onRetake={() => {
+                        setHistoryCorrectionVisible(false);
                         setSelectedHistoryResult(null);
+                        setOpenScanAfterHistoryDismiss(true);
                         setHistoryVisible(false);
                       }}
-                      style={[styles.historyBackButton, { top: headerTop }]}
-                    >
-                      <HistoryBackIcon />
-                    </GlassControl>
-
-                    <ScrollView
-                      contentInsetAdjustmentBehavior="never"
-                      showsVerticalScrollIndicator={false}
-                      style={styles.historyModalScroll}
-                      contentContainerStyle={[
-                        styles.historyModalScrollContent,
-                        { paddingTop: headerTop + 66 },
-                      ]}
-                    >
-                      <ScanHistoryPreview
-                        hideFilter
-                        records={scanHistory}
-                        variant="gallery"
-                        standalone
-                        onResultPress={(record) => {
-                          setHistoryCorrectionVisible(false);
-                          setSelectedHistoryResult(record);
-                        }}
-                      />
-                    </ScrollView>
-                  </>
-                )}
+                      onHelp={() => undefined}
+                    />
+                  </Animated.View>
+                ) : null}
               </View>
             </View>
           </View>
@@ -740,50 +816,59 @@ export default function ScanScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fee8e3',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fee8e3",
   },
   flowModalRoot: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#170C11',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#170C11",
   },
   flowModalCanvas: {
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 40,
-    backgroundColor: '#170C11',
+    backgroundColor: "#170C11",
   },
   historyModalRoot: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FAF8F8',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FAF8F8",
   },
   historyModalCanvas: {
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 40,
-    backgroundColor: '#FAF8F8',
+    backgroundColor: "#FAF8F8",
+  },
+  historyBasePage: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#FAF8F8",
   },
   historyResultOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 10,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: "#FFF8F5",
+  },
+  historyCorrectionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    backgroundColor: "#FFF8F5",
   },
   historyBackButton: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     zIndex: 2,
     width: 48,
     height: 48,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   historyModalScroll: {
     width: DESIGN_WIDTH,
@@ -791,35 +876,35 @@ const styles = StyleSheet.create({
   },
   historyModalScrollContent: {
     paddingBottom: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   scaledCanvas: {
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
-    transformOrigin: 'top left',
+    transformOrigin: "top left",
   },
   canvas: {
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 40,
-    backgroundColor: '#fee8e3',
+    backgroundColor: "#fee8e3",
   },
   background: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: -15,
     width: DESIGN_WIDTH,
     height: 869,
   },
   header: {
-    position: 'absolute',
+    position: "absolute",
     zIndex: 5,
     left: 16,
     width: 370,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   headerFadeGradient: {
     top: 0,
@@ -833,35 +918,29 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   datePill: {
     width: 156,
     height: 48,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateText: {
-    color: '#D31471',
-    fontSize: 18,
-    lineHeight: 20,
-    letterSpacing: -0.36,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerIconOrientation: {
     transform: [{ scaleY: -1 }],
   },
   nativeGlassView: {
-    overflow: 'visible',
+    overflow: "visible",
   },
   nativeGlassContent: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   glassShadow: {
-    shadowColor: '#260208',
+    shadowColor: "#260208",
     shadowOffset: { width: 0, height: 7 },
     shadowOpacity: 0.24,
     shadowRadius: 14,
@@ -872,87 +951,87 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   glassSurfaceClipped: {
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   glassInnerStroke: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 999,
     borderWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.52)',
+    borderColor: "rgba(255,255,255,0.52)",
   },
   fallbackPressed: {
     transform: [{ scale: 1.035 }],
   },
   scannerCard: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     width: 370,
     height: 370,
     borderRadius: 150,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.20)',
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.20)",
   },
   scannerFrame: {
-    position: 'absolute',
+    position: "absolute",
     left: 15,
     top: 15,
   },
   scannerCopy: {
-    position: 'absolute',
+    position: "absolute",
     top: 116,
     left: 61,
     width: 249,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 4,
   },
   sphere: {
-    color: '#ea4087',
+    color: "#ea4087",
     fontSize: 27,
     lineHeight: 30,
     letterSpacing: -0.54,
   },
   scannerDescription: {
     width: 249,
-    color: '#ea4087',
-    textAlign: 'center',
+    color: "#ea4087",
+    textAlign: "center",
     fontSize: 17,
     lineHeight: 19,
     letterSpacing: -0.34,
   },
   scanButton: {
-    position: 'absolute',
+    position: "absolute",
     left: 86,
     top: 200,
     minWidth: 198,
     height: 46,
     paddingHorizontal: 14,
     borderRadius: 23,
-    backgroundColor: '#d31471',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#d31471",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
   },
   scanButtonLabel: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 15,
     lineHeight: 17,
     letterSpacing: -0.3,
   },
   contentShape: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 513,
   },
   instructionNavigation: {
-    position: 'absolute',
+    position: "absolute",
     left: 11,
     top: 524,
     width: 380,
     height: 40,
   },
   instructions: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 570,
     width: DESIGN_WIDTH,
@@ -964,45 +1043,45 @@ const styles = StyleSheet.create({
     gap: INSTRUCTION_GAP,
   },
   divider: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     top: 713,
     width: 370,
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#ededed',
+    backgroundColor: "#ededed",
   },
   actions: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     top: 726,
     width: 370,
     height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   actionButton: {
     height: 48,
     paddingLeft: 5,
     paddingRight: 18,
     borderRadius: 24,
-    backgroundColor: '#d31471',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#d31471",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 12,
   },
   actionIconCircle: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionLabel: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontFamily: FONT_SF_REGULAR,
     fontSize: 15,
     lineHeight: 17,

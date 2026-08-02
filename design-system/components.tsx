@@ -1,10 +1,10 @@
-import { BlurView } from 'expo-blur';
-import type { BlurTint } from 'expo-blur';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
-import type { PropsWithChildren, ReactNode } from 'react';
+import { BlurView } from "expo-blur";
+import type { BlurTint } from "expo-blur";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import type { GlassColorScheme, GlassStyle } from "expo-glass-effect";
+import { LinearGradient } from "expo-linear-gradient";
+import { useEffect, useRef, useState } from "react";
+import type { PropsWithChildren, ReactNode } from "react";
 import {
   AccessibilityInfo,
   Animated,
@@ -16,14 +16,14 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+} from "react-native";
 import Svg, {
   Circle,
   Defs,
   Path,
   RadialGradient,
   Stop,
-} from 'react-native-svg';
+} from "react-native-svg";
 import type {
   ColorValue,
   ImageSourcePropType,
@@ -32,7 +32,7 @@ import type {
   TextProps,
   TextStyle,
   ViewStyle,
-} from 'react-native';
+} from "react-native";
 
 import {
   colors,
@@ -42,14 +42,13 @@ import {
   shadows,
   spacing,
   typeScale,
-} from './tokens';
-import type { StoredScanRecord } from '../services/scanning';
+} from "./tokens";
+import type { StoredScanRecord } from "../services/scanning";
 
-const hasNativeLiquidGlass =
-  Platform.OS === 'ios' && isLiquidGlassAvailable();
+const hasNativeLiquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
 
 type EdgeFadeGradientProps = {
-  edge: 'top' | 'bottom';
+  edge: "top" | "bottom";
   height: number;
   style?: StyleProp<ViewStyle>;
 };
@@ -59,7 +58,7 @@ export function EdgeFadeGradient({
   height,
   style,
 }: EdgeFadeGradientProps) {
-  const isTop = edge === 'top';
+  const isTop = edge === "top";
 
   return (
     <LinearGradient
@@ -67,14 +66,14 @@ export function EdgeFadeGradient({
       colors={
         isTop
           ? [
-              'rgba(255,255,255,0.70)',
-              'rgba(255,255,255,0.70)',
-              'rgba(255,255,255,0)',
+              "rgba(255,255,255,0.70)",
+              "rgba(255,255,255,0.70)",
+              "rgba(255,255,255,0)",
             ]
           : [
-              'rgba(255,255,255,0)',
-              'rgba(255,255,255,1)',
-              'rgba(255,255,255,1)',
+              "rgba(255,255,255,0)",
+              "rgba(255,255,255,1)",
+              "rgba(255,255,255,1)",
             ]
       }
       locations={isTop ? [0, 0.38, 1] : [0, 0.62, 1]}
@@ -84,14 +83,14 @@ export function EdgeFadeGradient({
 }
 
 export type ScanBackgroundMotionVariant =
-  | 'drift'
-  | 'breathe'
-  | 'diagonal'
-  | 'sway'
-  | 'vertical'
-  | 'activeOrbit'
-  | 'activeSweep'
-  | 'activePulse';
+  | "drift"
+  | "breathe"
+  | "diagonal"
+  | "sway"
+  | "vertical"
+  | "activeOrbit"
+  | "activeSweep"
+  | "activePulse";
 
 type ScanBackgroundMotionProps = {
   source: ImageSourcePropType;
@@ -101,7 +100,7 @@ type ScanBackgroundMotionProps = {
   flipY?: boolean;
 };
 
-type ScanSpherePalette = 'pink' | 'lime' | 'pale' | 'outline';
+type ScanSpherePalette = "pink" | "lime" | "pale" | "outline";
 
 type MovingScanSphereProps = {
   containerWidth: number;
@@ -115,9 +114,9 @@ type MovingScanSphereProps = {
 };
 
 const spherePalettes = {
-  pink: ['#FFD5DE', '#FF9FBC', '#F36D9B'],
-  lime: ['#FCFFA5', '#EAF035', '#CAD521'],
-  pale: ['#FFFFFF', '#FFECEF', '#FFD9E2'],
+  pink: ["#FFD5DE", "#FF9FBC", "#F36D9B"],
+  lime: ["#FCFFA5", "#EAF035", "#CAD521"],
+  pale: ["#FFFFFF", "#FFECEF", "#FFD9E2"],
 } as const;
 
 function ScanSphereVisual({
@@ -127,7 +126,7 @@ function ScanSphereVisual({
   palette: ScanSpherePalette;
   size: number;
 }) {
-  if (palette === 'outline') {
+  if (palette === "outline") {
     return (
       <Svg width={size} height={size} viewBox="0 0 100 100">
         <Circle
@@ -159,17 +158,17 @@ function ScanSphereVisual({
           <Stop
             offset="0"
             stopColor={colorsForSphere[0]}
-            stopOpacity={palette === 'pale' ? 0.82 : 0.96}
+            stopOpacity={palette === "pale" ? 0.82 : 0.96}
           />
           <Stop
             offset="0.48"
             stopColor={colorsForSphere[1]}
-            stopOpacity={palette === 'pale' ? 0.64 : 0.92}
+            stopOpacity={palette === "pale" ? 0.64 : 0.92}
           />
           <Stop
             offset="1"
             stopColor={colorsForSphere[2]}
-            stopOpacity={palette === 'pale' ? 0.42 : 0.88}
+            stopOpacity={palette === "pale" ? 0.42 : 0.88}
           />
         </RadialGradient>
       </Defs>
@@ -255,12 +254,12 @@ function MovingScanSphere({
     <Animated.View
       pointerEvents="none"
       style={{
-        position: 'absolute',
+        position: "absolute",
         left: reduceMotion ? containerWidth * staticX - size / 2 : 0,
         top,
         width: size,
         height: size,
-        opacity: palette === 'pale' ? 0.72 : 1,
+        opacity: palette === "pale" ? 0.72 : 1,
         transform: reduceMotion ? undefined : [{ translateX }],
       }}
     >
@@ -275,55 +274,55 @@ const scanSphereSeeds = [
     top: 0.02,
     duration: 18000,
     phase: 0.04,
-    palette: 'pink',
+    palette: "pink",
   },
   {
     size: 0.34,
     top: 0.13,
     duration: 14000,
     phase: 0.28,
-    palette: 'lime',
+    palette: "lime",
   },
   {
     size: 0.42,
     top: 0.25,
     duration: 16500,
     phase: 0.52,
-    palette: 'pale',
+    palette: "pale",
   },
   {
     size: 0.3,
     top: 0.41,
     duration: 12500,
     phase: 0.76,
-    palette: 'pink',
+    palette: "pink",
   },
   {
     size: 0.58,
     top: 0.58,
     duration: 19500,
     phase: 0.16,
-    palette: 'outline',
+    palette: "outline",
   },
   {
     size: 0.4,
     top: 0.72,
     duration: 15000,
     phase: 0.64,
-    palette: 'lime',
+    palette: "lime",
   },
   {
     size: 0.82,
     top: 0.79,
     duration: 22000,
     phase: 0.88,
-    palette: 'pink',
+    palette: "pink",
   },
 ] as const;
 
 export function ScanBackgroundMotion({
   source,
-  variant = 'drift',
+  variant = "drift",
   width = 180,
   height = 389,
   flipY = true,
@@ -331,9 +330,9 @@ export function ScanBackgroundMotion({
   const progress = useRef(new Animated.Value(0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
   const isActive =
-    variant === 'activeOrbit' ||
-    variant === 'activeSweep' ||
-    variant === 'activePulse';
+    variant === "activeOrbit" ||
+    variant === "activeSweep" ||
+    variant === "activePulse";
 
   useEffect(() => {
     let mounted = true;
@@ -343,7 +342,7 @@ export function ScanBackgroundMotion({
       }
     });
     const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
+      "reduceMotionChanged",
       setReduceMotion,
     );
 
@@ -389,119 +388,111 @@ export function ScanBackgroundMotion({
     inputRange: [0, 0.5, 1],
   };
   const translateX =
-    variant === 'drift'
+    variant === "drift"
       ? progress.interpolate({
           ...threePoint,
           outputRange: [-3, 3, -3],
         })
-      : variant === 'diagonal'
+      : variant === "diagonal"
         ? progress.interpolate({
             ...threePoint,
             outputRange: [-9, 9, -9],
           })
-        : variant === 'activeOrbit'
+        : variant === "activeOrbit"
           ? progress.interpolate({
               ...threePoint,
               outputRange: [-18, 18, -18],
             })
-          : variant === 'activeSweep'
+          : variant === "activeSweep"
             ? progress.interpolate({
                 ...threePoint,
                 outputRange: [-24, 24, -24],
               })
-            : variant === 'activePulse'
+            : variant === "activePulse"
               ? progress.interpolate({
                   ...threePoint,
                   outputRange: [-8, 8, -8],
                 })
               : 0;
   const translateY =
-    variant === 'drift'
+    variant === "drift"
       ? progress.interpolate({
           ...threePoint,
           outputRange: [-5, 6, -5],
         })
-      : variant === 'diagonal'
+      : variant === "diagonal"
         ? progress.interpolate({
             ...threePoint,
             outputRange: [8, -8, 8],
           })
-        : variant === 'vertical'
+        : variant === "vertical"
           ? progress.interpolate({
               ...threePoint,
               outputRange: [-12, 12, -12],
             })
-          : variant === 'activeOrbit'
+          : variant === "activeOrbit"
             ? progress.interpolate({
                 ...threePoint,
                 outputRange: [14, -14, 14],
               })
-            : variant === 'activeSweep'
+            : variant === "activeSweep"
               ? progress.interpolate({
                   ...threePoint,
                   outputRange: [-7, 7, -7],
                 })
-              : variant === 'activePulse'
+              : variant === "activePulse"
                 ? progress.interpolate({
                     ...threePoint,
                     outputRange: [-10, 10, -10],
                   })
                 : 0;
   const scale =
-    variant === 'breathe'
+    variant === "breathe"
       ? progress.interpolate({
           ...threePoint,
           outputRange: [1.015, 1.055, 1.015],
         })
-      : variant === 'sway'
+      : variant === "sway"
         ? 1.045
-        : variant === 'diagonal'
+        : variant === "diagonal"
           ? 1.05
-          : variant === 'vertical'
+          : variant === "vertical"
             ? 1.04
-            : variant === 'activeOrbit'
+            : variant === "activeOrbit"
               ? 1.08
-              : variant === 'activeSweep'
+              : variant === "activeSweep"
                 ? 1.12
-                : variant === 'activePulse'
+                : variant === "activePulse"
                   ? progress.interpolate({
                       ...threePoint,
                       outputRange: [1.05, 1.14, 1.05],
                     })
                   : 1.035;
   const rotate =
-    variant === 'sway'
+    variant === "sway"
       ? progress.interpolate({
           ...threePoint,
-          outputRange: ['-0.35deg', '0.35deg', '-0.35deg'],
+          outputRange: ["-0.35deg", "0.35deg", "-0.35deg"],
         })
-      : variant === 'activeOrbit'
+      : variant === "activeOrbit"
         ? progress.interpolate({
             ...threePoint,
-            outputRange: ['-0.8deg', '0.8deg', '-0.8deg'],
+            outputRange: ["-0.8deg", "0.8deg", "-0.8deg"],
           })
-        : '0deg';
+        : "0deg";
   const horizontalOverscan = 0.04;
   const verticalOverscan = 0.04;
   const activeSpeedMultiplier =
-    variant === 'activeSweep'
-      ? 0.78
-      : variant === 'activePulse'
-        ? 0.9
-        : 1;
+    variant === "activeSweep" ? 0.78 : variant === "activePulse" ? 0.9 : 1;
   const activeSizeMultiplier =
-    variant === 'activePulse'
-      ? 1.1
-      : variant === 'activeSweep'
-        ? 0.9
-        : 1;
-  const visibleSphereCount = variant === 'activeOrbit' ? 5 : 7;
+    variant === "activePulse" ? 1.1 : variant === "activeSweep" ? 0.9 : 1;
+  const visibleSphereCount = variant === "activeOrbit" ? 5 : 7;
 
   return (
     <View style={[styles.scanBackgroundMotion, { width, height }]}>
       {isActive ? (
         <LinearGradient
-          colors={['#fff9f6', '#ffefec', '#fff8f4']}
+          colors={["#fff9f6", "#ffefec", "#fff8f4"]}
           locations={[0, 0.52, 1]}
           start={{ x: 0.08, y: 0 }}
           end={{ x: 0.92, y: 1 }}
@@ -510,35 +501,33 @@ export function ScanBackgroundMotion({
           <LinearGradient
             pointerEvents="none"
             colors={[
-              'rgba(255,216,225,0.2)',
-              'rgba(255,255,255,0)',
-              'rgba(255,217,222,0.18)',
+              "rgba(255,216,225,0.2)",
+              "rgba(255,255,255,0)",
+              "rgba(255,217,222,0.18)",
             ]}
             locations={[0, 0.5, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
-          {scanSphereSeeds
-            .slice(0, visibleSphereCount)
-            .map((sphere, index) => {
-              const size = width * sphere.size * activeSizeMultiplier;
-              const maxTop = Math.max(0, height - size);
+          {scanSphereSeeds.slice(0, visibleSphereCount).map((sphere, index) => {
+            const size = width * sphere.size * activeSizeMultiplier;
+            const maxTop = Math.max(0, height - size);
 
-              return (
-                <MovingScanSphere
-                  key={`${variant}-${index}`}
-                  containerWidth={width}
-                  duration={sphere.duration * activeSpeedMultiplier}
-                  initialPhase={sphere.phase}
-                  palette={sphere.palette}
-                  reduceMotion={reduceMotion}
-                  size={size}
-                  staticX={sphere.phase}
-                  top={Math.min(height * sphere.top, maxTop)}
-                />
-              );
-            })}
+            return (
+              <MovingScanSphere
+                key={`${variant}-${index}`}
+                containerWidth={width}
+                duration={sphere.duration * activeSpeedMultiplier}
+                initialPhase={sphere.phase}
+                palette={sphere.palette}
+                reduceMotion={reduceMotion}
+                size={size}
+                staticX={sphere.phase}
+                top={Math.min(height * sphere.top, maxTop)}
+              />
+            );
+          })}
         </LinearGradient>
       ) : (
         <Animated.Image
@@ -569,11 +558,11 @@ export function ScanBackgroundMotion({
 type AppTextProps = PropsWithChildren<{
   style?: StyleProp<TextStyle>;
   role?: keyof typeof typeScale;
-  weight?: 'regular' | 'medium' | 'semibold' | 'bold';
+  weight?: "regular" | "medium" | "semibold" | "bold";
   numeric?: boolean;
   color?: string;
   numberOfLines?: number;
-  onTextLayout?: TextProps['onTextLayout'];
+  onTextLayout?: TextProps["onTextLayout"];
 }>;
 
 const sfByWeight = {
@@ -586,15 +575,15 @@ const sfByWeight = {
 export function AppText({
   children,
   style,
-  role = 'body',
-  weight = 'regular',
+  role = "body",
+  weight = "regular",
   numeric = false,
   color = colors.text.primary,
   numberOfLines,
   onTextLayout,
 }: AppTextProps) {
   const content =
-    typeof children === 'string' || typeof children === 'number'
+    typeof children === "string" || typeof children === "number"
       ? String(children)
           .split(/(\d+|сфера\.?|[”'])/gi)
           .map((segment, index) =>
@@ -619,15 +608,57 @@ export function AppText({
         typeScale[role],
         {
           color,
-          fontFamily: numeric
-            ? fonts.yaroRegular
-            : sfByWeight[weight],
+          fontFamily: numeric ? fonts.yaroRegular : sfByWeight[weight],
         },
         style,
       ]}
     >
       {content}
     </Text>
+  );
+}
+
+type HeaderDateLabelProps = {
+  date?: Date;
+  dateColor?: string;
+  label?: string;
+  labelColor?: string;
+};
+
+export function HeaderDateLabel({
+  date = new Date(),
+  dateColor = colors.brand.primary,
+  label = "Сегодня",
+  labelColor = colors.text.secondary,
+}: HeaderDateLabelProps) {
+  const dateParts = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+  }).formatToParts(date);
+  const day = dateParts.find((part) => part.type === "day")?.value ?? "";
+  const month = dateParts.find((part) => part.type === "month")?.value ?? "";
+  const capitalizedMonth = month
+    ? `${month.charAt(0).toUpperCase()}${month.slice(1)}`
+    : "";
+
+  return (
+    <View style={styles.headerDateLabel}>
+      <AppText
+        role="body"
+        weight="medium"
+        color={dateColor}
+        style={styles.headerDateValue}
+      >
+        {`${day} ${capitalizedMonth}`.trim()}
+      </AppText>
+      <AppText
+        role="caption"
+        color={labelColor}
+        style={styles.headerDateCaption}
+      >
+        {label}
+      </AppText>
+    </View>
   );
 }
 
@@ -646,28 +677,24 @@ type LiquidGlassSurfaceProps = PropsWithChildren<{
 export function LiquidGlassSurface({
   children,
   style,
-  variant = 'clear',
+  variant = "clear",
   tintColor,
-  colorScheme = 'light',
-  fallbackTint = 'systemUltraThinMaterialLight',
+  colorScheme = "light",
+  fallbackTint = "systemUltraThinMaterialLight",
   intensity = 58,
-  washColor = 'transparent',
+  washColor = "transparent",
   radius = radii.pill,
   showFallbackDecoration = true,
 }: LiquidGlassSurfaceProps) {
-  const fallbackHighlight: readonly [
-    ColorValue,
-    ColorValue,
-    ColorValue,
-  ] = [
-    'rgba(255,255,255,0.44)',
-    'rgba(255,255,255,0.08)',
-    'rgba(255,255,255,0.16)',
+  const fallbackHighlight: readonly [ColorValue, ColorValue, ColorValue] = [
+    "rgba(255,255,255,0.44)",
+    "rgba(255,255,255,0.08)",
+    "rgba(255,255,255,0.16)",
   ];
 
   return (
     <View
-      pointerEvents={hasNativeLiquidGlass ? 'box-none' : 'none'}
+      pointerEvents={hasNativeLiquidGlass ? "box-none" : "none"}
       style={[
         styles.glassSurface,
         !hasNativeLiquidGlass && styles.clipped,
@@ -681,10 +708,7 @@ export function LiquidGlassSurface({
           tintColor={tintColor}
           colorScheme={colorScheme}
           isInteractive
-          style={[
-            StyleSheet.absoluteFillObject,
-            { borderRadius: radius },
-          ]}
+          style={[StyleSheet.absoluteFillObject, { borderRadius: radius }]}
         >
           <View pointerEvents="none" style={styles.centerFill}>
             {children}
@@ -692,13 +716,8 @@ export function LiquidGlassSurface({
         </GlassView>
       ) : (
         <>
-          {Platform.OS === 'web' ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                styles.webGlassFallback,
-              ]}
-            />
+          {Platform.OS === "web" ? (
+            <View style={[StyleSheet.absoluteFill, styles.webGlassFallback]} />
           ) : (
             <BlurView
               tint={fallbackTint}
@@ -708,10 +727,7 @@ export function LiquidGlassSurface({
             />
           )}
           <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: washColor },
-            ]}
+            style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
           />
           {showFallbackDecoration ? (
             <>
@@ -722,12 +738,7 @@ export function LiquidGlassSurface({
                 end={{ x: 0.95, y: 1 }}
                 style={StyleSheet.absoluteFillObject}
               />
-              <View
-                style={[
-                  styles.fallbackStroke,
-                  { borderRadius: radius },
-                ]}
-              />
+              <View style={[styles.fallbackStroke, { borderRadius: radius }]} />
             </>
           ) : null}
           <View pointerEvents="none" style={styles.centerFill}>
@@ -741,7 +752,7 @@ export function LiquidGlassSurface({
 
 type GlassControlProps = PropsWithChildren<{
   accessibilityLabel: string;
-  onPress?: PressableProps['onPress'];
+  onPress?: PressableProps["onPress"];
   style: StyleProp<ViewStyle>;
 }>;
 
@@ -774,7 +785,7 @@ type PrimaryButtonProps = {
   label: string;
   icon?: ReactNode;
   disabled?: boolean;
-  onPress?: PressableProps['onPress'];
+  onPress?: PressableProps["onPress"];
   compact?: boolean;
 };
 
@@ -800,11 +811,7 @@ export function PrimaryButton({
       ]}
     >
       {icon}
-      <AppText
-        role="label"
-        weight="medium"
-        color={colors.text.inverse}
-      >
+      <AppText role="label" weight="medium" color={colors.text.inverse}>
         {label}
       </AppText>
     </Pressable>
@@ -813,21 +820,17 @@ export function PrimaryButton({
 
 type AppCardProps = PropsWithChildren<{
   style?: StyleProp<ViewStyle>;
-  tone?: 'white' | 'warm' | 'accent';
+  tone?: "white" | "warm" | "accent";
 }>;
 
-export function AppCard({
-  children,
-  style,
-  tone = 'white',
-}: AppCardProps) {
+export function AppCard({ children, style, tone = "white" }: AppCardProps) {
   return (
     <View
       style={[
         styles.card,
-        tone === 'white' && styles.cardWhite,
-        tone === 'warm' && styles.cardWarm,
-        tone === 'accent' && styles.cardAccent,
+        tone === "white" && styles.cardWhite,
+        tone === "warm" && styles.cardWarm,
+        tone === "accent" && styles.cardAccent,
         style,
       ]}
     >
@@ -841,10 +844,7 @@ type ProgressMeterProps = {
   total?: number;
 };
 
-export function ProgressMeter({
-  value,
-  total = 24,
-}: ProgressMeterProps) {
+export function ProgressMeter({ value, total = 24 }: ProgressMeterProps) {
   return (
     <View
       accessibilityRole="progressbar"
@@ -862,9 +862,7 @@ export function ProgressMeter({
             styles.progressBar,
             {
               backgroundColor:
-                index < value
-                  ? colors.brand.success
-                  : colors.surface.divider,
+                index < value ? colors.brand.success : colors.surface.divider,
             },
           ]}
         />
@@ -883,69 +881,65 @@ type JournalAssessmentProps = {
   comparisonPrimaryLabel?: string;
   comparisonSecondaryLabel?: string;
   variant?:
-    | 'segments'
-    | 'continuous'
-    | 'week'
-    | 'score'
-    | 'levels'
-    | 'ring'
-    | 'comparison'
-    | 'dots'
-    | 'milestones'
-    | 'balance'
-    | 'matrix'
-    | 'gauge'
-    | 'fraction'
-    | 'heatmap'
-    | 'ladder'
-    | 'checklist';
+    | "segments"
+    | "continuous"
+    | "week"
+    | "score"
+    | "levels"
+    | "ring"
+    | "comparison"
+    | "dots"
+    | "milestones"
+    | "balance"
+    | "matrix"
+    | "gauge"
+    | "fraction"
+    | "heatmap"
+    | "ladder"
+    | "checklist";
   previousResult?: string;
   bestResult?: string;
   actionLabel?: string;
   actionIcon?: ReactNode;
   actionVariant?: MetricActionButtonVariant;
-  onPress?: PressableProps['onPress'];
+  onPress?: PressableProps["onPress"];
 };
 
 export type MetricActionButtonVariant =
-  | 'solid'
-  | 'soft'
-  | 'outline'
-  | 'white'
-  | 'burgundy'
-  | 'glass'
-  | 'split'
-  | 'iconLeading'
-  | 'textOnly'
-  | 'completed';
+  | "solid"
+  | "soft"
+  | "outline"
+  | "white"
+  | "burgundy"
+  | "glass"
+  | "split"
+  | "iconLeading"
+  | "textOnly"
+  | "completed";
 
 type MetricActionButtonProps = {
   label: string;
   icon?: ReactNode;
   variant?: MetricActionButtonVariant;
-  onPress?: PressableProps['onPress'];
+  onPress?: PressableProps["onPress"];
 };
 
 export function MetricActionButton({
   label,
   icon,
-  variant = 'solid',
+  variant = "solid",
   onPress,
 }: MetricActionButtonProps) {
   const usesLightText =
-    variant === 'solid' ||
-    variant === 'burgundy' ||
-    variant === 'split' ||
-    variant === 'iconLeading' ||
-    variant === 'completed';
-  const labelColor = usesLightText
-    ? colors.text.inverse
-    : colors.brand.primary;
+    variant === "solid" ||
+    variant === "burgundy" ||
+    variant === "split" ||
+    variant === "iconLeading" ||
+    variant === "completed";
+  const labelColor = usesLightText ? colors.text.inverse : colors.brand.primary;
   const canUseProvidedIcon =
     icon &&
-    (variant === 'solid' ||
-      variant === 'burgundy' ||
-      variant === 'completed');
+    (variant === "solid" || variant === "burgundy" || variant === "completed");
   const arrow = canUseProvidedIcon ? (
     icon
   ) : (
@@ -954,7 +948,7 @@ export function MetricActionButton({
         styles.metricButtonArrow,
         {
           color:
-            variant === 'split' || variant === 'iconLeading'
+            variant === "split" || variant === "iconLeading"
               ? colors.brand.primary
               : labelColor,
         },
@@ -965,14 +959,14 @@ export function MetricActionButton({
   );
 
   const content =
-    variant === 'split' ? (
+    variant === "split" ? (
       <>
         <AppText style={styles.metricButtonLabel} color={labelColor}>
           {label}
         </AppText>
         <View style={styles.metricButtonSplitIcon}>{arrow}</View>
       </>
-    ) : variant === 'iconLeading' ? (
+    ) : variant === "iconLeading" ? (
       <>
         <View style={styles.metricButtonLeadingIcon}>{arrow}</View>
         <AppText style={styles.metricButtonLabel} color={labelColor}>
@@ -995,20 +989,20 @@ export function MetricActionButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.metricButton,
-        variant === 'solid' && styles.metricButtonSolid,
-        variant === 'soft' && styles.metricButtonSoft,
-        variant === 'outline' && styles.metricButtonOutline,
-        variant === 'white' && styles.metricButtonWhite,
-        variant === 'burgundy' && styles.metricButtonBurgundy,
-        variant === 'glass' && styles.metricButtonGlass,
-        variant === 'split' && styles.metricButtonSplit,
-        variant === 'iconLeading' && styles.metricButtonIconLeading,
-        variant === 'textOnly' && styles.metricButtonTextOnly,
-        variant === 'completed' && styles.metricButtonCompleted,
+        variant === "solid" && styles.metricButtonSolid,
+        variant === "soft" && styles.metricButtonSoft,
+        variant === "outline" && styles.metricButtonOutline,
+        variant === "white" && styles.metricButtonWhite,
+        variant === "burgundy" && styles.metricButtonBurgundy,
+        variant === "glass" && styles.metricButtonGlass,
+        variant === "split" && styles.metricButtonSplit,
+        variant === "iconLeading" && styles.metricButtonIconLeading,
+        variant === "textOnly" && styles.metricButtonTextOnly,
+        variant === "completed" && styles.metricButtonCompleted,
         pressed && styles.pressed,
       ]}
     >
-      {variant === 'glass' ? (
+      {variant === "glass" ? (
         <LiquidGlassSurface
           variant="regular"
           colorScheme="light"
@@ -1025,21 +1019,21 @@ export function MetricActionButton({
 }
 
 export type ScanActionGroupVariant =
-  | 'solidPills'
-  | 'softPills'
-  | 'outlinePills'
-  | 'whitePills'
-  | 'glassPills'
-  | 'segmentedSolid'
-  | 'segmentedSoft'
-  | 'tiles'
-  | 'minimal'
-  | 'floating';
+  | "solidPills"
+  | "softPills"
+  | "outlinePills"
+  | "whitePills"
+  | "glassPills"
+  | "segmentedSolid"
+  | "segmentedSoft"
+  | "tiles"
+  | "minimal"
+  | "floating";
 
 type ScanAction = {
   label: string;
   icon: ReactNode;
-  onPress?: PressableProps['onPress'];
+  onPress?: PressableProps["onPress"];
 };
 
 type ScanActionGroupProps = {
@@ -1049,17 +1043,17 @@ type ScanActionGroupProps = {
 
 export function ScanActionGroup({
   actions,
-  variant = 'solidPills',
+  variant = "solidPills",
 }: ScanActionGroupProps) {
   const isSegmented =
-    variant === 'segmentedSolid' || variant === 'segmentedSoft';
+    variant === "segmentedSolid" || variant === "segmentedSoft";
   const usesLightText =
-    variant === 'solidPills' || variant === 'segmentedSolid';
+    variant === "solidPills" || variant === "segmentedSolid";
   const labelColor = usesLightText
     ? colors.text.inverse
-    : variant === 'softPills' ||
-        variant === 'outlinePills' ||
-        variant === 'minimal'
+    : variant === "softPills" ||
+        variant === "outlinePills" ||
+        variant === "minimal"
       ? colors.brand.primary
       : colors.text.primary;
 
@@ -1068,10 +1062,8 @@ export function ScanActionGroup({
       style={[
         styles.scanActionGroup,
         isSegmented && styles.scanActionGroupSegmented,
-        variant === 'segmentedSolid' &&
-          styles.scanActionGroupSegmentedSolid,
-        variant === 'segmentedSoft' &&
-          styles.scanActionGroupSegmentedSoft,
+        variant === "segmentedSolid" && styles.scanActionGroupSegmentedSolid,
+        variant === "segmentedSoft" && styles.scanActionGroupSegmentedSoft,
       ]}
     >
       {actions.map((action, index) => {
@@ -1079,24 +1071,18 @@ export function ScanActionGroup({
           <View
             style={[
               styles.scanActionContent,
-              variant === 'minimal' &&
-                styles.scanActionContentMinimal,
-              variant === 'floating' &&
-                styles.scanActionContentFloating,
+              variant === "minimal" && styles.scanActionContentMinimal,
+              variant === "floating" && styles.scanActionContentFloating,
             ]}
           >
             <View
               style={[
                 styles.scanActionIcon,
-                variant === 'outlinePills' &&
-                  styles.scanActionIconTransparent,
-                variant === 'segmentedSoft' &&
-                  styles.scanActionIconSoft,
-                variant === 'tiles' && styles.scanActionIconWarm,
-                variant === 'minimal' &&
-                  styles.scanActionIconTransparent,
-                variant === 'floating' &&
-                  styles.scanActionIconFloating,
+                variant === "outlinePills" && styles.scanActionIconTransparent,
+                variant === "segmentedSoft" && styles.scanActionIconSoft,
+                variant === "tiles" && styles.scanActionIconWarm,
+                variant === "minimal" && styles.scanActionIconTransparent,
+                variant === "floating" && styles.scanActionIconFloating,
               ]}
             >
               {action.icon}
@@ -1104,8 +1090,7 @@ export function ScanActionGroup({
             <AppText
               style={[
                 styles.scanActionLabel,
-                variant === 'floating' &&
-                  styles.scanActionLabelFloating,
+                variant === "floating" && styles.scanActionLabelFloating,
               ]}
               color={labelColor}
             >
@@ -1122,22 +1107,20 @@ export function ScanActionGroup({
             onPress={action.onPress}
             style={({ pressed }) => [
               styles.scanActionItem,
-              variant === 'solidPills' && styles.scanActionSolid,
-              variant === 'softPills' && styles.scanActionSoft,
-              variant === 'outlinePills' && styles.scanActionOutline,
-              variant === 'whitePills' && styles.scanActionWhite,
-              variant === 'glassPills' && styles.scanActionGlass,
+              variant === "solidPills" && styles.scanActionSolid,
+              variant === "softPills" && styles.scanActionSoft,
+              variant === "outlinePills" && styles.scanActionOutline,
+              variant === "whitePills" && styles.scanActionWhite,
+              variant === "glassPills" && styles.scanActionGlass,
               isSegmented && styles.scanActionSegment,
-              isSegmented &&
-                index > 0 &&
-                styles.scanActionSegmentDivider,
-              variant === 'tiles' && styles.scanActionTile,
-              variant === 'minimal' && styles.scanActionMinimal,
-              variant === 'floating' && styles.scanActionFloating,
+              isSegmented && index > 0 && styles.scanActionSegmentDivider,
+              variant === "tiles" && styles.scanActionTile,
+              variant === "minimal" && styles.scanActionMinimal,
+              variant === "floating" && styles.scanActionFloating,
               pressed && styles.pressed,
             ]}
           >
-            {variant === 'glassPills' ? (
+            {variant === "glassPills" ? (
               <LiquidGlassSurface
                 variant="regular"
                 colorScheme="light"
@@ -1157,22 +1140,22 @@ export function ScanActionGroup({
 }
 
 export type InstructionCardVariant =
-  | 'rail'
-  | 'badge'
-  | 'accent'
-  | 'editorial'
-  | 'progress'
-  | 'glass'
-  | 'numberTop'
-  | 'timeline'
-  | 'inverse'
-  | 'minimal'
-  | 'softHeader'
-  | 'ring'
-  | 'corner'
-  | 'segments'
-  | 'ticket'
-  | 'illustrated';
+  | "rail"
+  | "badge"
+  | "accent"
+  | "editorial"
+  | "progress"
+  | "glass"
+  | "numberTop"
+  | "timeline"
+  | "inverse"
+  | "minimal"
+  | "softHeader"
+  | "ring"
+  | "corner"
+  | "segments"
+  | "ticket"
+  | "illustrated";
 
 type InstructionCardProps = {
   step: number;
@@ -1187,11 +1170,11 @@ export function InstructionCard({
   step,
   total = 5,
   text,
-  variant = 'rail',
+  variant = "rail",
   height = 150,
   illustration,
 }: InstructionCardProps) {
-  if (variant === 'illustrated') {
+  if (variant === "illustrated") {
     return (
       <View
         style={[
@@ -1215,14 +1198,10 @@ export function InstructionCard({
               Шаг {step} из {total}
             </TokenLabel>
           </View>
-          <AppText style={styles.instructionIllustratedBody}>
-            {text}
-          </AppText>
+          <AppText style={styles.instructionIllustratedBody}>{text}</AppText>
         </View>
 
-        <View
-          style={[styles.instructionIllustratedMedia, { height }]}
-        >
+        <View style={[styles.instructionIllustratedMedia, { height }]}>
           {illustration ? (
             <Image
               source={illustration}
@@ -1243,7 +1222,7 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'softHeader') {
+  if (variant === "softHeader") {
     return (
       <View
         style={[
@@ -1269,14 +1248,10 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'ring') {
+  if (variant === "ring") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionRing,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionRing, { height }]}
       >
         <View style={styles.instructionRingNumber}>
           <AppText
@@ -1297,14 +1272,10 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'corner') {
+  if (variant === "corner") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionCorner,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionCorner, { height }]}
       >
         <AppText
           numeric
@@ -1323,14 +1294,10 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'segments') {
+  if (variant === "segments") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionSegments,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionSegments, { height }]}
       >
         <View style={styles.instructionSegmentsTrack}>
           {Array.from({ length: total }, (_, index) => (
@@ -1345,11 +1312,7 @@ export function InstructionCard({
         </View>
         <View style={styles.instructionSegmentsMeta}>
           <TokenLabel>Порядок действий</TokenLabel>
-          <AppText
-            numeric
-            role="caption"
-            color={colors.brand.primary}
-          >
+          <AppText numeric role="caption" color={colors.brand.primary}>
             {step}/{total}
           </AppText>
         </View>
@@ -1358,14 +1321,10 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'ticket') {
+  if (variant === "ticket") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionTicket,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionTicket, { height }]}
       >
         <View style={[styles.instructionTicketStub, { height }]}>
           <AppText
@@ -1375,11 +1334,7 @@ export function InstructionCard({
           >
             {step})
           </AppText>
-          <AppText
-            numeric
-            role="caption"
-            color="rgba(255,255,255,0.70)"
-          >
+          <AppText numeric role="caption" color="rgba(255,255,255,0.70)">
             {step}/{total}
           </AppText>
         </View>
@@ -1392,14 +1347,10 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'glass') {
+  if (variant === "glass") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionGlass,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionGlass, { height }]}
       >
         <View style={styles.instructionGlassBackdrop} />
         <LiquidGlassSurface
@@ -1423,9 +1374,7 @@ export function InstructionCard({
               <TokenLabel>
                 Шаг {step} из {total}
               </TokenLabel>
-              <AppText style={styles.instructionGlassBody}>
-                {text}
-              </AppText>
+              <AppText style={styles.instructionGlassBody}>{text}</AppText>
             </View>
           </View>
         </LiquidGlassSurface>
@@ -1433,7 +1382,7 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'numberTop') {
+  if (variant === "numberTop") {
     return (
       <View
         style={[
@@ -1454,21 +1403,15 @@ export function InstructionCard({
             {step} из {total}
           </TokenLabel>
         </View>
-        <AppText style={styles.instructionNumberTopBody}>
-          {text}
-        </AppText>
+        <AppText style={styles.instructionNumberTopBody}>{text}</AppText>
       </View>
     );
   }
 
-  if (variant === 'timeline') {
+  if (variant === "timeline") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionTimeline,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionTimeline, { height }]}
       >
         <View style={styles.instructionTimelineRail}>
           <View style={styles.instructionTimelineLine} />
@@ -1484,22 +1427,16 @@ export function InstructionCard({
         </View>
         <View style={styles.instructionTimelineCopy}>
           <TokenLabel>Этап {step}</TokenLabel>
-          <AppText style={styles.instructionTimelineBody}>
-            {text}
-          </AppText>
+          <AppText style={styles.instructionTimelineBody}>{text}</AppText>
         </View>
       </View>
     );
   }
 
-  if (variant === 'inverse') {
+  if (variant === "inverse") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionInverse,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionInverse, { height }]}
       >
         <View style={styles.instructionInverseHeader}>
           <AppText
@@ -1523,14 +1460,10 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'minimal') {
+  if (variant === "minimal") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionMinimal,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionMinimal, { height }]}
       >
         <View style={styles.instructionMinimalTrack}>
           <View
@@ -1542,29 +1475,19 @@ export function InstructionCard({
         </View>
         <View style={styles.instructionMinimalMeta}>
           <TokenLabel>Инструкция</TokenLabel>
-          <AppText
-            numeric
-            role="caption"
-            color={colors.brand.primary}
-          >
+          <AppText numeric role="caption" color={colors.brand.primary}>
             {step}/{total}
           </AppText>
         </View>
-        <AppText style={styles.instructionMinimalBody}>
-          {text}
-        </AppText>
+        <AppText style={styles.instructionMinimalBody}>{text}</AppText>
       </View>
     );
   }
 
-  if (variant === 'badge') {
+  if (variant === "badge") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionBadge,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionBadge, { height }]}
       >
         <View style={styles.instructionBadgeNumber}>
           <AppText
@@ -1585,14 +1508,10 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'accent') {
+  if (variant === "accent") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionAccent,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionAccent, { height }]}
       >
         <View style={[styles.instructionAccentRail, { height }]}>
           <AppText
@@ -1611,7 +1530,7 @@ export function InstructionCard({
     );
   }
 
-  if (variant === 'editorial') {
+  if (variant === "editorial") {
     return (
       <View
         style={[
@@ -1631,22 +1550,16 @@ export function InstructionCard({
           <TokenLabel>
             Инструкция · {step}/{total}
           </TokenLabel>
-          <AppText style={styles.instructionEditorialBody}>
-            {text}
-          </AppText>
+          <AppText style={styles.instructionEditorialBody}>{text}</AppText>
         </View>
       </View>
     );
   }
 
-  if (variant === 'progress') {
+  if (variant === "progress") {
     return (
       <View
-        style={[
-          styles.instructionCard,
-          styles.instructionProgress,
-          { height },
-        ]}
+        style={[styles.instructionCard, styles.instructionProgress, { height }]}
       >
         <View style={styles.instructionProgressHeader}>
           <TokenLabel>
@@ -1664,21 +1577,13 @@ export function InstructionCard({
             ))}
           </View>
         </View>
-        <AppText style={styles.instructionProgressBody}>
-          {text}
-        </AppText>
+        <AppText style={styles.instructionProgressBody}>{text}</AppText>
       </View>
     );
   }
 
   return (
-    <View
-      style={[
-        styles.instructionCard,
-        styles.instructionRail,
-        { height },
-      ]}
-    >
+    <View style={[styles.instructionCard, styles.instructionRail, { height }]}>
       <View style={[styles.instructionRailNumber, { height }]}>
         <AppText numeric style={styles.instructionRailNumberText}>
           {step})
@@ -1690,16 +1595,16 @@ export function InstructionCard({
 }
 
 export type InstructionIntroCardVariant =
-  | 'classic'
-  | 'brand'
-  | 'soft'
-  | 'outline'
-  | 'editorial'
-  | 'split'
-  | 'glass'
-  | 'minimal'
-  | 'framed'
-  | 'imageHero';
+  | "classic"
+  | "brand"
+  | "soft"
+  | "outline"
+  | "editorial"
+  | "split"
+  | "glass"
+  | "minimal"
+  | "framed"
+  | "imageHero";
 
 type InstructionIntroCardProps = {
   title: string;
@@ -1711,10 +1616,10 @@ type InstructionIntroCardProps = {
 export function InstructionIntroCard({
   title,
   illustration,
-  variant = 'classic',
+  variant = "classic",
   height = 150,
 }: InstructionIntroCardProps) {
-  if (variant === 'split') {
+  if (variant === "split") {
     return (
       <View
         style={[
@@ -1731,10 +1636,7 @@ export function InstructionIntroCard({
         />
         <View style={styles.instructionIntroSplitCopy}>
           <TokenLabel>Сфера</TokenLabel>
-          <AppText
-            weight="semibold"
-            style={styles.instructionIntroSplitTitle}
-          >
+          <AppText weight="semibold" style={styles.instructionIntroSplitTitle}>
             {title}
           </AppText>
         </View>
@@ -1742,7 +1644,7 @@ export function InstructionIntroCard({
     );
   }
 
-  if (variant === 'imageHero') {
+  if (variant === "imageHero") {
     return (
       <View
         style={[
@@ -1758,10 +1660,7 @@ export function InstructionIntroCard({
           style={StyleSheet.absoluteFillObject}
         />
         <View style={styles.instructionIntroHeroTitle}>
-          <AppText
-            weight="semibold"
-            style={styles.instructionIntroHeroText}
-          >
+          <AppText weight="semibold" style={styles.instructionIntroHeroText}>
             {title}
           </AppText>
         </View>
@@ -1771,7 +1670,7 @@ export function InstructionIntroCard({
 
   const content = (
     <View style={styles.instructionIntroContent}>
-      {variant === 'editorial' ? (
+      {variant === "editorial" ? (
         <AppText
           numeric
           style={styles.instructionIntroEditorialMark}
@@ -1780,22 +1679,16 @@ export function InstructionIntroCard({
           01
         </AppText>
       ) : null}
-      {variant === 'framed' ? (
+      {variant === "framed" ? (
         <View style={styles.instructionIntroInnerFrame} />
       ) : null}
       <AppText
-        weight={variant === 'minimal' ? 'regular' : 'semibold'}
-        color={
-          variant === 'brand'
-            ? colors.text.inverse
-            : colors.text.primary
-        }
+        weight={variant === "minimal" ? "regular" : "semibold"}
+        color={variant === "brand" ? colors.text.inverse : colors.text.primary}
         style={[
           styles.instructionIntroTitle,
-          variant === 'editorial' &&
-            styles.instructionIntroEditorialTitle,
-          variant === 'minimal' &&
-            styles.instructionIntroMinimalTitle,
+          variant === "editorial" && styles.instructionIntroEditorialTitle,
+          variant === "minimal" && styles.instructionIntroMinimalTitle,
         ]}
       >
         {title}
@@ -1805,16 +1698,15 @@ export function InstructionIntroCard({
         resizeMode="cover"
         style={[
           styles.instructionIntroImage,
-          variant === 'brand' && styles.instructionIntroBrandImage,
-          variant === 'minimal' &&
-            styles.instructionIntroMinimalImage,
-          variant !== 'minimal' && {
+          variant === "brand" && styles.instructionIntroBrandImage,
+          variant === "minimal" && styles.instructionIntroMinimalImage,
+          variant !== "minimal" && {
             top: height <= 130 ? 44 : 50,
             height: height <= 130 ? 72 : 82,
           },
         ]}
       />
-      {variant === 'minimal' ? (
+      {variant === "minimal" ? (
         <View style={styles.instructionIntroMinimalLine} />
       ) : null}
     </View>
@@ -1825,18 +1717,18 @@ export function InstructionIntroCard({
       style={[
         styles.instructionCard,
         styles.instructionIntroBase,
-        variant === 'classic' && styles.instructionIntroClassic,
-        variant === 'brand' && styles.instructionIntroBrand,
-        variant === 'soft' && styles.instructionIntroSoft,
-        variant === 'outline' && styles.instructionIntroOutline,
-        variant === 'editorial' && styles.instructionIntroEditorial,
-        variant === 'glass' && styles.instructionIntroGlass,
-        variant === 'minimal' && styles.instructionIntroMinimal,
-        variant === 'framed' && styles.instructionIntroFramed,
+        variant === "classic" && styles.instructionIntroClassic,
+        variant === "brand" && styles.instructionIntroBrand,
+        variant === "soft" && styles.instructionIntroSoft,
+        variant === "outline" && styles.instructionIntroOutline,
+        variant === "editorial" && styles.instructionIntroEditorial,
+        variant === "glass" && styles.instructionIntroGlass,
+        variant === "minimal" && styles.instructionIntroMinimal,
+        variant === "framed" && styles.instructionIntroFramed,
         { height },
       ]}
     >
-      {variant === 'glass' ? (
+      {variant === "glass" ? (
         <LiquidGlassSurface
           variant="regular"
           tintColor="rgba(255,255,255,0.20)"
@@ -1866,7 +1758,7 @@ type InstructionCarouselProps = {
 
 export function InstructionCarousel({
   instructions,
-  variant = 'rail',
+  variant = "rail",
   cardHeight = 150,
   illustrations,
   introCard,
@@ -1907,44 +1799,44 @@ export function InstructionCarousel({
 }
 
 export type InstructionNavigationVariant =
-  | 'original'
-  | 'brand'
-  | 'soft'
-  | 'outline'
-  | 'white'
-  | 'glass'
-  | 'square'
-  | 'burgundy'
-  | 'minimal'
-  | 'double';
+  | "original"
+  | "brand"
+  | "soft"
+  | "outline"
+  | "white"
+  | "glass"
+  | "square"
+  | "burgundy"
+  | "minimal"
+  | "double";
 
 type InstructionNavigationProps = {
   variant?: InstructionNavigationVariant;
   leftDisabled?: boolean;
   rightDisabled?: boolean;
-  onPrevious?: PressableProps['onPress'];
-  onNext?: PressableProps['onPress'];
+  onPrevious?: PressableProps["onPress"];
+  onNext?: PressableProps["onPress"];
 };
 
 export function InstructionNavigation({
-  variant = 'original',
+  variant = "original",
   leftDisabled = true,
   rightDisabled = false,
   onPrevious,
   onNext,
 }: InstructionNavigationProps) {
   const renderButton = (
-    direction: 'left' | 'right',
+    direction: "left" | "right",
     disabled: boolean,
-    onPress?: PressableProps['onPress'],
+    onPress?: PressableProps["onPress"],
   ) => {
     const glyphColor =
-      variant === 'original' ||
-      variant === 'brand' ||
-      variant === 'square' ||
-      variant === 'burgundy'
+      variant === "original" ||
+      variant === "brand" ||
+      variant === "square" ||
+      variant === "burgundy"
         ? colors.text.inverse
-        : variant === 'minimal'
+        : variant === "minimal"
           ? colors.text.primary
           : colors.brand.primary;
     const button = (
@@ -1952,11 +1844,11 @@ export function InstructionNavigation({
         <AppText
           style={[
             styles.instructionNavGlyph,
-            direction === 'left' && styles.instructionNavGlyphLeft,
+            direction === "left" && styles.instructionNavGlyphLeft,
           ]}
           color={glyphColor}
         >
-          {direction === 'left' ? '‹' : '›'}
+          {direction === "left" ? "‹" : "›"}
         </AppText>
       </View>
     );
@@ -1965,28 +1857,28 @@ export function InstructionNavigation({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
-          direction === 'left' ? 'Предыдущий шаг' : 'Следующий шаг'
+          direction === "left" ? "Предыдущий шаг" : "Следующий шаг"
         }
         accessibilityState={{ disabled }}
         disabled={disabled}
         onPress={onPress}
         style={({ pressed }) => [
           styles.instructionNavButton,
-          variant === 'original' && styles.instructionNavOriginal,
-          variant === 'brand' && styles.instructionNavBrand,
-          variant === 'soft' && styles.instructionNavSoft,
-          variant === 'outline' && styles.instructionNavOutline,
-          variant === 'white' && styles.instructionNavWhite,
-          variant === 'glass' && styles.instructionNavGlass,
-          variant === 'square' && styles.instructionNavSquare,
-          variant === 'burgundy' && styles.instructionNavBurgundy,
-          variant === 'minimal' && styles.instructionNavMinimal,
-          variant === 'double' && styles.instructionNavDouble,
+          variant === "original" && styles.instructionNavOriginal,
+          variant === "brand" && styles.instructionNavBrand,
+          variant === "soft" && styles.instructionNavSoft,
+          variant === "outline" && styles.instructionNavOutline,
+          variant === "white" && styles.instructionNavWhite,
+          variant === "glass" && styles.instructionNavGlass,
+          variant === "square" && styles.instructionNavSquare,
+          variant === "burgundy" && styles.instructionNavBurgundy,
+          variant === "minimal" && styles.instructionNavMinimal,
+          variant === "double" && styles.instructionNavDouble,
           disabled && styles.instructionNavDisabled,
           pressed && !disabled && styles.pressed,
         ]}
       >
-        {variant === 'glass' ? (
+        {variant === "glass" ? (
           <LiquidGlassSurface
             variant="regular"
             colorScheme="light"
@@ -2004,8 +1896,8 @@ export function InstructionNavigation({
 
   return (
     <View style={styles.instructionNavigation}>
-      {renderButton('left', leftDisabled, onPrevious)}
-      {renderButton('right', rightDisabled, onNext)}
+      {renderButton("left", leftDisabled, onPrevious)}
+      {renderButton("right", rightDisabled, onNext)}
     </View>
   );
 }
@@ -2013,18 +1905,18 @@ export function InstructionNavigation({
 export function JournalAssessment({
   value,
   total = 24,
-  title = 'Заполнение журнала',
-  status = 'Хорошая регулярность',
-  leftCaption = 'Начало месяца',
-  rightCaption = 'Сегодня',
-  comparisonPrimaryLabel = 'Сейчас',
-  comparisonSecondaryLabel = 'Ранее',
-  variant = 'segments',
-  previousResult = '5/7',
-  bestResult = '8/7',
-  actionLabel = 'Заполнить',
+  title = "Заполнение журнала",
+  status = "Хорошая регулярность",
+  leftCaption = "Начало месяца",
+  rightCaption = "Сегодня",
+  comparisonPrimaryLabel = "Сейчас",
+  comparisonSecondaryLabel = "Ранее",
+  variant = "segments",
+  previousResult = "5/7",
+  bestResult = "8/7",
+  actionLabel = "Заполнить",
   actionIcon,
-  actionVariant = 'solid',
+  actionVariant = "solid",
   onPress,
 }: JournalAssessmentProps) {
   const percentage = Math.round((value / total) * 100);
@@ -2037,7 +1929,7 @@ export function JournalAssessment({
   const gaugeLength = Math.PI * 28;
 
   const visualization =
-    variant === 'gauge' ? (
+    variant === "gauge" ? (
       <View style={styles.journalGauge}>
         <View style={styles.gaugeGraphic}>
           <Svg width={72} height={44} viewBox="0 0 72 44">
@@ -2065,7 +1957,7 @@ export function JournalAssessment({
           <AppText style={styles.gaugeStatus}>{status}</AppText>
         </View>
       </View>
-    ) : variant === 'fraction' ? (
+    ) : variant === "fraction" ? (
       <View style={styles.journalFraction}>
         <AppText style={styles.fractionValue}>
           {completedCount}/{total}
@@ -2075,7 +1967,7 @@ export function JournalAssessment({
           <AppText style={styles.ringStatus}>{status}</AppText>
         </View>
       </View>
-    ) : variant === 'heatmap' ? (
+    ) : variant === "heatmap" ? (
       <View style={styles.journalHeatmap}>
         <View style={styles.heatmapCopy}>
           <AppText style={styles.journalTitle}>{title}</AppText>
@@ -2094,7 +1986,7 @@ export function JournalAssessment({
           ))}
         </View>
       </View>
-    ) : variant === 'ladder' ? (
+    ) : variant === "ladder" ? (
       <View style={styles.journalLadder}>
         <View style={styles.journalTitleRow}>
           <AppText style={styles.journalTitle}>{title}</AppText>
@@ -2120,7 +2012,7 @@ export function JournalAssessment({
           ))}
         </View>
       </View>
-    ) : variant === 'checklist' ? (
+    ) : variant === "checklist" ? (
       <View style={styles.journalChecklist}>
         <AppText style={styles.journalTitle}>{title}</AppText>
         <View style={styles.checklistRows}>
@@ -2135,14 +2027,12 @@ export function JournalAssessment({
             <View style={styles.checklistIconMuted}>
               <AppText style={styles.checklistCheckMuted}>•</AppText>
             </View>
-            <AppText style={styles.checklistLabel}>
-              Расширенные
-            </AppText>
+            <AppText style={styles.checklistLabel}>Расширенные</AppText>
             <AppText style={styles.checklistValue}>1/3</AppText>
           </View>
         </View>
       </View>
-    ) : variant === 'dots' ? (
+    ) : variant === "dots" ? (
       <View style={styles.journalDots}>
         <AppText style={styles.journalTitle}>{title}</AppText>
         <View style={styles.numberedDots}>
@@ -2157,8 +2047,7 @@ export function JournalAssessment({
               <AppText
                 style={[
                   styles.numberedDotLabel,
-                  index < completedCount &&
-                    styles.numberedDotLabelFilled,
+                  index < completedCount && styles.numberedDotLabelFilled,
                 ]}
               >
                 {index + 1}
@@ -2167,7 +2056,7 @@ export function JournalAssessment({
           ))}
         </View>
       </View>
-    ) : variant === 'milestones' ? (
+    ) : variant === "milestones" ? (
       <View style={styles.journalMilestones}>
         <View style={styles.journalTitleRow}>
           <AppText style={styles.journalTitle}>{title}</AppText>
@@ -2193,25 +2082,21 @@ export function JournalAssessment({
         </View>
         <AppText style={styles.journalResult}>{status}</AppText>
       </View>
-    ) : variant === 'balance' ? (
+    ) : variant === "balance" ? (
       <View style={styles.journalBalance}>
         <AppText style={styles.journalTitle}>{title}</AppText>
         <View style={styles.balanceRow}>
           <View style={[styles.balancePill, styles.balancePillDone]}>
-            <AppText style={styles.balanceValue}>
-              {completedCount}
-            </AppText>
+            <AppText style={styles.balanceValue}>{completedCount}</AppText>
             <AppText style={styles.balanceLabel}>пройдено</AppText>
           </View>
           <View style={[styles.balancePill, styles.balancePillLeft]}>
-            <AppText style={styles.balanceValueMuted}>
-              {remainingCount}
-            </AppText>
+            <AppText style={styles.balanceValueMuted}>{remainingCount}</AppText>
             <AppText style={styles.balanceLabel}>осталось</AppText>
           </View>
         </View>
       </View>
-    ) : variant === 'matrix' ? (
+    ) : variant === "matrix" ? (
       <View style={styles.journalMatrix}>
         <View style={styles.matrixCopy}>
           <AppText style={styles.journalTitle}>{title}</AppText>
@@ -2229,17 +2114,16 @@ export function JournalAssessment({
               <AppText
                 style={[
                   styles.matrixCellText,
-                  index < completedCount &&
-                    styles.matrixCellTextFilled,
+                  index < completedCount && styles.matrixCellTextFilled,
                 ]}
               >
-                {index < completedCount ? '✓' : index + 1}
+                {index < completedCount ? "✓" : index + 1}
               </AppText>
             </View>
           ))}
         </View>
       </View>
-    ) : variant === 'ring' ? (
+    ) : variant === "ring" ? (
       <View style={styles.journalRing}>
         <View style={styles.ringGraphic}>
           <Svg width={58} height={58} viewBox="0 0 58 58">
@@ -2260,9 +2144,7 @@ export function JournalAssessment({
               strokeWidth={7}
               strokeLinecap="round"
               strokeDasharray={ringCircumference}
-              strokeDashoffset={
-                ringCircumference * (1 - percentage / 100)
-              }
+              strokeDashoffset={ringCircumference * (1 - percentage / 100)}
               transform="rotate(-90 29 29)"
             />
           </Svg>
@@ -2273,7 +2155,7 @@ export function JournalAssessment({
           <AppText style={styles.ringStatus}>{status}</AppText>
         </View>
       </View>
-    ) : variant === 'comparison' ? (
+    ) : variant === "comparison" ? (
       <View style={styles.journalComparison}>
         <AppText style={styles.journalTitle}>{title}</AppText>
         <View style={styles.comparisonRow}>
@@ -2282,75 +2164,55 @@ export function JournalAssessment({
           </AppText>
           <View style={styles.comparisonTrack}>
             <View
-              style={[
-                styles.comparisonFill,
-                { width: `${percentage}%` },
-              ]}
+              style={[styles.comparisonFill, { width: `${percentage}%` }]}
             />
           </View>
-          <AppText style={styles.comparisonValue}>
-            {percentage}%
-          </AppText>
+          <AppText style={styles.comparisonValue}>{percentage}%</AppText>
         </View>
         <View style={styles.comparisonRow}>
           <AppText style={styles.comparisonLabel}>
             {comparisonSecondaryLabel}
           </AppText>
           <View style={styles.comparisonTrack}>
-            <View
-              style={[styles.comparisonFillMuted, { width: '46%' }]}
-            />
+            <View style={[styles.comparisonFillMuted, { width: "46%" }]} />
           </View>
           <AppText style={styles.comparisonValue}>46%</AppText>
         </View>
       </View>
-    ) : variant === 'continuous' ? (
+    ) : variant === "continuous" ? (
       <View style={styles.journalContinuous}>
         <View style={styles.journalTitleRow}>
           <AppText style={styles.journalTitle}>{title}</AppText>
-          <AppText style={styles.journalPercent}>
-            {percentage}%
-          </AppText>
+          <AppText style={styles.journalPercent}>{percentage}%</AppText>
         </View>
         <View style={styles.continuousTrack}>
-          <View
-            style={[
-              styles.continuousFill,
-              { width: `${percentage}%` },
-            ]}
-          />
+          <View style={[styles.continuousFill, { width: `${percentage}%` }]} />
         </View>
         <View style={styles.journalResults}>
-          <AppText style={styles.journalResult}>
-            {leftCaption}
-          </AppText>
-          <AppText style={styles.journalResult}>
-            {rightCaption}
-          </AppText>
+          <AppText style={styles.journalResult}>{leftCaption}</AppText>
+          <AppText style={styles.journalResult}>{rightCaption}</AppText>
         </View>
       </View>
-    ) : variant === 'week' ? (
+    ) : variant === "week" ? (
       <View style={styles.journalWeek}>
         <AppText style={styles.journalTitle}>
           Активность за последние 7 дней
         </AppText>
         <View style={styles.weekDays}>
-          {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(
-            (day, index) => (
-              <View key={day} style={styles.weekDay}>
-                <View
-                  style={[
-                    styles.weekDot,
-                    index < completedDays && styles.weekDotFilled,
-                  ]}
-                />
-                <AppText style={styles.weekDayLabel}>{day}</AppText>
-              </View>
-            ),
-          )}
+          {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((day, index) => (
+            <View key={day} style={styles.weekDay}>
+              <View
+                style={[
+                  styles.weekDot,
+                  index < completedDays && styles.weekDotFilled,
+                ]}
+              />
+              <AppText style={styles.weekDayLabel}>{day}</AppText>
+            </View>
+          ))}
         </View>
       </View>
-    ) : variant === 'score' ? (
+    ) : variant === "score" ? (
       <View style={styles.journalScore}>
         <AppText style={styles.scoreValue}>{percentage}%</AppText>
         <View style={styles.scoreCopy}>
@@ -2358,13 +2220,11 @@ export function JournalAssessment({
           <AppText style={styles.scoreStatus}>{status}</AppText>
         </View>
       </View>
-    ) : variant === 'levels' ? (
+    ) : variant === "levels" ? (
       <View style={styles.journalLevels}>
         <View style={styles.journalTitleRow}>
           <AppText style={styles.journalTitle}>{title}</AppText>
-          <AppText style={styles.levelStatus}>
-            {completedLevels}/5
-          </AppText>
+          <AppText style={styles.levelStatus}>{completedLevels}/5</AppText>
         </View>
         <View style={styles.levelBars}>
           {Array.from({ length: 5 }, (_, index) => (
@@ -2434,52 +2294,52 @@ export function JournalAssessment({
 }
 
 export type ScanTooltipKind =
-  'qr' | 'test' | 'lowLight' | 'background' | 'locked';
+  "qr" | "test" | "lowLight" | "background" | "locked";
 
 export type ScanTooltipVariant =
-  | 'glass'
-  | 'dark'
-  | 'light'
-  | 'brand'
-  | 'outline'
-  | 'split'
-  | 'status'
-  | 'compact'
-  | 'floating'
-  | 'bubble';
+  | "glass"
+  | "dark"
+  | "light"
+  | "brand"
+  | "outline"
+  | "split"
+  | "status"
+  | "compact"
+  | "floating"
+  | "bubble";
 
 const scanTooltipContent: Record<
   ScanTooltipKind,
   {
     eyebrow: string;
     message: string;
-    tone: 'neutral' | 'warning' | 'success';
+    tone: "neutral" | "warning" | "success";
   }
 > = {
   qr: {
-    eyebrow: 'QR-код',
-    message: 'Наведите камеру на QR-код',
-    tone: 'neutral',
+    eyebrow: "QR-код",
+    message: "Наведите камеру на QR-код",
+    tone: "neutral",
   },
   test: {
-    eyebrow: 'Тест',
-    message: 'Расположите тест внутри рамки',
-    tone: 'neutral',
+    eyebrow: "Тест",
+    message: "Расположите тест внутри рамки",
+    tone: "neutral",
   },
   lowLight: {
-    eyebrow: 'Освещение',
-    message: 'Слишком темно — добавьте света',
-    tone: 'warning',
+    eyebrow: "Освещение",
+    message: "Слишком темно — добавьте света",
+    tone: "warning",
   },
   background: {
-    eyebrow: 'Фон',
-    message: 'Переместите тест на однородный фон',
-    tone: 'warning',
+    eyebrow: "Фон",
+    message: "Переместите тест на однородный фон",
+    tone: "warning",
   },
   locked: {
-    eyebrow: 'Готово',
-    message: 'Отлично, не двигайте камеру',
-    tone: 'success',
+    eyebrow: "Готово",
+    message: "Отлично, не двигайте камеру",
+    tone: "success",
   },
 };
 
@@ -2492,7 +2352,7 @@ function ScanTooltipGlyph({
   kind: ScanTooltipKind;
   size?: number;
 }) {
-  if (kind === 'qr') {
+  if (kind === "qr") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -2507,7 +2367,7 @@ function ScanTooltipGlyph({
     );
   }
 
-  if (kind === 'test') {
+  if (kind === "test") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -2527,7 +2387,7 @@ function ScanTooltipGlyph({
     );
   }
 
-  if (kind === 'lowLight') {
+  if (kind === "lowLight") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Circle
@@ -2548,7 +2408,7 @@ function ScanTooltipGlyph({
     );
   }
 
-  if (kind === 'background') {
+  if (kind === "background") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -2600,14 +2460,14 @@ export function ScanTooltip({
   kind,
   message,
   singleLine = false,
-  variant = 'glass',
+  variant = "glass",
 }: ScanTooltipProps) {
   const content = scanTooltipContent[kind];
   const tooltipMessage = message ?? content.message;
   const floatingTextLimit = Math.max(1, floatingMaxWidth - 77);
   const floatingMeasurementKey = `${tooltipMessage}:${floatingTextLimit}`;
   const [floatingMeasurement, setFloatingMeasurement] = useState({
-    message: '',
+    message: "",
     width: floatingTextLimit,
   });
   const floatingTextWidth =
@@ -2616,28 +2476,26 @@ export function ScanTooltip({
       : floatingTextLimit;
 
   const accentColor =
-    content.tone === 'success'
+    content.tone === "success"
       ? colors.brand.success
-      : content.tone === 'warning'
-        ? '#FFB45C'
+      : content.tone === "warning"
+        ? "#FFB45C"
         : colors.brand.primary;
   const usesLightCopy =
-    variant === 'glass' ||
-    variant === 'dark' ||
-    variant === 'brand' ||
-    variant === 'outline' ||
-    variant === 'status' ||
-    variant === 'bubble';
-  const primaryColor = usesLightCopy
-    ? '#FFFFFF'
-    : colors.text.primary;
+    variant === "glass" ||
+    variant === "dark" ||
+    variant === "brand" ||
+    variant === "outline" ||
+    variant === "status" ||
+    variant === "bubble";
+  const primaryColor = usesLightCopy ? "#FFFFFF" : colors.text.primary;
   const secondaryColor = usesLightCopy
-    ? 'rgba(255,255,255,0.64)'
+    ? "rgba(255,255,255,0.64)"
     : colors.text.secondary;
-  const iconColor = variant === 'brand' ? '#FFFFFF' : accentColor;
+  const iconColor = variant === "brand" ? "#FFFFFF" : accentColor;
   const body = (
     <>
-      {variant === 'status' ? (
+      {variant === "status" ? (
         <View
           style={[
             styles.scanTooltipStatusLine,
@@ -2648,16 +2506,16 @@ export function ScanTooltip({
       <View
         style={[
           styles.scanTooltipIcon,
-          variant === 'split' && styles.scanTooltipSplitIcon,
-          variant === 'floating' && styles.scanTooltipFloatingIcon,
-          variant === 'brand' && styles.scanTooltipBrandIcon,
-          variant === 'compact' && styles.scanTooltipCompactIcon,
+          variant === "split" && styles.scanTooltipSplitIcon,
+          variant === "floating" && styles.scanTooltipFloatingIcon,
+          variant === "brand" && styles.scanTooltipBrandIcon,
+          variant === "compact" && styles.scanTooltipCompactIcon,
           {
             backgroundColor:
-              variant === 'brand'
-                ? 'rgba(255,255,255,0.18)'
-                : variant === 'outline' || variant === 'glass'
-                  ? 'rgba(255,255,255,0.10)'
+              variant === "brand"
+                ? "rgba(255,255,255,0.18)"
+                : variant === "outline" || variant === "glass"
+                  ? "rgba(255,255,255,0.10)"
                   : `${accentColor}1F`,
           },
         ]}
@@ -2665,17 +2523,17 @@ export function ScanTooltip({
         <ScanTooltipGlyph
           color={iconColor}
           kind={kind}
-          size={variant === 'compact' ? 18 : 20}
+          size={variant === "compact" ? 18 : 20}
         />
       </View>
       <View
         style={[
           styles.scanTooltipCopy,
-          (variant === 'dark' || variant === 'light') &&
+          (variant === "dark" || variant === "light") &&
             styles.scanTooltipCenteredCopy,
         ]}
       >
-        {variant === 'status' || variant === 'bubble' ? (
+        {variant === "status" || variant === "bubble" ? (
           <AppText
             role="caption"
             weight="medium"
@@ -2686,33 +2544,25 @@ export function ScanTooltip({
           </AppText>
         ) : null}
         <AppText
-          role={variant === 'compact' ? 'caption' : 'label'}
+          role={variant === "compact" ? "caption" : "label"}
           weight="medium"
           color={primaryColor}
-          numberOfLines={variant === 'floating' && singleLine ? 1 : 2}
+          numberOfLines={variant === "floating" && singleLine ? 1 : 2}
           style={styles.scanTooltipMessage}
           onTextLayout={
-            variant === 'floating'
+            variant === "floating"
               ? (event) => {
-                  if (
-                    floatingMeasurement.message ===
-                    floatingMeasurementKey
-                  ) {
+                  if (floatingMeasurement.message === floatingMeasurementKey) {
                     return;
                   }
 
                   const measuredWidth = Math.ceil(
                     Math.max(
                       1,
-                      ...event.nativeEvent.lines.map(
-                        (line) => line.width,
-                      ),
+                      ...event.nativeEvent.lines.map((line) => line.width),
                     ),
                   );
-                  const nextWidth = Math.min(
-                    floatingTextLimit,
-                    measuredWidth,
-                  );
+                  const nextWidth = Math.min(floatingTextLimit, measuredWidth);
 
                   setFloatingMeasurement({
                     message: floatingMeasurementKey,
@@ -2725,7 +2575,7 @@ export function ScanTooltip({
           {tooltipMessage}
         </AppText>
       </View>
-      {variant === 'split' ? (
+      {variant === "split" ? (
         <View
           style={[
             styles.scanTooltipSplitStatus,
@@ -2733,13 +2583,11 @@ export function ScanTooltip({
           ]}
         />
       ) : null}
-      {variant === 'bubble' ? (
-        <View style={styles.scanTooltipTail} />
-      ) : null}
+      {variant === "bubble" ? <View style={styles.scanTooltipTail} /> : null}
     </>
   );
 
-  if (variant === 'glass') {
+  if (variant === "glass") {
     return (
       <View style={[styles.scanTooltip, styles.scanTooltipGlass]}>
         <LiquidGlassSurface
@@ -2761,21 +2609,21 @@ export function ScanTooltip({
       style={[
         styles.scanTooltip,
         styles.scanTooltipInner,
-        variant === 'dark' && styles.scanTooltipDark,
-        variant === 'light' && styles.scanTooltipLight,
-        variant === 'brand' && [
+        variant === "dark" && styles.scanTooltipDark,
+        variant === "light" && styles.scanTooltipLight,
+        variant === "brand" && [
           styles.scanTooltipBrand,
           { backgroundColor: accentColor },
         ],
-        variant === 'outline' && styles.scanTooltipOutline,
-        variant === 'split' && styles.scanTooltipSplit,
-        variant === 'status' && styles.scanTooltipStatus,
-        variant === 'compact' && styles.scanTooltipCompact,
-        variant === 'floating' && [
+        variant === "outline" && styles.scanTooltipOutline,
+        variant === "split" && styles.scanTooltipSplit,
+        variant === "status" && styles.scanTooltipStatus,
+        variant === "compact" && styles.scanTooltipCompact,
+        variant === "floating" && [
           styles.scanTooltipFloating,
           { width: floatingTextWidth + 77 },
         ],
-        variant === 'bubble' && styles.scanTooltipBubble,
+        variant === "bubble" && styles.scanTooltipBubble,
       ]}
     >
       {body}
@@ -2784,63 +2632,59 @@ export function ScanTooltip({
 }
 
 export type ScanHistoryVariant =
-  | 'timeline'
-  | 'cards'
-  | 'compact'
-  | 'calendar'
-  | 'insights'
-  | 'grouped'
-  | 'testTypes'
-  | 'archive'
-  | 'comparison'
-  | 'gallery';
+  | "timeline"
+  | "cards"
+  | "compact"
+  | "calendar"
+  | "insights"
+  | "grouped"
+  | "testTypes"
+  | "archive"
+  | "comparison"
+  | "gallery";
 
 export type ScanHistoryRecord = StoredScanRecord;
 
 const scanHistoryRecords: ScanHistoryRecord[] = [
   {
-    id: 'fixture-30-july',
+    id: "fixture-30-july",
     capturedAt: Date.UTC(2026, 6, 30, 11, 26),
-    imageUri: '',
-    day: '30',
-    date: '30 июля',
-    time: '14:26',
-    type: 'Ovulation LH',
-    result: 'Пик ЛГ',
-    batch: 'A24-071',
+    imageUri: "",
+    day: "30",
+    date: "30 июля",
+    time: "14:26",
+    type: "Ovulation LH",
+    result: "Пик ЛГ",
+    batch: "A24-071",
     confidence: 96,
   },
   {
-    id: 'fixture-28-july',
+    id: "fixture-28-july",
     capturedAt: Date.UTC(2026, 6, 28, 6, 12),
-    imageUri: '',
-    day: '28',
-    date: '28 июля',
-    time: '09:12',
-    type: 'Pregnancy hCG',
-    result: 'Отрицательный',
-    batch: 'H24-043',
+    imageUri: "",
+    day: "28",
+    date: "28 июля",
+    time: "09:12",
+    type: "Pregnancy hCG",
+    result: "Отрицательный",
+    batch: "H24-043",
     confidence: 98,
   },
   {
-    id: 'fixture-24-july',
+    id: "fixture-24-july",
     capturedAt: Date.UTC(2026, 6, 24, 15, 40),
-    imageUri: '',
-    day: '24',
-    date: '24 июля',
-    time: '18:40',
-    type: 'Ovulation LH',
-    result: 'Положительный',
-    batch: 'A24-068',
+    imageUri: "",
+    day: "24",
+    date: "24 июля",
+    time: "18:40",
+    type: "Ovulation LH",
+    result: "Положительный",
+    batch: "A24-068",
     confidence: 94,
   },
 ];
 
-function HistoryChevron({
-  color = colors.text.secondary,
-}: {
-  color?: string;
-}) {
+function HistoryChevron({ color = colors.text.secondary }: { color?: string }) {
   return (
     <Svg width={18} height={18} viewBox="0 0 18 18">
       <Path
@@ -2874,17 +2718,15 @@ function HistoryStatus({
   compact = false,
   plain = false,
 }: {
-  result: ScanHistoryRecord['result'];
+  result: ScanHistoryRecord["result"];
   compact?: boolean;
   plain?: boolean;
 }) {
-  const positive = result !== 'Отрицательный';
-  const color = positive
-    ? colors.brand.primary
-    : colors.text.secondary;
+  const positive = result !== "Отрицательный";
+  const color = positive ? colors.brand.primary : colors.text.secondary;
   const backgroundColor = positive
-    ? 'rgba(211,20,113,0.10)'
-    : 'rgba(115,110,108,0.10)';
+    ? "rgba(211,20,113,0.10)"
+    : "rgba(115,110,108,0.10)";
 
   return (
     <View
@@ -2892,18 +2734,11 @@ function HistoryStatus({
         styles.historyStatus,
         compact && styles.historyStatusCompact,
         plain && styles.historyStatusPlain,
-        { backgroundColor: plain ? 'transparent' : backgroundColor },
+        { backgroundColor: plain ? "transparent" : backgroundColor },
       ]}
     >
-      <View
-        style={[styles.historyStatusDot, { backgroundColor: color }]}
-      />
-      <AppText
-        role="caption"
-        weight="medium"
-        color={color}
-        numberOfLines={1}
-      >
+      <View style={[styles.historyStatusDot, { backgroundColor: color }]} />
+      <AppText role="caption" weight="medium" color={color} numberOfLines={1}>
         {result}
       </AppText>
     </View>
@@ -2911,7 +2746,7 @@ function HistoryStatus({
 }
 
 function HistoryFilter({
-  labels = ['Все', 'Овуляция', 'Беременность'],
+  labels = ["Все", "Овуляция", "Беременность"],
   active = 0,
   activeColor = colors.brand.burgundy,
   glass = false,
@@ -2924,12 +2759,7 @@ function HistoryFilter({
   onChange?: (index: number) => void;
 }) {
   return (
-    <View
-      style={[
-        styles.historyFilter,
-        glass && styles.historyFilterGlass,
-      ]}
-    >
+    <View style={[styles.historyFilter, glass && styles.historyFilterGlass]}>
       {glass ? (
         <LiquidGlassSurface
           variant="clear"
@@ -2949,8 +2779,7 @@ function HistoryFilter({
           onPress={onChange ? () => onChange(index) : undefined}
           style={[
             styles.historyFilterItem,
-            index === active &&
-              !glass && { backgroundColor: activeColor },
+            index === active && !glass && { backgroundColor: activeColor },
           ]}
         >
           {index === active && glass ? (
@@ -2975,11 +2804,9 @@ function HistoryFilter({
           ) : (
             <AppText
               role="caption"
-              weight={index === active ? 'semibold' : 'medium'}
+              weight={index === active ? "semibold" : "medium"}
               color={
-                index === active
-                  ? colors.text.inverse
-                  : colors.text.secondary
+                index === active ? colors.text.inverse : colors.text.secondary
               }
               numberOfLines={1}
             >
@@ -3027,11 +2854,7 @@ function TimelineHistory() {
               <AppText
                 numeric
                 style={styles.timelineDay}
-                color={
-                  index === 0
-                    ? colors.brand.primary
-                    : colors.text.primary
-                }
+                color={index === 0 ? colors.brand.primary : colors.text.primary}
               >
                 {record.day}
               </AppText>
@@ -3082,7 +2905,7 @@ function CardsHistory() {
                   weight="medium"
                   color={
                     index === 0
-                      ? 'rgba(255,255,255,0.72)'
+                      ? "rgba(255,255,255,0.72)"
                       : colors.text.secondary
                   }
                 >
@@ -3092,9 +2915,7 @@ function CardsHistory() {
                   role="heading"
                   weight="semibold"
                   color={
-                    index === 0
-                      ? colors.text.inverse
-                      : colors.text.primary
+                    index === 0 ? colors.text.inverse : colors.text.primary
                   }
                 >
                   {record.type}
@@ -3102,9 +2923,7 @@ function CardsHistory() {
               </View>
               <HistoryChevron
                 color={
-                  index === 0
-                    ? 'rgba(255,255,255,0.76)'
-                    : colors.text.secondary
+                  index === 0 ? "rgba(255,255,255,0.76)" : colors.text.secondary
                 }
               />
             </View>
@@ -3115,7 +2934,7 @@ function CardsHistory() {
                 color={
                   index === 0
                     ? colors.text.inverse
-                    : record.result === 'Отрицательный'
+                    : record.result === "Отрицательный"
                       ? colors.text.secondary
                       : colors.brand.primary
                 }
@@ -3126,9 +2945,7 @@ function CardsHistory() {
                 numeric
                 role="caption"
                 color={
-                  index === 0
-                    ? 'rgba(255,255,255,0.72)'
-                    : colors.text.secondary
+                  index === 0 ? "rgba(255,255,255,0.72)" : colors.text.secondary
                 }
               >
                 {record.confidence}% · {record.batch}
@@ -3145,7 +2962,7 @@ function CompactHistory() {
   return (
     <>
       <HistoryHeader subtitle="Журнал результатов" />
-      <HistoryFilter labels={['Все', 'LH', 'hCG']} />
+      <HistoryFilter labels={["Все", "LH", "hCG"]} />
       <View style={styles.compactTable}>
         <View style={styles.compactTableHeader}>
           <AppText role="caption" color={colors.text.secondary}>
@@ -3158,10 +2975,7 @@ function CompactHistory() {
         {scanHistoryRecords.map((record, index) => (
           <Pressable
             key={`${record.date}-${record.time}`}
-            style={[
-              styles.compactRow,
-              index > 0 && styles.compactRowBorder,
-            ]}
+            style={[styles.compactRow, index > 0 && styles.compactRowBorder]}
           >
             <View style={styles.compactDate}>
               <AppText numeric style={styles.compactDay}>
@@ -3181,11 +2995,7 @@ function CompactHistory() {
             </View>
             <View style={styles.compactResult}>
               <HistoryStatus result={record.result} compact />
-              <AppText
-                numeric
-                role="caption"
-                color={colors.text.secondary}
-              >
+              <AppText numeric role="caption" color={colors.text.secondary}>
                 {record.confidence}%
               </AppText>
             </View>
@@ -3206,48 +3016,48 @@ function CompactHistory() {
 }
 
 const calendarDays = [
-  '',
-  '',
-  '1',
-  '2',
-  '3',
-  '4',
-  '5',
-  '6',
-  '7',
-  '8',
-  '9',
-  '10',
-  '11',
-  '12',
-  '13',
-  '14',
-  '15',
-  '16',
-  '17',
-  '18',
-  '19',
-  '20',
-  '21',
-  '22',
-  '23',
-  '24',
-  '25',
-  '26',
-  '27',
-  '28',
-  '29',
-  '30',
-  '',
-  '',
-  '',
+  "",
+  "",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21",
+  "22",
+  "23",
+  "24",
+  "25",
+  "26",
+  "27",
+  "28",
+  "29",
+  "30",
+  "",
+  "",
+  "",
 ];
 
 function CalendarHistory() {
   return (
     <>
       <HistoryHeader subtitle="Июль 2026" />
-      <HistoryFilter labels={['Месяц', 'Список']} />
+      <HistoryFilter labels={["Месяц", "Список"]} />
       <View style={styles.historyCalendar}>
         <View style={styles.calendarMonthHeader}>
           <View style={styles.calendarPrevious}>
@@ -3259,7 +3069,7 @@ function CalendarHistory() {
           <HistoryChevron color={colors.text.secondary} />
         </View>
         <View style={styles.calendarWeek}>
-          {['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'].map((day) => (
+          {["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"].map((day) => (
             <AppText
               key={day}
               role="caption"
@@ -3273,9 +3083,8 @@ function CalendarHistory() {
         </View>
         <View style={styles.calendarGrid}>
           {calendarDays.map((day, index) => {
-            const hasScan =
-              day === '24' || day === '28' || day === '30';
-            const selected = day === '30';
+            const hasScan = day === "24" || day === "28" || day === "30";
+            const selected = day === "30";
 
             return (
               <View
@@ -3288,11 +3097,7 @@ function CalendarHistory() {
                 <AppText
                   numeric
                   role="caption"
-                  color={
-                    selected
-                      ? colors.text.inverse
-                      : colors.text.primary
-                  }
+                  color={selected ? colors.text.inverse : colors.text.primary}
                 >
                   {day}
                 </AppText>
@@ -3335,7 +3140,7 @@ function InsightsHistory() {
   return (
     <>
       <HistoryHeader subtitle="Динамика за 30 дней" />
-      <HistoryFilter labels={['30 дней', '3 месяца', 'Год']} />
+      <HistoryFilter labels={["30 дней", "3 месяца", "Год"]} />
       <View style={styles.insightsHero}>
         <View style={styles.insightsMetric}>
           <AppText
@@ -3375,11 +3180,7 @@ function InsightsHistory() {
       </View>
       <View style={styles.insightsStats}>
         <View style={styles.insightsStat}>
-          <AppText
-            numeric
-            role="heading"
-            color={colors.brand.primary}
-          >
+          <AppText numeric role="heading" color={colors.brand.primary}>
             96%
           </AppText>
           <AppText role="caption" color={colors.text.secondary}>
@@ -3434,7 +3235,7 @@ function GroupedHistory() {
   return (
     <>
       <HistoryHeader subtitle="Сгруппировано по дням" />
-      <HistoryFilter labels={['Все', 'Эта неделя', 'Ранее']} />
+      <HistoryFilter labels={["Все", "Эта неделя", "Ранее"]} />
       <View style={styles.groupedMonthHeader}>
         <AppText role="label" weight="semibold">
           Июль 2026
@@ -3445,24 +3246,17 @@ function GroupedHistory() {
       </View>
       <View style={styles.groupedHistoryList}>
         {scanHistoryRecords.map((record, index) => (
-          <View
-            key={`${record.date}-${record.time}`}
-            style={styles.groupedDay}
-          >
+          <View key={`${record.date}-${record.time}`} style={styles.groupedDay}>
             <View style={styles.groupedDateBlock}>
               <AppText
                 numeric
                 style={styles.groupedDateNumber}
-                color={
-                  index === 0
-                    ? colors.brand.primary
-                    : colors.text.primary
-                }
+                color={index === 0 ? colors.brand.primary : colors.text.primary}
               >
                 {record.day}
               </AppText>
               <AppText role="caption" color={colors.text.secondary}>
-                {index === 0 ? 'сегодня' : 'июля'}
+                {index === 0 ? "сегодня" : "июля"}
               </AppText>
             </View>
             <Pressable style={styles.groupedResultRow}>
@@ -3471,18 +3265,13 @@ function GroupedHistory() {
                   <AppText role="label" weight="semibold">
                     {record.type}
                   </AppText>
-                  <AppText
-                    numeric
-                    role="caption"
-                    color={colors.text.secondary}
-                  >
+                  <AppText numeric role="caption" color={colors.text.secondary}>
                     {record.time}
                   </AppText>
                 </View>
                 <HistoryStatus result={record.result} compact />
                 <AppText role="caption" color={colors.text.secondary}>
-                  Партия {record.batch} · уверенность{' '}
-                  {record.confidence}%
+                  Партия {record.batch} · уверенность {record.confidence}%
                 </AppText>
               </View>
               <HistoryChevron />
@@ -3496,22 +3285,17 @@ function GroupedHistory() {
 
 function TestTypesHistory() {
   const ovulationRecords = scanHistoryRecords.filter(
-    (record) => record.type === 'Ovulation LH',
+    (record) => record.type === "Ovulation LH",
   );
   const pregnancyRecord = scanHistoryRecords.find(
-    (record) => record.type === 'Pregnancy hCG',
+    (record) => record.type === "Pregnancy hCG",
   );
 
   return (
     <>
       <HistoryHeader subtitle="Результаты по категории" />
       <View style={styles.testTypeSummaryRow}>
-        <View
-          style={[
-            styles.testTypeSummary,
-            styles.testTypeSummaryActive,
-          ]}
-        >
+        <View style={[styles.testTypeSummary, styles.testTypeSummaryActive]}>
           <AppText role="caption" color="rgba(255,255,255,0.68)">
             ОВУЛЯЦИЯ · LH
           </AppText>
@@ -3550,10 +3334,7 @@ function TestTypesHistory() {
         {ovulationRecords.map((record, index) => (
           <Pressable
             key={`${record.date}-${record.time}`}
-            style={[
-              styles.testTypeRow,
-              index > 0 && styles.compactRowBorder,
-            ]}
+            style={[styles.testTypeRow, index > 0 && styles.compactRowBorder]}
           >
             <View style={styles.testTypeDate}>
               <AppText numeric role="heading">
@@ -3595,7 +3376,7 @@ function ArchiveHistory() {
   return (
     <>
       <HistoryHeader subtitle="Архив за 2026 год" />
-      <HistoryFilter labels={['2026', '2025', 'Все годы']} />
+      <HistoryFilter labels={["2026", "2025", "Все годы"]} />
       <View style={styles.archiveHero}>
         <View>
           <AppText role="caption" color="rgba(255,255,255,0.68)">
@@ -3621,27 +3402,27 @@ function ArchiveHistory() {
       <View style={styles.archiveMonths}>
         {[
           {
-            month: 'Июль',
+            month: "Июль",
             count: 3,
-            detail: '2 LH · 1 hCG',
+            detail: "2 LH · 1 hCG",
             open: true,
           },
           {
-            month: 'Июнь',
+            month: "Июнь",
             count: 5,
-            detail: '4 LH · 1 hCG',
+            detail: "4 LH · 1 hCG",
             open: false,
           },
           {
-            month: 'Май',
+            month: "Май",
             count: 4,
-            detail: '3 LH · 1 hCG',
+            detail: "3 LH · 1 hCG",
             open: false,
           },
           {
-            month: 'Апрель',
+            month: "Апрель",
             count: 6,
-            detail: '3 LH · 3 hCG',
+            detail: "3 LH · 3 hCG",
             open: false,
           },
         ].map((month, index) => (
@@ -3664,19 +3445,11 @@ function ArchiveHistory() {
               <AppText
                 numeric
                 role="heading"
-                color={
-                  month.open
-                    ? colors.brand.primary
-                    : colors.text.primary
-                }
+                color={month.open ? colors.brand.primary : colors.text.primary}
               >
                 {month.count}
               </AppText>
-              <View
-                style={
-                  month.open ? styles.archiveChevronOpen : undefined
-                }
-              >
+              <View style={month.open ? styles.archiveChevronOpen : undefined}>
                 <HistoryChevron />
               </View>
             </View>
@@ -3699,7 +3472,7 @@ function ComparisonHistory() {
   return (
     <>
       <HistoryHeader subtitle="Сравните динамику результата" />
-      <HistoryFilter labels={['Овуляция', 'Беременность']} />
+      <HistoryFilter labels={["Овуляция", "Беременность"]} />
       <View style={styles.comparisonHero}>
         <AppText role="caption" color={colors.text.secondary}>
           ИЗМЕНЕНИЕ ЗА 6 ДНЕЙ
@@ -3725,16 +3498,10 @@ function ComparisonHistory() {
         <View style={styles.comparisonLineTrack}>
           <View style={styles.comparisonLineFill} />
           <View
-            style={[
-              styles.comparisonLineDot,
-              styles.comparisonLineDotStart,
-            ]}
+            style={[styles.comparisonLineDot, styles.comparisonLineDotStart]}
           />
           <View
-            style={[
-              styles.comparisonLineDot,
-              styles.comparisonLineDotEnd,
-            ]}
+            style={[styles.comparisonLineDot, styles.comparisonLineDotEnd]}
           />
         </View>
         <View style={styles.comparisonLineLabels}>
@@ -3756,16 +3523,12 @@ function ComparisonHistory() {
             ]}
           >
             <AppText role="caption" color={colors.text.secondary}>
-              {index === 1 ? 'ТЕКУЩИЙ' : 'ПРЕДЫДУЩИЙ'}
+              {index === 1 ? "ТЕКУЩИЙ" : "ПРЕДЫДУЩИЙ"}
             </AppText>
             <AppText
               numeric
               style={styles.comparisonDay}
-              color={
-                index === 1
-                  ? colors.brand.primary
-                  : colors.text.primary
-              }
+              color={index === 1 ? colors.brand.primary : colors.text.primary}
             >
               {record.day}
             </AppText>
@@ -3773,11 +3536,7 @@ function ComparisonHistory() {
               июля · {record.time}
             </AppText>
             <HistoryStatus result={record.result} compact />
-            <AppText
-              numeric
-              role="caption"
-              color={colors.text.secondary}
-            >
+            <AppText numeric role="caption" color={colors.text.secondary}>
               уверенность {record.confidence}%
             </AppText>
           </Pressable>
@@ -3814,11 +3573,11 @@ function GalleryHistory({
     .sort((left, right) => right.capturedAt - left.capturedAt)
     .filter((record) => {
       if (activeTab === 1) {
-        return record.type === 'Pregnancy hCG';
+        return record.type === "Pregnancy hCG";
       }
 
       if (activeTab === 2) {
-        return record.type === 'Ovulation LH';
+        return record.type === "Ovulation LH";
       }
 
       return true;
@@ -3827,12 +3586,10 @@ function GalleryHistory({
 
   return (
     <>
-      {showHeader ? (
-        <HistoryHeader subtitle="Снимки и результаты" />
-      ) : null}
+      {showHeader ? <HistoryHeader subtitle="Снимки и результаты" /> : null}
       {showFilter ? (
         <HistoryFilter
-          labels={['Все', 'Беременность', 'Овуляция']}
+          labels={["Все", "Беременность", "Овуляция"]}
           active={activeTab}
           activeColor={colors.brand.primary}
           glass
@@ -3856,13 +3613,9 @@ function GalleryHistory({
                 Снимок недоступен
               </AppText>
             )}
-            {featuredRecord.result !== 'Пик ЛГ' ? (
+            {featuredRecord.result !== "Пик ЛГ" ? (
               <View style={styles.galleryPlainResult}>
-                <HistoryStatus
-                  result={featuredRecord.result}
-                  compact
-                  plain
-                />
+                <HistoryStatus result={featuredRecord.result} compact plain />
               </View>
             ) : null}
           </View>
@@ -3938,7 +3691,7 @@ function GalleryHistory({
 export function ScanHistoryPreview({
   hideFilter = false,
   records,
-  variant = 'timeline',
+  variant = "timeline",
   standalone = false,
   onResultPress,
 }: {
@@ -3955,16 +3708,16 @@ export function ScanHistoryPreview({
         standalone && styles.scanHistoryScreen,
       ]}
     >
-      {variant === 'timeline' ? <TimelineHistory /> : null}
-      {variant === 'cards' ? <CardsHistory /> : null}
-      {variant === 'compact' ? <CompactHistory /> : null}
-      {variant === 'calendar' ? <CalendarHistory /> : null}
-      {variant === 'insights' ? <InsightsHistory /> : null}
-      {variant === 'grouped' ? <GroupedHistory /> : null}
-      {variant === 'testTypes' ? <TestTypesHistory /> : null}
-      {variant === 'archive' ? <ArchiveHistory /> : null}
-      {variant === 'comparison' ? <ComparisonHistory /> : null}
-      {variant === 'gallery' ? (
+      {variant === "timeline" ? <TimelineHistory /> : null}
+      {variant === "cards" ? <CardsHistory /> : null}
+      {variant === "compact" ? <CompactHistory /> : null}
+      {variant === "calendar" ? <CalendarHistory /> : null}
+      {variant === "insights" ? <InsightsHistory /> : null}
+      {variant === "grouped" ? <GroupedHistory /> : null}
+      {variant === "testTypes" ? <TestTypesHistory /> : null}
+      {variant === "archive" ? <ArchiveHistory /> : null}
+      {variant === "comparison" ? <ComparisonHistory /> : null}
+      {variant === "gallery" ? (
         <GalleryHistory
           records={records}
           showFilter={!hideFilter}
@@ -3993,29 +3746,46 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   clipped: {
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   centerFill: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerDateLabel: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerDateValue: {
+    fontSize: 16,
+    lineHeight: 18,
+    letterSpacing: -0.3,
+    textAlign: "center",
+  },
+  headerDateCaption: {
+    marginTop: -1,
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.12,
+    textAlign: "center",
   },
   webGlassFallback: {
-    backgroundColor: 'rgba(255,255,255,0.24)',
+    backgroundColor: "rgba(255,255,255,0.24)",
   },
   fallbackStroke: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.48)',
+    borderColor: "rgba(255,255,255,0.48)",
   },
   primaryButton: {
     minHeight: 48,
     paddingHorizontal: spacing.lg,
     borderRadius: radii.pill,
     backgroundColor: colors.brand.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.sm,
   },
   primaryButtonCompact: {
@@ -4044,8 +3814,8 @@ const styles = StyleSheet.create({
   },
   progress: {
     height: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 3,
   },
   progressBar: {
@@ -4056,21 +3826,21 @@ const styles = StyleSheet.create({
   journalArea: {
     width: 370,
     height: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   journalInfo: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   journalSegments: {
     width: 240,
     gap: 3,
   },
   journalTitle: {
-    color: '#5D5D5D',
+    color: "#5D5D5D",
     fontSize: 13,
     lineHeight: 15,
     letterSpacing: -0.26,
@@ -4078,8 +3848,8 @@ const styles = StyleSheet.create({
   journalBars: {
     width: 240,
     height: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   journalBar: {
     width: 2,
@@ -4088,11 +3858,11 @@ const styles = StyleSheet.create({
   },
   journalResults: {
     width: 240,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   journalResult: {
-    color: '#5D5D5D',
+    color: "#5D5D5D",
     fontSize: 12.5,
     lineHeight: 15,
     letterSpacing: -0.25,
@@ -4100,14 +3870,14 @@ const styles = StyleSheet.create({
   journalContinuous: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 5,
   },
   journalTitleRow: {
     width: 240,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   journalPercent: {
     color: colors.brand.success,
@@ -4118,7 +3888,7 @@ const styles = StyleSheet.create({
   continuousTrack: {
     width: 240,
     height: 6,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 3,
     backgroundColor: colors.surface.divider,
   },
@@ -4130,17 +3900,17 @@ const styles = StyleSheet.create({
   journalWeek: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 7,
   },
   weekDays: {
     width: 240,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   weekDay: {
     width: 24,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 3,
   },
   weekDot: {
@@ -4153,7 +3923,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.success,
   },
   weekDayLabel: {
-    color: '#5D5D5D',
+    color: "#5D5D5D",
     fontSize: 11,
     lineHeight: 12,
     letterSpacing: -0.22,
@@ -4161,8 +3931,8 @@ const styles = StyleSheet.create({
   journalScore: {
     width: 240,
     height: 58,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     gap: 12,
   },
   scoreValue: {
@@ -4185,7 +3955,7 @@ const styles = StyleSheet.create({
   journalLevels: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 5,
   },
   levelStatus: {
@@ -4197,7 +3967,7 @@ const styles = StyleSheet.create({
   levelBars: {
     width: 240,
     height: 10,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 4,
   },
   levelBar: {
@@ -4212,18 +3982,18 @@ const styles = StyleSheet.create({
   journalRing: {
     width: 240,
     height: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   ringGraphic: {
     width: 58,
     height: 58,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   ringValue: {
-    position: 'absolute',
+    position: "absolute",
     color: colors.brand.success,
     fontSize: 13.5,
     lineHeight: 15,
@@ -4234,7 +4004,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   ringTitle: {
-    color: '#5D5D5D',
+    color: "#5D5D5D",
     fontSize: 15,
     lineHeight: 17,
     letterSpacing: -0.3,
@@ -4248,19 +4018,19 @@ const styles = StyleSheet.create({
   journalComparison: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 3,
   },
   comparisonRow: {
     width: 240,
     height: 17,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   comparisonLabel: {
     width: 45,
-    color: '#5D5D5D',
+    color: "#5D5D5D",
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.24,
@@ -4268,7 +4038,7 @@ const styles = StyleSheet.create({
   comparisonTrack: {
     width: 136,
     height: 6,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 3,
     backgroundColor: colors.surface.divider,
   },
@@ -4288,26 +4058,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.24,
-    textAlign: 'right',
+    textAlign: "right",
   },
   journalDots: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 7,
   },
   numberedDots: {
     width: 240,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   numberedDot: {
     width: 30,
     height: 30,
     borderRadius: 15,
     backgroundColor: colors.surface.divider,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   numberedDotFilled: {
     backgroundColor: colors.brand.success,
@@ -4324,18 +4094,18 @@ const styles = StyleSheet.create({
   journalMilestones: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 4,
   },
   milestoneTrack: {
     width: 240,
     height: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   milestoneLine: {
-    position: 'absolute',
+    position: "absolute",
     left: 7,
     right: 7,
     height: 3,
@@ -4349,8 +4119,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.surface.divider,
     backgroundColor: colors.surface.raised,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   milestoneNodeFilled: {
     borderColor: colors.brand.success,
@@ -4364,12 +4134,12 @@ const styles = StyleSheet.create({
   journalBalance: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 5,
   },
   balanceRow: {
     width: 240,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
   },
   balancePill: {
@@ -4377,12 +4147,12 @@ const styles = StyleSheet.create({
     height: 34,
     paddingHorizontal: 10,
     borderRadius: 17,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
   },
   balancePillDone: {
-    backgroundColor: 'rgba(31,187,116,0.14)',
+    backgroundColor: "rgba(31,187,116,0.14)",
   },
   balancePillLeft: {
     backgroundColor: colors.surface.warm,
@@ -4408,9 +4178,9 @@ const styles = StyleSheet.create({
   journalMatrix: {
     width: 240,
     height: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   matrixCopy: {
     width: 112,
@@ -4424,9 +4194,9 @@ const styles = StyleSheet.create({
   },
   matrixGrid: {
     width: 116,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: 4,
   },
   matrixCell: {
@@ -4434,8 +4204,8 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 8,
     backgroundColor: colors.surface.divider,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   matrixCellFilled: {
     backgroundColor: colors.brand.success,
@@ -4452,18 +4222,18 @@ const styles = StyleSheet.create({
   journalGauge: {
     width: 240,
     height: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   gaugeGraphic: {
     width: 72,
     height: 44,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    alignItems: "center",
+    justifyContent: "flex-end",
   },
   gaugeValue: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     color: colors.brand.success,
     fontSize: 13,
@@ -4483,8 +4253,8 @@ const styles = StyleSheet.create({
   journalFraction: {
     width: 240,
     height: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   fractionValue: {
@@ -4493,7 +4263,7 @@ const styles = StyleSheet.create({
     fontSize: 34,
     lineHeight: 38,
     letterSpacing: -0.68,
-    textAlign: 'center',
+    textAlign: "center",
   },
   fractionCopy: {
     flex: 1,
@@ -4502,9 +4272,9 @@ const styles = StyleSheet.create({
   journalHeatmap: {
     width: 240,
     height: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   heatmapCopy: {
     width: 124,
@@ -4518,8 +4288,8 @@ const styles = StyleSheet.create({
   },
   heatmapGrid: {
     width: 102,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 3,
   },
   heatmapCell: {
@@ -4534,14 +4304,14 @@ const styles = StyleSheet.create({
   journalLadder: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 5,
   },
   ladderBars: {
     width: 240,
     height: 31,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     gap: 6,
   },
   ladderBar: {
@@ -4552,7 +4322,7 @@ const styles = StyleSheet.create({
   journalChecklist: {
     width: 240,
     height: 58,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 3,
   },
   checklistRows: {
@@ -4561,8 +4331,8 @@ const styles = StyleSheet.create({
   checklistRow: {
     width: 240,
     height: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   checklistIcon: {
     width: 16,
@@ -4570,8 +4340,8 @@ const styles = StyleSheet.create({
     marginRight: 5,
     borderRadius: 8,
     backgroundColor: colors.brand.success,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   checklistIconMuted: {
     width: 16,
@@ -4579,8 +4349,8 @@ const styles = StyleSheet.create({
     marginRight: 5,
     borderRadius: 8,
     backgroundColor: colors.surface.divider,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   checklistCheck: {
     color: colors.text.inverse,
@@ -4610,9 +4380,9 @@ const styles = StyleSheet.create({
     height: 48,
     paddingHorizontal: 14,
     borderRadius: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 2,
   },
   metricButtonSolid: {
@@ -4624,7 +4394,7 @@ const styles = StyleSheet.create({
   metricButtonOutline: {
     borderWidth: 1.5,
     borderColor: colors.brand.primary,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   metricButtonWhite: {
     backgroundColor: colors.surface.raised,
@@ -4635,24 +4405,24 @@ const styles = StyleSheet.create({
   },
   metricButtonGlass: {
     paddingHorizontal: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     ...shadows.floating,
   },
   metricButtonSplit: {
     paddingLeft: 15,
     paddingRight: 5,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     backgroundColor: colors.brand.primary,
   },
   metricButtonIconLeading: {
     paddingLeft: 5,
     paddingRight: 12,
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
     gap: 6,
     backgroundColor: colors.brand.primary,
   },
   metricButtonTextOnly: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   metricButtonCompleted: {
     backgroundColor: colors.brand.success,
@@ -4660,9 +4430,9 @@ const styles = StyleSheet.create({
   metricButtonContent: {
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 2,
   },
   metricButtonLabel: {
@@ -4680,27 +4450,27 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     backgroundColor: colors.surface.raised,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   metricButtonLeadingIcon: {
     width: 38,
     height: 38,
     borderRadius: 19,
     backgroundColor: colors.surface.raised,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   scanActionGroup: {
     width: 370,
     height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   scanActionGroupSegmented: {
     gap: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 24,
   },
   scanActionGroupSegmentedSolid: {
@@ -4713,25 +4483,25 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: 24,
-    overflow: 'visible',
+    overflow: "visible",
   },
   scanActionContent: {
     ...StyleSheet.absoluteFillObject,
     paddingLeft: 5,
     paddingRight: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
     gap: 7,
   },
   scanActionContentMinimal: {
     paddingHorizontal: 5,
-    justifyContent: 'center',
+    justifyContent: "center",
     gap: 5,
   },
   scanActionContentFloating: {
     paddingHorizontal: 4,
-    justifyContent: 'center',
+    justifyContent: "center",
     gap: 6,
   },
   scanActionIcon: {
@@ -4739,16 +4509,16 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     backgroundColor: colors.surface.raised,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   scanActionIconTransparent: {
     width: 24,
     height: 24,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   scanActionIconSoft: {
-    backgroundColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: "rgba(255,255,255,0.72)",
   },
   scanActionIconWarm: {
     backgroundColor: colors.surface.warm,
@@ -4779,65 +4549,65 @@ const styles = StyleSheet.create({
   scanActionOutline: {
     borderWidth: 1.5,
     borderColor: colors.brand.primary,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   scanActionWhite: {
     backgroundColor: colors.surface.raised,
     ...shadows.card,
   },
   scanActionGlass: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     ...shadows.floating,
   },
   scanActionSegment: {
     borderRadius: 0,
-    overflow: 'visible',
+    overflow: "visible",
   },
   scanActionSegmentDivider: {
     borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: 'rgba(255,255,255,0.42)',
+    borderLeftColor: "rgba(255,255,255,0.42)",
   },
   scanActionTile: {
     borderRadius: 16,
     backgroundColor: colors.surface.raised,
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.12)',
+    borderColor: "rgba(211,20,113,0.12)",
   },
   scanActionMinimal: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(211,20,113,0.24)',
+    borderBottomColor: "rgba(211,20,113,0.24)",
     borderRadius: 0,
   },
   scanActionFloating: {
-    backgroundColor: 'transparent',
-    overflow: 'visible',
+    backgroundColor: "transparent",
+    overflow: "visible",
   },
   instructionCard: {
     width: 360,
     height: 150,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 30,
   },
   instructionRail: {
     paddingLeft: 17,
     paddingRight: 18,
     backgroundColor: colors.surface.warm,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   instructionRailNumber: {
     width: 72,
     height: 150,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   instructionRailNumberText: {
     fontSize: 55,
     lineHeight: 62,
     letterSpacing: -1.1,
-    textAlign: 'center',
+    textAlign: "center",
   },
   instructionRailBody: {
     flex: 1,
@@ -4848,8 +4618,8 @@ const styles = StyleSheet.create({
   instructionBadge: {
     padding: 18,
     backgroundColor: colors.surface.raised,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 14,
     ...shadows.card,
   },
@@ -4858,8 +4628,8 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 23,
     backgroundColor: colors.brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   instructionBadgeNumberText: {
     fontSize: 25,
@@ -4877,15 +4647,15 @@ const styles = StyleSheet.create({
   },
   instructionAccent: {
     backgroundColor: colors.surface.raised,
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   instructionAccentRail: {
     width: 82,
     height: 150,
     paddingVertical: 18,
     backgroundColor: colors.brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 2,
   },
   instructionAccentNumber: {
@@ -4895,7 +4665,7 @@ const styles = StyleSheet.create({
   },
   instructionAccentBody: {
     flex: 1,
-    alignSelf: 'center',
+    alignSelf: "center",
     paddingHorizontal: 17,
     fontSize: 17,
     lineHeight: 20,
@@ -4904,10 +4674,10 @@ const styles = StyleSheet.create({
   instructionEditorial: {
     padding: 18,
     backgroundColor: colors.surface.rose,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   instructionEditorialNumber: {
-    position: 'absolute',
+    position: "absolute",
     right: 8,
     bottom: -20,
     fontSize: 142,
@@ -4928,15 +4698,15 @@ const styles = StyleSheet.create({
     paddingVertical: 17,
     backgroundColor: colors.surface.raised,
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.12)',
+    borderColor: "rgba(211,20,113,0.12)",
   },
   instructionProgressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   instructionProgressDots: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 4,
   },
   instructionProgressDot: {
@@ -4964,17 +4734,17 @@ const styles = StyleSheet.create({
   instructionGlassContent: {
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   instructionGlassNumber: {
     width: 62,
     height: 62,
     borderRadius: 31,
-    backgroundColor: 'rgba(255,255,255,0.54)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.54)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   instructionGlassNumberText: {
     fontSize: 34,
@@ -4997,9 +4767,9 @@ const styles = StyleSheet.create({
   },
   instructionNumberTopHeader: {
     height: 42,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
   },
   instructionNumberTopValue: {
     fontSize: 38,
@@ -5016,19 +4786,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
     backgroundColor: colors.surface.raised,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 16,
     ...shadows.card,
   },
   instructionTimelineRail: {
     width: 18,
     height: 112,
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   instructionTimelineLine: {
-    position: 'absolute',
+    position: "absolute",
     top: 6,
     bottom: 6,
     width: 2,
@@ -5063,9 +4833,9 @@ const styles = StyleSheet.create({
   },
   instructionInverseHeader: {
     height: 38,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   instructionInverseNumber: {
     fontSize: 36,
@@ -5089,7 +4859,7 @@ const styles = StyleSheet.create({
   instructionMinimalTrack: {
     width: 320,
     height: 5,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 2.5,
     backgroundColor: colors.surface.divider,
   },
@@ -5100,8 +4870,8 @@ const styles = StyleSheet.create({
   },
   instructionMinimalMeta: {
     marginTop: 11,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   instructionMinimalBody: {
     marginTop: 9,
@@ -5116,18 +4886,18 @@ const styles = StyleSheet.create({
   },
   instructionSoftHeader: {
     padding: 18,
-    backgroundColor: '#fff1f6',
+    backgroundColor: "#fff1f6",
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.10)',
+    borderColor: "rgba(211,20,113,0.10)",
   },
   instructionSoftHeaderTop: {
     height: 34,
     paddingHorizontal: 12,
     borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.72)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: "rgba(255,255,255,0.72)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 10,
   },
   instructionSoftHeaderNumber: {
@@ -5139,9 +4909,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     backgroundColor: colors.surface.raised,
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.16)',
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderColor: "rgba(211,20,113,0.16)",
+    flexDirection: "row",
+    alignItems: "center",
     gap: 15,
   },
   instructionRingNumber: {
@@ -5150,8 +4920,8 @@ const styles = StyleSheet.create({
     borderRadius: 34,
     borderWidth: 2,
     borderColor: colors.brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   instructionRingNumberText: {
     fontSize: 36,
@@ -5166,10 +4936,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 18,
     backgroundColor: colors.surface.warm,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   instructionCornerNumber: {
-    position: 'absolute',
+    position: "absolute",
     right: 10,
     top: -23,
     fontSize: 132,
@@ -5188,7 +4958,7 @@ const styles = StyleSheet.create({
   },
   instructionSegmentsTrack: {
     height: 6,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 5,
   },
   instructionSegmentsPart: {
@@ -5202,20 +4972,20 @@ const styles = StyleSheet.create({
   instructionSegmentsMeta: {
     marginTop: 10,
     marginBottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   instructionTicket: {
     backgroundColor: colors.surface.raised,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     ...shadows.card,
   },
   instructionTicketStub: {
     width: 78,
     backgroundColor: colors.brand.burgundy,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 3,
   },
   instructionTicketNumber: {
@@ -5226,8 +4996,8 @@ const styles = StyleSheet.create({
   instructionTicketDivider: {
     height: 112,
     borderLeftWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(211,20,113,0.28)',
+    borderStyle: "dashed",
+    borderColor: "rgba(211,20,113,0.28)",
   },
   instructionTicketCopy: {
     flex: 1,
@@ -5236,9 +5006,9 @@ const styles = StyleSheet.create({
   },
   instructionIllustrated: {
     backgroundColor: colors.surface.raised,
-    flexDirection: 'row',
+    flexDirection: "row",
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.10)',
+    borderColor: "rgba(211,20,113,0.10)",
   },
   instructionIllustratedCopy: {
     flex: 1,
@@ -5248,8 +5018,8 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   instructionIllustratedMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   instructionIllustratedStep: {
@@ -5257,8 +5027,8 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: colors.brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   instructionIllustratedStepText: {
     fontSize: 16,
@@ -5273,10 +5043,10 @@ const styles = StyleSheet.create({
   instructionIllustratedMedia: {
     width: 128,
     height: 150,
-    overflow: 'hidden',
-    backgroundColor: '#fffaf7',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: "hidden",
+    backgroundColor: "#fffaf7",
+    alignItems: "center",
+    justifyContent: "center",
   },
   instructionIllustratedImage: {
     width: 128,
@@ -5288,30 +5058,30 @@ const styles = StyleSheet.create({
     letterSpacing: -2.08,
   },
   instructionIntroBase: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   instructionIntroClassic: {
     backgroundColor: colors.surface.raised,
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.10)',
+    borderColor: "rgba(211,20,113,0.10)",
   },
   instructionIntroContent: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
+    alignItems: "center",
   },
   instructionIntroTitle: {
-    position: 'absolute',
+    position: "absolute",
     top: 15,
     left: 18,
     right: 18,
     zIndex: 1,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 20,
     lineHeight: 23,
     letterSpacing: -0.4,
   },
   instructionIntroImage: {
-    position: 'absolute',
+    position: "absolute",
     left: 20,
     top: 50,
     width: 320,
@@ -5328,7 +5098,7 @@ const styles = StyleSheet.create({
   instructionIntroSoft: {
     backgroundColor: colors.surface.rose,
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.08)',
+    borderColor: "rgba(211,20,113,0.08)",
   },
   instructionIntroOutline: {
     backgroundColor: colors.surface.raised,
@@ -5339,7 +5109,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.warm,
   },
   instructionIntroEditorialMark: {
-    position: 'absolute',
+    position: "absolute",
     right: 8,
     bottom: -31,
     fontSize: 126,
@@ -5349,13 +5119,13 @@ const styles = StyleSheet.create({
   instructionIntroEditorialTitle: {
     left: 20,
     right: 110,
-    textAlign: 'left',
+    textAlign: "left",
   },
   instructionIntroSplit: {
     backgroundColor: colors.surface.raised,
-    flexDirection: 'row',
+    flexDirection: "row",
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.12)',
+    borderColor: "rgba(211,20,113,0.12)",
   },
   instructionIntroSplitImage: {
     width: 184,
@@ -5364,7 +5134,7 @@ const styles = StyleSheet.create({
   instructionIntroSplitCopy: {
     flex: 1,
     paddingHorizontal: 17,
-    justifyContent: 'center',
+    justifyContent: "center",
     gap: 8,
   },
   instructionIntroSplitTitle: {
@@ -5389,7 +5159,7 @@ const styles = StyleSheet.create({
     height: 76,
   },
   instructionIntroMinimalLine: {
-    position: 'absolute',
+    position: "absolute",
     left: 20,
     right: 20,
     bottom: 14,
@@ -5400,28 +5170,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.raised,
   },
   instructionIntroInnerFrame: {
-    position: 'absolute',
+    position: "absolute",
     left: 8,
     right: 8,
     top: 8,
     bottom: 8,
     borderRadius: 23,
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.32)',
+    borderColor: "rgba(211,20,113,0.32)",
   },
   instructionIntroHero: {
     backgroundColor: colors.surface.raised,
   },
   instructionIntroHeroTitle: {
-    position: 'absolute',
+    position: "absolute",
     left: 56,
     right: 56,
     top: 14,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
     ...shadows.card,
   },
   instructionIntroHeroText: {
@@ -5440,20 +5210,20 @@ const styles = StyleSheet.create({
   instructionNavigation: {
     width: 380,
     height: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   instructionNavButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    overflow: 'visible',
+    overflow: "visible",
   },
   instructionNavContent: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   instructionNavGlyph: {
     marginTop: -2,
@@ -5465,7 +5235,7 @@ const styles = StyleSheet.create({
     marginLeft: -1,
   },
   instructionNavOriginal: {
-    backgroundColor: '#171717',
+    backgroundColor: "#171717",
   },
   instructionNavBrand: {
     backgroundColor: colors.brand.primary,
@@ -5476,14 +5246,14 @@ const styles = StyleSheet.create({
   instructionNavOutline: {
     borderWidth: 1.5,
     borderColor: colors.brand.primary,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   instructionNavWhite: {
     backgroundColor: colors.surface.raised,
     ...shadows.card,
   },
   instructionNavGlass: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     ...shadows.floating,
   },
   instructionNavSquare: {
@@ -5494,7 +5264,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.burgundy,
   },
   instructionNavMinimal: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   instructionNavDouble: {
     borderWidth: 4,
@@ -5509,74 +5279,74 @@ const styles = StyleSheet.create({
     opacity: 0.34,
   },
   edgeFadeGradient: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   scanBackgroundMotion: {
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 30,
     backgroundColor: colors.surface.rose,
   },
   scanBackgroundMotionImage: {
-    position: 'absolute',
+    position: "absolute",
   },
   scanTooltip: {
     width: 320,
     height: 56,
     borderRadius: 28,
-    overflow: 'visible',
+    overflow: "visible",
   },
   scanTooltipInner: {
     minHeight: 56,
     paddingHorizontal: 14,
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   scanTooltipGlass: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   scanTooltipDark: {
-    alignSelf: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(19,19,22,0.88)',
-    shadowColor: '#000000',
+    alignSelf: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(19,19,22,0.88)",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.22,
     shadowRadius: 18,
   },
   scanTooltipLight: {
-    alignSelf: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    alignSelf: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.96)",
     ...shadows.card,
   },
   scanTooltipBrand: {
-    shadowColor: '#260208',
+    shadowColor: "#260208",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.24,
     shadowRadius: 18,
   },
   scanTooltipOutline: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.56)',
-    backgroundColor: 'rgba(0,0,0,0.06)',
+    borderColor: "rgba(255,255,255,0.56)",
+    backgroundColor: "rgba(0,0,0,0.06)",
   },
   scanTooltipSplit: {
     height: 58,
     borderRadius: 18,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.96)",
     ...shadows.card,
   },
   scanTooltipStatus: {
     height: 64,
     paddingLeft: 18,
     borderRadius: 20,
-    backgroundColor: 'rgba(23,23,26,0.92)',
+    backgroundColor: "rgba(23,23,26,0.92)",
   },
   scanTooltipCompact: {
     width: 268,
@@ -5584,7 +5354,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 10,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: "rgba(255,255,255,0.96)",
     gap: 8,
     ...shadows.card,
   },
@@ -5593,24 +5363,24 @@ const styles = StyleSheet.create({
     height: 58,
     paddingLeft: 9,
     paddingRight: 16,
-    alignSelf: 'center',
+    alignSelf: "center",
     borderRadius: 29,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: "rgba(255,255,255,0.96)",
     ...shadows.floating,
   },
   scanTooltipBubble: {
     width: 300,
     height: 68,
     borderRadius: 22,
-    backgroundColor: 'rgba(19,19,22,0.92)',
+    backgroundColor: "rgba(19,19,22,0.92)",
     ...shadows.floating,
   },
   scanTooltipIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   scanTooltipSplitIcon: {
     width: 42,
@@ -5621,14 +5391,14 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    shadowColor: '#260208',
+    shadowColor: "#260208",
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
   },
   scanTooltipBrandIcon: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.24)',
+    borderColor: "rgba(255,255,255,0.24)",
   },
   scanTooltipCompactIcon: {
     width: 30,
@@ -5637,24 +5407,24 @@ const styles = StyleSheet.create({
   },
   scanTooltipCopy: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     gap: 1,
   },
   scanTooltipCenteredCopy: {
     width: 242,
     flexGrow: 0,
     flexShrink: 1,
-    flexBasis: 'auto',
+    flexBasis: "auto",
   },
   scanTooltipEyebrow: {
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.55,
   },
   scanTooltipMessage: {
     flexShrink: 1,
   },
   scanTooltipStatusLine: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 12,
     bottom: 12,
@@ -5668,39 +5438,39 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   scanTooltipTail: {
-    position: 'absolute',
+    position: "absolute",
     left: 34,
     bottom: -5,
     width: 12,
     height: 12,
     borderRadius: 2,
-    backgroundColor: 'rgba(19,19,22,0.92)',
-    transform: [{ rotate: '45deg' }],
+    backgroundColor: "rgba(19,19,22,0.92)",
+    transform: [{ rotate: "45deg" }],
   },
   scanHistoryPreview: {
     width: 370,
     minHeight: 584,
     padding: spacing.md,
     borderRadius: radii.lg,
-    backgroundColor: '#FAF8F8',
+    backgroundColor: "#FAF8F8",
     gap: spacing.md,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(33,33,35,0.07)',
+    borderColor: "rgba(33,33,35,0.07)",
   },
   scanHistoryScreen: {
     minHeight: 0,
     padding: 0,
     borderRadius: 0,
-    backgroundColor: 'transparent',
-    overflow: 'visible',
+    backgroundColor: "transparent",
+    overflow: "visible",
     borderWidth: 0,
   },
   historyHeader: {
     minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.sm,
   },
   historyHeaderCopy: {
@@ -5712,42 +5482,42 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     backgroundColor: colors.surface.raised,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     ...shadows.card,
   },
   historyFilter: {
     height: 38,
     padding: 3,
     borderRadius: 19,
-    backgroundColor: '#EEEAEA',
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: "#EEEAEA",
+    flexDirection: "row",
+    alignItems: "center",
     gap: 2,
   },
   historyFilterGlass: {
-    backgroundColor: 'transparent',
-    overflow: 'hidden',
+    backgroundColor: "transparent",
+    overflow: "hidden",
   },
   historyFilterItem: {
     flex: 1,
     height: 32,
     paddingHorizontal: spacing.xs,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   historyTimeline: {
     marginTop: spacing.xs,
   },
   timelineRow: {
     minHeight: 128,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
   },
   timelineRail: {
     width: 46,
-    alignItems: 'center',
+    alignItems: "center",
   },
   timelineDay: {
     fontSize: 28,
@@ -5758,7 +5528,7 @@ const styles = StyleSheet.create({
     width: 1,
     flex: 1,
     marginTop: spacing.xs,
-    backgroundColor: '#DED7D5',
+    backgroundColor: "#DED7D5",
   },
   timelineContent: {
     flex: 1,
@@ -5770,18 +5540,18 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   historyRowTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.sm,
   },
   historyStatus: {
     minHeight: 26,
     paddingHorizontal: 10,
     borderRadius: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
     gap: 6,
   },
   historyStatusCompact: {
@@ -5807,7 +5577,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.md,
     backgroundColor: colors.surface.raised,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     ...shadows.card,
   },
   historyResultCardFeatured: {
@@ -5819,33 +5589,33 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   historyCardBottom: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
     gap: spacing.sm,
   },
   compactTable: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DCD6D4',
+    borderColor: "#DCD6D4",
   },
   compactTableHeader: {
     height: 34,
     paddingHorizontal: spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   compactRow: {
     minHeight: 96,
     paddingHorizontal: spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   compactRowBorder: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#DED8D6',
+    borderTopColor: "#DED8D6",
   },
   compactDate: {
     width: 48,
@@ -5860,7 +5630,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   compactResult: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     gap: 5,
   },
   compactSummary: {
@@ -5868,7 +5638,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.md,
     backgroundColor: colors.surface.warm,
-    justifyContent: 'center',
+    justifyContent: "center",
     gap: 4,
   },
   historyCalendar: {
@@ -5879,33 +5649,33 @@ const styles = StyleSheet.create({
   },
   calendarMonthHeader: {
     height: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   calendarPrevious: {
-    transform: [{ rotate: '180deg' }],
+    transform: [{ rotate: "180deg" }],
   },
   calendarWeek: {
     marginTop: spacing.xs,
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   calendarWeekDay: {
-    width: '14.2857%',
-    textAlign: 'center',
+    width: "14.2857%",
+    textAlign: "center",
     fontSize: 10,
   },
   calendarGrid: {
     marginTop: spacing.xs,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
   calendarDay: {
-    width: '14.2857%',
+    width: "14.2857%",
     height: 44,
     borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 2,
   },
   calendarDaySelected: {
@@ -5929,8 +5699,8 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.md,
     backgroundColor: colors.surface.rose,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   calendarResultCopy: {
@@ -5954,33 +5724,33 @@ const styles = StyleSheet.create({
   insightsChart: {
     height: 90,
     marginTop: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     gap: 7,
   },
   insightsBarTrack: {
     flex: 1,
     height: 90,
     borderRadius: 7,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
+    backgroundColor: "rgba(255,255,255,0.08)",
+    justifyContent: "flex-end",
+    overflow: "hidden",
   },
   insightsBar: {
-    width: '100%',
+    width: "100%",
     borderRadius: 7,
-    backgroundColor: '#FF78AA',
+    backgroundColor: "#FF78AA",
   },
   insightsAxis: {
     marginTop: spacing.xs,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   insightsStats: {
     minHeight: 90,
     paddingVertical: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   insightsStat: {
     flex: 1,
@@ -5990,7 +5760,7 @@ const styles = StyleSheet.create({
     width: StyleSheet.hairlineWidth,
     height: 48,
     marginHorizontal: spacing.md,
-    backgroundColor: '#DCD6D4',
+    backgroundColor: "#DCD6D4",
   },
   insightsRecent: {
     gap: spacing.xs,
@@ -5998,32 +5768,32 @@ const styles = StyleSheet.create({
   insightsRecentRow: {
     minHeight: 74,
     paddingVertical: spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   insightsRecentDate: {
     width: 52,
-    alignItems: 'center',
+    alignItems: "center",
   },
   groupedMonthHeader: {
     paddingHorizontal: spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   groupedHistoryList: {
     gap: spacing.xs,
   },
   groupedDay: {
     minHeight: 116,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
   },
   groupedDateBlock: {
     width: 54,
     paddingTop: spacing.sm,
-    alignItems: 'center',
+    alignItems: "center",
   },
   groupedDateNumber: {
     fontSize: 32,
@@ -6036,8 +5806,8 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.md,
     backgroundColor: colors.surface.raised,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.xs,
     ...shadows.card,
   },
@@ -6047,7 +5817,7 @@ const styles = StyleSheet.create({
   },
   testTypeSummaryRow: {
     minHeight: 142,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
   },
   testTypeSummary: {
@@ -6055,9 +5825,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.md,
     backgroundColor: colors.surface.raised,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DED8D6',
+    borderColor: "#DED8D6",
   },
   testTypeSummaryActive: {
     backgroundColor: colors.brand.burgundy,
@@ -6075,27 +5845,27 @@ const styles = StyleSheet.create({
   },
   testTypeSectionHeader: {
     height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   testTypeRow: {
     minHeight: 86,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   testTypeDate: {
     width: 48,
-    alignItems: 'center',
+    alignItems: "center",
   },
   testTypePregnancyRow: {
     minHeight: 76,
     paddingHorizontal: spacing.md,
     borderRadius: radii.md,
     backgroundColor: colors.surface.rose,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   archiveHero: {
@@ -6103,9 +5873,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.lg,
     backgroundColor: colors.brand.burgundy,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
   },
   archiveHeroValue: {
     marginTop: spacing.xs,
@@ -6114,7 +5884,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.92,
   },
   archiveHeroStats: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     gap: 5,
   },
   archiveMonths: {
@@ -6124,9 +5894,9 @@ const styles = StyleSheet.create({
   },
   archiveMonthRow: {
     minHeight: 78,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.md,
   },
   archiveMonthCopy: {
@@ -6134,16 +5904,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   archiveMonthCount: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   archiveChevronOpen: {
-    transform: [{ rotate: '90deg' }],
+    transform: [{ rotate: "90deg" }],
   },
   archiveFootnote: {
     paddingHorizontal: spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
   comparisonHero: {
     minHeight: 174,
@@ -6151,13 +5921,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     backgroundColor: colors.surface.raised,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DED8D6',
+    borderColor: "#DED8D6",
   },
   comparisonMetricRow: {
     marginTop: spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   comparisonMetric: {
     fontSize: 42,
@@ -6168,18 +5938,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     height: 26,
     borderRadius: 13,
-    backgroundColor: 'rgba(211,20,113,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(211,20,113,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   comparisonLineTrack: {
     height: 3,
     marginTop: spacing.lg,
     borderRadius: 2,
-    backgroundColor: '#E8E1DF',
+    backgroundColor: "#E8E1DF",
   },
   comparisonLineFill: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     top: 0,
@@ -6188,7 +5958,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primary,
   },
   comparisonLineDot: {
-    position: 'absolute',
+    position: "absolute",
     top: -5,
     width: 13,
     height: 13,
@@ -6205,11 +5975,11 @@ const styles = StyleSheet.create({
   },
   comparisonLineLabels: {
     marginTop: spacing.xs,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   comparisonColumns: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
   },
   comparisonResult: {
@@ -6220,11 +5990,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.raised,
     gap: spacing.xs,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DED8D6',
+    borderColor: "#DED8D6",
   },
   comparisonResultCurrent: {
     backgroundColor: colors.surface.rose,
-    borderColor: 'rgba(211,20,113,0.18)',
+    borderColor: "rgba(211,20,113,0.18)",
   },
   comparisonDay: {
     fontSize: 38,
@@ -6236,8 +6006,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radii.md,
     backgroundColor: colors.surface.warm,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   comparisonNoteDot: {
@@ -6252,51 +6022,50 @@ const styles = StyleSheet.create({
   galleryFeatured: {
     borderRadius: radii.lg,
     backgroundColor: colors.surface.raised,
-    overflow: 'hidden',
+    overflow: "hidden",
     ...shadows.card,
   },
   galleryImageFrame: {
     height: 190,
-    paddingHorizontal: spacing.md,
     backgroundColor: colors.surface.warm,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   galleryTestImage: {
-    width: '100%',
+    width: "100%",
     height: 64,
   },
   galleryTestImageMuted: {
     opacity: 0.62,
   },
   galleryCapturedImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   galleryUnavailableText: {
-    textAlign: 'center',
+    textAlign: "center",
   },
   galleryEmptyState: {
     minHeight: 230,
     paddingHorizontal: spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.xs,
   },
   galleryEmptyDescription: {
     maxWidth: 280,
-    textAlign: 'center',
+    textAlign: "center",
   },
   galleryPlainResult: {
-    position: 'absolute',
+    position: "absolute",
     left: spacing.md,
     top: spacing.md,
   },
   galleryFeaturedCopy: {
     minHeight: 78,
     paddingHorizontal: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   galleryList: {
@@ -6307,24 +6076,23 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: radii.md,
     backgroundColor: colors.surface.raised,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DED8D6',
+    borderColor: "#DED8D6",
   },
   galleryThumbnail: {
     width: 92,
     height: 72,
-    paddingHorizontal: spacing.xs,
     borderRadius: radii.sm,
     backgroundColor: colors.surface.warm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   tokenLabel: {
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
 });

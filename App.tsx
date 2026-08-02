@@ -38,7 +38,12 @@ import ArrowCard from "./assets/figma/arrow-card.svg";
 import CalendarIcon from "./assets/figma/calendar-icon.svg";
 import ContentShape from "./assets/figma/content-shape.svg";
 import MonitoringIcon from "./assets/figma/monitoring-icon.svg";
-import { colors, JournalAssessment } from "./design-system";
+import {
+  CalendarPageModal,
+  colors,
+  HeaderDateLabel,
+  JournalAssessment,
+} from "./design-system";
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
@@ -273,7 +278,13 @@ function FeatureCard({ title, accent = false }: FeatureCardProps) {
   );
 }
 
-function MonitoringScreen({ headerTop }: { headerTop: number }) {
+function MonitoringScreen({
+  headerTop,
+  onCalendarPress,
+}: {
+  headerTop: number;
+  onCalendarPress: () => void;
+}) {
   const [activeWeek, setActiveWeek] = useState(INITIAL_WEEK);
   const [journalCompleted, setJournalCompleted] = useState(false);
   const [checkupsCompleted, setCheckupsCompleted] = useState(false);
@@ -304,16 +315,12 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
     setActiveWeek(nextWeek);
   };
 
-  const handleWeekScroll = (
-    event: NativeSyntheticEvent<NativeScrollEvent>,
-  ) => {
+  const handleWeekScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const centeredWeek = Math.min(
       MAX_PREGNANCY_WEEK,
       Math.max(
         1,
-        Math.round(
-          event.nativeEvent.contentOffset.x / WEEK_ITEM_WIDTH,
-        ) + 1,
+        Math.round(event.nativeEvent.contentOffset.x / WEEK_ITEM_WIDTH) + 1,
       ),
     );
 
@@ -400,13 +407,14 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
             washColor={colors.surface.headerGlassWash}
             highlight="light"
           >
-            <ProjectText style={styles.dateText}>21 июля</ProjectText>
+            <HeaderDateLabel />
           </LiquidGlassSurface>
         </Pressable>
 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Открыть календарь"
+          onPress={onCalendarPress}
           style={({ pressed }) => [
             styles.topCircle,
             !hasNativeLiquidGlass && styles.glassControlShadow,
@@ -669,9 +677,9 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
           <View pointerEvents="none" style={styles.metricsDivider} />
 
           <View style={styles.cardsRow}>
-            <FeatureCard accent title={"Индекс внимания\nк здоровью"} />
             <FeatureCard title={"Подбор\nпитания в 1-м\nтриместре"} />
             <FeatureCard title={"7 Важных\nобследований\nи анализов"} />
+            <FeatureCard title={"Индекс внимания\nк здоровью"} />
           </View>
         </View>
       </ScrollView>
@@ -689,6 +697,7 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
 export default function App() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const [calendarVisible, setCalendarVisible] = useState(false);
   const [fontsLoaded, fontError] = useFonts(
     Platform.OS === "web"
       ? {
@@ -718,9 +727,16 @@ export default function App() {
           }}
         >
           <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
-            <MonitoringScreen headerTop={headerTop} />
+            <MonitoringScreen
+              headerTop={headerTop}
+              onCalendarPress={() => setCalendarVisible(true)}
+            />
           </View>
         </View>
+        <CalendarPageModal
+          visible={calendarVisible}
+          onClose={() => setCalendarVisible(false)}
+        />
       </View>
     </FontReadyContext.Provider>
   );
@@ -790,13 +806,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-  },
-  dateText: {
-    color: "#D31471",
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 18,
-    letterSpacing: -0.36,
-    lineHeight: 20,
   },
   headerIconOrientation: {
     transform: [{ scaleY: -1 }],
