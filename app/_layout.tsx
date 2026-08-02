@@ -24,6 +24,9 @@ function Tabs() {
       <NativeTabs
         tintColor={activeTint}
         iconColor={{ default: inactiveTint, selected: activeTint }}
+        backgroundColor="rgba(255,255,255,0.20)"
+        blurEffect="systemUltraThinMaterialLight"
+        disableTransparentOnScrollEdge
         labelStyle={{
           default: { color: inactiveTint, fontSize: 10 },
           selected: { color: activeTint, fontSize: 10, fontWeight: '600' },

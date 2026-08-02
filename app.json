@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#823537",
+    "backgroundColor": "#FDECE5",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.privateexpo"

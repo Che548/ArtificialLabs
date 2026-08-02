@@ -18,7 +18,7 @@ export type ActiveCvConfiguration = {
   assayProfile: AssayProfile;
   cardProfile: CardProfile | null;
   cutoff: number | null;
-  source: 'bundled' | 'qr';
+  source: 'bundled' | 'manual' | 'qr';
   product: ScanProductMetadata;
 };
 
@@ -64,6 +64,18 @@ export class ScanningService {
       },
     };
     return true;
+  }
+
+  applyManualBatchCode(batch: string): ActiveCvConfiguration {
+    this.activeConfiguration = {
+      ...bundledConfiguration,
+      source: 'manual',
+      product: {
+        ...bundledConfiguration.product,
+        batch: batch.trim(),
+      },
+    };
+    return this.activeConfiguration;
   }
 
   async analyze(imageUri: string): Promise<AnalysisResult> {

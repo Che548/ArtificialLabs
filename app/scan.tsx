@@ -161,7 +161,6 @@ function LiquidGlassSurface({
           glassEffectStyle={variant}
           tintColor={tintColor}
           colorScheme={colorScheme}
-          isInteractive
           style={[
             StyleSheet.absoluteFill,
             styles.nativeGlassView,
@@ -220,6 +219,27 @@ function GlassControl({
   onPress,
   style,
 }: GlassControlProps) {
+  if (hasNativeLiquidGlass) {
+    return (
+      <GlassView
+        glassEffectStyle="clear"
+        tintColor={colors.surface.headerGlassWash}
+        colorScheme="light"
+        isInteractive
+        style={style}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          onPress={onPress}
+          style={styles.nativeGlassPressTarget}
+        >
+          {children}
+        </Pressable>
+      </GlassView>
+    );
+  }
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -227,8 +247,8 @@ function GlassControl({
       onPress={onPress}
       style={({ pressed }) => [
         style,
-        !hasNativeLiquidGlass && styles.glassShadow,
-        pressed && !hasNativeLiquidGlass && styles.fallbackPressed,
+        styles.glassShadow,
+        pressed && styles.fallbackPressed,
       ]}
     >
       <LiquidGlassSurface
@@ -246,6 +266,23 @@ function GlassControl({
   );
 }
 
+function LiquidGlassGroup({
+  children,
+  spacing,
+  style,
+}: PropsWithChildren<{
+  spacing: number;
+  style: StyleProp<ViewStyle>;
+}>) {
+  return hasNativeLiquidGlass ? (
+    <GlassContainer spacing={spacing} style={style}>
+      {children}
+    </GlassContainer>
+  ) : (
+    <View style={style}>{children}</View>
+  );
+}
+
 type ActionButtonProps = {
   icon: React.ReactNode;
   label: string;
@@ -253,16 +290,25 @@ type ActionButtonProps = {
 };
 
 function ActionButton({ icon, label, onPress }: ActionButtonProps) {
+  const width = label === "Инфо" ? 109 : label === "Купить" ? 114 : 128;
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
-    >
-      <View style={styles.actionIconCircle}>{icon}</View>
-      <Text style={styles.actionLabel}>{label}</Text>
-    </Pressable>
+    <View style={[styles.actionButton, { width }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+      >
+        {({ pressed }) => (
+          <View
+            style={[styles.actionButtonContent, pressed && styles.pressed]}
+          >
+            <View style={styles.actionIconCircle}>{icon}</View>
+            <Text style={styles.actionLabel}>{label}</Text>
+          </View>
+        )}
+      </Pressable>
+    </View>
   );
 }
 
@@ -502,7 +548,7 @@ export default function ScanScreen() {
               />
             </View>
 
-            <GlassContainer
+            <LiquidGlassGroup
               spacing={12}
               style={[styles.header, { top: headerTop }]}
             >
@@ -531,7 +577,7 @@ export default function ScanScreen() {
                   <CalendarIcon width={22} height={22} color="#D31471" />
                 </View>
               </GlassControl>
-            </GlassContainer>
+            </LiquidGlassGroup>
 
             <View style={[styles.scannerCard, { top: scannerTop }]}>
               <ScannerFrame
@@ -552,22 +598,31 @@ export default function ScanScreen() {
                 </Text>
               </View>
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Начать сканирование"
-                onPress={() => setScanFlowVisible(true)}
-                style={({ pressed }) => [
-                  styles.scanButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <ScanIcon width={20} height={20} />
-                <Text
-                  style={[styles.scanButtonLabel, { fontFamily: sfRegular }]}
+              <View style={styles.scanButton}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Начать сканирование"
+                  onPress={() => setScanFlowVisible(true)}
                 >
-                  {hasSavedScan ? "Сканировать снова" : "Начать сканирование"}
-                </Text>
-              </Pressable>
+                  {({ pressed }) => (
+                    <View
+                      style={[styles.scanButtonContent, pressed && styles.pressed]}
+                    >
+                      <ScanIcon width={20} height={20} />
+                      <Text
+                        style={[
+                          styles.scanButtonLabel,
+                          { fontFamily: sfRegular },
+                        ]}
+                      >
+                        {hasSavedScan
+                          ? "Сканировать снова"
+                          : "Начать сканирование"}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+              </View>
             </View>
 
             <ContentShape
@@ -1013,6 +1068,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  nativeGlassPressTarget: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   glassShadow: {
     shadowColor: "#260208",
     shadowOffset: { width: 0, height: 7 },
@@ -1078,9 +1138,14 @@ const styles = StyleSheet.create({
     top: 200,
     minWidth: 198,
     height: 46,
-    paddingHorizontal: 14,
     borderRadius: 23,
+    overflow: "hidden",
     backgroundColor: "#d31471",
+  },
+  scanButtonContent: {
+    minWidth: 198,
+    height: 46,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1137,10 +1202,15 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     height: 48,
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: "#d31471",
+  },
+  actionButtonContent: {
+    width: "100%",
+    height: 48,
     paddingLeft: 5,
     paddingRight: 18,
-    borderRadius: 24,
-    backgroundColor: "#d31471",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

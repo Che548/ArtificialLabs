@@ -10,7 +10,13 @@ import {
   GlassView,
   isLiquidGlassAvailable,
 } from "expo-glass-effect";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PropsWithChildren,
+  type RefObject,
+} from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -18,12 +24,18 @@ import {
   Animated,
   Easing,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
+  TextInput,
+  type StyleProp,
   useWindowDimensions,
   View,
+  type ViewStyle,
 } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 
@@ -333,6 +345,23 @@ function RoundGlassButton({
   );
 }
 
+function FlowGlassGroup({
+  children,
+  spacing,
+  style,
+}: PropsWithChildren<{
+  spacing: number;
+  style: StyleProp<ViewStyle>;
+}>) {
+  return hasNativeFlowGlass ? (
+    <GlassContainer spacing={spacing} style={style}>
+      {children}
+    </GlassContainer>
+  ) : (
+    <View style={style}>{children}</View>
+  );
+}
+
 function FlowHeader({
   currentStep,
   leadingIcon = 'close',
@@ -360,7 +389,7 @@ function FlowHeader({
   ) : null;
 
   return (
-    <GlassContainer spacing={12} style={[styles.flowHeader, { top }]}>
+    <FlowGlassGroup spacing={12} style={[styles.flowHeader, { top }]}>
       {showClose ? (
         <RoundGlassButton
           accessibilityLabel={
@@ -418,7 +447,7 @@ function FlowHeader({
       ) : (
         <View style={styles.headerSpacer} />
       )}
-    </GlassContainer>
+    </FlowGlassGroup>
   );
 }
 
@@ -625,16 +654,21 @@ function QrScannerScreen({
   headerTop,
   onClose,
   onHelp,
+  onManualCode,
   onScanned,
 }: {
   headerTop: number;
   onClose: () => void;
   onHelp: () => void;
+  onManualCode: (data: string) => string | null;
   onScanned: (data?: string) => void;
 }) {
   const scanned = useRef(false);
   const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [detected, setDetected] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+  const [manualCodeError, setManualCodeError] = useState<string | null>(null);
+  const [manualCodeVisible, setManualCodeVisible] = useState(false);
   const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const frameLeft = useRef(new Animated.Value(71)).current;
   const frameTop = useRef(new Animated.Value(headerTop + 203)).current;
@@ -742,6 +776,30 @@ function QrScannerScreen({
     });
   };
 
+  const closeManualCode = () => {
+    Keyboard.dismiss();
+    setManualCodeError(null);
+    setManualCodeVisible(false);
+  };
+
+  const submitManualCode = () => {
+    const normalizedCode = manualCode.trim();
+
+    if (!normalizedCode) {
+      setManualCodeError("Введите код с упаковки теста.");
+      return;
+    }
+
+    const error = onManualCode(normalizedCode);
+    if (error) {
+      setManualCodeError(error);
+      return;
+    }
+
+    setManualCode("");
+    closeManualCode();
+  };
+
   return (
     <View style={styles.cameraScreen}>
       <CameraBackdrop onBarcodeScanned={handleBarcodeScanned} />
@@ -815,7 +873,10 @@ function QrScannerScreen({
           accessibilityLabel="Ввести код вручную"
           accessibilityState={{ disabled: detected }}
           disabled={detected}
-          onPress={() => onScanned()}
+          onPress={() => {
+            setManualCodeError(null);
+            setManualCodeVisible(true);
+          }}
           style={({ pressed }) => [
             styles.secondaryCameraAction,
             pressed && styles.pressed,
@@ -826,6 +887,104 @@ function QrScannerScreen({
           </AppText>
         </Pressable>
       </View>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={closeManualCode}
+        statusBarTranslucent
+        transparent
+        visible={manualCodeVisible}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.manualCodeModalRoot}
+        >
+          <Pressable
+            accessibilityLabel="Закрыть ввод кода"
+            onPress={closeManualCode}
+            style={StyleSheet.absoluteFillObject}
+          >
+            <View style={styles.manualCodeBackdrop} />
+          </Pressable>
+
+          <View style={styles.manualCodeCard}>
+            <View style={styles.manualCodeHeader}>
+              <AppText role="heading" weight="semibold">
+                Введите код
+              </AppText>
+              <AppText
+                role="label"
+                color={colors.text.secondary}
+                style={styles.manualCodeSubtitle}
+              >
+                Код указан рядом с QR-кодом на упаковке теста.
+              </AppText>
+            </View>
+
+            <TextInput
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoFocus
+              accessibilityLabel="Код с упаковки теста"
+              onChangeText={(value) => {
+                setManualCode(value);
+                if (manualCodeError) {
+                  setManualCodeError(null);
+                }
+              }}
+              onSubmitEditing={submitManualCode}
+              placeholder="Код с упаковки"
+              placeholderTextColor="rgba(115,110,108,0.48)"
+              returnKeyType="done"
+              selectionColor={colors.brand.primary}
+              style={styles.manualCodeInput}
+              value={manualCode}
+            />
+
+            {manualCodeError ? (
+              <AppText
+                role="caption"
+                color={colors.brand.primary}
+                style={styles.manualCodeError}
+              >
+                {manualCodeError}
+              </AppText>
+            ) : null}
+
+            <View style={styles.manualCodeActions}>
+              <View style={styles.manualCodeActionSlot}>
+                <View style={styles.manualCodeCancelButton}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Отменить ввод кода"
+                    onPress={closeManualCode}
+                  >
+                    {({ pressed }) => (
+                      <View
+                        style={[
+                          styles.manualCodeCancelContent,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <AppText
+                          role="label"
+                          weight="medium"
+                          color={colors.brand.primary}
+                        >
+                          Отмена
+                        </AppText>
+                      </View>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.manualCodeActionSlot}>
+                <PrimaryButton label="Продолжить" onPress={submitManualCode} />
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -1896,6 +2055,27 @@ export function ScanFlowOverlay({
       });
   };
 
+  const applyQrData = (data: string) => {
+    try {
+      if (!scanningService.applyQrConfiguration(data)) {
+        return {
+          title: "QR-код не распознан",
+          message: "Проверьте код с упаковки теста и попробуйте ещё раз.",
+        };
+      }
+    } catch (error) {
+      return {
+        title: "Профиль QR-кода отклонён",
+        message:
+          error instanceof Error ? error.message : "Некорректный профиль.",
+      };
+    }
+
+    setConfiguration(scanningService.getConfiguration());
+    navigateToStage("test", "forward");
+    return null;
+  };
+
   const content =
     stage === "briefing" ? (
       <BriefingScreen
@@ -1918,30 +2098,20 @@ export function ScanFlowOverlay({
         headerTop={headerTop}
         onClose={requestClose}
         onHelp={() => openBriefing("qr")}
+        onManualCode={(data) => {
+          setConfiguration(scanningService.applyManualBatchCode(data));
+          navigateToStage("test", "forward");
+          return null;
+        }}
         onScanned={(data) => {
           if (!data) {
             return;
           }
 
-          try {
-            if (!scanningService.applyQrConfiguration(data)) {
-              Alert.alert(
-                "QR-код не распознан",
-                "Наведите камеру на QR-код из упаковки теста.",
-              );
-              return;
-            }
-          } catch (error) {
-            Alert.alert(
-              "Профиль QR-кода отклонён",
-              error instanceof Error
-                ? error.message
-                : "Некорректный профиль.",
-            );
-            return;
+          const error = applyQrData(data);
+          if (error) {
+            Alert.alert(error.title, error.message);
           }
-          setConfiguration(scanningService.getConfiguration());
-          navigateToStage("test", "forward");
         }}
       />
     ) : stage === "test" ? (
@@ -2188,6 +2358,65 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.28)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  manualCodeModalRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  manualCodeBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(23,12,17,0.30)",
+  },
+  manualCodeCard: {
+    marginHorizontal: 12,
+    marginBottom: 12,
+    padding: 20,
+    borderRadius: 30,
+    backgroundColor: colors.surface.raised,
+    gap: 16,
+    ...shadows.floating,
+  },
+  manualCodeHeader: {
+    gap: 5,
+  },
+  manualCodeSubtitle: {
+    lineHeight: 18,
+  },
+  manualCodeInput: {
+    height: 54,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(211,20,113,0.14)",
+    backgroundColor: colors.surface.warm,
+    color: colors.text.primary,
+    fontFamily: "SFProDisplay-Regular",
+    fontSize: 17,
+    lineHeight: 20,
+    letterSpacing: -0.2,
+  },
+  manualCodeError: {
+    marginTop: -8,
+    paddingHorizontal: 2,
+  },
+  manualCodeActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  manualCodeActionSlot: {
+    flex: 1,
+  },
+  manualCodeCancelButton: {
+    minHeight: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: colors.brand.primary,
+    overflow: "hidden",
+  },
+  manualCodeCancelContent: {
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
   },

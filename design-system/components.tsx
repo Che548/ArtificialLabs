@@ -1,6 +1,9 @@
 import { BlurView } from "expo-blur";
 import type { BlurTint } from "expo-blur";
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import {
+  GlassView,
+  isLiquidGlassAvailable,
+} from "expo-glass-effect";
 import type { GlassColorScheme, GlassStyle } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
@@ -763,6 +766,26 @@ export function GlassControl({
   onPress,
   style,
 }: GlassControlProps) {
+  if (hasNativeLiquidGlass) {
+    return (
+      <GlassView
+        glassEffectStyle="clear"
+        colorScheme="light"
+        isInteractive
+        style={style}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          onPress={onPress}
+          style={styles.glassPressTarget}
+        >
+          {children}
+        </Pressable>
+      </GlassView>
+    );
+  }
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -770,9 +793,8 @@ export function GlassControl({
       onPress={onPress}
       style={({ pressed }) => [
         style,
-        !hasNativeLiquidGlass && shadows.floating,
-        pressed &&
-          !hasNativeLiquidGlass && {
+        shadows.floating,
+        pressed && {
             transform: [{ scale: motion.pressedScale }],
           },
       ]}
@@ -798,24 +820,36 @@ export function PrimaryButton({
   compact = false,
 }: PrimaryButtonProps) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.primaryButton,
         compact && styles.primaryButtonCompact,
         disabled && styles.primaryButtonDisabled,
-        pressed && styles.pressed,
       ]}
     >
-      {icon}
-      <AppText role="label" weight="medium" color={colors.text.inverse}>
-        {label}
-      </AppText>
-    </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPress={onPress}
+      >
+        {({ pressed }) => (
+          <View
+            style={[
+              styles.primaryButtonContent,
+              compact && styles.primaryButtonContentCompact,
+              pressed && !disabled && styles.pressed,
+            ]}
+          >
+            {icon}
+            <AppText role="label" weight="medium" color={colors.text.inverse}>
+              {label}
+            </AppText>
+          </View>
+        )}
+      </Pressable>
+    </View>
   );
 }
 
@@ -984,11 +1018,8 @@ export function MetricActionButton({
     );
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.metricButton,
         variant === "solid" && styles.metricButtonSolid,
         variant === "soft" && styles.metricButtonSoft,
@@ -1000,22 +1031,33 @@ export function MetricActionButton({
         variant === "iconLeading" && styles.metricButtonIconLeading,
         variant === "textOnly" && styles.metricButtonTextOnly,
         variant === "completed" && styles.metricButtonCompleted,
-        pressed && styles.pressed,
       ]}
     >
-      {variant === "glass" ? (
-        <LiquidGlassSurface
-          variant="regular"
-          colorScheme="light"
-          tintColor="rgba(255,255,255,0.12)"
-          radius={24}
-        >
-          <View style={styles.metricButtonContent}>{content}</View>
-        </LiquidGlassSurface>
-      ) : (
-        content
-      )}
-    </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+      >
+        {({ pressed }) => (
+          <View
+            style={[styles.metricButtonPressContent, pressed && styles.pressed]}
+          >
+            {variant === "glass" ? (
+              <LiquidGlassSurface
+                variant="regular"
+                colorScheme="light"
+                tintColor="rgba(255,255,255,0.12)"
+                radius={24}
+              >
+                <View style={styles.metricButtonContent}>{content}</View>
+              </LiquidGlassSurface>
+            ) : (
+              content
+            )}
+          </View>
+        )}
+      </Pressable>
+    </View>
   );
 }
 
@@ -1842,28 +1884,31 @@ export function InstructionNavigation({
           : colors.brand.primary;
     const button = (
       <View style={styles.instructionNavContent}>
-        <AppText
-          style={[
-            styles.instructionNavGlyph,
-            direction === "left" && styles.instructionNavGlyphLeft,
-          ]}
-          color={glyphColor}
+        <Svg
+          width={16}
+          height={18}
+          viewBox="0 0 16 18"
+          style={
+            direction === "left"
+              ? styles.instructionNavChevronLeft
+              : undefined
+          }
         >
-          {direction === "left" ? "‹" : "›"}
-        </AppText>
+          <Path
+            d="M5 3L11 9L5 15"
+            fill="none"
+            stroke={glyphColor}
+            strokeWidth={2.4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
       </View>
     );
 
     return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={
-          direction === "left" ? "Предыдущий шаг" : "Следующий шаг"
-        }
-        accessibilityState={{ disabled }}
-        disabled={disabled}
-        onPress={onPress}
-        style={({ pressed }) => [
+      <View
+        style={[
           styles.instructionNavButton,
           variant === "original" && styles.instructionNavOriginal,
           variant === "brand" && styles.instructionNavBrand,
@@ -1876,22 +1921,40 @@ export function InstructionNavigation({
           variant === "minimal" && styles.instructionNavMinimal,
           variant === "double" && styles.instructionNavDouble,
           disabled && styles.instructionNavDisabled,
-          pressed && !disabled && styles.pressed,
         ]}
       >
-        {variant === "glass" ? (
-          <LiquidGlassSurface
-            variant="regular"
-            colorScheme="light"
-            tintColor="rgba(255,255,255,0.20)"
-            radius={20}
-          >
-            {button}
-          </LiquidGlassSurface>
-        ) : (
-          button
-        )}
-      </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            direction === "left" ? "Предыдущий шаг" : "Следующий шаг"
+          }
+          accessibilityState={{ disabled }}
+          disabled={disabled}
+          onPress={onPress}
+        >
+          {({ pressed }) => (
+            <View
+              style={[
+                styles.instructionNavPressContent,
+                pressed && !disabled && styles.pressed,
+              ]}
+            >
+              {variant === "glass" ? (
+                <LiquidGlassSurface
+                  variant="regular"
+                  colorScheme="light"
+                  tintColor="rgba(255,255,255,0.20)"
+                  radius={20}
+                >
+                  {button}
+                </LiquidGlassSurface>
+              ) : (
+                button
+              )}
+            </View>
+          )}
+        </Pressable>
+      </View>
     );
   };
 
@@ -3754,6 +3817,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  glassPressTarget: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerDateLabel: {
     alignItems: "center",
     justifyContent: "center",
@@ -3781,15 +3849,22 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     minHeight: 48,
-    paddingHorizontal: spacing.lg,
     borderRadius: radii.pill,
+    overflow: "hidden",
     backgroundColor: colors.brand.primary,
+  },
+  primaryButtonContent: {
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
   },
   primaryButtonCompact: {
+    minHeight: 40,
+  },
+  primaryButtonContentCompact: {
     minHeight: 40,
     paddingHorizontal: spacing.md,
   },
@@ -4377,6 +4452,16 @@ const styles = StyleSheet.create({
     letterSpacing: -0.24,
   },
   metricButton: {
+    width: 116,
+    height: 48,
+    paddingHorizontal: 14,
+    borderRadius: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  metricButtonPressContent: {
     width: 116,
     height: 48,
     paddingHorizontal: 14,
@@ -5221,19 +5306,18 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "visible",
   },
+  instructionNavPressContent: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
   instructionNavContent: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
   },
-  instructionNavGlyph: {
-    marginTop: -2,
-    fontSize: 31,
-    lineHeight: 33,
-    letterSpacing: -0.62,
-  },
-  instructionNavGlyphLeft: {
-    marginLeft: -1,
+  instructionNavChevronLeft: {
+    transform: [{ rotate: "180deg" }],
   },
   instructionNavOriginal: {
     backgroundColor: "#171717",

@@ -1,6 +1,10 @@
 import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
-import { GlassContainer, isLiquidGlassAvailable } from "expo-glass-effect";
+import {
+  GlassContainer,
+  GlassView,
+  isLiquidGlassAvailable,
+} from "expo-glass-effect";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
@@ -15,13 +19,17 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import type { ViewToken } from "react-native";
+import type { StyleProp, ViewStyle, ViewToken } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import AddIcon from "../assets/figma/calendar-page/add.svg";
 import BackIcon from "../assets/figma/calendar-page/back.svg";
 import HeaderShape from "../assets/figma/calendar-page/header-shape.svg";
-import { AppText, HeaderDateLabel, LiquidGlassSurface } from "./components";
+import {
+  AppText,
+  HeaderDateLabel,
+  LiquidGlassSurface,
+} from "./components";
 import { colors, radii, shadows, sizes, spacing } from "./tokens";
 
 const DESIGN_WIDTH = 402;
@@ -188,6 +196,7 @@ function makeCalendarCells(month: Date): CalendarCell[] {
 }
 
 function CalendarDayGrid({
+  cellWidth,
   month,
   onDayPressIn,
   selectedDate,
@@ -196,6 +205,7 @@ function CalendarDayGrid({
   showOutsideDays = true,
   useCycleForecast = false,
 }: {
+  cellWidth: number;
   month: Date;
   onDayPressIn?: () => void;
   selectedDate: Date | null;
@@ -213,7 +223,9 @@ function CalendarDayGrid({
         const key = dateKey(date);
 
         if (!inCurrentMonth && !showOutsideDays) {
-          return <View key={key} style={styles.dayCell} />;
+          return (
+            <View key={key} style={[styles.dayCell, { width: cellWidth }]} />
+          );
         }
 
         const selected = key === selectedKey;
@@ -231,72 +243,173 @@ function CalendarDayGrid({
           : key === OVULATION_DATE_KEY;
 
         return (
-          <Pressable
-            key={key}
-            accessibilityRole="button"
-            accessibilityLabel={`${dayTitle(date)}${
-              symptomsLogged ? ", симптомы отмечены" : ""
-            }`}
-            accessibilityState={{ selected }}
-            onPressIn={onDayPressIn}
-            onPress={() => onSelectDate(date)}
-            style={({ pressed }) => [
-              styles.dayCell,
-              pressed && styles.dayCellPressed,
-            ]}
-          >
-            <View
-              style={[
-                styles.dayCircle,
-                fertile && styles.dayFertile,
-                period && styles.dayPeriod,
-                ovulation && styles.dayOvulation,
-                selected && styles.daySelected,
-              ]}
+          <View key={key} style={[styles.dayCell, { width: cellWidth }]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${dayTitle(date)}${
+                symptomsLogged ? ", симптомы отмечены" : ""
+              }`}
+              accessibilityState={{ selected }}
+              onPressIn={onDayPressIn}
+              onPress={() => onSelectDate(date)}
             >
-              <AppText
-                numeric
-                role="label"
-                color={
-                  selected
-                    ? colors.text.inverse
-                    : inCurrentMonth
-                      ? colors.text.primary
-                      : "rgba(115,110,108,0.34)"
-                }
-                style={styles.dayNumber}
-              >
-                {date.getDate()}
-              </AppText>
-              {symptomsLogged ? (
-                <View style={styles.symptomDayMarker}>
-                  <AppText
-                    role="caption"
-                    weight="semibold"
-                    color={colors.text.inverse}
-                    style={styles.symptomDayMarkerCheck}
-                  >
-                    ✓
-                  </AppText>
-                </View>
-              ) : null}
-            </View>
-            <View style={styles.dayMarkerRow}>
-              {period && !selected ? (
-                <View style={styles.periodMarker} />
-              ) : null}
-              {fertile && !selected ? (
+              {({ pressed }) => (
                 <View
                   style={[
-                    styles.fertileMarker,
-                    ovulation && styles.ovulationMarker,
+                    styles.dayCellContent,
+                    { width: cellWidth },
+                    pressed && styles.dayCellPressed,
                   ]}
-                />
-              ) : null}
-            </View>
-          </Pressable>
+                >
+                  <View
+                    style={[
+                      styles.dayCircle,
+                      fertile && styles.dayFertile,
+                      period && styles.dayPeriod,
+                      ovulation && styles.dayOvulation,
+                      selected && styles.daySelected,
+                    ]}
+                  >
+                    <AppText
+                      numeric
+                      role="label"
+                      color={
+                        selected
+                          ? colors.text.inverse
+                          : inCurrentMonth
+                            ? colors.text.primary
+                            : "rgba(115,110,108,0.34)"
+                      }
+                      style={styles.dayNumber}
+                    >
+                      {date.getDate()}
+                    </AppText>
+                    {symptomsLogged ? (
+                      <View style={styles.symptomDayMarker}>
+                        <AppText
+                          role="caption"
+                          weight="semibold"
+                          color={colors.text.inverse}
+                          style={styles.symptomDayMarkerCheck}
+                        >
+                          ✓
+                        </AppText>
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={styles.dayMarkerRow}>
+                    {period && !selected ? (
+                      <View style={styles.periodMarker} />
+                    ) : null}
+                    {fertile && !selected ? (
+                      <View
+                        style={[
+                          styles.fertileMarker,
+                          ovulation && styles.ovulationMarker,
+                        ]}
+                      />
+                    ) : null}
+                  </View>
+                </View>
+              )}
+            </Pressable>
+          </View>
         );
       })}
+    </View>
+  );
+}
+
+function CalendarGlassControl({
+  accessibilityLabel,
+  children,
+  height,
+  intensity = 58,
+  onPress,
+  radius,
+  style,
+  tintColor = colors.surface.headerGlassWash,
+  variant = "regular",
+  washColor = colors.surface.headerGlassWash,
+  width,
+}: {
+  accessibilityLabel: string;
+  children: React.ReactNode;
+  height: number;
+  intensity?: number;
+  onPress?: () => void;
+  radius: number;
+  style?: StyleProp<ViewStyle>;
+  tintColor?: string;
+  variant?: "clear" | "regular";
+  washColor?: string;
+  width: number;
+}) {
+  const controlStyle: StyleProp<ViewStyle> = [
+    style,
+    {
+      width,
+      height,
+      borderRadius: radius,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+  ];
+  const contentStyle: StyleProp<ViewStyle> = {
+    width,
+    height,
+    borderRadius: radius,
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  if (hasNativeLiquidGlass) {
+    return (
+      <GlassView
+        glassEffectStyle={variant}
+        tintColor={tintColor}
+        colorScheme="light"
+        isInteractive
+        style={controlStyle}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          onPress={onPress}
+        >
+          {({ pressed }) => (
+            <View style={[contentStyle, pressed && styles.pressed]}>
+              {children}
+            </View>
+          )}
+        </Pressable>
+      </GlassView>
+    );
+  }
+
+  return (
+    <View style={[controlStyle, styles.headerGlassShadow]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        onPress={onPress}
+      >
+        {({ pressed }) => (
+          <View style={[contentStyle, pressed && styles.pressed]}>
+            <LiquidGlassSurface
+              variant={variant}
+              tintColor={tintColor}
+              colorScheme="light"
+              fallbackTint="systemUltraThinMaterialLight"
+              intensity={intensity}
+              washColor={washColor}
+              radius={radius}
+            >
+              {children}
+            </LiquidGlassSurface>
+          </View>
+        )}
+      </Pressable>
     </View>
   );
 }
@@ -311,28 +424,32 @@ function GlassHeaderButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
+    <CalendarGlassControl
       accessibilityLabel={accessibilityLabel}
+      width={sizes.touch}
+      height={sizes.touch}
+      radius={sizes.touch / 2}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.headerCircle,
-        !hasNativeLiquidGlass && styles.headerGlassShadow,
-        pressed && styles.pressed,
-      ]}
     >
-      <LiquidGlassSurface
-        variant="clear"
-        tintColor={colors.surface.headerGlassWash}
-        colorScheme="light"
-        fallbackTint="systemUltraThinMaterialLight"
-        intensity={58}
-        washColor={colors.surface.headerGlassWash}
-        radius={sizes.touch / 2}
-      >
-        {children}
-      </LiquidGlassSurface>
-    </Pressable>
+      {children}
+    </CalendarGlassControl>
+  );
+}
+
+function CalendarGlassGroup({
+  children,
+  spacing: glassSpacing,
+  style,
+}: React.PropsWithChildren<{
+  spacing: number;
+  style: React.ComponentProps<typeof View>["style"];
+}>) {
+  return hasNativeLiquidGlass ? (
+    <GlassContainer spacing={glassSpacing} style={style}>
+      {children}
+    </GlassContainer>
+  ) : (
+    <View style={style}>{children}</View>
   );
 }
 
@@ -344,23 +461,30 @@ function MonthArrow({
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        direction === "left" ? "Предыдущий месяц" : "Следующий месяц"
-      }
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.monthArrow,
-        pressed && styles.monthArrowPressed,
-      ]}
-    >
-      <BackIcon
-        width={18}
-        height={18}
-        style={direction === "left" ? styles.backIconLeft : undefined}
-      />
-    </Pressable>
+    <View style={styles.monthArrow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          direction === "left" ? "Предыдущий месяц" : "Следующий месяц"
+        }
+        onPress={onPress}
+      >
+        {({ pressed }) => (
+          <View
+            style={[
+              styles.monthArrowContent,
+              pressed && styles.monthArrowPressed,
+            ]}
+          >
+            <BackIcon
+              width={18}
+              height={18}
+              style={direction === "left" ? styles.backIconLeft : undefined}
+            />
+          </View>
+        )}
+      </Pressable>
+    </View>
   );
 }
 
@@ -470,17 +594,24 @@ function CalendarDayDetailsCard({
           >
             Симптомы
           </AppText>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Добавить симптомы на ${dayTitle(date)}`}
-            onPress={onAddPress}
-            style={({ pressed }) => [
-              styles.dayDetailsAddButton,
-              pressed && styles.dayDetailsAddButtonPressed,
-            ]}
-          >
-            <AddIcon width={20} height={20} />
-          </Pressable>
+          <View style={styles.dayDetailsAddButton}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Добавить симптомы на ${dayTitle(date)}`}
+              onPress={onAddPress}
+            >
+              {({ pressed }) => (
+                <View
+                  style={[
+                    styles.dayDetailsAddButtonContent,
+                    pressed && styles.dayDetailsAddButtonPressed,
+                  ]}
+                >
+                  <AddIcon width={20} height={20} />
+                </View>
+              )}
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -542,12 +673,10 @@ function CalendarDayDetailsCard({
           <AppText
             role="caption"
             color={colors.brand.primary}
+            numberOfLines={1}
             style={styles.cycleDayLabel}
           >
-            День цикла{" "}
-            <AppText numeric role="caption" color={colors.brand.primary}>
-              {forecast.cycleDay}
-            </AppText>
+            {`День цикла ${forecast.cycleDay}`}
           </AppText>
         </View>
       </View>
@@ -882,6 +1011,7 @@ function CalendarPageModalBase({
                     </View>
 
                     <CalendarDayGrid
+                      cellWidth={(sizes.contentWidth - spacing.md * 2) / 7}
                       month={visibleMonth}
                       selectedDate={selectedDate}
                       onSelectDate={selectDate}
@@ -987,6 +1117,7 @@ function CalendarPageModalBase({
                         ))}
                       </View>
                       <CalendarDayGrid
+                        cellWidth={sizes.contentWidth / 7}
                         month={month}
                         onDayPressIn={() => {
                           protectedDayInteractionRef.current = true;
@@ -1025,7 +1156,7 @@ function CalendarPageModalBase({
                 style={styles.headerShape}
               />
 
-              <GlassContainer
+              <CalendarGlassGroup
                 spacing={12}
                 style={[styles.headerControls, { top: headerTop }]}
               >
@@ -1040,42 +1171,29 @@ function CalendarPageModalBase({
                   />
                 </GlassHeaderButton>
 
-                <Pressable
-                  accessibilityRole="button"
+                <CalendarGlassControl
                   accessibilityLabel={
                     variant === "continuous"
                       ? `Сегодня, ${headerDate}`
                       : "Выбранная дата"
                   }
-                  style={({ pressed }) => [
-                    styles.datePill,
-                    !hasNativeLiquidGlass && styles.headerGlassShadow,
-                    pressed && styles.pressed,
-                  ]}
+                  width={156}
+                  height={sizes.touch}
+                  radius={sizes.touch / 2}
                 >
-                  <LiquidGlassSurface
-                    variant="clear"
-                    tintColor={colors.surface.headerGlassWash}
-                    colorScheme="light"
-                    fallbackTint="systemUltraThinMaterialLight"
-                    intensity={58}
-                    washColor={colors.surface.headerGlassWash}
-                    radius={sizes.touch / 2}
-                  >
-                    {variant === "continuous" ? (
-                      <HeaderDateLabel date={initialDate} />
-                    ) : (
-                      <AppText
-                        role="body"
-                        weight="medium"
-                        color={colors.brand.primary}
-                        style={styles.headerDate}
-                      >
-                        {headerDate}
-                      </AppText>
-                    )}
-                  </LiquidGlassSurface>
-                </Pressable>
+                  {variant === "continuous" ? (
+                    <HeaderDateLabel date={initialDate} />
+                  ) : (
+                    <AppText
+                      role="body"
+                      weight="medium"
+                      color={colors.brand.primary}
+                      style={styles.headerDate}
+                    >
+                      {headerDate}
+                    </AppText>
+                  )}
+                </CalendarGlassControl>
 
                 <GlassHeaderButton
                   accessibilityLabel="Добавить запись"
@@ -1083,7 +1201,7 @@ function CalendarPageModalBase({
                 >
                   <AddIcon width={24} height={24} />
                 </GlassHeaderButton>
-              </GlassContainer>
+              </CalendarGlassGroup>
 
               <View style={[styles.metrics, { top: headerTop + 61 }]}>
                 <View style={styles.metricNarrow}>
@@ -1164,35 +1282,28 @@ function CalendarPageModalBase({
                       },
                     ]}
                   >
-                    <Pressable
-                      accessibilityRole="button"
+                    <CalendarGlassControl
                       accessibilityLabel="Вернуться к текущему месяцу"
                       onPress={scrollToCurrentMonth}
-                      style={({ pressed }) => [
-                        styles.returnButton,
-                        pressed && styles.returnButtonPressed,
-                      ]}
+                      width={RETURN_BUTTON_SIZE}
+                      height={RETURN_BUTTON_SIZE}
+                      radius={RETURN_BUTTON_SIZE / 2}
+                      intensity={64}
+                      tintColor="transparent"
+                      variant="clear"
+                      washColor="transparent"
+                      style={styles.returnButton}
                     >
-                      <LiquidGlassSurface
-                        variant="clear"
-                        tintColor="transparent"
-                        colorScheme="light"
-                        fallbackTint="systemUltraThinMaterialLight"
-                        intensity={64}
-                        washColor="transparent"
-                        radius={RETURN_BUTTON_SIZE / 2}
-                      >
-                        <BackIcon
-                          width={25}
-                          height={25}
-                          style={
-                            returnDirection === "up"
-                              ? styles.returnArrowUp
-                              : styles.returnArrowDown
-                          }
-                        />
-                      </LiquidGlassSurface>
-                    </Pressable>
+                      <BackIcon
+                        width={25}
+                        height={25}
+                        style={
+                          returnDirection === "up"
+                            ? styles.returnArrowUp
+                            : styles.returnArrowDown
+                        }
+                      />
+                    </CalendarGlassControl>
                   </Animated.View>
 
                   <Animated.View
@@ -1481,6 +1592,13 @@ const styles = StyleSheet.create({
     borderColor: "rgba(211,20,113,0.16)",
     backgroundColor: "rgba(211,20,113,0.08)",
   },
+  dayDetailsAddButtonContent: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   dayDetailsAddButtonPressed: {
     transform: [{ scale: 0.94 }],
     backgroundColor: "rgba(211,20,113,0.14)",
@@ -1649,7 +1767,8 @@ const styles = StyleSheet.create({
   },
   cycleDayPill: {
     minWidth: 86,
-    minHeight: 28,
+    minHeight: 30,
+    flexShrink: 0,
     paddingHorizontal: spacing.xs,
     borderRadius: 14,
     alignItems: "center",
@@ -1658,7 +1777,7 @@ const styles = StyleSheet.create({
   },
   cycleDayLabel: {
     fontSize: 10,
-    lineHeight: 12,
+    lineHeight: 16,
     textAlign: "center",
   },
   calendarCard: {
@@ -1680,6 +1799,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(211,20,113,0.08)",
+  },
+  monthArrowContent: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   monthArrowPressed: {
     transform: [{ scale: 0.94 }],
@@ -1704,7 +1830,11 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   dayCell: {
-    width: "14.2857%",
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayCellContent: {
     height: 52,
     alignItems: "center",
     justifyContent: "center",

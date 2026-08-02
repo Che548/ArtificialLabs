@@ -1,6 +1,14 @@
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Keyboard,
+  Pressable,
+  Text,
+  TextInput,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
 
 export function AuthScreen() {
   const { signIn } = useAuthActions();
@@ -37,68 +45,74 @@ export function AuthScreen() {
   };
 
   return (
-    <View className="flex-1 justify-center bg-surface-canvas px-6">
-      <View className="rounded-[30px] bg-white p-6 shadow-card">
-        <Text className="font-yaro text-[34px] leading-[38px] text-brand-primary">
-          сфера.
-        </Text>
-        <Text className="mt-2 font-sf-semibold text-[24px] leading-7 text-ink">
-          {flow === 'signIn' ? 'Вход' : 'Создание аккаунта'}
-        </Text>
-        <Text className="mt-2 font-sf text-[15px] leading-5 text-text-secondary">
-          Это прототип: подтверждение email и восстановление пароля пока не подключены.
-        </Text>
+    <TouchableWithoutFeedback
+      accessible={false}
+      onPress={Keyboard.dismiss}
+      touchSoundDisabled
+    >
+      <View className="flex-1 justify-center bg-surface-canvas px-6">
+        <View className="rounded-[30px] bg-white p-6 shadow-card">
+          <Text className="font-yaro text-[34px] leading-[38px] text-brand-primary">
+            сфера.
+          </Text>
+          <Text className="mt-2 font-sf-semibold text-[24px] leading-7 text-ink">
+            {flow === 'signIn' ? 'Вход' : 'Создание аккаунта'}
+          </Text>
+          <Text className="mt-2 font-sf text-[15px] leading-5 text-text-secondary">
+            Это прототип: подтверждение email и восстановление пароля пока не подключены.
+          </Text>
 
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          placeholder="Email"
-          className="mt-6 h-12 rounded-2xl bg-[#f2f2f7] px-4 font-sf text-[16px] text-ink"
-        />
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          autoCapitalize="none"
-          autoComplete={flow === 'signIn' ? 'current-password' : 'new-password'}
-          secureTextEntry
-          placeholder="Пароль"
-          className="mt-3 h-12 rounded-2xl bg-[#f2f2f7] px-4 font-sf text-[16px] text-ink"
-        />
-        {error ? (
-          <Text accessibilityRole="alert" className="mt-3 font-sf text-[14px] text-state-error">
-            {error}
-          </Text>
-        ) : null}
-        <Pressable
-          accessibilityRole="button"
-          disabled={submitting}
-          onPress={() => void submit()}
-          className="mt-5 h-12 items-center justify-center rounded-full bg-brand-primary active:opacity-70"
-        >
-          {submitting ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="font-sf-medium text-[16px] text-white">
-              {flow === 'signIn' ? 'Войти' : 'Зарегистрироваться'}
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            placeholder="Email"
+            className="mt-6 h-12 rounded-2xl bg-[#f2f2f7] px-4 font-sf text-[16px] text-ink"
+          />
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            autoCapitalize="none"
+            autoComplete={flow === 'signIn' ? 'current-password' : 'new-password'}
+            secureTextEntry
+            placeholder="Пароль"
+            className="mt-3 h-12 rounded-2xl bg-[#f2f2f7] px-4 font-sf text-[16px] text-ink"
+          />
+          {error ? (
+            <Text accessibilityRole="alert" className="mt-3 font-sf text-[14px] text-state-error">
+              {error}
             </Text>
-          )}
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            setError(undefined);
-            setFlow((value) => (value === 'signIn' ? 'signUp' : 'signIn'));
-          }}
-          className="mt-4 items-center py-2"
-        >
-          <Text className="font-sf-medium text-[15px] text-brand-primary">
-            {flow === 'signIn' ? 'Создать аккаунт' : 'У меня уже есть аккаунт'}
-          </Text>
-        </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            disabled={submitting}
+            onPress={() => void submit()}
+            className="mt-5 h-12 items-center justify-center rounded-full bg-brand-primary active:opacity-70"
+          >
+            {submitting ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="font-sf-medium text-[16px] text-white">
+                {flow === 'signIn' ? 'Войти' : 'Зарегистрироваться'}
+              </Text>
+            )}
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setError(undefined);
+              setFlow((value) => (value === 'signIn' ? 'signUp' : 'signIn'));
+            }}
+            className="mt-4 items-center py-2"
+          >
+            <Text className="font-sf-medium text-[15px] text-brand-primary">
+              {flow === 'signIn' ? 'Создать аккаунт' : 'У меня уже есть аккаунт'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 }
