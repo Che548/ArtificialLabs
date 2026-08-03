@@ -1,9 +1,9 @@
-import { useFonts } from "expo-font";
-import { GlassContainer } from "expo-glass-effect";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useFonts } from 'expo-font';
+import { GlassContainer } from 'expo-glass-effect';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useState } from 'react';
 import {
   Image,
   Platform,
@@ -11,19 +11,21 @@ import {
   ScrollView,
   StyleSheet,
   View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import ArrowButton from "../assets/figma/arrow-button.svg";
-import CalendarIcon from "../assets/figma/calendar-icon.svg";
-import MonitoringIcon from "../assets/figma/monitoring-icon.svg";
-import BuyIcon from "../assets/figma/scan-screen/buy.svg";
-import HistoryIcon from "../assets/figma/scan-screen/history.svg";
-import InfoIcon from "../assets/figma/scan-screen/info.svg";
-import ScanIcon from "../assets/figma/scan-screen/scan.svg";
+import ArrowButton from '../assets/figma/arrow-button.svg';
+import CalendarIcon from '../assets/figma/calendar-icon.svg';
+import MonitoringIcon from '../assets/figma/monitoring-icon.svg';
+import BuyIcon from '../assets/figma/scan-screen/buy.svg';
+import HistoryIcon from '../assets/figma/scan-screen/history.svg';
+import InfoIcon from '../assets/figma/scan-screen/info.svg';
+import ScanIcon from '../assets/figma/scan-screen/scan.svg';
+import { AuthScreen } from '../components/AuthScreen';
 import {
   AppCard,
   AppText,
+  AuthFlowModal,
   CalendarPageBackupModal,
   CalendarSymptomStatusPreview,
   type CalendarSymptomStatusVariant,
@@ -54,74 +56,74 @@ import {
   type ScanTooltipVariant,
   TokenLabel,
   typeScale,
-} from "../design-system";
+} from '../design-system';
 
 const colorTokens = [
   {
-    name: "Primary",
+    name: 'Primary',
     value: colors.brand.primary,
-    role: "CTA / active",
+    role: 'CTA / active',
   },
   {
-    name: "Burgundy",
+    name: 'Burgundy',
     value: colors.brand.burgundy,
-    role: "Hero context",
+    role: 'Hero context',
   },
   {
-    name: "Success",
+    name: 'Success',
     value: colors.brand.success,
-    role: "Positive status",
+    role: 'Positive status',
   },
   {
-    name: "Text",
+    name: 'Text',
     value: colors.text.primary,
-    role: "Primary copy",
+    role: 'Primary copy',
   },
   {
-    name: "Muted",
+    name: 'Muted',
     value: colors.text.secondary,
-    role: "Secondary copy",
+    role: 'Secondary copy',
   },
   {
-    name: "Warm",
+    name: 'Warm',
     value: colors.surface.warm,
-    role: "Supporting card",
+    role: 'Supporting card',
   },
 ];
 
 const typeSpecimens = [
   {
-    label: "Display / 36",
-    role: "display" as const,
-    text: "Женское здоровье",
+    label: 'Display / 36',
+    role: 'display' as const,
+    text: 'Женское здоровье',
   },
   {
-    label: "Title / 28",
-    role: "title" as const,
-    text: "Сегодня",
+    label: 'Title / 28',
+    role: 'title' as const,
+    text: 'Сегодня',
   },
   {
-    label: "Heading / 22",
-    role: "heading" as const,
-    text: "Оценка заполнения",
+    label: 'Heading / 22',
+    role: 'heading' as const,
+    text: 'Оценка заполнения',
   },
   {
-    label: "Body / 17",
-    role: "body" as const,
-    text: "Мгновенный анализ тестов",
+    label: 'Body / 17',
+    role: 'body' as const,
+    text: 'Мгновенный анализ тестов',
   },
   {
-    label: "Label / 15",
-    role: "label" as const,
-    text: "Заполнить журнал",
+    label: 'Label / 15',
+    role: 'label' as const,
+    text: 'Заполнить журнал',
   },
 ];
 
 const radiusTokens = [
-  { name: "12", value: radii.sm },
-  { name: "20", value: radii.md },
-  { name: "30", value: radii.lg },
-  { name: "40", value: radii.xl },
+  { name: '12', value: radii.sm },
+  { name: '20', value: radii.md },
+  { name: '30', value: radii.lg },
+  { name: '40', value: radii.xl },
 ];
 
 const spacingTokens = [
@@ -135,110 +137,110 @@ const spacingTokens = [
 
 const journalVariants = [
   {
-    label: "01 / Сегментная",
-    variant: "segments" as const,
+    label: '01 / Сегментная',
+    variant: 'segments' as const,
   },
   {
-    label: "02 / Линейная",
-    variant: "continuous" as const,
+    label: '02 / Линейная',
+    variant: 'continuous' as const,
   },
-  { label: "03 / Недельная", variant: "week" as const },
-  { label: "04 / Числовая", variant: "score" as const },
-  { label: "05 / Уровневая", variant: "levels" as const },
-  { label: "06 / Кольцевая", variant: "ring" as const },
+  { label: '03 / Недельная', variant: 'week' as const },
+  { label: '04 / Числовая', variant: 'score' as const },
+  { label: '05 / Уровневая', variant: 'levels' as const },
+  { label: '06 / Кольцевая', variant: 'ring' as const },
   {
-    label: "07 / Сравнительная",
-    variant: "comparison" as const,
+    label: '07 / Сравнительная',
+    variant: 'comparison' as const,
   },
 ];
 
 const checkupVariants = [
-  { label: "01 / Кольцевая", variant: "ring" as const },
+  { label: '01 / Кольцевая', variant: 'ring' as const },
   {
-    label: "02 / Линейная",
-    variant: "continuous" as const,
+    label: '02 / Линейная',
+    variant: 'continuous' as const,
   },
-  { label: "03 / Числовая", variant: "score" as const },
-  { label: "04 / Уровневая", variant: "levels" as const },
+  { label: '03 / Числовая', variant: 'score' as const },
+  { label: '04 / Уровневая', variant: 'levels' as const },
   {
-    label: "05 / Сравнительная",
-    variant: "comparison" as const,
-  },
-  {
-    label: "06 / Сегментная",
-    variant: "segments" as const,
+    label: '05 / Сравнительная',
+    variant: 'comparison' as const,
   },
   {
-    label: "07 / Нумерованные точки",
-    variant: "dots" as const,
+    label: '06 / Сегментная',
+    variant: 'segments' as const,
   },
-  { label: "08 / Этапы", variant: "milestones" as const },
-  { label: "09 / Баланс", variant: "balance" as const },
-  { label: "10 / Матрица", variant: "matrix" as const },
-  { label: "11 / Gauge", variant: "gauge" as const },
-  { label: "12 / Дробная", variant: "fraction" as const },
-  { label: "13 / Heatmap", variant: "heatmap" as const },
-  { label: "14 / Ступени", variant: "ladder" as const },
   {
-    label: "15 / Checklist",
-    variant: "checklist" as const,
+    label: '07 / Нумерованные точки',
+    variant: 'dots' as const,
+  },
+  { label: '08 / Этапы', variant: 'milestones' as const },
+  { label: '09 / Баланс', variant: 'balance' as const },
+  { label: '10 / Матрица', variant: 'matrix' as const },
+  { label: '11 / Gauge', variant: 'gauge' as const },
+  { label: '12 / Дробная', variant: 'fraction' as const },
+  { label: '13 / Heatmap', variant: 'heatmap' as const },
+  { label: '14 / Ступени', variant: 'ladder' as const },
+  {
+    label: '15 / Checklist',
+    variant: 'checklist' as const,
   },
 ];
 
 const metricButtonVariants: Array<{
   label: string;
   variant: MetricActionButtonVariant;
-  metric: "journal" | "checkups";
+  metric: 'journal' | 'checkups';
 }> = [
   {
-    label: "01 / Основная",
-    variant: "solid",
-    metric: "journal",
+    label: '01 / Основная',
+    variant: 'solid',
+    metric: 'journal',
   },
   {
-    label: "02 / Мягкая",
-    variant: "soft",
-    metric: "checkups",
+    label: '02 / Мягкая',
+    variant: 'soft',
+    metric: 'checkups',
   },
   {
-    label: "03 / Контурная",
-    variant: "outline",
-    metric: "journal",
+    label: '03 / Контурная',
+    variant: 'outline',
+    metric: 'journal',
   },
   {
-    label: "04 / Белая",
-    variant: "white",
-    metric: "checkups",
+    label: '04 / Белая',
+    variant: 'white',
+    metric: 'checkups',
   },
   {
-    label: "05 / Бордовая",
-    variant: "burgundy",
-    metric: "journal",
+    label: '05 / Бордовая',
+    variant: 'burgundy',
+    metric: 'journal',
   },
   {
-    label: "06 / Liquid Glass",
-    variant: "glass",
-    metric: "checkups",
+    label: '06 / Liquid Glass',
+    variant: 'glass',
+    metric: 'checkups',
   },
   {
-    label: "07 / Split",
-    variant: "split",
-    metric: "journal",
+    label: '07 / Split',
+    variant: 'split',
+    metric: 'journal',
   },
   {
-    label: "08 / Ведущая иконка",
-    variant: "iconLeading",
-    metric: "checkups",
+    label: '08 / Ведущая иконка',
+    variant: 'iconLeading',
+    metric: 'checkups',
   },
   {
-    label: "09 / Текстовая",
-    variant: "textOnly",
-    metric: "journal",
+    label: '09 / Текстовая',
+    variant: 'textOnly',
+    metric: 'journal',
   },
   {
-    label: "10 / Выполнено",
-    variant: "completed",
-    metric: "checkups",
+    label: '10 / Выполнено',
+    variant: 'completed',
+    metric: 'checkups',
   },
 ];
 
@@ -246,35 +248,35 @@ const scanActionVariants: Array<{
   label: string;
   variant: ScanActionGroupVariant;
 }> = [
-  { label: "01 / Основные pill", variant: "solidPills" },
-  { label: "02 / Мягкие pill", variant: "softPills" },
-  { label: "03 / Контурные", variant: "outlinePills" },
-  { label: "04 / Белые", variant: "whitePills" },
-  { label: "05 / Liquid Glass", variant: "glassPills" },
+  { label: '01 / Основные pill', variant: 'solidPills' },
+  { label: '02 / Мягкие pill', variant: 'softPills' },
+  { label: '03 / Контурные', variant: 'outlinePills' },
+  { label: '04 / Белые', variant: 'whitePills' },
+  { label: '05 / Liquid Glass', variant: 'glassPills' },
   {
-    label: "06 / Segmented accent",
-    variant: "segmentedSolid",
+    label: '06 / Segmented accent',
+    variant: 'segmentedSolid',
   },
   {
-    label: "07 / Segmented soft",
-    variant: "segmentedSoft",
+    label: '07 / Segmented soft',
+    variant: 'segmentedSoft',
   },
-  { label: "08 / Плитки", variant: "tiles" },
-  { label: "09 / Минимальные", variant: "minimal" },
-  { label: "10 / Плавающие", variant: "floating" },
+  { label: '08 / Плитки', variant: 'tiles' },
+  { label: '09 / Минимальные', variant: 'minimal' },
+  { label: '10 / Плавающие', variant: 'floating' },
 ];
 
 const scanActions = [
   {
-    label: "Инфо",
+    label: 'Инфо',
     icon: <InfoIcon width={19} height={19} />,
   },
   {
-    label: "Купить",
+    label: 'Купить',
     icon: <BuyIcon width={19} height={19} />,
   },
   {
-    label: "История",
+    label: 'История',
     icon: <HistoryIcon width={19} height={19} />,
   },
 ];
@@ -283,82 +285,82 @@ const instructionVariants: Array<{
   label: string;
   variant: InstructionCardVariant;
 }> = [
-  { label: "01 / Числовая рейка", variant: "rail" },
-  { label: "02 / Badge", variant: "badge" },
-  { label: "03 / Акцентная колонка", variant: "accent" },
-  { label: "04 / Editorial", variant: "editorial" },
-  { label: "05 / Progress", variant: "progress" },
-  { label: "06 / Liquid Glass", variant: "glass" },
-  { label: "07 / Номер сверху", variant: "numberTop" },
-  { label: "08 / Timeline", variant: "timeline" },
-  { label: "09 / Инвертированная", variant: "inverse" },
-  { label: "10 / Минимальная", variant: "minimal" },
-  { label: "11 / Мягкий заголовок", variant: "softHeader" },
-  { label: "12 / Номер в кольце", variant: "ring" },
-  { label: "13 / Угловой номер", variant: "corner" },
-  { label: "14 / Сегменты", variant: "segments" },
-  { label: "15 / Билет", variant: "ticket" },
-  { label: "16 / С иллюстрациями", variant: "illustrated" },
+  { label: '01 / Числовая рейка', variant: 'rail' },
+  { label: '02 / Badge', variant: 'badge' },
+  { label: '03 / Акцентная колонка', variant: 'accent' },
+  { label: '04 / Editorial', variant: 'editorial' },
+  { label: '05 / Progress', variant: 'progress' },
+  { label: '06 / Liquid Glass', variant: 'glass' },
+  { label: '07 / Номер сверху', variant: 'numberTop' },
+  { label: '08 / Timeline', variant: 'timeline' },
+  { label: '09 / Инвертированная', variant: 'inverse' },
+  { label: '10 / Минимальная', variant: 'minimal' },
+  { label: '11 / Мягкий заголовок', variant: 'softHeader' },
+  { label: '12 / Номер в кольце', variant: 'ring' },
+  { label: '13 / Угловой номер', variant: 'corner' },
+  { label: '14 / Сегменты', variant: 'segments' },
+  { label: '15 / Билет', variant: 'ticket' },
+  { label: '16 / С иллюстрациями', variant: 'illustrated' },
 ];
 
 const instructionSteps = [
-  "Соберите мочу в чистую сухую емкость.",
-  "Вскройте фольгированную упаковку и достаньте тест-полоску.",
-  "Опустите тест-полоску в мочу до отметки ”MAX” на 3–5 секунд.",
-  "Достаньте тест-полоску и положите её на ровную сухую поверхность.",
-  "Спустя 3-7 минут отсканируйте результат в приложении.",
+  'Соберите мочу в чистую сухую емкость.',
+  'Вскройте фольгированную упаковку и достаньте тест-полоску.',
+  'Опустите тест-полоску в мочу до отметки ”MAX” на 3–5 секунд.',
+  'Достаньте тест-полоску и положите её на ровную сухую поверхность.',
+  'Спустя 3-7 минут отсканируйте результат в приложении.',
 ];
 
 const instructionIllustrations = [
-  require("../assets/instructions/step-1-cup.png"),
-  require("../assets/instructions/step-2-package.png"),
-  require("../assets/instructions/step-3-dip-test.png"),
-  require("../assets/instructions/step-4-test-strip.png"),
-  require("../assets/instructions/step-5-results.png"),
+  require('../assets/instructions/step-1-cup.png'),
+  require('../assets/instructions/step-2-package.png'),
+  require('../assets/instructions/step-3-dip-test.png'),
+  require('../assets/instructions/step-4-test-strip.png'),
+  require('../assets/instructions/step-5-results.png'),
 ];
 
 const instructionIntroCard = {
-  title: "Инструкция по использованию",
-  illustration: require("../assets/instructions/step-4-test-strip.png"),
-  variant: "classic" as InstructionIntroCardVariant,
+  title: 'Инструкция по использованию',
+  illustration: require('../assets/instructions/step-4-test-strip.png'),
+  variant: 'classic' as InstructionIntroCardVariant,
 };
 
 const instructionIntroVariants: Array<{
   label: string;
   variant: InstructionIntroCardVariant;
 }> = [
-  { label: "01 / Классическая", variant: "classic" },
-  { label: "02 / Брендовая", variant: "brand" },
-  { label: "03 / Мягкая", variant: "soft" },
-  { label: "04 / Контурная", variant: "outline" },
-  { label: "05 / Editorial", variant: "editorial" },
-  { label: "06 / Split", variant: "split" },
-  { label: "07 / Liquid Glass", variant: "glass" },
-  { label: "08 / Минимальная", variant: "minimal" },
-  { label: "09 / В рамке", variant: "framed" },
-  { label: "10 / Image hero", variant: "imageHero" },
+  { label: '01 / Классическая', variant: 'classic' },
+  { label: '02 / Брендовая', variant: 'brand' },
+  { label: '03 / Мягкая', variant: 'soft' },
+  { label: '04 / Контурная', variant: 'outline' },
+  { label: '05 / Editorial', variant: 'editorial' },
+  { label: '06 / Split', variant: 'split' },
+  { label: '07 / Liquid Glass', variant: 'glass' },
+  { label: '08 / Минимальная', variant: 'minimal' },
+  { label: '09 / В рамке', variant: 'framed' },
+  { label: '10 / Image hero', variant: 'imageHero' },
 ];
 
 const scanBackgroundMotionVariants: Array<{
   label: string;
   variant: ScanBackgroundMotionVariant;
 }> = [
-  { label: "01 / Мягкий дрейф", variant: "drift" },
-  { label: "02 / Дыхание", variant: "breathe" },
-  { label: "03 / Диагональный поток", variant: "diagonal" },
-  { label: "04 / Покачивание", variant: "sway" },
-  { label: "05 / Вертикальный поток", variant: "vertical" },
+  { label: '01 / Мягкий дрейф', variant: 'drift' },
+  { label: '02 / Дыхание', variant: 'breathe' },
+  { label: '03 / Диагональный поток', variant: 'diagonal' },
+  { label: '04 / Покачивание', variant: 'sway' },
+  { label: '05 / Вертикальный поток', variant: 'vertical' },
   {
-    label: "06 / Горизонтальный поток",
-    variant: "activeOrbit",
+    label: '06 / Горизонтальный поток',
+    variant: 'activeOrbit',
   },
   {
-    label: "07 / Диагональный проход",
-    variant: "activeSweep",
+    label: '07 / Диагональный проход',
+    variant: 'activeSweep',
   },
   {
-    label: "08 / Поток с глубиной",
-    variant: "activePulse",
+    label: '08 / Поток с глубиной',
+    variant: 'activePulse',
   },
 ];
 
@@ -366,71 +368,71 @@ const instructionNavigationVariants: Array<{
   label: string;
   variant: InstructionNavigationVariant;
 }> = [
-  { label: "01 / Оригинальные", variant: "original" },
-  { label: "02 / Брендовые", variant: "brand" },
-  { label: "03 / Мягкие", variant: "soft" },
-  { label: "04 / Контурные", variant: "outline" },
-  { label: "05 / Белые", variant: "white" },
-  { label: "06 / Liquid Glass", variant: "glass" },
-  { label: "07 / Квадратные", variant: "square" },
-  { label: "08 / Бордовые", variant: "burgundy" },
-  { label: "09 / Минимальные", variant: "minimal" },
-  { label: "10 / Двойной контур", variant: "double" },
+  { label: '01 / Оригинальные', variant: 'original' },
+  { label: '02 / Брендовые', variant: 'brand' },
+  { label: '03 / Мягкие', variant: 'soft' },
+  { label: '04 / Контурные', variant: 'outline' },
+  { label: '05 / Белые', variant: 'white' },
+  { label: '06 / Liquid Glass', variant: 'glass' },
+  { label: '07 / Квадратные', variant: 'square' },
+  { label: '08 / Бордовые', variant: 'burgundy' },
+  { label: '09 / Минимальные', variant: 'minimal' },
+  { label: '10 / Двойной контур', variant: 'double' },
 ];
 
 const scanTooltipVariants: Array<{
   label: string;
   variant: ScanTooltipVariant;
 }> = [
-  { label: "01 / Clear Liquid Glass", variant: "glass" },
-  { label: "02 / Тёмная капсула", variant: "dark" },
-  { label: "03 / Светлая капсула", variant: "light" },
-  { label: "04 / Адаптивный акцент", variant: "brand" },
-  { label: "05 / Контурная", variant: "outline" },
-  { label: "06 / Split status", variant: "split" },
-  { label: "07 / Status rail", variant: "status" },
-  { label: "08 / Компактная", variant: "compact" },
-  { label: "09 / Плавающая иконка", variant: "floating" },
-  { label: "10 / Message bubble", variant: "bubble" },
+  { label: '01 / Clear Liquid Glass', variant: 'glass' },
+  { label: '02 / Тёмная капсула', variant: 'dark' },
+  { label: '03 / Светлая капсула', variant: 'light' },
+  { label: '04 / Адаптивный акцент', variant: 'brand' },
+  { label: '05 / Контурная', variant: 'outline' },
+  { label: '06 / Split status', variant: 'split' },
+  { label: '07 / Status rail', variant: 'status' },
+  { label: '08 / Компактная', variant: 'compact' },
+  { label: '09 / Плавающая иконка', variant: 'floating' },
+  { label: '10 / Message bubble', variant: 'bubble' },
 ];
 
 const scanTooltipKinds: Array<{
   label: string;
   kind: ScanTooltipKind;
 }> = [
-  { label: "QR-код", kind: "qr" },
-  { label: "Тест", kind: "test" },
-  { label: "Недостаточный свет", kind: "lowLight" },
-  { label: "Неоднородный фон", kind: "background" },
-  { label: "Успешная фиксация", kind: "locked" },
+  { label: 'QR-код', kind: 'qr' },
+  { label: 'Тест', kind: 'test' },
+  { label: 'Недостаточный свет', kind: 'lowLight' },
+  { label: 'Неоднородный фон', kind: 'background' },
+  { label: 'Успешная фиксация', kind: 'locked' },
 ];
 
 const scanHistoryVariants: Array<{
   label: string;
   variant: ScanHistoryVariant;
 }> = [
-  { label: "01 / Таймлайн", variant: "timeline" },
-  { label: "02 / Карточки результатов", variant: "cards" },
-  { label: "03 / Компактный журнал", variant: "compact" },
-  { label: "04 / Календарь", variant: "calendar" },
-  { label: "05 / Динамика", variant: "insights" },
-  { label: "06 / По дням", variant: "grouped" },
-  { label: "07 / По типу теста", variant: "testTypes" },
-  { label: "08 / Архив месяцев", variant: "archive" },
-  { label: "09 / Сравнение", variant: "comparison" },
-  { label: "10 / Лента снимков", variant: "gallery" },
+  { label: '01 / Таймлайн', variant: 'timeline' },
+  { label: '02 / Карточки результатов', variant: 'cards' },
+  { label: '03 / Компактный журнал', variant: 'compact' },
+  { label: '04 / Календарь', variant: 'calendar' },
+  { label: '05 / Динамика', variant: 'insights' },
+  { label: '06 / По дням', variant: 'grouped' },
+  { label: '07 / По типу теста', variant: 'testTypes' },
+  { label: '08 / Архив месяцев', variant: 'archive' },
+  { label: '09 / Сравнение', variant: 'comparison' },
+  { label: '10 / Лента снимков', variant: 'gallery' },
 ];
 
 const calendarSymptomStatusVariants: Array<{
   label: string;
   variant: CalendarSymptomStatusVariant;
 }> = [
-  { label: "01 / Верхняя полоса", variant: "banner" },
-  { label: "02 / Над прогнозом", variant: "inline" },
-  { label: "03 / Компактная капсула", variant: "compact" },
-  { label: "04 / Под датой", variant: "underDate" },
-  { label: "05 / Боковой статус", variant: "side" },
-  { label: "06 / Нижняя строка", variant: "footer" },
+  { label: '01 / Верхняя полоса', variant: 'banner' },
+  { label: '02 / Над прогнозом', variant: 'inline' },
+  { label: '03 / Компактная капсула', variant: 'compact' },
+  { label: '04 / Под датой', variant: 'underDate' },
+  { label: '05 / Боковой статус', variant: 'side' },
+  { label: '06 / Нижняя строка', variant: 'footer' },
 ];
 
 function Section({
@@ -458,15 +460,16 @@ function Section({
 export default function DesignSystemScreen() {
   const insets = useSafeAreaInsets();
   const [complete, setComplete] = useState(false);
+  const [authFlowVisible, setAuthFlowVisible] = useState(false);
   const [calendarBackupVisible, setCalendarBackupVisible] = useState(false);
   const [fontsLoaded] = useFonts(
-    Platform.OS === "web"
+    Platform.OS === 'web'
       ? {
-          [fonts.sfRegular]: require("../assets/fonts/SF-Pro-Display-Regular.otf"),
-          [fonts.sfMedium]: require("../assets/fonts/SF-Pro-Display-Medium.otf"),
-          [fonts.sfSemibold]: require("../assets/fonts/SF-Pro-Display-Semibold.otf"),
-          [fonts.sfBold]: require("../assets/fonts/SF-Pro-Display-Bold.otf"),
-          [fonts.yaroRegular]: require("../assets/fonts/Yaro-Rg-Regular.otf"),
+          [fonts.sfRegular]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
+          [fonts.sfMedium]: require('../assets/fonts/SF-Pro-Display-Medium.otf'),
+          [fonts.sfSemibold]: require('../assets/fonts/SF-Pro-Display-Semibold.otf'),
+          [fonts.sfBold]: require('../assets/fonts/SF-Pro-Display-Bold.otf'),
+          [fonts.yaroRegular]: require('../assets/fonts/Yaro-Rg-Regular.otf'),
         }
       : {},
   );
@@ -492,14 +495,14 @@ export default function DesignSystemScreen() {
           style={[styles.hero, { paddingTop: Math.max(insets.top, 16) + 12 }]}
         >
           <Image
-            source={require("../assets/figma/pregnancy-background.png")}
+            source={require('../assets/figma/pregnancy-background.png')}
             resizeMode="cover"
             style={styles.heroImage}
           />
           <LinearGradient
             colors={[
-              "rgba(93,26,41,0.24)",
-              "rgba(130,53,55,0.88)",
+              'rgba(93,26,41,0.24)',
+              'rgba(130,53,55,0.88)',
               colors.brand.burgundy,
             ]}
             locations={[0, 0.66, 1]}
@@ -645,7 +648,7 @@ export default function DesignSystemScreen() {
           <Section eyebrow="03 / Material" title="Liquid Glass">
             <View style={styles.glassStage}>
               <Image
-                source={require("../assets/figma/scan-screen/background.png")}
+                source={require('../assets/figma/scan-screen/background.png')}
                 resizeMode="cover"
                 style={styles.glassStageImage}
               />
@@ -663,7 +666,7 @@ export default function DesignSystemScreen() {
                   <AppText role="body">
                     <AppText numeric role="body">
                       21
-                    </AppText>{" "}
+                    </AppText>{' '}
                     июля
                   </AppText>
                 </GlassControl>
@@ -733,7 +736,7 @@ export default function DesignSystemScreen() {
           <Section eyebrow="04 / Controls" title="Кнопки и состояния">
             <View style={styles.buttonStack}>
               <PrimaryButton
-                label={complete ? "Готово" : "Заполнить"}
+                label={complete ? 'Готово' : 'Заполнить'}
                 onPress={() => setComplete((value) => !value)}
                 icon={<ArrowButton width={18} height={18} />}
               />
@@ -842,9 +845,9 @@ export default function DesignSystemScreen() {
                     total={6}
                     variant={variant.variant}
                     title={
-                      variant.variant === "comparison"
-                        ? "Динамика чекапов"
-                        : "Прохождение чекапов"
+                      variant.variant === 'comparison'
+                        ? 'Динамика чекапов'
+                        : 'Прохождение чекапов'
                     }
                     status="Средняя регулярность"
                     leftCaption="Пройдено 3"
@@ -871,8 +874,8 @@ export default function DesignSystemScreen() {
 
             <View style={styles.journalVariants}>
               {metricButtonVariants.map((item) => {
-                const isCheckups = item.metric === "checkups";
-                const isCompleted = item.variant === "completed";
+                const isCheckups = item.metric === 'checkups';
+                const isCompleted = item.variant === 'completed';
 
                 return (
                   <View key={item.label} style={styles.journalVariant}>
@@ -886,21 +889,21 @@ export default function DesignSystemScreen() {
                     <JournalAssessment
                       value={isCompleted ? 6 : isCheckups ? 3 : 16}
                       total={isCheckups ? 6 : 24}
-                      variant={isCheckups ? "continuous" : "ring"}
+                      variant={isCheckups ? 'continuous' : 'ring'}
                       title={
                         isCheckups
-                          ? "Прохождение чекапов"
-                          : "Заполнение журнала"
+                          ? 'Прохождение чекапов'
+                          : 'Заполнение журнала'
                       }
                       status="Средняя регулярность"
                       leftCaption="Пройдено 3"
                       rightCaption="Всего 6"
                       actionLabel={
                         isCompleted
-                          ? "Готово"
+                          ? 'Готово'
                           : isCheckups
-                            ? "Пройти"
-                            : "Заполнить"
+                            ? 'Пройти'
+                            : 'Заполнить'
                       }
                       actionVariant={item.variant}
                       actionIcon={<ArrowButton width={18.3} height={18.3} />}
@@ -951,23 +954,23 @@ export default function DesignSystemScreen() {
                   <View style={styles.variantHeader}>
                     <TokenLabel>{item.label}</TokenLabel>
                     <AppText role="caption" color={colors.text.secondary}>
-                      {item.variant === "accent" ? "360×130" : "360×150"}
+                      {item.variant === 'accent' ? '360×130' : '360×150'}
                     </AppText>
                   </View>
                   <InstructionCarousel
                     instructions={instructionSteps}
                     variant={item.variant}
                     illustrations={
-                      item.variant === "illustrated"
+                      item.variant === 'illustrated'
                         ? instructionIllustrations
                         : undefined
                     }
                     introCard={
-                      item.variant === "illustrated"
+                      item.variant === 'illustrated'
                         ? instructionIntroCard
                         : undefined
                     }
-                    cardHeight={item.variant === "accent" ? 130 : 150}
+                    cardHeight={item.variant === 'accent' ? 130 : 150}
                   />
                 </View>
               ))}
@@ -994,7 +997,7 @@ export default function DesignSystemScreen() {
                     </AppText>
                   </View>
                   <ScanBackgroundMotion
-                    source={require("../assets/figma/scan-screen/background.png")}
+                    source={require('../assets/figma/scan-screen/background.png')}
                     variant={item.variant}
                     width={164}
                     height={355}
@@ -1082,7 +1085,7 @@ export default function DesignSystemScreen() {
 
                   <View style={styles.scanTooltipStage}>
                     <Image
-                      source={require("../assets/figma/scan-screen/background.png")}
+                      source={require('../assets/figma/scan-screen/background.png')}
                       resizeMode="cover"
                       style={styles.scanTooltipStageImage}
                     />
@@ -1175,6 +1178,82 @@ export default function DesignSystemScreen() {
             </View>
           </Section>
 
+          <View style={styles.rule} />
+
+          <Section eyebrow="15 / Registration" title="Регистрация">
+            <AppText role="body" color={colors.text.secondary}>
+              Интерактивный production-экран: переключатель e-mail и телефона,
+              обязательные согласия и кнопка «Далее» с валидацией заполнения.
+            </AppText>
+
+            <View style={styles.authScreenStage}>
+              <View style={styles.authScreenScaled}>
+                <AuthScreen embedded preview />
+              </View>
+            </View>
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section
+            eyebrow="16 / Auth flow"
+            title="Вход и восстановление доступа"
+          >
+            <AppText role="body" color={colors.text.secondary}>
+              Интерактивный полноэкранный сценарий: согласие на обработку
+              данных, вход по телефону или e-mail, восстановление через SMS или
+              ссылку, установка нового пароля и возврат в приложение.
+            </AppText>
+
+            <AppCard style={styles.authFlowCard}>
+              <View style={styles.authFlowHeader}>
+                <View>
+                  <TokenLabel>PRODUCTION SIZE</TokenLabel>
+                  <AppText
+                    role="heading"
+                    weight="semibold"
+                    style={styles.authFlowTitle}
+                  >
+                    Защищённый доступ
+                  </AppText>
+                </View>
+                <AppText numeric role="title" color={colors.brand.primary}>
+                  5
+                </AppText>
+              </View>
+
+              <View style={styles.authFlowSteps}>
+                {[
+                  'Телефон или e-mail',
+                  'Пароль и согласие',
+                  'SMS-код или ссылка',
+                  'Новый пароль',
+                  'Возврат в приложение',
+                ].map((label, index) => (
+                  <View key={label} style={styles.authFlowStep}>
+                    <View style={styles.authFlowStepNumber}>
+                      <AppText
+                        numeric
+                        role="caption"
+                        color={colors.brand.primary}
+                      >
+                        {index + 1}
+                      </AppText>
+                    </View>
+                    <AppText role="label" style={styles.authFlowStepLabel}>
+                      {label}
+                    </AppText>
+                  </View>
+                ))}
+              </View>
+
+              <PrimaryButton
+                label="Открыть флоу входа"
+                onPress={() => setAuthFlowVisible(true)}
+              />
+            </AppCard>
+          </Section>
+
           <View style={styles.footer}>
             <ScanIcon width={22} height={22} />
             <View style={styles.footerCopy}>
@@ -1191,6 +1270,10 @@ export default function DesignSystemScreen() {
       <CalendarPageBackupModal
         visible={calendarBackupVisible}
         onClose={() => setCalendarBackupVisible(false)}
+      />
+      <AuthFlowModal
+        visible={authFlowVisible}
+        onClose={() => setAuthFlowVisible(false)}
       />
     </View>
   );
@@ -1212,11 +1295,11 @@ const styles = StyleSheet.create({
     minHeight: 430,
     paddingHorizontal: sizes.screenGutter,
     paddingBottom: 34,
-    overflow: "hidden",
+    overflow: 'hidden',
     backgroundColor: colors.brand.burgundy,
   },
   heroImage: {
-    position: "absolute",
+    position: 'absolute',
     left: -220,
     top: -70,
     width: 820,
@@ -1224,9 +1307,9 @@ const styles = StyleSheet.create({
     opacity: 0.82,
   },
   heroControls: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   heroCircle: {
     width: sizes.touch,
@@ -1239,7 +1322,7 @@ const styles = StyleSheet.create({
     borderRadius: sizes.touch / 2,
   },
   backGlyph: {
-    marginTop: Platform.OS === "ios" ? -3 : -1,
+    marginTop: Platform.OS === 'ios' ? -3 : -1,
     fontSize: 36,
     lineHeight: 38,
   },
@@ -1263,9 +1346,9 @@ const styles = StyleSheet.create({
     marginTop: 42,
     paddingTop: 18,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.28)",
-    flexDirection: "row",
-    justifyContent: "space-between",
+    borderTopColor: 'rgba(255,255,255,0.28)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   sheet: {
     marginTop: -28,
@@ -1287,21 +1370,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.divider,
   },
   swatchGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.md,
   },
   swatchItem: {
-    width: "46%",
+    width: '46%',
     gap: 5,
   },
   swatch: {
-    width: "100%",
+    width: '100%',
     aspectRatio: 1.6,
     marginBottom: 4,
     borderRadius: radii.md,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(33,33,35,0.08)",
+    borderColor: 'rgba(33,33,35,0.08)',
   },
   typeCard: {
     paddingVertical: 0,
@@ -1320,13 +1403,13 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.lg,
     backgroundColor: colors.surface.warm,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.lg,
   },
   numericSample: {
     width: 100,
-    alignItems: "center",
+    alignItems: 'center',
   },
   numericCopy: {
     flex: 1,
@@ -1334,9 +1417,9 @@ const styles = StyleSheet.create({
   },
   glassStage: {
     height: 190,
-    overflow: "hidden",
+    overflow: 'hidden',
     borderRadius: radii.lg,
-    justifyContent: "center",
+    justifyContent: 'center',
   },
   glassStageImage: {
     ...StyleSheet.absoluteFillObject,
@@ -1345,9 +1428,9 @@ const styles = StyleSheet.create({
   },
   glassRow: {
     paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   glassCircle: {
     width: sizes.touch,
@@ -1360,7 +1443,7 @@ const styles = StyleSheet.create({
     borderRadius: sizes.touch / 2,
   },
   glassNote: {
-    position: "absolute",
+    position: 'absolute',
     right: 18,
     bottom: 14,
   },
@@ -1368,17 +1451,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   inlineButtons: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: spacing.sm,
   },
   cardRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: spacing.sm,
   },
   demoCard: {
     flex: 1,
     minHeight: 150,
-    justifyContent: "space-between",
+    justifyContent: 'space-between',
   },
   demoCardTitle: {
     marginTop: spacing.lg,
@@ -1388,15 +1471,15 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     backgroundColor: colors.surface.raised,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "flex-end",
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
   },
   instructionCard: {
     minHeight: 120,
     backgroundColor: colors.surface.raised,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
     ...shadows.card,
   },
@@ -1405,7 +1488,7 @@ const styles = StyleSheet.create({
     fontSize: 58,
     lineHeight: 64,
     letterSpacing: -1.2,
-    textAlign: "center",
+    textAlign: 'center',
   },
   instructionCopy: {
     flex: 1,
@@ -1419,9 +1502,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   variantHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   scanActionVariant: {
     width: 370,
@@ -1443,7 +1526,7 @@ const styles = StyleSheet.create({
   scanBackgroundMotionVariant: {
     width: 360,
     gap: spacing.sm,
-    alignItems: "center",
+    alignItems: 'center',
   },
   instructionNavigationVariants: {
     gap: spacing.xl,
@@ -1463,9 +1546,9 @@ const styles = StyleSheet.create({
   scanTooltipStage: {
     width: 370,
     height: 116,
-    overflow: "hidden",
+    overflow: 'hidden',
     borderRadius: 28,
-    backgroundColor: "#251119",
+    backgroundColor: '#251119',
   },
   scanTooltipStageImage: {
     ...StyleSheet.absoluteFillObject,
@@ -1474,22 +1557,22 @@ const styles = StyleSheet.create({
   },
   scanTooltipStageScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.16)",
+    backgroundColor: 'rgba(0,0,0,0.16)',
   },
   scanTooltipScrollContent: {
     paddingHorizontal: 16,
-    alignItems: "center",
+    alignItems: 'center',
     gap: 18,
   },
   scanTooltipDemo: {
     width: 320,
     gap: 7,
-    alignItems: "center",
+    alignItems: 'center',
   },
   scanTooltipKindLabel: {
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
     marginLeft: 4,
-    textTransform: "uppercase",
+    textTransform: 'uppercase',
     letterSpacing: 0.55,
   },
   scanHistoryVariants: {
@@ -1500,11 +1583,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   radiusRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   geometryItem: {
-    alignItems: "center",
+    alignItems: 'center',
     gap: spacing.xs,
   },
   radiusShape: {
@@ -1512,7 +1595,7 @@ const styles = StyleSheet.create({
     height: 68,
     backgroundColor: colors.surface.warm,
     borderWidth: 1,
-    borderColor: "rgba(211,20,113,0.16)",
+    borderColor: 'rgba(211,20,113,0.16)',
   },
   spacingCard: {
     padding: spacing.md,
@@ -1522,13 +1605,13 @@ const styles = StyleSheet.create({
   },
   spacingRow: {
     height: 18,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   spacingValue: {
     width: 24,
-    textAlign: "right",
+    textAlign: 'right',
   },
   spacingBar: {
     maxWidth: 160,
@@ -1536,13 +1619,59 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.brand.primary,
   },
+  authFlowCard: {
+    gap: spacing.lg,
+    ...shadows.card,
+  },
+  authScreenStage: {
+    width: 370,
+    height: 804,
+    overflow: 'hidden',
+    borderRadius: 37,
+    backgroundColor: colors.surface.raised,
+    ...shadows.card,
+  },
+  authScreenScaled: {
+    width: 402,
+    height: 874,
+    transform: [{ scale: 370 / 402 }],
+    transformOrigin: 'top left',
+  },
+  authFlowHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  authFlowTitle: {
+    marginTop: spacing.xs,
+  },
+  authFlowSteps: {
+    gap: spacing.sm,
+  },
+  authFlowStep: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  authFlowStepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.surface.rose,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authFlowStepLabel: {
+    flex: 1,
+  },
   footer: {
     marginTop: 48,
     paddingVertical: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.surface.divider,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   footerCopy: {

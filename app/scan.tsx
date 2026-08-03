@@ -692,7 +692,7 @@ export default function ScanScreen() {
                           { fontFamily: sfRegular },
                         ]}
                       >
-                        Выбрать фото из устройства
+                        Выбрать фото из галереи
                       </Text>
                     </View>
                   )}

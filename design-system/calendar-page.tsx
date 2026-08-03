@@ -85,6 +85,26 @@ function dateKey(date: Date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
+function dayTimestamp(date: Date) {
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function periodDayOrdinal(date: Date, periodDates: ReadonlySet<string>) {
+  let ordinal = 1;
+  const cursor = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() - 1,
+  );
+
+  while (periodDates.has(dateKey(cursor)) && ordinal < 31) {
+    ordinal += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return ordinal;
+}
+
 type DayForecastKind =
   "fertile" | "menstruation" | "neutral" | "ovulation" | "upcoming";
 
@@ -95,18 +115,32 @@ type DayForecast = {
   title: string;
 };
 
+type CalculatedCycle = {
+  cycleLength: number;
+  periodDates: ReadonlySet<string>;
+  startTimestamp: number;
+};
+
+const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+
+const NO_CYCLE_FORECAST: DayForecast = {
+  cycleDay: 0,
+  description: "Отметьте дни месячных, чтобы появился прогноз цикла.",
+  kind: "neutral",
+  title: "Нет данных о цикле",
+};
+
 export type CalendarSymptomStatusVariant =
   "banner" | "compact" | "footer" | "inline" | "side" | "underDate";
 
 function getDayForecast(date: Date): DayForecast {
-  const dayInMilliseconds = 24 * 60 * 60 * 1000;
   const dateUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
   const cycleStartUtc = Date.UTC(
     CYCLE_START.getFullYear(),
     CYCLE_START.getMonth(),
     CYCLE_START.getDate(),
   );
-  const difference = Math.floor((dateUtc - cycleStartUtc) / dayInMilliseconds);
+  const difference = Math.floor((dateUtc - cycleStartUtc) / DAY_IN_MILLISECONDS);
   const cycleDay =
     (((difference % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH) + 1;
 
@@ -138,6 +172,111 @@ function getDayForecast(date: Date): DayForecast {
   }
 
   if (cycleDay >= 26) {
+    return {
+      cycleDay,
+      description: "Менструация ожидается в ближайшие несколько дней.",
+      kind: "upcoming",
+      title: "Ожидается менструация",
+    };
+  }
+
+  return {
+    cycleDay,
+    description: "Особых событий по прогнозу цикла не ожидается.",
+    kind: "neutral",
+    title: "Обычный день цикла",
+  };
+}
+
+function buildCalculatedCycle(
+  periodDates: ReadonlySet<string>,
+): CalculatedCycle | null {
+  const timestamps = [...periodDates]
+    .map((key) => {
+      const [year, month, day] = key.split("-").map(Number);
+      return Date.UTC(year, month, day);
+    })
+    .sort((left, right) => left - right);
+
+  if (timestamps.length === 0) {
+    return null;
+  }
+
+  const periodStarts = timestamps.filter(
+    (timestamp) =>
+      !periodDates.has(
+        dateKey(new Date(timestamp - DAY_IN_MILLISECONDS)),
+      ),
+  );
+  const validCycleLengths = periodStarts
+    .slice(1)
+    .map(
+      (timestamp, index) =>
+        Math.round(
+          (timestamp - periodStarts[index]) / DAY_IN_MILLISECONDS,
+        ),
+    )
+    .filter((length) => length >= 21 && length <= 45);
+  const cycleLength =
+    validCycleLengths.length > 0
+      ? Math.round(
+          validCycleLengths.reduce((sum, length) => sum + length, 0) /
+            validCycleLengths.length,
+        )
+      : 28;
+
+  return {
+    cycleLength,
+    periodDates,
+    startTimestamp: periodStarts[periodStarts.length - 1] ?? timestamps[0],
+  };
+}
+
+function getCalculatedDayForecast(
+  date: Date,
+  cycle: CalculatedCycle,
+): DayForecast {
+  const timestamp = dayTimestamp(date);
+  const difference = Math.floor(
+    (timestamp - cycle.startTimestamp) / DAY_IN_MILLISECONDS,
+  );
+  const cycleDay =
+    (((difference % cycle.cycleLength) + cycle.cycleLength) %
+      cycle.cycleLength) +
+    1;
+  const ovulationDay = Math.max(10, Math.min(21, cycle.cycleLength - 14));
+  const actualPeriod = cycle.periodDates.has(dateKey(date));
+
+  if (actualPeriod || cycleDay <= 5) {
+    return {
+      cycleDay,
+      description: actualPeriod
+        ? "День менструации отмечен пользователем."
+        : `Ожидается ${cycleDay}-й день менструации.`,
+      kind: "menstruation",
+      title: "Менструация",
+    };
+  }
+
+  if (cycleDay === ovulationDay) {
+    return {
+      cycleDay,
+      description: "Предполагаемый день овуляции по истории цикла.",
+      kind: "ovulation",
+      title: "Овуляция",
+    };
+  }
+
+  if (cycleDay >= ovulationDay - 5 && cycleDay <= ovulationDay + 1) {
+    return {
+      cycleDay,
+      description: "Фертильное окно рассчитано по истории цикла.",
+      kind: "fertile",
+      title: "Повышенная вероятность забеременеть",
+    };
+  }
+
+  if (cycleDay >= cycle.cycleLength - 2) {
     return {
       cycleDay,
       description: "Менструация ожидается в ближайшие несколько дней.",
@@ -197,8 +336,14 @@ function makeCalendarCells(month: Date): CalendarCell[] {
 
 function CalendarDayGrid({
   cellWidth,
+  currentDate,
+  forecastForDate,
+  maximumSelectableDate,
   month,
   onDayPressIn,
+  periodDateKeys,
+  periodSelectionMode = false,
+  selectOnPressIn = false,
   selectedDate,
   onSelectDate,
   showSymptomLogs = false,
@@ -206,8 +351,14 @@ function CalendarDayGrid({
   useCycleForecast = false,
 }: {
   cellWidth: number;
+  currentDate?: Date;
+  forecastForDate?: (date: Date) => DayForecast | null;
+  maximumSelectableDate?: Date;
   month: Date;
   onDayPressIn?: () => void;
+  periodDateKeys?: ReadonlySet<string>;
+  periodSelectionMode?: boolean;
+  selectOnPressIn?: boolean;
   selectedDate: Date | null;
   onSelectDate: (date: Date) => void;
   showSymptomLogs?: boolean;
@@ -216,11 +367,18 @@ function CalendarDayGrid({
 }) {
   const cells = useMemo(() => makeCalendarCells(month), [month]);
   const selectedKey = selectedDate ? dateKey(selectedDate) : null;
+  const currentDateKey = currentDate ? dateKey(currentDate) : null;
+  const maximumSelectableTimestamp = maximumSelectableDate
+    ? dayTimestamp(maximumSelectableDate)
+    : Number.POSITIVE_INFINITY;
 
   return (
     <View style={styles.daysGrid}>
       {cells.map(({ date, inCurrentMonth }) => {
         const key = dateKey(date);
+        const futureDisabled =
+          periodSelectionMode &&
+          dayTimestamp(date) > maximumSelectableTimestamp;
 
         if (!inCurrentMonth && !showOutsideDays) {
           return (
@@ -229,17 +387,28 @@ function CalendarDayGrid({
         }
 
         const selected = key === selectedKey;
+        const current = key === currentDateKey;
         const symptomsLogged =
           showSymptomLogs && SYMPTOM_LOG_DATE_KEYS.has(key);
-        const forecast = getDayForecast(date);
+        const forecast = forecastForDate
+          ? forecastForDate(date)
+          : getDayForecast(date);
         const fertile = useCycleForecast
-          ? forecast.kind === "fertile" || forecast.kind === "ovulation"
+          ? forecast?.kind === "fertile" || forecast?.kind === "ovulation"
           : FERTILE_DATE_KEYS.has(key);
-        const period = useCycleForecast
-          ? forecast.kind === "menstruation"
+        const forecastPeriod = useCycleForecast
+          ? forecast?.kind === "menstruation"
           : PERIOD_DATE_KEYS.has(key);
+        const loggedPeriod = periodDateKeys?.has(key) ?? false;
+        const loggedPeriodOrdinal =
+          periodSelectionMode && loggedPeriod && periodDateKeys
+            ? periodDayOrdinal(date, periodDateKeys)
+            : null;
+        const period = periodSelectionMode
+          ? loggedPeriod
+          : forecastPeriod || loggedPeriod;
         const ovulation = useCycleForecast
-          ? forecast.kind === "ovulation"
+          ? forecast?.kind === "ovulation"
           : key === OVULATION_DATE_KEY;
 
         return (
@@ -248,10 +417,27 @@ function CalendarDayGrid({
               accessibilityRole="button"
               accessibilityLabel={`${dayTitle(date)}${
                 symptomsLogged ? ", симптомы отмечены" : ""
+              }${current ? ", сегодня" : ""}${
+                futureDisabled ? ", будущая дата, недоступно" : ""
               }`}
-              accessibilityState={{ selected }}
-              onPressIn={onDayPressIn}
-              onPress={() => onSelectDate(date)}
+              accessibilityState={{ disabled: futureDisabled, selected }}
+              disabled={futureDisabled}
+              onTouchStart={onDayPressIn}
+              onPressIn={() => {
+                if (selectOnPressIn) {
+                  onSelectDate(date);
+                }
+              }}
+              onPress={() => {
+                if (!selectOnPressIn) {
+                  onSelectDate(date);
+                }
+              }}
+              onAccessibilityTap={() => {
+                if (selectOnPressIn) {
+                  onSelectDate(date);
+                }
+              }}
             >
               {({ pressed }) => (
                 <View
@@ -266,16 +452,25 @@ function CalendarDayGrid({
                       styles.dayCircle,
                       fertile && styles.dayFertile,
                       period && styles.dayPeriod,
-                      ovulation && styles.dayOvulation,
+                      periodSelectionMode && period && styles.dayPeriodSelected,
+                      ovulation &&
+                        !(periodSelectionMode && period) &&
+                        styles.dayOvulation,
+                      current && styles.dayToday,
                       selected && styles.daySelected,
+                      futureDisabled && styles.dayFutureDisabled,
                     ]}
                   >
                     <AppText
                       numeric
                       role="label"
                       color={
-                        selected
+                        futureDisabled
+                          ? "rgba(115,110,108,0.38)"
+                          : selected
                           ? colors.text.inverse
+                          : current
+                            ? colors.brand.primary
                           : inCurrentMonth
                             ? colors.text.primary
                             : "rgba(115,110,108,0.34)"
@@ -297,19 +492,39 @@ function CalendarDayGrid({
                       </View>
                     ) : null}
                   </View>
-                  <View style={styles.dayMarkerRow}>
-                    {period && !selected ? (
-                      <View style={styles.periodMarker} />
-                    ) : null}
-                    {fertile && !selected ? (
-                      <View
-                        style={[
-                          styles.fertileMarker,
-                          ovulation && styles.ovulationMarker,
-                        ]}
-                      />
-                    ) : null}
-                  </View>
+                  {periodSelectionMode && !futureDisabled ? (
+                    <View
+                      style={[
+                        styles.periodTickbox,
+                        loggedPeriod && styles.periodTickboxSelected,
+                      ]}
+                    >
+                      {loggedPeriodOrdinal ? (
+                        <AppText
+                          numeric
+                          role="caption"
+                          color={colors.text.inverse}
+                          style={styles.periodTickboxLabel}
+                        >
+                          {loggedPeriodOrdinal}
+                        </AppText>
+                      ) : null}
+                    </View>
+                  ) : (
+                    <View style={styles.dayMarkerRow}>
+                      {period && !selected ? (
+                        <View style={styles.periodMarker} />
+                      ) : null}
+                      {fertile && !selected ? (
+                        <View
+                          style={[
+                            styles.fertileMarker,
+                            ovulation && styles.ovulationMarker,
+                          ]}
+                        />
+                      ) : null}
+                    </View>
+                  )}
                 </View>
               )}
             </Pressable>
@@ -321,6 +536,7 @@ function CalendarDayGrid({
 }
 
 function CalendarGlassControl({
+  activateOnPressIn = false,
   accessibilityLabel,
   children,
   height,
@@ -333,6 +549,7 @@ function CalendarGlassControl({
   washColor = colors.surface.headerGlassWash,
   width,
 }: {
+  activateOnPressIn?: boolean;
   accessibilityLabel: string;
   children: React.ReactNode;
   height: number;
@@ -375,7 +592,9 @@ function CalendarGlassControl({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
-          onPress={onPress}
+          onPressIn={activateOnPressIn ? onPress : undefined}
+          onPress={activateOnPressIn ? undefined : onPress}
+          onAccessibilityTap={activateOnPressIn ? onPress : undefined}
         >
           {({ pressed }) => (
             <View style={[contentStyle, pressed && styles.pressed]}>
@@ -392,7 +611,9 @@ function CalendarGlassControl({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        onPress={onPress}
+        onPressIn={activateOnPressIn ? onPress : undefined}
+        onPress={activateOnPressIn ? undefined : onPress}
+        onAccessibilityTap={activateOnPressIn ? onPress : undefined}
       >
         {({ pressed }) => (
           <View style={[contentStyle, pressed && styles.pressed]}>
@@ -676,7 +897,7 @@ function CalendarDayDetailsCard({
             numberOfLines={1}
             style={styles.cycleDayLabel}
           >
-            {`День цикла ${forecast.cycleDay}`}
+            {`День цикла ${forecast.cycleDay || "—"}`}
           </AppText>
         </View>
       </View>
@@ -727,6 +948,13 @@ function CalendarPageModalBase({
   const [currentMonthVisible, setCurrentMonthVisible] = useState(true);
   const [returnDirection, setReturnDirection] = useState<"up" | "down">("up");
   const [dayDetailsVisible, setDayDetailsVisible] = useState(false);
+  const [periodMarkingMode, setPeriodMarkingMode] = useState(false);
+  const [periodDateKeys, setPeriodDateKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [periodDraftDateKeys, setPeriodDraftDateKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [visibleMonth, setVisibleMonth] = useState(
     new Date(initialDate.getFullYear(), initialDate.getMonth(), 1),
   );
@@ -753,6 +981,7 @@ function CalendarPageModalBase({
     setCurrentMonthVisible(true);
     setReturnDirection("up");
     setDayDetailsVisible(false);
+    setPeriodMarkingMode(false);
     initialMonthPositionedRef.current = false;
     returnButtonProgress.setValue(0);
     daySheetProgress.setValue(0);
@@ -775,11 +1004,51 @@ function CalendarPageModalBase({
     [initialDate],
   );
   const detailsDate = selectedDate ?? initialDate;
+  const calculatedCycle = useMemo(
+    () => buildCalculatedCycle(periodDateKeys),
+    [periodDateKeys],
+  );
+  const calculatedForecastForDate = useMemo(
+    () =>
+      calculatedCycle
+        ? (date: Date) => getCalculatedDayForecast(date, calculatedCycle)
+        : (_date: Date) => null,
+    [calculatedCycle],
+  );
   const headerDate = dayTitle(
     variant === "continuous" ? initialDate : detailsDate,
   );
-  const selectedForecast = getDayForecast(detailsDate);
-  const hasLoggedSymptoms = SYMPTOM_LOG_DATE_KEYS.has(dateKey(detailsDate));
+  const selectedForecast = calculatedCycle
+    ? getCalculatedDayForecast(detailsDate, calculatedCycle)
+    : NO_CYCLE_FORECAST;
+  const todayForecast = calculatedCycle
+    ? getCalculatedDayForecast(initialDate, calculatedCycle)
+    : NO_CYCLE_FORECAST;
+  const currentCycleDay = calculatedCycle
+    ? Math.floor(
+        (dayTimestamp(initialDate) - calculatedCycle.startTimestamp) /
+          DAY_IN_MILLISECONDS,
+      ) + 1
+    : 0;
+  const delayDays = calculatedCycle
+    ? Math.max(0, currentCycleDay - calculatedCycle.cycleLength)
+    : 0;
+  const fertilityLabel = !calculatedCycle
+    ? "—"
+    : delayDays > 0
+      ? "Низкая"
+      : todayForecast.kind === "fertile" || todayForecast.kind === "ovulation"
+        ? "Высокая"
+        : "Низкая";
+  const fertilityColor =
+    fertilityLabel === "Высокая"
+      ? colors.brand.success
+      : colors.text.secondary;
+  const isTodayMenstruation = todayForecast.kind === "menstruation";
+  const isTodayFertile =
+    todayForecast.kind === "fertile" || todayForecast.kind === "ovulation";
+  const hasLoggedSymptoms =
+    variant === "backup" && SYMPTOM_LOG_DATE_KEYS.has(dateKey(detailsDate));
   const sheetBottom = Math.max(6, insets.bottom / scale - 4);
   const returnButtonBottom = sheetBottom + DAY_DETAILS_HEIGHT + spacing.sm;
   const viewabilityConfig = useRef({
@@ -872,6 +1141,40 @@ function CalendarPageModalBase({
   };
 
   const selectDate = (date: Date) => {
+    if (variant === "continuous" && periodMarkingMode) {
+      const key = dateKey(date);
+      const todayTimestamp = dayTimestamp(initialDate);
+
+      if (dayTimestamp(date) > todayTimestamp) {
+        return;
+      }
+
+      setPeriodDraftDateKeys((current) => {
+        const next = new Set(current);
+        if (next.has(key)) {
+          next.delete(key);
+        } else {
+          for (let offset = 0; offset < 5; offset += 1) {
+            const rangeDate = new Date(
+              date.getFullYear(),
+              date.getMonth(),
+              date.getDate() + offset,
+            );
+
+            if (dayTimestamp(rangeDate) <= todayTimestamp) {
+              next.add(dateKey(rangeDate));
+            }
+          }
+        }
+        return next;
+      });
+
+      if (Platform.OS !== "web") {
+        void Haptics.selectionAsync();
+      }
+      return;
+    }
+
     const repeatedContinuousSelection =
       variant === "continuous" &&
       selectedDate !== null &&
@@ -922,6 +1225,37 @@ function CalendarPageModalBase({
     setDayDetailsVisible(false);
     if (variant === "continuous") {
       setSelectedDate(null);
+    }
+  };
+
+  const enterPeriodMarkingMode = () => {
+    setSelectedDate(null);
+    setDayDetailsVisible(false);
+    setPeriodDraftDateKeys(new Set(periodDateKeys));
+    setPeriodMarkingMode(true);
+
+    if (Platform.OS !== "web") {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const exitPeriodMarkingMode = () => {
+    setPeriodDraftDateKeys(new Set(periodDateKeys));
+    setPeriodMarkingMode(false);
+
+    if (Platform.OS !== "web") {
+      void Haptics.selectionAsync();
+    }
+  };
+
+  const savePeriodMarking = () => {
+    setPeriodDateKeys(new Set(periodDraftDateKeys));
+    setPeriodMarkingMode(false);
+
+    if (Platform.OS !== "web") {
+      void Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      );
     }
   };
 
@@ -1012,6 +1346,7 @@ function CalendarPageModalBase({
 
                     <CalendarDayGrid
                       cellWidth={(sizes.contentWidth - spacing.md * 2) / 7}
+                      currentDate={initialDate}
                       month={visibleMonth}
                       selectedDate={selectedDate}
                       onSelectDate={selectDate}
@@ -1118,13 +1453,22 @@ function CalendarPageModalBase({
                       </View>
                       <CalendarDayGrid
                         cellWidth={sizes.contentWidth / 7}
+                        currentDate={initialDate}
+                        forecastForDate={calculatedForecastForDate}
+                        maximumSelectableDate={initialDate}
                         month={month}
                         onDayPressIn={() => {
                           protectedDayInteractionRef.current = true;
                         }}
+                        periodDateKeys={
+                          periodMarkingMode
+                            ? periodDraftDateKeys
+                            : periodDateKeys
+                        }
+                        periodSelectionMode={periodMarkingMode}
+                        selectOnPressIn={!periodMarkingMode}
                         selectedDate={selectedDate}
                         onSelectDate={selectDate}
-                        showSymptomLogs
                         showOutsideDays={false}
                         useCycleForecast
                       />
@@ -1144,93 +1488,164 @@ function CalendarPageModalBase({
                   contentInsetAdjustmentBehavior="never"
                   showsVerticalScrollIndicator={false}
                   style={styles.scroll}
-                  contentContainerStyle={styles.continuousScrollContent}
+                  contentContainerStyle={[
+                    styles.continuousScrollContent,
+                    periodMarkingMode && styles.periodMarkingScrollContent,
+                  ]}
+                  extraData={{
+                    periodDateKeys,
+                    periodDraftDateKeys,
+                    periodMarkingMode,
+                    selectedDate,
+                  }}
                 />
               )}
 
-              <View pointerEvents="none" style={styles.headerWhiteFill} />
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.headerWhiteFill,
+                  periodMarkingMode && styles.periodModeHidden,
+                ]}
+              />
               <HeaderShape
                 pointerEvents="none"
                 width={DESIGN_WIDTH}
                 height={HEADER_SHAPE_HEIGHT}
-                style={styles.headerShape}
+                style={[
+                  styles.headerShape,
+                  periodMarkingMode && styles.periodModeHidden,
+                ]}
               />
 
-              <CalendarGlassGroup
-                spacing={12}
-                style={[styles.headerControls, { top: headerTop }]}
+              {!periodMarkingMode ? (
+                <CalendarGlassGroup
+                  spacing={12}
+                  style={[styles.headerControls, { top: headerTop }]}
+                >
+                  <GlassHeaderButton
+                    accessibilityLabel="Закрыть календарь"
+                    onPress={onClose}
+                  >
+                    <BackIcon
+                      width={25}
+                      height={25}
+                      style={styles.headerBackIcon}
+                    />
+                  </GlassHeaderButton>
+
+                  <CalendarGlassControl
+                    accessibilityLabel={
+                      variant === "continuous"
+                        ? `Сегодня, ${headerDate}`
+                        : "Выбранная дата"
+                    }
+                    width={156}
+                    height={sizes.touch}
+                    radius={sizes.touch / 2}
+                  >
+                    {variant === "continuous" ? (
+                      <HeaderDateLabel date={initialDate} />
+                    ) : (
+                      <AppText
+                        role="body"
+                        weight="medium"
+                        color={colors.brand.primary}
+                        style={styles.headerDate}
+                      >
+                        {headerDate}
+                      </AppText>
+                    )}
+                  </CalendarGlassControl>
+
+                  <GlassHeaderButton
+                    accessibilityLabel="Добавить запись"
+                    onPress={() => showAddMenu()}
+                  >
+                    <AddIcon width={24} height={24} />
+                  </GlassHeaderButton>
+                </CalendarGlassGroup>
+              ) : (
+                <View style={[styles.periodModeClose, { top: headerTop }]}>
+                  <CalendarGlassControl
+                    activateOnPressIn
+                    accessibilityLabel="Завершить выбор дней месячных"
+                    onPress={exitPeriodMarkingMode}
+                    width={sizes.touch}
+                    height={sizes.touch}
+                    radius={sizes.touch / 2}
+                    intensity={64}
+                    tintColor="transparent"
+                    variant="clear"
+                    washColor="transparent"
+                  >
+                    <View style={styles.closeIcon}>
+                      <View
+                        style={[styles.closeIconLine, styles.closeIconLineUp]}
+                      />
+                      <View
+                        style={[styles.closeIconLine, styles.closeIconLineDown]}
+                      />
+                    </View>
+                  </CalendarGlassControl>
+                </View>
+              )}
+
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.metrics,
+                  { top: headerTop + 61 },
+                  periodMarkingMode && styles.periodModeHidden,
+                ]}
               >
-                <GlassHeaderButton
-                  accessibilityLabel="Закрыть календарь"
-                  onPress={onClose}
-                >
-                  <BackIcon
-                    width={25}
-                    height={25}
-                    style={styles.headerBackIcon}
-                  />
-                </GlassHeaderButton>
-
-                <CalendarGlassControl
-                  accessibilityLabel={
-                    variant === "continuous"
-                      ? `Сегодня, ${headerDate}`
-                      : "Выбранная дата"
-                  }
-                  width={156}
-                  height={sizes.touch}
-                  radius={sizes.touch / 2}
-                >
-                  {variant === "continuous" ? (
-                    <HeaderDateLabel date={initialDate} />
-                  ) : (
-                    <AppText
-                      role="body"
-                      weight="medium"
-                      color={colors.brand.primary}
-                      style={styles.headerDate}
-                    >
-                      {headerDate}
-                    </AppText>
-                  )}
-                </CalendarGlassControl>
-
-                <GlassHeaderButton
-                  accessibilityLabel="Добавить запись"
-                  onPress={() => showAddMenu()}
-                >
-                  <AddIcon width={24} height={24} />
-                </GlassHeaderButton>
-              </CalendarGlassGroup>
-
-              <View style={[styles.metrics, { top: headerTop + 61 }]}>
                 <View style={styles.metricNarrow}>
                   <AppText
                     numeric
-                    color={colors.brand.primary}
+                    color={
+                      isTodayFertile && !isTodayMenstruation
+                        ? colors.brand.success
+                        : colors.brand.primary
+                    }
                     style={styles.metricValue}
                   >
-                    3
+                    {isTodayMenstruation
+                      ? "—"
+                      : isTodayFertile
+                        ? "+"
+                        : calculatedCycle
+                          ? delayDays
+                          : "—"}
                   </AppText>
                   <AppText
                     role="caption"
+                    numberOfLines={1}
                     color="#5D5D5D"
-                    style={styles.metricLabel}
+                    style={[
+                      styles.metricLabel,
+                      (isTodayMenstruation || isTodayFertile) &&
+                        styles.metricStatusLabel,
+                    ]}
                   >
-                    Задержка
+                    {isTodayMenstruation
+                      ? "Менструация"
+                      : isTodayFertile
+                        ? "Овуляция"
+                        : "Задержка"}
                   </AppText>
                 </View>
                 <View style={styles.metricDivider} />
                 <View style={styles.metricWide}>
                   <AppText
                     weight="medium"
-                    color={colors.brand.success}
+                    color={fertilityColor}
                     style={styles.metricValue}
                   >
-                    Высокая
+                    {fertilityLabel}
                   </AppText>
                   <AppText
                     role="caption"
+                    numberOfLines={1}
                     color="#5D5D5D"
                     style={styles.metricLabel}
                   >
@@ -1244,10 +1659,11 @@ function CalendarPageModalBase({
                     color={colors.brand.primary}
                     style={styles.metricValue}
                   >
-                    2
+                    {calculatedCycle ? currentCycleDay : "—"}
                   </AppText>
                   <AppText
                     role="caption"
+                    numberOfLines={1}
                     color="#5D5D5D"
                     style={styles.metricLabel}
                   >
@@ -1305,6 +1721,79 @@ function CalendarPageModalBase({
                       />
                     </CalendarGlassControl>
                   </Animated.View>
+
+                  {!dayDetailsVisible ? (
+                    <View
+                      style={[
+                        styles.periodEntryButtonWrap,
+                        { bottom: sheetBottom },
+                      ]}
+                    >
+                      {periodMarkingMode ? (
+                        <CalendarGlassControl
+                          activateOnPressIn
+                          accessibilityLabel="Сохранить выбранные дни месячных"
+                          onPress={savePeriodMarking}
+                          width={166}
+                          height={48}
+                          radius={24}
+                          intensity={68}
+                          tintColor={colors.brand.primary}
+                          variant="regular"
+                          washColor={colors.brand.primary}
+                          style={[
+                            styles.periodEntryButton,
+                            styles.periodSaveButton,
+                          ]}
+                        >
+                          <View style={styles.periodEntryButtonContent}>
+                            <AppText
+                              role="body"
+                              weight="semibold"
+                              color={colors.text.inverse}
+                              style={styles.periodSaveCheck}
+                            >
+                              ✓
+                            </AppText>
+                            <AppText
+                              role="body"
+                              weight="medium"
+                              color={colors.text.inverse}
+                              style={styles.periodEntryButtonLabel}
+                            >
+                              Сохранить
+                            </AppText>
+                          </View>
+                        </CalendarGlassControl>
+                      ) : (
+                        <CalendarGlassControl
+                          activateOnPressIn
+                          accessibilityLabel="Отметить дни месячных"
+                          onPress={enterPeriodMarkingMode}
+                          width={166}
+                          height={48}
+                          radius={24}
+                          intensity={64}
+                          tintColor="rgba(255,255,255,0.20)"
+                          variant="regular"
+                          washColor="rgba(255,255,255,0.20)"
+                          style={styles.periodEntryButton}
+                        >
+                          <View style={styles.periodEntryButtonContent}>
+                            <AddIcon width={19} height={19} />
+                            <AppText
+                              role="body"
+                              weight="medium"
+                              color={colors.brand.primary}
+                              style={styles.periodEntryButtonLabel}
+                            >
+                              Месячные
+                            </AppText>
+                          </View>
+                        </CalendarGlassControl>
+                      )}
+                    </View>
+                  ) : null}
 
                   <Animated.View
                     onTouchStart={() => {
@@ -1395,6 +1884,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: sizes.screenGutter,
     paddingBottom: 116,
   },
+  periodMarkingScrollContent: {
+    paddingTop: 124,
+  },
   continuousMonth: {
     height: MONTH_SECTION_HEIGHT,
     paddingTop: spacing.md,
@@ -1470,6 +1962,35 @@ const styles = StyleSheet.create({
   headerGlassShadow: {
     ...shadows.floating,
   },
+  periodModeHidden: {
+    opacity: 0,
+  },
+  periodModeClose: {
+    position: "absolute",
+    left: sizes.screenGutter,
+    width: sizes.touch,
+    height: sizes.touch,
+    zIndex: 13,
+  },
+  closeIcon: {
+    width: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeIconLine: {
+    position: "absolute",
+    width: 19,
+    height: 2.2,
+    borderRadius: 1.1,
+    backgroundColor: colors.text.primary,
+  },
+  closeIconLineUp: {
+    transform: [{ rotate: "45deg" }],
+  },
+  closeIconLineDown: {
+    transform: [{ rotate: "-45deg" }],
+  },
   pressed: {
     transform: [{ scale: 1.035 }],
   },
@@ -1481,15 +2002,15 @@ const styles = StyleSheet.create({
     zIndex: 8,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
   },
   metricNarrow: {
-    width: 57,
+    width: 74,
     alignItems: "center",
     justifyContent: "center",
   },
   metricWide: {
-    width: 138,
+    width: 174,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1500,14 +2021,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   metricLabel: {
-    fontSize: 11,
-    lineHeight: 13,
-    letterSpacing: -0.22,
+    fontSize: 13,
+    lineHeight: 15,
+    letterSpacing: -0.26,
     textAlign: "center",
+  },
+  metricStatusLabel: {
+    width: 104,
   },
   metricDivider: {
     width: StyleSheet.hairlineWidth,
     height: 65,
+    marginHorizontal: 7,
     backgroundColor: colors.surface.divider,
   },
   returnButtonWrap: {
@@ -1528,6 +2053,42 @@ const styles = StyleSheet.create({
   },
   returnButtonPressed: {
     transform: [{ scale: 1.05 }],
+  },
+  periodEntryButtonWrap: {
+    position: "absolute",
+    left: (DESIGN_WIDTH - 166) / 2,
+    width: 166,
+    height: 48,
+    zIndex: 12,
+  },
+  periodEntryButton: {
+    width: 166,
+    height: 48,
+    borderRadius: 24,
+    ...shadows.floating,
+  },
+  periodSaveButton: {
+    shadowColor: colors.brand.primary,
+    shadowOpacity: 0.24,
+  },
+  periodEntryButtonContent: {
+    width: 166,
+    height: 48,
+    borderRadius: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+  periodEntryButtonLabel: {
+    fontSize: 18,
+    lineHeight: 22,
+    letterSpacing: -0.36,
+  },
+  periodSaveCheck: {
+    fontSize: 17,
+    lineHeight: 20,
+    textAlign: "center",
   },
   returnArrowUp: {
     transform: [{ rotate: "-90deg" }],
@@ -1874,9 +2435,47 @@ const styles = StyleSheet.create({
   dayPeriod: {
     backgroundColor: "rgba(211,20,113,0.10)",
   },
+  dayPeriodSelected: {
+    borderWidth: 1,
+    borderColor: "rgba(211,20,113,0.20)",
+    backgroundColor: "rgba(211,20,113,0.10)",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  dayFutureDisabled: {
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  periodTickbox: {
+    position: "absolute",
+    bottom: 0,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.25,
+    borderColor: "rgba(115,110,108,0.28)",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  periodTickboxSelected: {
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.brand.primary,
+  },
+  periodTickboxLabel: {
+    fontSize: 10,
+    lineHeight: 12,
+    textAlign: "center",
+  },
   dayOvulation: {
     borderWidth: 1.5,
     borderColor: colors.brand.success,
+  },
+  dayToday: {
+    borderWidth: 1.5,
+    borderColor: colors.brand.primary,
   },
   daySelected: {
     borderWidth: 0,

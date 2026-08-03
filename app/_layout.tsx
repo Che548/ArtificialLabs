@@ -1,11 +1,10 @@
+// @refresh reset
+
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Authenticated, AuthLoading, Unauthenticated } from 'convex/react';
-import {
-  Icon,
-  Label,
-  NativeTabs,
-} from 'expo-router/unstable-native-tabs';
+import { useConvexAuth } from 'convex/react';
+import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { useState } from 'react';
 import { ActivityIndicator, Platform, Text, View } from 'react-native';
 
 import '../global.css';
@@ -95,6 +94,67 @@ function LoadingAuth() {
   );
 }
 
+function WebDemo() {
+  const [registrationComplete, setRegistrationComplete] = useState(false);
+
+  if (!registrationComplete) {
+    return (
+      <AuthScreen
+        preview
+        onPreviewComplete={() => setRegistrationComplete(true)}
+      />
+    );
+  }
+
+  return (
+    <HealthStoreProvider mode="demo">
+      <AppGate allowEmptyProfile>
+        <View className="flex-1">
+          <Tabs />
+          <View
+            pointerEvents="none"
+            className="absolute left-3 right-3 top-3 z-50 items-center rounded-full bg-ink/90 px-4 py-2"
+          >
+            <Text className="font-sf-medium text-[12px] text-white">
+              Web demo · медицинские данные не сохраняются
+            </Text>
+          </View>
+        </View>
+      </AppGate>
+    </HealthStoreProvider>
+  );
+}
+
+function NativeApp() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const [registrationComplete, setRegistrationComplete] = useState(false);
+
+  if (isLoading) {
+    return <LoadingAuth />;
+  }
+
+  if (!isAuthenticated) {
+    return <AuthScreen onAuthenticated={() => setRegistrationComplete(true)} />;
+  }
+
+  if (!registrationComplete) {
+    return (
+      <AuthScreen
+        preview
+        onPreviewComplete={() => setRegistrationComplete(true)}
+      />
+    );
+  }
+
+  return (
+    <HealthStoreProvider>
+      <AppGate>
+        <Tabs />
+      </AppGate>
+    </HealthStoreProvider>
+  );
+}
+
 export default function TabLayout() {
   const webDemo = Platform.OS === 'web';
 
@@ -104,39 +164,7 @@ export default function TabLayout() {
       storage={webDemo ? undefined : authTokenStorage}
       shouldHandleCode={false}
     >
-      {webDemo ? (
-        <HealthStoreProvider mode="demo">
-          <AppGate allowEmptyProfile>
-            <View className="flex-1">
-              <Tabs />
-              <View
-                pointerEvents="none"
-                className="absolute left-3 right-3 top-3 z-50 items-center rounded-full bg-ink/90 px-4 py-2"
-              >
-                <Text className="font-sf-medium text-[12px] text-white">
-                  Web demo · медицинские данные не сохраняются
-                </Text>
-              </View>
-            </View>
-          </AppGate>
-        </HealthStoreProvider>
-      ) : (
-        <>
-          <AuthLoading>
-            <LoadingAuth />
-          </AuthLoading>
-          <Unauthenticated>
-            <AuthScreen />
-          </Unauthenticated>
-          <Authenticated>
-            <HealthStoreProvider>
-              <AppGate>
-                <Tabs />
-              </AppGate>
-            </HealthStoreProvider>
-          </Authenticated>
-        </>
-      )}
+      {webDemo ? <WebDemo /> : <NativeApp />}
     </ConvexAuthProvider>
   );
 }

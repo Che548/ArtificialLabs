@@ -1,37 +1,206 @@
 import { useAuthActions } from '@convex-dev/auth/react';
-import { useState } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Keyboard,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
   Pressable,
+  StyleSheet,
   Text,
   TextInput,
   TouchableWithoutFeedback,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
-export function AuthScreen() {
+type AuthChannel = 'email' | 'phone';
+type AuthFlow = 'signIn' | 'signUp';
+
+const privacyPolicyUrl = 'https://brainwaves.engineering/docs#document-2';
+const userAgreementUrl = 'https://brainwaves.engineering/docs#document-3';
+const designWidth = 402;
+const designHeight = 874;
+
+function normalizePhone(value: string) {
+  return value.replace(/[^\d+]/g, '').slice(0, 16);
+}
+
+function Checkbox({
+  checked,
+  label,
+  onPress,
+}: {
+  checked: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  const activation = useRef(new Animated.Value(checked ? 1 : 0)).current;
+
+  useEffect(() => {
+    activation.stopAnimation();
+    Animated.timing(activation, {
+      toValue: checked ? 1 : 0,
+      duration: checked ? 220 : 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [activation, checked]);
+
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      hitSlop={10}
+      onPress={onPress}
+      style={styles.checkboxHitArea}
+    >
+      <Animated.View
+        style={[
+          styles.checkbox,
+          {
+            backgroundColor: activation.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['#FFFFFF', '#EA4087'],
+            }),
+            borderColor: activation.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['#D8D4D8', '#EA4087'],
+            }),
+            transform: [
+              {
+                scale: activation.interpolate({
+                  inputRange: [0, 0.55, 1],
+                  outputRange: [1, 0.92, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <Animated.Text
+          style={[
+            styles.checkboxMark,
+            {
+              opacity: activation,
+              transform: [
+                {
+                  scale: activation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.55, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          ✓
+        </Animated.Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+function LegalLink({ children, url }: { children: string; url: string }) {
+  return (
+    <Text
+      accessibilityRole="link"
+      onPress={() => void Linking.openURL(url)}
+      style={styles.legalLink}
+    >
+      {children}
+    </Text>
+  );
+}
+
+export function AuthScreen({
+  embedded = false,
+  onAuthenticated,
+  onPreviewComplete,
+  preview = false,
+}: {
+  embedded?: boolean;
+  onAuthenticated?: () => void;
+  onPreviewComplete?: () => void;
+  preview?: boolean;
+}) {
   const { signIn } = useAuthActions();
-  const [flow, setFlow] = useState<'signIn' | 'signUp'>('signIn');
-  const [email, setEmail] = useState('');
+  const window = useWindowDimensions();
+  const [flow, setFlow] = useState<AuthFlow>('signUp');
+  const [channel, setChannel] = useState<AuthChannel>('email');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [personalDataConsent, setPersonalDataConsent] = useState(false);
+  const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const channelPosition = useRef(new Animated.Value(0)).current;
+
+  const normalizedIdentifier = identifier.trim();
+  const validIdentifier =
+    channel === 'email'
+      ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedIdentifier)
+      : normalizedIdentifier.replace(/\D/g, '').length >= 10;
+  const validPassword = password.length >= 8;
+  const canSubmit =
+    validIdentifier &&
+    validPassword &&
+    (flow === 'signIn' || (personalDataConsent && agreementAccepted));
+  const canvasScale = embedded
+    ? 1
+    : Math.min(window.width / designWidth, window.height / designHeight);
+
+  const changeChannel = (nextChannel: AuthChannel) => {
+    Animated.timing(channelPosition, {
+      toValue: nextChannel === 'email' ? 0 : 1,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    setChannel(nextChannel);
+    setIdentifier('');
+    setError(undefined);
+  };
+
+  const changeFlow = () => {
+    setFlow((current) => (current === 'signUp' ? 'signIn' : 'signUp'));
+    setError(undefined);
+  };
 
   const submit = async () => {
-    setError(undefined);
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || password.length < 8) {
-      setError('Введите email и пароль не короче 8 символов.');
+    if (!canSubmit || submitting) {
       return;
     }
+
+    Keyboard.dismiss();
+    setError(undefined);
+
+    if (preview) {
+      onPreviewComplete?.();
+      return;
+    }
+
+    if (channel === 'phone') {
+      setError(
+        'Вход и регистрация по телефону появятся после подключения SMS-подтверждения.',
+      );
+      return;
+    }
+
     const data = new FormData();
-    data.append('email', normalizedEmail);
+    data.append('email', normalizedIdentifier.toLowerCase());
     data.append('password', password);
     data.append('flow', flow);
     setSubmitting(true);
+
     try {
       await signIn('password', data);
+      onAuthenticated?.();
     } catch (cause) {
       console.error('Authentication failed', cause);
       setError(
@@ -45,74 +214,461 @@ export function AuthScreen() {
   };
 
   return (
-    <TouchableWithoutFeedback
-      accessible={false}
-      onPress={Keyboard.dismiss}
-      touchSoundDisabled
-    >
-      <View className="flex-1 justify-center bg-surface-canvas px-6">
-        <View className="rounded-[30px] bg-white p-6 shadow-card">
-          <Text className="font-yaro text-[34px] leading-[38px] text-brand-primary">
-            сфера.
-          </Text>
-          <Text className="mt-2 font-sf-semibold text-[24px] leading-7 text-ink">
-            {flow === 'signIn' ? 'Вход' : 'Создание аккаунта'}
-          </Text>
-          <Text className="mt-2 font-sf text-[15px] leading-5 text-text-secondary">
-            Это прототип: подтверждение email и восстановление пароля пока не подключены.
-          </Text>
+    <View style={styles.root}>
+      {preview ? null : <StatusBar hidden />}
+      <View
+        style={[
+          styles.screenViewport,
+          {
+            width: designWidth * canvasScale,
+            height: designHeight * canvasScale,
+            borderRadius: 40 * canvasScale,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.canvas,
+            {
+              transform: [{ scale: canvasScale }],
+              transformOrigin: 'top left',
+            },
+          ]}
+        >
+          <TouchableWithoutFeedback
+            accessible={false}
+            onPress={Keyboard.dismiss}
+            touchSoundDisabled
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.canvas}
+            >
+              <View style={styles.content}>
+                <View style={styles.brandBlock}>
+                  <Text style={styles.brand}>сфера.</Text>
+                  <Text style={styles.brandSubtitle}>
+                    Сфера женского здоровья
+                  </Text>
+                </View>
 
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            placeholder="Email"
-            className="mt-6 h-12 rounded-2xl bg-[#f2f2f7] px-4 font-sf text-[16px] text-ink"
-          />
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            autoCapitalize="none"
-            autoComplete={flow === 'signIn' ? 'current-password' : 'new-password'}
-            secureTextEntry
-            placeholder="Пароль"
-            className="mt-3 h-12 rounded-2xl bg-[#f2f2f7] px-4 font-sf text-[16px] text-ink"
-          />
-          {error ? (
-            <Text accessibilityRole="alert" className="mt-3 font-sf text-[14px] text-state-error">
-              {error}
-            </Text>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            disabled={submitting}
-            onPress={() => void submit()}
-            className="mt-5 h-12 items-center justify-center rounded-full bg-brand-primary active:opacity-70"
-          >
-            {submitting ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text className="font-sf-medium text-[16px] text-white">
-                {flow === 'signIn' ? 'Войти' : 'Зарегистрироваться'}
-              </Text>
-            )}
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              setError(undefined);
-              setFlow((value) => (value === 'signIn' ? 'signUp' : 'signIn'));
-            }}
-            className="mt-4 items-center py-2"
-          >
-            <Text className="font-sf-medium text-[15px] text-brand-primary">
-              {flow === 'signIn' ? 'Создать аккаунт' : 'У меня уже есть аккаунт'}
-            </Text>
-          </Pressable>
+                <View accessibilityRole="tablist" style={styles.channelPicker}>
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.channelSlider,
+                      {
+                        transform: [
+                          {
+                            translateX: channelPosition.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 170.5],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                  {(['email', 'phone'] as const).map((item) => {
+                    const selected = channel === item;
+
+                    return (
+                      <Pressable
+                        key={item}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected }}
+                        onPress={() => changeChannel(item)}
+                        style={styles.channelOption}
+                      >
+                        <Text
+                          style={[
+                            styles.channelLabel,
+                            selected && styles.channelLabelSelected,
+                          ]}
+                        >
+                          {item === 'email' ? 'Email' : 'Телефон'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <View style={[styles.fieldGroup, styles.identifierField]}>
+                  <Text style={styles.fieldLabel}>
+                    {channel === 'email' ? 'Почта' : 'Телефон'}
+                  </Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    autoComplete={channel === 'email' ? 'email' : 'tel'}
+                    autoCorrect={false}
+                    keyboardType={
+                      channel === 'email' ? 'email-address' : 'phone-pad'
+                    }
+                    onChangeText={(value) =>
+                      setIdentifier(
+                        channel === 'phone' ? normalizePhone(value) : value,
+                      )
+                    }
+                    placeholder={
+                      channel === 'email' ? 'Email' : '+7 999 000-00-00'
+                    }
+                    placeholderTextColor="#8F8A90"
+                    style={styles.input}
+                    value={identifier}
+                  />
+                </View>
+
+                <View style={[styles.fieldGroup, styles.passwordField]}>
+                  <Text style={styles.fieldLabel}>Пароль</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    autoComplete={
+                      flow === 'signIn' ? 'current-password' : 'new-password'
+                    }
+                    onChangeText={setPassword}
+                    placeholder="Введите пароль"
+                    placeholderTextColor="#8F8A90"
+                    secureTextEntry
+                    style={styles.input}
+                    value={password}
+                  />
+                </View>
+
+                {flow === 'signUp' ? (
+                  <View style={styles.consents}>
+                    <View style={[styles.consentRow, styles.personalConsent]}>
+                      <Checkbox
+                        checked={personalDataConsent}
+                        label="Согласие на обработку персональных данных"
+                        onPress={() =>
+                          setPersonalDataConsent((current) => !current)
+                        }
+                      />
+                      <Text
+                        style={[styles.consentText, styles.personalConsentText]}
+                      >
+                        Я даю согласие ООО «Имя компании» на обработку моих
+                        персональных данных в целях обработки обращения, связи
+                        со мной и подготовки ответа. Я ознакомлен(а) с{' '}
+                        <LegalLink url={privacyPolicyUrl}>
+                          Политикой обработки персональных данных
+                        </LegalLink>
+                        .
+                      </Text>
+                    </View>
+
+                    <View style={[styles.consentRow, styles.agreementConsent]}>
+                      <Checkbox
+                        checked={agreementAccepted}
+                        label="Принятие пользовательского соглашения"
+                        onPress={() =>
+                          setAgreementAccepted((current) => !current)
+                        }
+                      />
+                      <Text style={styles.consentText}>
+                        Я принимаю условия{' '}
+                        <LegalLink url={userAgreementUrl}>
+                          Пользовательского соглашения
+                        </LegalLink>
+                        .
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {error ? (
+                  <Text accessibilityRole="alert" style={styles.errorText}>
+                    {error}
+                  </Text>
+                ) : null}
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canSubmit || submitting }}
+                  disabled={!canSubmit || submitting}
+                  onPress={() => void submit()}
+                  style={[
+                    styles.primaryButton,
+                    flow === 'signIn' && styles.primaryButtonSignIn,
+                    !canSubmit && styles.primaryButtonDisabled,
+                  ]}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.primaryButtonLabel,
+                        !canSubmit && styles.primaryButtonLabelDisabled,
+                      ]}
+                    >
+                      {flow === 'signUp' ? 'Далее' : 'Войти'}
+                    </Text>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={changeFlow}
+                  style={styles.flowSwitcher}
+                >
+                  <Text style={styles.flowSwitcherText}>
+                    {flow === 'signUp'
+                      ? 'Уже зарегистрированы? '
+                      : 'Нет аккаунта? '}
+                    <Text style={styles.flowSwitcherAction}>
+                      {flow === 'signUp' ? 'Войти' : 'Зарегистрироваться'}
+                    </Text>
+                  </Text>
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
+          </TouchableWithoutFeedback>
         </View>
       </View>
-    </TouchableWithoutFeedback>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F3F3',
+  },
+  screenViewport: {
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+  },
+  canvas: {
+    width: designWidth,
+    height: designHeight,
+    backgroundColor: '#FFFFFF',
+  },
+  content: {
+    position: 'relative',
+    width: designWidth,
+    height: designHeight,
+  },
+  brandBlock: {
+    position: 'absolute',
+    left: 79,
+    top: 88,
+    width: 244,
+    height: 72,
+    alignItems: 'center',
+  },
+  brand: {
+    width: 244,
+    color: '#EA4087',
+    fontFamily: 'YaroRg',
+    fontSize: 34,
+    lineHeight: 46,
+    textAlign: 'center',
+  },
+  brandSubtitle: {
+    position: 'absolute',
+    left: 0,
+    top: 48,
+    width: 244,
+    color: '#EA4087',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 20.7,
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+  channelPicker: {
+    position: 'absolute',
+    left: 26,
+    top: 200,
+    width: 349,
+    flexDirection: 'row',
+    height: 46,
+    padding: 4,
+    borderRadius: 14,
+    backgroundColor: '#F0EEF0',
+  },
+  channelOption: {
+    zIndex: 1,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+  },
+  channelSlider: {
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    width: 170.5,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  channelLabel: {
+    color: '#8F8A90',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  channelLabelSelected: {
+    color: '#242124',
+    fontFamily: 'SFProDisplay-Medium',
+  },
+  fieldGroup: {
+    position: 'absolute',
+    left: 26,
+    width: 349,
+    height: 79,
+    gap: 7,
+  },
+  identifierField: {
+    top: 266,
+  },
+  passwordField: {
+    top: 360,
+  },
+  fieldLabel: {
+    color: '#242124',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  input: {
+    width: 349,
+    height: 54,
+    paddingHorizontal: 18,
+    borderRadius: 15,
+    backgroundColor: '#F0EEF0',
+    color: '#242124',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  consents: {
+    position: 'absolute',
+    left: 26,
+    top: 463,
+    width: 349,
+    height: 226,
+  },
+  consentRow: {
+    position: 'absolute',
+    left: 0,
+    width: 349,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  personalConsent: {
+    top: 0,
+    height: 154,
+  },
+  agreementConsent: {
+    top: 95,
+    height: 52,
+    alignItems: 'center',
+  },
+  checkboxHitArea: {
+    width: 22,
+    height: 22,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D8D4D8',
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  checkboxMark: {
+    color: '#FFFFFF',
+    fontFamily: 'SFProDisplay-Semibold',
+    fontSize: 14,
+    lineHeight: 16,
+  },
+  consentText: {
+    width: 315,
+    color: '#242124',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 13.5,
+    lineHeight: 16,
+  },
+  personalConsentText: {
+    fontSize: 12.55,
+    letterSpacing: 0.35,
+    marginTop: -1,
+  },
+  legalLink: {
+    color: '#EA4087',
+    textDecorationLine: 'underline',
+  },
+  errorText: {
+    position: 'absolute',
+    left: 26,
+    top: 690,
+    width: 349,
+    color: '#D93838',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  primaryButton: {
+    position: 'absolute',
+    left: 26,
+    top: 740,
+    width: 349,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    backgroundColor: '#EA4087',
+  },
+  primaryButtonSignIn: {
+    top: 480,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: '#DEDADD',
+  },
+  primaryButtonPressed: {
+    opacity: 0.78,
+  },
+  primaryButtonLabel: {
+    color: '#FFFFFF',
+    fontFamily: 'SFProDisplay-Medium',
+    fontSize: 15,
+    lineHeight: 18,
+  },
+  primaryButtonLabelDisabled: {
+    color: '#A8A3A8',
+  },
+  flowSwitcher: {
+    position: 'absolute',
+    left: 26,
+    top: 800,
+    width: 349,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flowSwitcherText: {
+    color: '#242124',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  flowSwitcherAction: {
+    color: '#EA4087',
+  },
+  controlPressed: {
+    opacity: 0.7,
+  },
+});

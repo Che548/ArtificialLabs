@@ -1931,6 +1931,7 @@ export function InstructionNavigation({
           accessibilityState={{ disabled }}
           disabled={disabled}
           onPress={onPress}
+          style={styles.instructionNavPressTarget}
         >
           {({ pressed }) => (
             <View
@@ -5307,9 +5308,11 @@ const styles = StyleSheet.create({
     overflow: "visible",
   },
   instructionNavPressContent: {
-    width: 40,
-    height: 40,
+    flex: 1,
     borderRadius: 20,
+  },
+  instructionNavPressTarget: {
+    ...StyleSheet.absoluteFillObject,
   },
   instructionNavContent: {
     ...StyleSheet.absoluteFillObject,
