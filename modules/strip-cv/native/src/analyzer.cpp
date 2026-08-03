@@ -935,6 +935,12 @@ AnalysisResult Analyzer::analyze(const cv::Mat& rgb, const AssayProfile& assay,
   const auto total_start = Clock::now();
   AnalysisResult result;
   result.algorithm_version = STRIPCV_VERSION;
+  result.include_rectified_image = options.include_rectified_image;
+  if (options.bypass_quality_checks) {
+    // Kept for native JSON compatibility with older callers. Safety and
+    // quality checks are always enforced, regardless of this deprecated flag.
+    addReason(result, "quality_checks_bypass_ignored");
+  }
   result.assay_profile_id = assay.id;
   result.assay_profile_version = assay.version;
   result.cutoff = options.cutoff ? options.cutoff : assay.default_cutoff;
@@ -966,7 +972,7 @@ AnalysisResult Analyzer::analyze(const cv::Mat& rgb, const AssayProfile& assay,
     localization = locator_->locateBare(rgb, assay);
   }
   const bool tile_found = tile_localization.found;
-  if (options.card_profile && !tile_found) {
+  if (options.card_profile && !tile_found && options.card_profile->enrolled) {
     addReason(result, "calibration_tile_not_found_using_internal_reference");
     if (tile_localization.failure_reason == "card_homography_inconsistent") {
       addReason(result, tile_localization.failure_reason);
@@ -1370,135 +1376,136 @@ AnalysisResult Analyzer::analyze(const cv::Mat& rgb, const AssayProfile& assay,
 
   bool invalid = false;
   bool review = false;
-  if (partial_handled_strip) {
-    addReason(result, "strip_endpoints_out_of_frame");
-    review = true;
-  }
-  const double perspective_ratio = localization.perspective_scale_ratio;
-  if (localization.confidence < 0.45) {
-    addReason(result, "geometry_unreliable");
-    invalid = true;
-  } else if (localization.confidence < 0.65) {
-    addReason(result, "check_detected_corners");
-    review = true;
-  }
-  if (result.quality.quad_area_fraction < assay.quality.min_quad_area_fraction &&
-      !result.geometry.manually_corrected) {
-    addReason(result, "move_closer");
-    review = true;
-  }
-  if (!result.geometry.manually_corrected &&
-      localization.edge_support_fraction < 0.40) {
-    addReason(result, "geometry_edge_support_insufficient");
-    invalid = true;
-  } else if (!result.geometry.manually_corrected &&
-             localization.edge_support_fraction < 0.55) {
-    addReason(result, "check_detected_corners");
-    review = true;
-  }
-  if (!result.geometry.manually_corrected &&
-      localization.rectification_rmse_px > 5.0) {
-    addReason(result, "degenerate_projective_geometry");
-    invalid = true;
-  } else if (!result.geometry.manually_corrected &&
-             localization.rectification_rmse_px > 3.0) {
-    addReason(result, "check_detected_corners");
-    review = true;
-  }
-  if (perspective_ratio > 4.0) {
-    addReason(result, "degenerate_projective_geometry");
-    invalid = true;
-  } else if (perspective_ratio > 2.5) {
-    addReason(result, "retake_more_overhead");
-    review = true;
-  }
-  if (source_strip_height < 32.0) {
-    addReason(result, "strip_resolution_too_low");
-    invalid = true;
-  } else if (source_strip_height < 60.0) {
-    addReason(result, "move_closer");
-    review = true;
-  }
-  if (result.quality.blur_variance < assay.quality.min_blur_variance * 0.5) {
-    addReason(result, "image_too_blurry");
-    invalid = true;
-  } else if (result.quality.blur_variance < assay.quality.min_blur_variance) {
-    addReason(result, "hold_camera_steady");
-    review = true;
-  }
-  if (result.quality.valid_fraction < assay.quality.min_valid_fraction) {
-    addReason(result, "insufficient_valid_membrane_pixels");
-    invalid = true;
-  }
-  if (result.quality.clipped_fraction > assay.quality.max_clipped_fraction * 2.0) {
-    addReason(result, "exposure_clipping");
-    invalid = true;
-  } else if (result.quality.clipped_fraction > assay.quality.max_clipped_fraction) {
-    addReason(result, "adjust_exposure");
-    review = true;
-  }
-  const double control_roi_x0 =
-      partial_handled_strip && result.control_peak.detected
-          ? std::max(0.0, result.control_peak.position -
-                              assay.integration_half_width)
-          : assay.control_window.x0;
-  const double control_roi_x1 =
-      partial_handled_strip && result.control_peak.detected
-          ? std::min(1.0, result.control_peak.position +
-                              assay.integration_half_width)
-          : assay.control_window.x1;
-  const cv::Rect control_roi(
-      membrane.x + static_cast<int>(control_roi_x0 * membrane.width),
-      row_start,
-      std::max(1, static_cast<int>((control_roi_x1 - control_roi_x0) *
-                                   membrane.width)),
-      std::max(1, row_end - row_start));
-  if (maskedFraction(result.artifact_mask,
-                     control_roi & cv::Rect(0, 0, strip_rgb.cols, strip_rgb.rows)) >
-      assay.quality.max_glare_fraction) {
-    addReason(result, "glare_crosses_control_line");
-    review = true;
-  } else if (result.quality.glare_fraction > assay.quality.max_glare_fraction) {
-    addReason(result, "reduce_glare");
-    review = true;
-  }
-  if (illumination_span > 2.0) {
-    addReason(result, "broad_shadow_or_illumination_gradient");
-    review = true;
-  }
-  const bool broad_control =
-      result.control_peak.fwhm > assay.expected_line_width * 3.5;
-  const bool broad_test = result.test_peak.detected &&
-                          result.test_peak.fwhm >
-                              assay.expected_line_width * 3.5;
-  const double broad_threshold =
-      std::max(0.04, 6.0 * result.quality.background_noise);
-  const size_t broad_samples = static_cast<size_t>(std::count_if(
-      result.corrected_profile.begin(), result.corrected_profile.end(),
-      [broad_threshold](double value) { return value > broad_threshold; }));
-  const double broad_fraction =
-      result.corrected_profile.empty()
-          ? 0.0
-          : broad_samples / static_cast<double>(result.corrected_profile.size());
-  if (broad_control || broad_test || broad_fraction > 0.18) {
-    addReason(result, "broad_stain_or_smeared_line");
-    review = true;
-  }
-  if (ambiguous_extra_line_peak) {
-    addReason(result, "ambiguous_extra_line_peak");
-    review = true;
-  }
-  if (tile_found && options.card_profile && options.card_profile->enrolled &&
-      result.quality.calibration_residual >
-          std::min(options.card_profile->max_holdout_residual,
-                   assay.quality.max_calibration_residual)) {
-    addReason(result, "color_calibration_validation_failed");
-    review = true;
-  }
-  if (!result.control_peak.detected) {
-    addReason(result, "control_not_detected");
-    invalid = true;
-  }
+    if (partial_handled_strip) {
+      addReason(result, "strip_endpoints_out_of_frame");
+      review = true;
+    }
+    const double perspective_ratio = localization.perspective_scale_ratio;
+    if (localization.confidence < 0.45) {
+      addReason(result, "geometry_unreliable");
+      invalid = true;
+    } else if (localization.confidence < 0.65) {
+      addReason(result, "check_detected_corners");
+      review = true;
+    }
+    if (result.quality.quad_area_fraction < assay.quality.min_quad_area_fraction &&
+        !result.geometry.manually_corrected) {
+      // Framing scale is useful while guiding the live camera, but it must not
+      // turn an otherwise analyzable capture into a failed result. The
+      // remaining shared quality checks still reject unreliable measurements.
+      addReason(result, "move_closer");
+    }
+    if (!result.geometry.manually_corrected &&
+        localization.edge_support_fraction < 0.40) {
+      addReason(result, "geometry_edge_support_insufficient");
+      invalid = true;
+    } else if (!result.geometry.manually_corrected &&
+               localization.edge_support_fraction < 0.55) {
+      addReason(result, "check_detected_corners");
+      review = true;
+    }
+    if (!result.geometry.manually_corrected &&
+        localization.rectification_rmse_px > 5.0) {
+      addReason(result, "degenerate_projective_geometry");
+      invalid = true;
+    } else if (!result.geometry.manually_corrected &&
+               localization.rectification_rmse_px > 3.0) {
+      addReason(result, "check_detected_corners");
+      review = true;
+    }
+    if (perspective_ratio > 4.0) {
+      addReason(result, "degenerate_projective_geometry");
+      invalid = true;
+    } else if (perspective_ratio > 2.5) {
+      addReason(result, "retake_more_overhead");
+      review = true;
+    }
+    if (source_strip_height < 60.0) {
+      // Keep this as live-camera guidance only. It is not a result validity
+      // signal: control detection, confidence, blur, and the other shared
+      // quality checks decide whether this frame is reportable.
+      addReason(result, "move_closer");
+    }
+    if (result.quality.blur_variance < assay.quality.min_blur_variance * 0.5) {
+      addReason(result, "image_too_blurry");
+      invalid = true;
+    } else if (result.quality.blur_variance < assay.quality.min_blur_variance) {
+      addReason(result, "hold_camera_steady");
+      review = true;
+    }
+    if (result.quality.valid_fraction < assay.quality.min_valid_fraction) {
+      addReason(result, "insufficient_valid_membrane_pixels");
+      invalid = true;
+    }
+    if (result.quality.clipped_fraction > assay.quality.max_clipped_fraction * 2.0) {
+      addReason(result, "exposure_clipping");
+      invalid = true;
+    } else if (result.quality.clipped_fraction > assay.quality.max_clipped_fraction) {
+      addReason(result, "adjust_exposure");
+      review = true;
+    }
+    const double control_roi_x0 =
+        partial_handled_strip && result.control_peak.detected
+            ? std::max(0.0, result.control_peak.position -
+                                assay.integration_half_width)
+            : assay.control_window.x0;
+    const double control_roi_x1 =
+        partial_handled_strip && result.control_peak.detected
+            ? std::min(1.0, result.control_peak.position +
+                                assay.integration_half_width)
+            : assay.control_window.x1;
+    const cv::Rect control_roi(
+        membrane.x + static_cast<int>(control_roi_x0 * membrane.width),
+        row_start,
+        std::max(1, static_cast<int>((control_roi_x1 - control_roi_x0) *
+                                     membrane.width)),
+        std::max(1, row_end - row_start));
+    if (maskedFraction(result.artifact_mask,
+                       control_roi & cv::Rect(0, 0, strip_rgb.cols, strip_rgb.rows)) >
+        assay.quality.max_glare_fraction) {
+      addReason(result, "glare_crosses_control_line");
+      review = true;
+    } else if (result.quality.glare_fraction > assay.quality.max_glare_fraction) {
+      addReason(result, "reduce_glare");
+      review = true;
+    }
+    if (illumination_span > 2.0) {
+      addReason(result, "broad_shadow_or_illumination_gradient");
+      review = true;
+    }
+    const bool broad_control =
+        result.control_peak.fwhm > assay.expected_line_width * 3.5;
+    const bool broad_test = result.test_peak.detected &&
+                            result.test_peak.fwhm >
+                                assay.expected_line_width * 3.5;
+    const double broad_threshold =
+        std::max(0.04, 6.0 * result.quality.background_noise);
+    const size_t broad_samples = static_cast<size_t>(std::count_if(
+        result.corrected_profile.begin(), result.corrected_profile.end(),
+        [broad_threshold](double value) { return value > broad_threshold; }));
+    const double broad_fraction =
+        result.corrected_profile.empty()
+            ? 0.0
+            : broad_samples / static_cast<double>(result.corrected_profile.size());
+    if (broad_control || broad_test || broad_fraction > 0.18) {
+      addReason(result, "broad_stain_or_smeared_line");
+      review = true;
+    }
+    if (ambiguous_extra_line_peak) {
+      addReason(result, "ambiguous_extra_line_peak");
+      review = true;
+    }
+    if (tile_found && options.card_profile && options.card_profile->enrolled &&
+        result.quality.calibration_residual >
+            std::min(options.card_profile->max_holdout_residual,
+                     assay.quality.max_calibration_residual)) {
+      addReason(result, "color_calibration_validation_failed");
+      review = true;
+    }
+    if (!result.control_peak.detected) {
+      addReason(result, "control_not_detected");
+      invalid = true;
+    }
 
   if (invalid) {
     result.status = "invalid";
@@ -1506,6 +1513,9 @@ AnalysisResult Analyzer::analyze(const cv::Mat& rgb, const AssayProfile& assay,
     result.status = "review";
   } else {
     result.status = "valid";
+  }
+
+  if (result.status == "valid") {
     if (result.control_peak.area > assay.quality.min_control_area) {
       result.signal_ratio = result.test_peak.detected
                                 ? result.test_peak.area / result.control_peak.area

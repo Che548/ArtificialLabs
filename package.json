@@ -68,7 +68,7 @@
     "test:strip-cv-server": "tsx scripts/smoke-strip-cv-server.mjs",
     "web:serve": "node scripts/web-server.mjs",
     "web:full": "npm run build:web && npm run build:strip-cv && npm run web:serve",
-    "test": "tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts modules/strip-cv/src/StripCv.web-request.test.ts",
+    "test": "tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts services/scanning/scan-overlay-geometry.test.ts modules/strip-cv/src/StripCv.web-request.test.ts",
     "verify": "npm run check:expo && npm run typecheck && npm run doctor && npm run build:web"
   },
   "engines": {

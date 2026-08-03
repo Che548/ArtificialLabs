@@ -2,21 +2,21 @@ import {
   CameraView,
   useCameraPermissions,
   type BarcodeScanningResult,
-} from "expo-camera";
-import { LinearGradient } from "expo-linear-gradient";
-import { deleteAsync } from "expo-file-system/legacy";
+} from 'expo-camera';
+import { LinearGradient } from 'expo-linear-gradient';
+import { deleteAsync } from 'expo-file-system/legacy';
 import {
   GlassContainer,
   GlassView,
   isLiquidGlassAvailable,
-} from "expo-glass-effect";
+} from 'expo-glass-effect';
 import {
   useEffect,
   useRef,
   useState,
   type PropsWithChildren,
   type RefObject,
-} from "react";
+} from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -30,14 +30,16 @@ import {
   Modal,
   Platform,
   Pressable,
+  PanResponder,
   StyleSheet,
   TextInput,
   type StyleProp,
+  type GestureResponderEvent,
   useWindowDimensions,
   View,
   type ViewStyle,
-} from "react-native";
-import Svg, { Circle, Path, Rect } from "react-native-svg";
+} from 'react-native';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import {
   AppText,
@@ -45,31 +47,60 @@ import {
   PrimaryButton,
   ScanTooltip,
   type ScanTooltipKind,
-} from "./components";
-import { colors, motion, radii, shadows, spacing } from "./tokens";
-import ScanFlowFrame from "../assets/figma/scan-screen/scan-flow-frame.svg";
-import type { AnalysisResult } from "../modules/strip-cv";
+} from './components';
+import { colors, motion, radii, shadows, spacing } from './tokens';
+import ScanFlowFrame from '../assets/figma/scan-screen/scan-flow-frame.svg';
+import type { AnalysisResult } from '../modules/strip-cv';
 import {
+  deriveDetectedInterpretation,
+  getAnalysisDecision,
+  getScanOverlayGeometry,
+  getAnalysisConfidence,
   scanningService,
   type ActiveCvConfiguration,
   type PendingScanRecord,
   type StoredScanRecord,
-} from "../services/scanning";
+} from '../services/scanning';
+import type {
+  OverlayPoint,
+  ScanOverlayGeometry,
+} from '../services/scanning/scan-overlay-geometry';
 
-const hasNativeFlowGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
+const hasNativeFlowGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+
+type NativeCameraControls = {
+  focusAt?: (point: {
+    x: number;
+    y: number;
+  }) => Promise<void>;
+  setExposureCompensation?: (value: number) => Promise<void>;
+};
+
+type CameraViewWithNativeControls = CameraView & {
+  _cameraRef?: {
+    current?: NativeCameraControls | null;
+  };
+};
+
+type CameraPoint = {
+  x: number;
+  y: number;
+};
+
+function getNativeCameraControls(
+  camera: CameraView | null,
+): NativeCameraControls | null {
+  return (camera as CameraViewWithNativeControls | null)?._cameraRef?.current ?? null;
+}
 
 type ScanFlowStage =
-  "briefing" | "qr" | "test" | "processing" | "result" | "correction";
+  'briefing' | 'qr' | 'test' | 'processing' | 'result' | 'correction';
 
-type PageTransitionIntent =
-  | "forward"
-  | "back"
-  | "fade"
-  | "result"
-  | "modal";
+type PageTransitionIntent = 'forward' | 'back' | 'fade' | 'result' | 'modal';
 
 type ScanFlowOverlayProps = {
   headerTop: number;
+  initialImageUri?: string | null;
   visible: boolean;
   showBriefing: boolean;
   onBriefingSeen: () => void;
@@ -126,7 +157,7 @@ function FlowIcon({
     );
   }
 
-  if (name === "help") {
+  if (name === 'help') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Circle
@@ -148,7 +179,7 @@ function FlowIcon({
     );
   }
 
-  if (name === "qr") {
+  if (name === 'qr') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -166,7 +197,7 @@ function FlowIcon({
     );
   }
 
-  if (name === "test") {
+  if (name === 'test') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Rect
@@ -190,7 +221,7 @@ function FlowIcon({
     );
   }
 
-  if (name === "light") {
+  if (name === 'light') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Circle
@@ -211,7 +242,7 @@ function FlowIcon({
     );
   }
 
-  if (name === "surface") {
+  if (name === 'surface') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -232,7 +263,7 @@ function FlowIcon({
     );
   }
 
-  if (name === "steady") {
+  if (name === 'steady') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Path
@@ -247,7 +278,7 @@ function FlowIcon({
     );
   }
 
-  if (name === "error") {
+  if (name === 'error') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
         <Circle cx="12" cy="12" r="10" fill={color} />
@@ -293,10 +324,7 @@ function RoundGlassButton({
   const iconElement = (
     <FlowIcon
       name={icon}
-      color={
-        iconColor ??
-        (darkContent ? colors.text.primary : '#ffffff')
-      }
+      color={iconColor ?? (darkContent ? colors.text.primary : '#ffffff')}
     />
   );
 
@@ -381,7 +409,7 @@ function FlowHeader({
   showHelp?: boolean;
   top: number;
 }) {
-  const color = light ? "#ffffff" : colors.text.primary;
+  const color = light ? '#ffffff' : colors.text.primary;
   const stepLabel = currentStep ? (
     <AppText role="label" weight="medium" color={color}>
       {currentStep}
@@ -399,11 +427,7 @@ function FlowHeader({
           }
           darkContent={!light}
           icon={leadingIcon}
-          iconColor={
-            leadingIcon === 'back'
-              ? colors.brand.primary
-              : undefined
-          }
+          iconColor={leadingIcon === 'back' ? colors.brand.primary : undefined}
           onPress={onClose}
         />
       ) : (
@@ -455,10 +479,16 @@ function CameraBackdrop({
   cameraRef,
   onBarcodeScanned,
   onCameraReady,
+  autofocus = 'off',
+  onCameraLayout,
+  onFocusTap,
 }: {
   cameraRef?: RefObject<CameraView | null>;
   onBarcodeScanned?: (result: BarcodeScanningResult) => void;
   onCameraReady?: () => void;
+  autofocus?: 'on' | 'off';
+  onCameraLayout?: (layout: { width: number; height: number }) => void;
+  onFocusTap?: (event: GestureResponderEvent) => void;
 }) {
   const [permission, requestPermission] = useCameraPermissions();
   const requestedPermission = useRef(false);
@@ -468,7 +498,7 @@ function CameraBackdrop({
     // Keep the explicit button visible on web instead of opening a browser-level
     // permission sheet from an effect, which can leave the sheet non-interactive
     // on mobile Safari/Chrome.
-    if (Platform.OS === "web") {
+    if (Platform.OS === 'web') {
       return;
     }
 
@@ -486,22 +516,34 @@ function CameraBackdrop({
   const granted = permission?.granted === true;
 
   return (
-    <View style={StyleSheet.absoluteFillObject}>
+    <View
+      onLayout={(event) => {
+        onCameraLayout?.({
+          width: event.nativeEvent.layout.width,
+          height: event.nativeEvent.layout.height,
+        });
+      }}
+      style={StyleSheet.absoluteFillObject}
+    >
       {granted ? (
-        <CameraView
-          ref={cameraRef}
-          barcodeScannerSettings={
-            onBarcodeScanned ? { barcodeTypes: ["qr"] } : undefined
-          }
-          facing="back"
-          mode="picture"
-          onBarcodeScanned={onBarcodeScanned}
-          onCameraReady={onCameraReady}
-          style={StyleSheet.absoluteFillObject}
-        />
+        <>
+          <CameraView
+            ref={cameraRef}
+            barcodeScannerSettings={
+              onBarcodeScanned ? { barcodeTypes: ['qr'] } : undefined
+            }
+            facing="back"
+            mode="picture"
+            autofocus={autofocus}
+            onBarcodeScanned={onBarcodeScanned}
+            onCameraReady={onCameraReady}
+            onTouchEnd={onFocusTap}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </>
       ) : (
         <LinearGradient
-          colors={["#251119", "#4A2433", "#170C11"]}
+          colors={['#251119', '#4A2433', '#170C11']}
           locations={[0, 0.52, 1]}
           start={{ x: 0.08, y: 0 }}
           end={{ x: 0.94, y: 1 }}
@@ -536,8 +578,8 @@ function CameraBackdrop({
                   <PrimaryButton
                     label={
                       permission.canAskAgain
-                        ? "Разрешить доступ"
-                        : "Открыть настройки"
+                        ? 'Разрешить доступ'
+                        : 'Открыть настройки'
                     }
                     onPress={() => {
                       if (permission.canAskAgain) {
@@ -575,19 +617,19 @@ function BriefingScreen({
     body: string;
   }> = [
     {
-      icon: "qr",
-      title: "Сначала QR-код",
-      body: "Мы определим тип теста, партию и срок годности.",
+      icon: 'qr',
+      title: 'Сначала QR-код',
+      body: 'Мы определим тип теста, партию и срок годности.',
     },
     {
-      icon: "surface",
-      title: "Подготовьте поверхность",
-      body: "Положите тест ровно на светлый однородный фон.",
+      icon: 'surface',
+      title: 'Подготовьте поверхность',
+      body: 'Положите тест ровно на светлый однородный фон.',
     },
     {
-      icon: "light",
-      title: "Проверьте освещение",
-      body: "Избегайте теней и бликов на диагностическом окне.",
+      icon: 'light',
+      title: 'Проверьте освещение',
+      body: 'Избегайте теней и бликов на диагностическом окне.',
     },
   ];
 
@@ -666,7 +708,7 @@ function QrScannerScreen({
   const scanned = useRef(false);
   const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [detected, setDetected] = useState(false);
-  const [manualCode, setManualCode] = useState("");
+  const [manualCode, setManualCode] = useState('');
   const [manualCodeError, setManualCodeError] = useState<string | null>(null);
   const [manualCodeVisible, setManualCodeVisible] = useState(false);
   const { height: screenHeight, width: screenWidth } = useWindowDimensions();
@@ -786,7 +828,7 @@ function QrScannerScreen({
     const normalizedCode = manualCode.trim();
 
     if (!normalizedCode) {
-      setManualCodeError("Введите код с упаковки теста.");
+      setManualCodeError('Введите код с упаковки теста.');
       return;
     }
 
@@ -796,7 +838,7 @@ function QrScannerScreen({
       return;
     }
 
-    setManualCode("");
+    setManualCode('');
     closeManualCode();
   };
 
@@ -850,7 +892,7 @@ function QrScannerScreen({
             <Image
               accessible={false}
               resizeMode="contain"
-              source={require("../assets/figma/scan-screen/scan-flow-qr-final.png")}
+              source={require('../assets/figma/scan-screen/scan-flow-qr-final.png')}
               style={styles.qrImage}
             />
           </View>
@@ -861,8 +903,8 @@ function QrScannerScreen({
         <View style={styles.cameraTooltipSlot}>
           <ScanTooltip
             floatingMaxWidth={370}
-            kind={detected ? "locked" : "qr"}
-            message={detected ? "QR-код найден" : "Наведите камеру на QR-код"}
+            kind={detected ? 'locked' : 'qr'}
+            message={detected ? 'QR-код найден' : 'Наведите камеру на QR-код'}
             singleLine
             variant="floating"
           />
@@ -896,7 +938,7 @@ function QrScannerScreen({
         visible={manualCodeVisible}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.manualCodeModalRoot}
         >
           <Pressable
@@ -992,134 +1034,137 @@ function QrScannerScreen({
 type CvLiveHint = {
   kind: ScanTooltipKind;
   text: string;
-  tone: "neutral" | "warning" | "success";
+  tone: 'neutral' | 'warning' | 'success';
 };
 
 const initialCvHint: CvLiveHint = {
-  kind: "test",
-  text: "Наведите камеру на тест",
-  tone: "neutral",
+  kind: 'test',
+  text: 'Наведите камеру на тест',
+  tone: 'neutral',
 };
 
 const cvReasonHints: Record<string, CvLiveHint> = {
   unsupported_or_too_small_image: {
-    kind: "test",
-    text: "Разместите весь тест внутри рамки",
-    tone: "warning",
+    kind: 'test',
+    text: 'Разместите весь тест внутри рамки',
+    tone: 'warning',
   },
   geometry_unreliable: {
-    kind: "test",
-    text: "Разместите тест целиком внутри рамки",
-    tone: "warning",
+    kind: 'test',
+    text: 'Разместите тест целиком внутри рамки',
+    tone: 'warning',
   },
   geometry_edge_support_insufficient: {
-    kind: "test",
-    text: "Края теста не видны — измените положение",
-    tone: "warning",
+    kind: 'test',
+    text: 'Края теста не видны — измените положение',
+    tone: 'warning',
   },
   degenerate_projective_geometry: {
-    kind: "test",
-    text: "Держите камеру параллельно тесту",
-    tone: "warning",
+    kind: 'test',
+    text: 'Держите камеру параллельно тесту',
+    tone: 'warning',
   },
   retake_more_overhead: {
-    kind: "test",
-    text: "Снимайте тест строго сверху",
-    tone: "warning",
+    kind: 'test',
+    text: 'Снимайте тест строго сверху',
+    tone: 'warning',
   },
   check_detected_corners: {
-    kind: "test",
-    text: "Совместите края теста с рамкой",
-    tone: "warning",
+    kind: 'test',
+    text: 'Совместите края теста с рамкой',
+    tone: 'warning',
   },
   strip_endpoints_out_of_frame: {
-    kind: "test",
-    text: "Покажите тест в кадре целиком",
-    tone: "warning",
+    kind: 'test',
+    text: 'Покажите тест в кадре целиком',
+    tone: 'warning',
   },
   strip_resolution_too_low: {
-    kind: "test",
-    text: "Приблизьте камеру к тесту",
-    tone: "warning",
+    kind: 'test',
+    text: 'Приблизьте камеру к тесту',
+    tone: 'warning',
   },
   move_closer: {
-    kind: "test",
-    text: "Приблизьте камеру к тесту",
-    tone: "warning",
+    kind: 'test',
+    text: 'Приблизьте камеру к тесту',
+    tone: 'warning',
   },
   image_too_blurry: {
-    kind: "test",
-    text: "Изображение размыто — зафиксируйте камеру",
-    tone: "warning",
+    kind: 'test',
+    text: 'Изображение размыто — зафиксируйте камеру',
+    tone: 'warning',
   },
   hold_camera_steady: {
-    kind: "test",
-    text: "Зафиксируйте камеру",
-    tone: "warning",
+    kind: 'test',
+    text: 'Зафиксируйте камеру',
+    tone: 'warning',
   },
   exposure_clipping: {
-    kind: "lowLight",
-    text: "Слишком ярко — уберите прямой свет",
-    tone: "warning",
+    kind: 'lowLight',
+    text: 'Слишком ярко — уберите прямой свет',
+    tone: 'warning',
   },
   adjust_exposure: {
-    kind: "lowLight",
-    text: "Измените освещение теста",
-    tone: "warning",
+    kind: 'lowLight',
+    text: 'Измените освещение теста',
+    tone: 'warning',
   },
   glare_crosses_control_line: {
-    kind: "lowLight",
-    text: "Блик перекрывает контрольную зону",
-    tone: "warning",
+    kind: 'lowLight',
+    text: 'Блик перекрывает контрольную зону',
+    tone: 'warning',
   },
   reduce_glare: {
-    kind: "lowLight",
-    text: "Уберите блики с поверхности теста",
-    tone: "warning",
+    kind: 'lowLight',
+    text: 'Уберите блики с поверхности теста',
+    tone: 'warning',
   },
   broad_shadow_or_illumination_gradient: {
-    kind: "background",
-    text: "Сделайте освещение равномерным",
-    tone: "warning",
+    kind: 'background',
+    text: 'Сделайте освещение равномерным',
+    tone: 'warning',
   },
   broad_stain_or_smeared_line: {
-    kind: "background",
-    text: "Зона результата размыта или загрязнена",
-    tone: "warning",
+    kind: 'background',
+    text: 'Зона результата размыта или загрязнена',
+    tone: 'warning',
   },
   insufficient_valid_membrane_pixels: {
-    kind: "background",
-    text: "Положите тест на однородный светлый фон",
-    tone: "warning",
+    kind: 'background',
+    text: 'Положите тест на однородный светлый фон',
+    tone: 'warning',
   },
   control_not_detected: {
-    kind: "test",
-    text: "Контрольная линия пока не распознана",
-    tone: "warning",
+    kind: 'test',
+    text: 'Контрольная линия пока не распознана',
+    tone: 'warning',
   },
   control_denominator_too_small: {
-    kind: "test",
-    text: "Контрольная линия слишком слабая",
-    tone: "warning",
+    kind: 'test',
+    text: 'Контрольная линия слишком слабая',
+    tone: 'warning',
   },
   ambiguous_extra_line_peak: {
-    kind: "test",
-    text: "В зоне результата видны лишние отметки",
-    tone: "warning",
+    kind: 'test',
+    text: 'В зоне результата видны лишние отметки',
+    tone: 'warning',
   },
   color_calibration_validation_failed: {
-    kind: "background",
-    text: "Цвет снимка искажён — измените освещение",
-    tone: "warning",
+    kind: 'background',
+    text: 'Цвет снимка искажён — измените освещение',
+    tone: 'warning',
   },
 };
 
-function getCvLiveHint(result: AnalysisResult, validStreak: number): CvLiveHint {
-  if (result.status === "valid" && validStreak >= 2) {
+function getCvLiveHint(
+  result: AnalysisResult,
+  validStreak: number,
+): CvLiveHint {
+  if (getAnalysisDecision(result) === 'reportable' && validStreak >= 2) {
     return {
-      kind: "locked",
-      text: "Условия подходят — не двигайте камеру",
-      tone: "success",
+      kind: 'locked',
+      text: 'Условия подходят — не двигайте камеру',
+      tone: 'success',
     };
   }
 
@@ -1127,14 +1172,16 @@ function getCvLiveHint(result: AnalysisResult, validStreak: number): CvLiveHint 
     .map((code) => cvReasonHints[code])
     .find((hint) => hint !== undefined);
 
-  return reasonHint ?? {
-    kind: "test",
-    text:
-      result.status === "valid"
-        ? "Проверяем стабильность кадра"
-        : "Совместите тест с рамкой",
-    tone: result.status === "valid" ? "neutral" : "warning",
-  };
+  return (
+    reasonHint ?? {
+      kind: 'test',
+      text:
+        result.status === 'valid'
+          ? 'Проверяем стабильность кадра'
+          : 'Совместите тест с рамкой',
+      tone: result.status === 'valid' ? 'neutral' : 'warning',
+    }
+  );
 }
 
 function BatchChip({
@@ -1192,23 +1239,116 @@ function BatchChip({
 function TestScannerScreen({
   configuration,
   headerTop,
+  useLegacyPipeline,
   onCapture,
   onClose,
   onHelp,
 }: {
   configuration: ActiveCvConfiguration;
   headerTop: number;
+  useLegacyPipeline: boolean;
   onCapture: (imageUri: string) => void;
   onClose: () => void;
   onHelp: () => void;
 }) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [currentHint, setCurrentHint] = useState<CvLiveHint>(initialCvHint);
-  const [ready, setReady] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [focusMode, setFocusMode] = useState<'on' | 'off'>('off');
+  const [focusPoint, setFocusPoint] = useState<CameraPoint | null>(null);
+  const [cameraLayout, setCameraLayout] = useState({ width: 0, height: 0 });
+  const [exposureCompensation, setExposureCompensation] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const previewBusy = useRef(false);
   const validStreak = useRef(0);
+  const focusResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exposureControlHeight = 204;
+  const exposureRailHeight = 120;
+  const exposureTrackTop = 24;
+  const exposureTrackHeight = exposureRailHeight - exposureTrackTop;
+  const exposureThumbSize = 22;
+  const exposureTrackTravel = exposureTrackHeight - exposureThumbSize;
+  const exposureValue = useRef(0);
+
+  useEffect(
+    () => () => {
+      if (focusResetTimer.current) {
+        clearTimeout(focusResetTimer.current);
+      }
+    },
+    [],
+  );
+
+  const focusAt = (locationX: number, locationY: number) => {
+    setFocusPoint({ x: locationX, y: locationY });
+
+    const cameraWidth = cameraLayout.width || Math.max(1, windowWidth);
+    const cameraHeight = cameraLayout.height || Math.max(1, windowHeight);
+    const nativeControls = getNativeCameraControls(cameraRef.current);
+    const focusPromise = nativeControls?.focusAt?.({
+      x: Math.max(0, Math.min(1, locationX / cameraWidth)),
+      y: Math.max(0, Math.min(1, locationY / cameraHeight)),
+    });
+    void focusPromise?.catch(() => undefined);
+
+    // Keep the stock autofocus prop as a fallback for devices that do not
+    // support focus-point metering.
+    setFocusMode('off');
+    requestAnimationFrame(() => setFocusMode('on'));
+
+    if (focusResetTimer.current) {
+      clearTimeout(focusResetTimer.current);
+    }
+    focusResetTimer.current = setTimeout(() => {
+      setFocusMode('off');
+      setFocusPoint(null);
+      focusResetTimer.current = null;
+    }, 900);
+  };
+
+  const handleFocusTap = (event: GestureResponderEvent) => {
+    focusAt(event.nativeEvent.locationX, event.nativeEvent.locationY);
+  };
+
+  const handleFocusSurfaceTap = (event: GestureResponderEvent) => {
+    focusAt(
+      event.nativeEvent.locationX,
+      event.nativeEvent.locationY + headerTop + 120,
+    );
+  };
+
+  const setExposureValue = (value: number) => {
+    const nextValue = Math.max(-1, Math.min(1, value));
+    exposureValue.current = nextValue;
+    setExposureCompensation(nextValue);
+    const exposurePromise = getNativeCameraControls(cameraRef.current)
+      ?.setExposureCompensation?.(nextValue);
+    void exposurePromise?.catch(() => undefined);
+  };
+
+  const updateExposureFromRail = (locationY: number) => {
+    const trackY = Math.max(
+      0,
+      Math.min(exposureTrackTravel, locationY - exposureTrackTop),
+    );
+    setExposureValue(1 - (trackY / exposureTrackTravel) * 2);
+  };
+
+  const adjustExposure = (delta: number) => {
+    setExposureValue(exposureValue.current + delta);
+  };
+
+  const exposureResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (event) =>
+        updateExposureFromRail(event.nativeEvent.locationY),
+      onPanResponderMove: (event) =>
+        updateExposureFromRail(event.nativeEvent.locationY),
+    }),
+  ).current;
 
   useEffect(() => {
     if (!cameraReady || capturing) {
@@ -1248,25 +1388,30 @@ function TestScannerScreen({
           return;
         }
 
-        const result = await scanningService.analyze(previewUri);
+        const result = await scanningService.analyze(previewUri, {
+          useLegacyPipeline,
+          includeRectifiedImage: false,
+        });
         if (!active) {
           return;
         }
 
         validStreak.current =
-          result.status === "valid" ? validStreak.current + 1 : 0;
+          getAnalysisDecision(result) === 'reportable'
+            ? validStreak.current + 1
+            : 0;
         const nextHint = getCvLiveHint(result, validStreak.current);
         setCurrentHint(nextHint);
-        setReady(nextHint.tone === "success");
       } catch {
         if (active) {
           validStreak.current = 0;
-          setReady(false);
           setCurrentHint(initialCvHint);
         }
       } finally {
         if (previewUri) {
-          void deleteAsync(previewUri, { idempotent: true }).catch(() => undefined);
+          void deleteAsync(previewUri, { idempotent: true }).catch(
+            () => undefined,
+          );
         }
         previewBusy.current = false;
         scheduleNextCheck();
@@ -1280,10 +1425,10 @@ function TestScannerScreen({
         clearTimeout(timer);
       }
     };
-  }, [cameraReady, capturing, configuration]);
+  }, [cameraReady, capturing, configuration, useLegacyPipeline]);
 
   const handleCapture = async () => {
-    if (!ready || !cameraReady || capturing || previewBusy.current) {
+    if (!cameraReady || capturing || previewBusy.current) {
       return;
     }
 
@@ -1298,13 +1443,13 @@ function TestScannerScreen({
         shutterSound: false,
       });
       if (!photo?.uri) {
-        throw new Error("Camera returned no local image URI.");
+        throw new Error('Camera returned no local image URI.');
       }
       onCapture(photo.uri);
     } catch {
       Alert.alert(
-        "Не удалось сделать снимок",
-        "Проверьте доступ к камере и попробуйте ещё раз.",
+        'Не удалось сделать снимок',
+        'Проверьте доступ к камере и попробуйте ещё раз.',
       );
       setCapturing(false);
     }
@@ -1313,8 +1458,11 @@ function TestScannerScreen({
   return (
     <View style={styles.cameraScreen}>
       <CameraBackdrop
+        autofocus={focusMode}
         cameraRef={cameraRef}
         onCameraReady={() => setCameraReady(true)}
+        onCameraLayout={setCameraLayout}
+        onFocusTap={handleFocusTap}
       />
       <FlowHeader
         currentStep="Шаг 2 из 2"
@@ -1324,7 +1472,9 @@ function TestScannerScreen({
       />
       <BatchChip configuration={configuration} top={headerTop + 64} />
 
-      <View style={[styles.testTarget, { top: headerTop + 182 }]}>
+      <View
+        style={[styles.testTarget, { top: headerTop + 182 }]}
+      >
         <ScanFlowFrame
           width="100%"
           height="100%"
@@ -1334,9 +1484,70 @@ function TestScannerScreen({
         <Image
           accessible={false}
           resizeMode="contain"
-          source={require("../assets/figma/scan-screen/scan-test-strip.png")}
+          source={require('../assets/figma/scan-screen/scan-test-strip.png')}
           style={styles.testStripImage}
         />
+      </View>
+      <Pressable
+        accessibilityLabel="Фокус камеры"
+        accessibilityRole="button"
+        onPressIn={handleFocusSurfaceTap}
+        style={[styles.cameraFocusSurface, { top: headerTop + 120 }]}
+      />
+      {focusPoint ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.cameraFocusReticle,
+            { left: focusPoint.x - 28, top: focusPoint.y - 28 },
+          ]}
+        />
+      ) : null}
+      <View
+        accessibilityLabel="Экспозиция камеры"
+        accessibilityRole="adjustable"
+        style={[styles.exposureControl, { top: headerTop + 238 }]}
+      >
+        <Pressable
+          accessibilityLabel="Увеличить экспозицию"
+          accessibilityRole="button"
+          onPress={() => adjustExposure(0.2)}
+          style={styles.exposureButton}
+        >
+          <AppText color="#FFFFFF" role="label" weight="bold">
+            +
+          </AppText>
+        </Pressable>
+        <View
+          {...exposureResponder.panHandlers}
+          style={styles.exposureRailTouch}
+        >
+          <View pointerEvents="none" style={styles.exposureIcon}>
+            <FlowIcon color="#FFFFFF" name="light" size={18} />
+          </View>
+          <View pointerEvents="none" style={styles.exposureTrack} />
+          <View
+            pointerEvents="none"
+            style={[
+              styles.exposureThumb,
+              {
+                top:
+                  exposureTrackTop +
+                  ((1 - exposureCompensation) / 2) * exposureTrackTravel,
+              },
+            ]}
+          />
+        </View>
+        <Pressable
+          accessibilityLabel="Уменьшить экспозицию"
+          accessibilityRole="button"
+          onPress={() => adjustExposure(-0.2)}
+          style={[styles.exposureButton, styles.exposureButtonBottom]}
+        >
+          <AppText color="#FFFFFF" role="label" weight="bold">
+            −
+          </AppText>
+        </Pressable>
       </View>
 
       <View style={styles.cameraBottomGroup}>
@@ -1354,12 +1565,14 @@ function TestScannerScreen({
           <PrimaryButton
             label={
               capturing
-                ? "Делаем снимок…"
-                : ready
-                  ? "Сканировать тест"
-                  : "Проверяем условия"
+                ? 'Делаем снимок…'
+                : !cameraReady
+                  ? 'Подготавливаем камеру'
+                  : useLegacyPipeline
+                    ? 'Сканировать legacy-профиль'
+                    : 'Сканировать тест'
             }
-            disabled={!ready || !cameraReady || capturing}
+            disabled={!cameraReady || capturing}
             onPress={() => {
               void handleCapture();
             }}
@@ -1374,7 +1587,7 @@ function ProcessingScreen() {
   return (
     <View style={styles.processingScreen}>
       <LinearGradient
-        colors={["#FFF8F5", "#FEE8E3", "#FFF8F6"]}
+        colors={['#FFF8F5', '#FEE8E3', '#FFF8F6']}
         locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFillObject}
       />
@@ -1407,15 +1620,139 @@ function ProcessingScreen() {
   );
 }
 
+function overlayPath(points: readonly OverlayPoint[] | null): string | null {
+  if (!points || points.length < 2) {
+    return null;
+  }
+  const [first, ...rest] = points;
+  return `M ${first.x} ${first.y} ${rest
+    .map((point) => `L ${point.x} ${point.y}`)
+    .join(' ')} ${points.length > 2 ? 'Z' : ''}`;
+}
+
+function ScanResultOverlay({ geometry }: { geometry: ScanOverlayGeometry }) {
+  const stripPath = overlayPath(geometry.strip);
+  const tilePath = overlayPath(geometry.calibrationTile);
+  const controlWindowPath = overlayPath(geometry.controlWindow);
+  const testWindowPath = overlayPath(geometry.testWindow);
+  const controlPeakPath = overlayPath(geometry.controlPeak);
+  const testPeakPath = overlayPath(geometry.testPeak);
+
+  if (
+    !stripPath &&
+    !tilePath &&
+    !controlWindowPath &&
+    !testWindowPath &&
+    !controlPeakPath &&
+    !testPeakPath
+  ) {
+    return null;
+  }
+
+  return (
+    <View pointerEvents="none" style={styles.scanResultOverlay}>
+      <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
+        {stripPath ? (
+          <Path
+            d={stripPath}
+            fill="rgba(40,220,120,0.08)"
+            stroke="#28dc78"
+            strokeWidth={3}
+          />
+        ) : null}
+        {tilePath ? (
+          <Path
+            d={tilePath}
+            fill="rgba(39,196,255,0.08)"
+            stroke="#27c4ff"
+            strokeDasharray="6 4"
+            strokeWidth={2}
+          />
+        ) : null}
+        {controlWindowPath ? (
+          <Path
+            d={controlWindowPath}
+            fill="rgba(24,150,125,0.08)"
+            stroke="#18967d"
+            strokeDasharray="4 3"
+            strokeWidth={2}
+          />
+        ) : null}
+        {testWindowPath ? (
+          <Path
+            d={testWindowPath}
+            fill="rgba(220,72,105,0.08)"
+            stroke="#dc4869"
+            strokeDasharray="4 3"
+            strokeWidth={2}
+          />
+        ) : null}
+        {controlPeakPath ? (
+          <Path d={controlPeakPath} stroke="#18967d" strokeWidth={4} />
+        ) : null}
+        {testPeakPath ? (
+          <Path d={testPeakPath} stroke="#dc4869" strokeWidth={4} />
+        ) : null}
+      </Svg>
+      <View style={styles.scanResultOverlayLegend}>
+        <View style={styles.scanResultOverlayLegendRow}>
+          <View
+            style={[
+              styles.scanResultOverlaySwatch,
+              styles.scanResultOverlayStripSwatch,
+            ]}
+          />
+          <AppText role="caption" color="#ffffff">
+            Полоска
+          </AppText>
+        </View>
+        <View style={styles.scanResultOverlayLegendRow}>
+          <View
+            style={[
+              styles.scanResultOverlaySwatch,
+              styles.scanResultOverlayControlSwatch,
+            ]}
+          />
+          <AppText role="caption" color="#ffffff">
+            C
+          </AppText>
+        </View>
+        <View style={styles.scanResultOverlayLegendRow}>
+          <View
+            style={[
+              styles.scanResultOverlaySwatch,
+              styles.scanResultOverlayTestSwatch,
+            ]}
+          />
+          <AppText role="caption" color="#ffffff">
+            T
+          </AppText>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function ResultPreview({
   analysisResult,
+  configuration,
   imageUri,
   savedResult,
+  previewTop,
+  showAnalysisOverlay = false,
 }: {
   analysisResult?: AnalysisResult | null;
+  configuration?: ActiveCvConfiguration;
   imageUri?: string | null;
   savedResult?: ScanResultData['result'];
+  previewTop?: number;
+  showAnalysisOverlay?: boolean;
 }) {
+  const [imageSize, setImageSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const [viewSize, setViewSize] = useState({ width: 0, height: 0 });
   const usesAnalysis = analysisResult !== undefined;
   const controlDetected = usesAnalysis
     ? analysisResult?.peaks.control.detected === true
@@ -1423,20 +1760,46 @@ function ResultPreview({
   const testDetected = usesAnalysis
     ? analysisResult?.peaks.test.detected === true
     : savedResult !== 'Отрицательный';
-  const detectionLabel = !controlDetected
-    ? "Контрольная зона не распознана"
-    : testDetected
-      ? "Обе зоны распознаны"
-      : "Распознана контрольная зона";
   const needsRetake =
-    analysisResult?.status === "invalid" || !controlDetected;
+    usesAnalysis && getAnalysisDecision(analysisResult ?? null) !== 'reportable';
+  const detectionLabel = needsRetake
+    ? !controlDetected
+      ? 'Контрольная зона не распознана'
+      : 'Результат нельзя подтвердить'
+    : testDetected
+      ? 'Обе зоны распознаны'
+      : 'Распознана контрольная зона';
+  const overlayGeometry =
+    showAnalysisOverlay &&
+    analysisResult &&
+    configuration &&
+    imageSize &&
+    viewSize.width > 0 &&
+    viewSize.height > 0
+      ? getScanOverlayGeometry(
+          analysisResult,
+          configuration,
+          imageSize,
+          viewSize,
+        )
+      : null;
 
   return (
-    <View style={styles.resultPreview}>
+    <View
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        setViewSize({ width, height });
+      }}
+      style={[styles.resultPreview, previewTop !== undefined && { top: previewTop }]}
+    >
       {imageUri ? (
         <Image
           accessible
           accessibilityLabel="Снимок отсканированного теста"
+          onLoad={(event) => {
+            const { width, height } = event.nativeEvent.source;
+            setImageSize({ width, height });
+          }}
           resizeMode="cover"
           source={{ uri: imageUri }}
           style={styles.resultCapturedImage}
@@ -1448,9 +1811,30 @@ function ResultPreview({
           </AppText>
         </View>
       )}
+      {overlayGeometry ? (
+        <ScanResultOverlay geometry={overlayGeometry} />
+      ) : null}
+      {analysisResult?.rectified_image_uri ? (
+        <View style={styles.rectifiedPreviewCard}>
+          <AppText
+            role="caption"
+            color={colors.text.secondary}
+            style={styles.rectifiedPreviewLabel}
+          >
+            После гомографии
+          </AppText>
+          <Image
+            accessible
+            accessibilityLabel="Извлечённая тест-полоска после гомографии"
+            resizeMode="contain"
+            source={{ uri: analysisResult.rectified_image_uri }}
+            style={styles.rectifiedPreviewImage}
+          />
+        </View>
+      ) : null}
       <View style={styles.detectedBadge}>
         <FlowIcon
-          name={needsRetake ? "error" : "check"}
+          name={needsRetake ? 'error' : 'check'}
           color={needsRetake ? colors.state.error : colors.brand.success}
           size={18}
         />
@@ -1478,6 +1862,7 @@ const defaultScanResult: ScanResultData = {
 export function ScanResultScreen({
   fromHistory = false,
   configuration,
+  useLegacyPipeline = false,
   headerTop,
   imageUri,
   error,
@@ -1493,6 +1878,7 @@ export function ScanResultScreen({
 }: {
   fromHistory?: boolean;
   configuration?: ActiveCvConfiguration;
+  useLegacyPipeline?: boolean;
   headerTop: number;
   imageUri?: string | null;
   error?: string | null;
@@ -1508,62 +1894,90 @@ export function ScanResultScreen({
 }) {
   const usesSavedResult = fromHistory || resultData !== undefined;
   const savedResult = resultData ?? defaultScanResult;
-  const canConfirm =
-    usesSavedResult ||
-    (result?.status === "valid" && result.signal.classification !== null);
+  const analysisDecision = getAnalysisDecision(result ?? null, error);
+  const reportableAnalysis = analysisDecision === 'reportable';
+  const controlDetected =
+    usesSavedResult || result?.peaks.control.detected === true;
+  const canConfirm = usesSavedResult || reportableAnalysis;
   const needsRetake =
-    !usesSavedResult && (Boolean(error) || result?.status === "invalid");
-  const heading = error
-    ? "Не удалось выполнить анализ"
-    : result?.status === "invalid"
-      ? "Нужен новый снимок"
-      : result?.status === "review"
-        ? "Требуется проверка"
-        : "Результат готов";
-  const interpretation = error
-    ? "Ошибка анализа"
-    : result?.status === "invalid"
-      ? "Недействительный снимок"
-      : result?.status === "review"
-        ? "Не сохраняется"
-        : result?.signal.classification === "POS"
-          ? "Положительный"
-          : result?.signal.classification === "NEG"
-            ? "Отрицательный"
-            : result?.signal.value !== null &&
-                result?.signal.value !== undefined
-              ? `T/C ${result.signal.value.toFixed(3)}`
-              : "Без классификации";
-  const confidence = Math.round(
-    100 *
-      Math.max(
-        0,
-        Math.min(
-          1,
-          result?.quality.peak_pair_confidence ??
-            result?.quality.locator_confidence ??
-            0,
-        ),
-      ),
-  );
+    !usesSavedResult &&
+    (!controlDetected || analysisDecision !== 'reportable');
+  const heading = needsRetake
+    ? 'Требуется переснять'
+    : useLegacyPipeline
+      ? 'Тестовый результат'
+      : 'Результат готов';
+  const interpretation = result?.signal.classification === 'POS'
+      ? 'Положительный'
+      : result?.signal.classification === 'NEG'
+        ? 'Отрицательный'
+        : result?.peaks.test.detected
+          ? 'Положительный'
+          : 'Отрицательный';
+  const confidence = Math.round(100 * getAnalysisConfidence(result ?? null));
+  // Corner alignment is live-camera guidance only. It must never become the
+  // result-screen verdict; the centralized analysis decision above controls
+  // reportable/review/retake state.
   const qualityMessage = result?.reason_codes
+    // These messages guide the live camera only; neither must become the
+    // explanation for a failed result screen.
+    .filter(
+      (code) =>
+        code !== 'check_detected_corners' &&
+        code !== 'move_closer' &&
+        code !== 'strip_resolution_too_low',
+    )
     .map((code) => cvReasonHints[code]?.text)
     .find((message) => message !== undefined);
-  const displayedResult =
-    usesSavedResult
-      ? savedResult.result === 'Пик ЛГ'
-        ? 'Положительный'
-        : savedResult.result
-      : interpretation;
+  const issueExplanation =
+    error ??
+    qualityMessage ??
+    (result?.status === 'valid'
+      ? 'Результат распознан недостаточно уверенно. Сделайте новый снимок при хорошем освещении.'
+      : result?.status === 'review'
+        ? 'Качество снимка нельзя подтвердить. Сделайте новый снимок и переснимите тест.'
+        : 'Не удалось уверенно распознать тест на снимке. Разместите его целиком в кадре и переснимите.');
+  const displayedResult = usesSavedResult
+    ? savedResult.result === 'Пик ЛГ'
+      ? 'Положительный'
+      : savedResult.result
+    : interpretation;
+  const previewConfiguration =
+    useLegacyPipeline && !usesSavedResult
+      ? scanningService.getConfiguration({ useLegacyPipeline: true })
+      : configuration;
   const displayedConfidence = usesSavedResult
     ? savedResult.confidence
     : confidence;
   const displayedType = usesSavedResult
     ? savedResult.type
-    : configuration?.product.label ?? defaultScanResult.type;
+    : (previewConfiguration?.product.label ?? defaultScanResult.type);
   const displayedBatch = usesSavedResult
     ? savedResult.batch
-    : configuration?.product.batch ?? defaultScanResult.batch;
+    : (previewConfiguration?.product.batch ?? defaultScanResult.batch);
+  const resultDescription = needsRetake
+    ? issueExplanation
+    : useLegacyPipeline
+      ? 'Тестовый legacy-профиль: результат прошёл общие проверки.'
+      : canConfirm
+        ? 'Проверьте, правильно ли приложение определило линии.'
+        : issueExplanation;
+  const resultActionLabel = isCompleting
+    ? 'Сохраняем результат…'
+    : needsRetake
+      ? 'Переснять тест'
+      : canConfirm
+        ? 'Подтвердить результат'
+        : 'Переснять тест';
+  const handleResultAction = () => {
+    if (needsRetake) {
+      onRetake?.();
+    } else if (canConfirm) {
+      onConfirm();
+    } else {
+      onRetake?.();
+    }
+  };
 
   return (
     <View style={styles.resultScreen}>
@@ -1591,18 +2005,12 @@ export function ScanResultScreen({
               ]}
             >
               <FlowIcon
-                name={needsRetake ? "error" : "check"}
-                color={
-                  needsRetake ? colors.state.error : colors.brand.success
-                }
+                name={needsRetake ? 'error' : 'check'}
+                color={needsRetake ? colors.state.error : colors.brand.success}
                 size={28}
               />
             </View>
-            <AppText
-              role="title"
-              weight="semibold"
-              style={styles.centerText}
-            >
+            <AppText role="title" weight="semibold" style={styles.centerText}>
               {usesSavedResult ? 'Результат готов' : heading}
             </AppText>
           </>
@@ -1615,76 +2023,83 @@ export function ScanResultScreen({
             fromHistory && styles.historyResultDescription,
           ]}
         >
-          {usesSavedResult
-            ? 'Проверьте, правильно ли приложение определило линии.'
-            : error ??
-              qualityMessage ??
-              (canConfirm
-                ? "Проверьте, правильно ли приложение определило линии."
-                : "Измерение не будет сохранено — переснимите тест.")}
+          {resultDescription}
         </AppText>
       </View>
 
       <ResultPreview
         analysisResult={usesSavedResult ? undefined : result}
+        configuration={previewConfiguration}
         imageUri={usesSavedResult ? savedResult.imageUri : imageUri}
+        previewTop={!fromHistory && !hideReadyHeading ? 282 : undefined}
         savedResult={usesSavedResult ? savedResult.result : undefined}
+        showAnalysisOverlay={useLegacyPipeline && !usesSavedResult}
       />
 
-      <View style={styles.interpretationCard}>
-        <View style={styles.interpretationHeader}>
-          <View>
-            <AppText role="caption" color={colors.text.secondary}>
-              Интерпретация
-            </AppText>
-            <AppText role="heading" weight="semibold">
-              {displayedResult}
-            </AppText>
+      {canConfirm ? (
+        <View style={styles.interpretationCard}>
+          <View style={styles.interpretationHeader}>
+            <View>
+              <AppText role="caption" color={colors.text.secondary}>
+                Интерпретация
+              </AppText>
+              <AppText role="heading" weight="semibold">
+                {displayedResult}
+              </AppText>
+            </View>
+            <View style={styles.confidenceBadge}>
+              <AppText numeric role="label" color={colors.brand.success}>
+                {displayedConfidence}%
+              </AppText>
+            </View>
           </View>
-          <View style={styles.confidenceBadge}>
-            <AppText numeric role="label" color={colors.brand.success}>
-              {displayedConfidence}%
-            </AppText>
+          <View style={styles.resultRule} />
+          <View style={styles.resultMeta}>
+            <View style={styles.resultMetaItem}>
+              <AppText role="caption" color={colors.text.secondary}>
+                Тип теста
+              </AppText>
+              <AppText role="label" weight="medium">
+                {displayedType}
+              </AppText>
+            </View>
+            <View style={styles.resultMetaDivider} />
+            <View style={styles.resultMetaItem}>
+              <AppText role="caption" color={colors.text.secondary}>
+                Партия
+              </AppText>
+              <AppText numeric role="label" weight="medium">
+                {displayedBatch}
+              </AppText>
+            </View>
           </View>
         </View>
-        <View style={styles.resultRule} />
-        <View style={styles.resultMeta}>
-          <View style={styles.resultMetaItem}>
-            <AppText role="caption" color={colors.text.secondary}>
-              Тип теста
-            </AppText>
+      ) : (
+        <View style={styles.resultIssueCard}>
+          <View style={styles.resultIssueHeader}>
+            <View style={styles.resultIssueIcon}>
+              <FlowIcon name="error" color={colors.state.error} size={18} />
+            </View>
             <AppText role="label" weight="medium">
-              {displayedType}
+              Почему нужна новая фотография
             </AppText>
           </View>
-          <View style={styles.resultMetaDivider} />
-          <View style={styles.resultMetaItem}>
-            <AppText role="caption" color={colors.text.secondary}>
-              Партия
-            </AppText>
-            <AppText numeric role="label" weight="medium">
-              {displayedBatch}
-            </AppText>
-          </View>
+          <AppText role="body" color={colors.text.secondary}>
+            {issueExplanation}
+          </AppText>
         </View>
-      </View>
+      )}
 
       <View style={styles.resultActions}>
         <PrimaryButton
           disabled={isCompleting}
-          label={
-            isCompleting
-              ? "Сохраняем результат…"
-              : canConfirm
-                ? "Подтвердить результат"
-                : "Переснять тест"
-          }
-          onPress={canConfirm ? onConfirm : () => onRetake?.()}
+          label={resultActionLabel}
+          onPress={handleResultAction}
         />
         {canConfirm ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Исправить интерпретацию"
+            accessibilityLabel="Результат определен неверно?"
             disabled={isCompleting}
             onPress={onCorrection}
             style={({ pressed }) => [
@@ -1693,8 +2108,13 @@ export function ScanResultScreen({
               pressed && styles.pressed,
             ]}
           >
-            <AppText role="label" weight="medium" color={colors.brand.primary}>
-              Результат определён неверно
+            <AppText
+              role="label"
+              weight="medium"
+              color={colors.brand.primary}
+              style={styles.resultSecondaryButtonLabel}
+            >
+              Результат определен неверно?
             </AppText>
           </Pressable>
         ) : null}
@@ -1704,8 +2124,8 @@ export function ScanResultScreen({
 }
 
 const correctionOptions = [
-  "Вижу две линии",
-  "Вижу только контрольную линию",
+  'Вижу две линии',
+  'Вижу только контрольную линию',
 ] as const;
 
 export function ScanCorrectionScreen({
@@ -1761,8 +2181,8 @@ export function ScanCorrectionScreen({
             fromHistory && styles.historyResultDescription,
           ]}
         >
-          Выберите вариант или переснимите тест. Итог можно подтвердить
-          после проверки.
+          Выберите вариант или переснимите тест. Итог можно подтвердить после
+          проверки.
         </AppText>
       </View>
 
@@ -1804,9 +2224,7 @@ export function ScanCorrectionScreen({
           label="Сохранить интерпретацию"
           disabled={selected === null}
           onPress={() =>
-            onSubmit(
-              selected === 0 ? 'Положительный' : 'Отрицательный',
-            )
+            onSubmit(selected === 0 ? 'Положительный' : 'Отрицательный')
           }
         />
         {!fromHistory ? (
@@ -1819,11 +2237,7 @@ export function ScanCorrectionScreen({
               pressed && styles.pressed,
             ]}
           >
-            <AppText
-              role="label"
-              weight="medium"
-              color={colors.brand.primary}
-            >
+            <AppText role="label" weight="medium" color={colors.brand.primary}>
               Переснять тест
             </AppText>
           </Pressable>
@@ -1835,6 +2249,7 @@ export function ScanCorrectionScreen({
 
 export function ScanFlowOverlay({
   headerTop,
+  initialImageUri = null,
   visible,
   showBriefing,
   onBriefingSeen,
@@ -1842,11 +2257,11 @@ export function ScanFlowOverlay({
   onComplete,
 }: ScanFlowOverlayProps) {
   const [stage, setStage] = useState<ScanFlowStage>(
-    showBriefing ? "briefing" : "qr",
+    initialImageUri ? 'processing' : showBriefing ? 'briefing' : 'qr',
   );
   const [returnStage, setReturnStage] = useState<Exclude<
     ScanFlowStage,
-    "briefing"
+    'briefing'
   > | null>(null);
   const [configuration, setConfiguration] = useState(
     scanningService.getConfiguration(),
@@ -1856,18 +2271,21 @@ export function ScanFlowOverlay({
   );
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
+  const [useLegacyPipeline, setUseLegacyPipeline] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const analysisRequestId = useRef(0);
   const capturedImageUriRef = useRef<string | null>(null);
+  const capturedImageOwnedRef = useRef(false);
   const completingRef = useRef(false);
   const mountedRef = useRef(true);
   const transition = useRef(new Animated.Value(1)).current;
-  const transitionIntent = useRef<PageTransitionIntent>("fade");
+  const transitionIntent = useRef<PageTransitionIntent>('fade');
   const skipNextStageAnimation = useRef(true);
 
-  const updateCapturedImageUri = (uri: string | null) => {
+  const updateCapturedImageUri = (uri: string | null, owned = true) => {
     capturedImageUriRef.current = uri;
+    capturedImageOwnedRef.current = owned;
     if (mountedRef.current) {
       setCapturedImageUri(uri);
     }
@@ -1875,11 +2293,13 @@ export function ScanFlowOverlay({
 
   const discardCapturedImage = async () => {
     const uri = capturedImageUriRef.current;
+    const owned = capturedImageOwnedRef.current;
     capturedImageUriRef.current = null;
+    capturedImageOwnedRef.current = false;
     if (mountedRef.current) {
       setCapturedImageUri(null);
     }
-    if (uri) {
+    if (uri && owned) {
       await deleteAsync(uri, { idempotent: true }).catch(() => undefined);
     }
   };
@@ -1888,7 +2308,8 @@ export function ScanFlowOverlay({
     () => () => {
       mountedRef.current = false;
       const uri = capturedImageUriRef.current;
-      if (uri) {
+      const owned = capturedImageOwnedRef.current;
+      if (uri && owned) {
         void deleteAsync(uri, { idempotent: true }).catch(() => undefined);
       }
     },
@@ -1905,18 +2326,55 @@ export function ScanFlowOverlay({
       setReturnStage(null);
       setAnalysisResult(null);
       setAnalysisError(null);
+      setUseLegacyPipeline(false);
       void discardCapturedImage();
       setConfiguration(scanningService.resetConfiguration());
-      setStage(showBriefing ? "briefing" : "qr");
+      setStage(showBriefing ? 'briefing' : 'qr');
     } else {
       analysisRequestId.current += 1;
     }
-  }, [showBriefing, visible]);
+  }, [initialImageUri, showBriefing, visible]);
+
+  useEffect(() => {
+    if (!visible || !initialImageUri) {
+      return;
+    }
+
+    const requestId = ++analysisRequestId.current;
+    updateCapturedImageUri(initialImageUri, false);
+    setUseLegacyPipeline(true);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    navigateToStage('processing', 'fade');
+    void scanningService
+      .analyze(initialImageUri, {
+        useLegacyPipeline: true,
+        includeRectifiedImage: true,
+      })
+      .then((result) => {
+        if (analysisRequestId.current !== requestId) {
+          return;
+        }
+        setAnalysisResult(result);
+        navigateToStage('result', 'result');
+      })
+      .catch((error: unknown) => {
+        if (analysisRequestId.current !== requestId) {
+          return;
+        }
+        setAnalysisError(
+          error instanceof Error
+            ? error.message
+            : 'Неизвестная ошибка анализа.',
+        );
+        navigateToStage('result', 'result');
+      });
+  }, [initialImageUri, visible]);
 
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
     const subscription = AccessibilityInfo.addEventListener(
-      "reduceMotionChanged",
+      'reduceMotionChanged',
       setReduceMotion,
     );
 
@@ -1938,9 +2396,9 @@ export function ScanFlowOverlay({
       toValue: 1,
       duration: reduceMotion
         ? 120
-        : transitionIntent.current === "fade"
+        : transitionIntent.current === 'fade'
           ? 160
-          : transitionIntent.current === "result"
+          : transitionIntent.current === 'result'
             ? 220
             : 260,
       easing: Easing.bezier(0.32, 0.72, 0, 1),
@@ -1965,23 +2423,23 @@ export function ScanFlowOverlay({
   };
 
   const openBriefing = (
-    currentStage: Exclude<ScanFlowStage, "briefing" | "processing">,
+    currentStage: Exclude<ScanFlowStage, 'briefing' | 'processing'>,
   ) => {
     setReturnStage(currentStage);
-    navigateToStage("briefing", "modal");
+    navigateToStage('briefing', 'modal');
   };
   const requestClose = () => {
     Alert.alert(
-      "Завершить сканирование?",
-      "Текущий прогресс сканирования не будет сохранён.",
+      'Завершить сканирование?',
+      'Текущий прогресс сканирования не будет сохранён.',
       [
         {
-          text: "Продолжить сканирование",
-          style: "cancel",
+          text: 'Продолжить сканирование',
+          style: 'cancel',
         },
         {
-          text: "Завершить",
-          style: "destructive",
+          text: 'Завершить',
+          style: 'destructive',
           onPress: () => {
             analysisRequestId.current += 1;
             void discardCapturedImage().finally(onClose);
@@ -1995,7 +2453,7 @@ export function ScanFlowOverlay({
     void discardCapturedImage();
     setAnalysisResult(null);
     setAnalysisError(null);
-    navigateToStage("test", "back");
+    navigateToStage('test', 'back');
   };
   const completeScan = (
     correctedResult?: 'Положительный' | 'Отрицательный',
@@ -2006,32 +2464,22 @@ export function ScanFlowOverlay({
 
     if (!capturedImageUri) {
       Alert.alert(
-        "Снимок не найден",
-        "Переснимите тест, чтобы сохранить результат.",
+        'Снимок не найден',
+        'Переснимите тест, чтобы сохранить результат.',
       );
       return;
     }
 
     const confidence = Math.round(
-      100 *
-        Math.max(
-          0,
-          Math.min(
-            1,
-            analysisResult?.quality.peak_pair_confidence ??
-              analysisResult?.quality.locator_confidence ??
-              0,
-          ),
-        ),
+      100 * getAnalysisConfidence(analysisResult),
     );
-    const productIdentity = `${configuration.product.label} ${configuration.assayProfile.id}`.toLowerCase();
+    const productIdentity =
+      `${configuration.product.label} ${configuration.assayProfile.id}`.toLowerCase();
     const type = /pregnancy|hcg|беремен/.test(productIdentity)
       ? 'Pregnancy hCG'
       : 'Ovulation LH';
     const detectedResult =
-      analysisResult?.signal.classification === "POS" ||
-      (analysisResult?.signal.classification === null &&
-        analysisResult?.peaks.test.detected)
+      deriveDetectedInterpretation(analysisResult) === 'positive'
         ? 'Положительный'
         : 'Отрицательный';
 
@@ -2059,25 +2507,25 @@ export function ScanFlowOverlay({
     try {
       if (!scanningService.applyQrConfiguration(data)) {
         return {
-          title: "QR-код не распознан",
-          message: "Проверьте код с упаковки теста и попробуйте ещё раз.",
+          title: 'QR-код не распознан',
+          message: 'Проверьте код с упаковки теста и попробуйте ещё раз.',
         };
       }
     } catch (error) {
       return {
-        title: "Профиль QR-кода отклонён",
+        title: 'Профиль QR-кода отклонён',
         message:
-          error instanceof Error ? error.message : "Некорректный профиль.",
+          error instanceof Error ? error.message : 'Некорректный профиль.',
       };
     }
 
     setConfiguration(scanningService.getConfiguration());
-    navigateToStage("test", "forward");
+    navigateToStage('test', 'forward');
     return null;
   };
 
   const content =
-    stage === "briefing" ? (
+    stage === 'briefing' ? (
       <BriefingScreen
         headerTop={headerTop}
         hideClose={returnStage !== null}
@@ -2086,21 +2534,21 @@ export function ScanFlowOverlay({
           if (returnStage) {
             const nextStage = returnStage;
             setReturnStage(null);
-            navigateToStage(nextStage, "back");
+            navigateToStage(nextStage, 'back');
           } else {
             onBriefingSeen();
-            navigateToStage("qr", "forward");
+            navigateToStage('qr', 'forward');
           }
         }}
       />
-    ) : stage === "qr" ? (
+    ) : stage === 'qr' ? (
       <QrScannerScreen
         headerTop={headerTop}
         onClose={requestClose}
-        onHelp={() => openBriefing("qr")}
+        onHelp={() => openBriefing('qr')}
         onManualCode={(data) => {
           setConfiguration(scanningService.applyManualBatchCode(data));
-          navigateToStage("test", "forward");
+          navigateToStage('test', 'forward');
           return null;
         }}
         onScanned={(data) => {
@@ -2114,26 +2562,30 @@ export function ScanFlowOverlay({
           }
         }}
       />
-    ) : stage === "test" ? (
+    ) : stage === 'test' ? (
       <TestScannerScreen
+        useLegacyPipeline={useLegacyPipeline}
         configuration={configuration}
         headerTop={headerTop}
         onClose={requestClose}
-        onHelp={() => openBriefing("test")}
+        onHelp={() => openBriefing('test')}
         onCapture={(imageUri) => {
           const requestId = ++analysisRequestId.current;
           updateCapturedImageUri(imageUri);
           setAnalysisResult(null);
           setAnalysisError(null);
-          navigateToStage("processing", "fade");
+          navigateToStage('processing', 'fade');
           void scanningService
-            .analyze(imageUri)
+            .analyze(imageUri, {
+              useLegacyPipeline,
+              includeRectifiedImage: true,
+            })
             .then((result) => {
               if (analysisRequestId.current !== requestId) {
                 return;
               }
               setAnalysisResult(result);
-              navigateToStage("result", "result");
+              navigateToStage('result', 'result');
             })
             .catch((error: unknown) => {
               if (analysisRequestId.current !== requestId) {
@@ -2142,34 +2594,35 @@ export function ScanFlowOverlay({
               setAnalysisError(
                 error instanceof Error
                   ? error.message
-                  : "Неизвестная ошибка анализа.",
+                  : 'Неизвестная ошибка анализа.',
               );
-              navigateToStage("result", "result");
+              navigateToStage('result', 'result');
             });
         }}
       />
-    ) : stage === "processing" ? (
+    ) : stage === 'processing' ? (
       <ProcessingScreen />
     ) : stage === 'correction' ? (
       <ScanCorrectionScreen
         headerTop={headerTop}
         imageUri={capturedImageUri}
         onClose={requestClose}
-        onHelp={() => openBriefing("correction")}
+        onHelp={() => openBriefing('correction')}
         onRetake={retakeTest}
         onSubmit={completeScan}
         result={analysisResult}
       />
     ) : (
       <ScanResultScreen
+        useLegacyPipeline={useLegacyPipeline}
         configuration={configuration}
         error={analysisError}
         headerTop={headerTop}
         imageUri={capturedImageUri}
         onClose={requestClose}
         onConfirm={() => completeScan()}
-        onCorrection={() => navigateToStage("correction", "forward")}
-        onHelp={() => openBriefing("result")}
+        onCorrection={() => navigateToStage('correction', 'forward')}
+        onHelp={() => openBriefing('result')}
         onRetake={retakeTest}
         result={analysisResult}
         isCompleting={isCompleting}
@@ -2178,7 +2631,7 @@ export function ScanFlowOverlay({
 
   const transitionTransform = reduceMotion
     ? []
-    : transitionIntent.current === "forward"
+    : transitionIntent.current === 'forward'
       ? [
           {
             translateX: transition.interpolate({
@@ -2187,7 +2640,7 @@ export function ScanFlowOverlay({
             }),
           },
         ]
-      : transitionIntent.current === "back"
+      : transitionIntent.current === 'back'
         ? [
             {
               translateX: transition.interpolate({
@@ -2196,7 +2649,7 @@ export function ScanFlowOverlay({
               }),
             },
           ]
-        : transitionIntent.current === "modal"
+        : transitionIntent.current === 'modal'
           ? [
               {
                 translateY: transition.interpolate({
@@ -2205,7 +2658,7 @@ export function ScanFlowOverlay({
                 }),
               },
             ]
-          : transitionIntent.current === "result"
+          : transitionIntent.current === 'result'
             ? [
                 {
                   translateY: transition.interpolate({
@@ -2240,9 +2693,9 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 30,
-    overflow: "hidden",
+    overflow: 'hidden',
     borderRadius: 40,
-    backgroundColor: "#FFF8F5",
+    backgroundColor: '#FFF8F5',
   },
   pageTransition: {
     ...StyleSheet.absoluteFillObject,
@@ -2255,25 +2708,25 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.035 }],
   },
   flowHeader: {
-    position: "absolute",
+    position: 'absolute',
     zIndex: 6,
     left: 16,
     right: 16,
     height: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   roundButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    overflow: "visible",
+    overflow: 'visible',
   },
   flowGlassPressTarget: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerSpacer: {
     width: 48,
@@ -2283,48 +2736,48 @@ const styles = StyleSheet.create({
     width: 156,
     height: 48,
     borderRadius: 24,
-    overflow: "visible",
-    alignItems: "center",
-    justifyContent: "center",
+    overflow: 'visible',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cameraScreen: {
     flex: 1,
-    backgroundColor: "#170C11",
+    backgroundColor: '#170C11',
   },
   cameraReadabilityScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.18)",
+    backgroundColor: 'rgba(0,0,0,0.18)',
   },
   cameraPermissionState: {
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 32,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 12,
   },
   cameraPermissionCopy: {
     maxWidth: 290,
     lineHeight: 20,
-    textAlign: "center",
+    textAlign: 'center',
   },
   cameraPermissionAction: {
     width: 240,
     marginTop: 8,
   },
   cameraTitle: {
-    position: "absolute",
+    position: 'absolute',
     left: 32,
     right: 32,
-    alignItems: "center",
+    alignItems: 'center',
     gap: 5,
   },
   centerText: {
-    textAlign: "center",
+    textAlign: 'center',
   },
   qrTarget: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scanFlowFrame: {
     ...StyleSheet.absoluteFillObject,
@@ -2332,42 +2785,42 @@ const styles = StyleSheet.create({
   qrArtwork: {
     width: 144,
     height: 144,
-    overflow: "hidden",
+    overflow: 'hidden',
     opacity: 0.3,
   },
   qrImage: {
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
   },
   cameraBottomGroup: {
-    position: "absolute",
+    position: 'absolute',
     left: 16,
     right: 16,
     bottom: 86,
-    alignItems: "center",
+    alignItems: 'center',
     gap: 18,
   },
   cameraTooltipSlot: {
     width: 370,
-    alignSelf: "center",
-    alignItems: "center",
+    alignSelf: 'center',
+    alignItems: 'center',
   },
   secondaryCameraAction: {
     height: 44,
     paddingHorizontal: 20,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.28)",
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: 'rgba(255,255,255,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   manualCodeModalRoot: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: 'flex-end',
   },
   manualCodeBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(23,12,17,0.30)",
+    backgroundColor: 'rgba(23,12,17,0.30)',
   },
   manualCodeCard: {
     marginHorizontal: 12,
@@ -2389,10 +2842,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(211,20,113,0.14)",
+    borderColor: 'rgba(211,20,113,0.14)',
     backgroundColor: colors.surface.warm,
     color: colors.text.primary,
-    fontFamily: "SFProDisplay-Regular",
+    fontFamily: 'SFProDisplay-Regular',
     fontSize: 17,
     lineHeight: 20,
     letterSpacing: -0.2,
@@ -2402,7 +2855,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   manualCodeActions: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 10,
   },
   manualCodeActionSlot: {
@@ -2413,15 +2866,15 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1.5,
     borderColor: colors.brand.primary,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   manualCodeCancelContent: {
     minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   batchChip: {
-    position: "absolute",
+    position: 'absolute',
     zIndex: 4,
     left: 16,
     right: 16,
@@ -2431,8 +2884,8 @@ const styles = StyleSheet.create({
   batchChipContent: {
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   batchStatus: {
@@ -2446,40 +2899,112 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   testTarget: {
-    position: "absolute",
+    position: 'absolute',
     left: 36,
     width: 330,
     height: 330,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   testStripImage: {
     width: 308,
     height: 30,
     opacity: 0.3,
   },
+  cameraFocusReticle: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#FFBE63',
+    zIndex: 6,
+  },
+  cameraFocusSurface: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 180,
+    zIndex: 5,
+  },
+  exposureControl: {
+    position: 'absolute',
+    right: 12,
+    width: 48,
+    height: 204,
+    borderRadius: 24,
+    backgroundColor: 'rgba(17, 10, 13, 0.46)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.24)',
+    alignItems: 'center',
+    zIndex: 8,
+  },
+  exposureButton: {
+    position: 'absolute',
+    top: 4,
+    width: 40,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  exposureButtonBottom: {
+    top: undefined,
+    bottom: 4,
+  },
+  exposureRailTouch: {
+    position: 'absolute',
+    top: 42,
+    left: 0,
+    right: 0,
+    height: 120,
+    alignItems: 'center',
+  },
+  exposureIcon: {
+    position: 'absolute',
+    top: 2,
+  },
+  exposureTrack: {
+    position: 'absolute',
+    top: 24,
+    bottom: 0,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+  },
+  exposureThumb: {
+    position: 'absolute',
+    left: 13,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: '#FFBE63',
+  },
   cameraPrimaryAction: {
     width: 260,
   },
   briefingScreen: {
     flex: 1,
-    backgroundColor: "#FFF8F5",
+    backgroundColor: '#FFF8F5',
   },
   briefingHero: {
-    position: "absolute",
+    position: 'absolute',
     top: 205,
     left: 24,
     right: 24,
-    alignItems: "center",
+    alignItems: 'center',
     gap: 9,
   },
   briefingSubtitle: {
     width: 338,
     lineHeight: 20,
-    textAlign: "center",
+    textAlign: 'center',
   },
   briefingList: {
-    position: "absolute",
+    position: 'absolute',
     top: 348,
     left: 16,
     right: 16,
@@ -2490,9 +3015,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     ...shadows.card,
   },
@@ -2500,9 +3025,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#FDECE5",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#FDECE5',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   briefingRowCopy: {
     flex: 1,
@@ -2511,40 +3036,40 @@ const styles = StyleSheet.create({
   },
   briefingRowNumber: {
     width: 20,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bottomAction: {
-    position: "absolute",
+    position: 'absolute',
     left: 16,
     right: 16,
     bottom: 108,
   },
   processingScreen: {
     flex: 1,
-    backgroundColor: "#FFF8F5",
+    backgroundColor: '#FFF8F5',
   },
   processingContent: {
-    position: "absolute",
+    position: 'absolute',
     left: 30,
     right: 30,
     top: 230,
-    alignItems: "center",
+    alignItems: 'center',
   },
   processingIndicator: {
     width: 92,
     height: 92,
     marginBottom: 28,
     borderRadius: 46,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
     ...shadows.card,
   },
   processingDescription: {
     maxWidth: 315,
     marginTop: 10,
-    textAlign: "center",
+    textAlign: 'center',
   },
   processingSteps: {
     width: 290,
@@ -2552,13 +3077,13 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   processingStepDone: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   processingStepActive: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
   processingDot: {
@@ -2570,14 +3095,14 @@ const styles = StyleSheet.create({
   },
   resultScreen: {
     flex: 1,
-    backgroundColor: "#FFF8F5",
+    backgroundColor: '#FFF8F5',
   },
   resultHeading: {
-    position: "absolute",
+    position: 'absolute',
     top: 126,
     left: 24,
     right: 24,
-    alignItems: "center",
+    alignItems: 'center',
     gap: 7,
   },
   historyResultHeading: {
@@ -2593,60 +3118,117 @@ const styles = StyleSheet.create({
     height: 48,
     marginBottom: 3,
     borderRadius: 24,
-    backgroundColor: "rgba(31,187,116,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: 'rgba(31,187,116,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   resultErrorIcon: {
-    backgroundColor: "rgba(217,56,56,0.12)",
+    backgroundColor: 'rgba(217,56,56,0.12)',
   },
   resultPreview: {
-    position: "absolute",
+    position: 'absolute',
     left: 16,
     top: 246,
     width: 370,
     height: 180,
-    overflow: "hidden",
+    overflow: 'hidden',
     borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanResultOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+  },
+  scanResultOverlayLegend: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.58)',
+    gap: 3,
+  },
+  scanResultOverlayLegendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  scanResultOverlaySwatch: {
+    width: 10,
+    height: 3,
+    borderRadius: 2,
+  },
+  scanResultOverlayStripSwatch: {
+    backgroundColor: '#28dc78',
+  },
+  scanResultOverlayControlSwatch: {
+    backgroundColor: '#18967d',
+  },
+  scanResultOverlayTestSwatch: {
+    backgroundColor: '#dc4869',
   },
   resultCapturedImage: {
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
   },
   resultImageUnavailable: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FCEDE8",
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FCEDE8',
+  },
+  rectifiedPreviewCard: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 4,
+    width: 164,
+    height: 72,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 5,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+  },
+  rectifiedPreviewLabel: {
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  rectifiedPreviewImage: {
+    width: '100%',
+    height: 43,
+    marginTop: 2,
+    backgroundColor: '#F8F8F8',
   },
   resultStrip: {
     width: 292,
     height: 70,
     borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    transform: [{ rotate: "-3deg" }],
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    transform: [{ rotate: '-3deg' }],
     ...shadows.card,
   },
   resultStripTip: {
     width: 82,
-    alignSelf: "stretch",
+    alignSelf: 'stretch',
     borderTopLeftRadius: 20,
     borderBottomLeftRadius: 20,
-    backgroundColor: "#F7B2C8",
+    backgroundColor: '#F7B2C8',
   },
   resultWindow: {
     width: 108,
     height: 42,
     marginLeft: 24,
     borderRadius: 13,
-    backgroundColor: "#FFF3F6",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#FFF3F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 24,
   },
   resultLineStrong: {
@@ -2659,52 +3241,79 @@ const styles = StyleSheet.create({
     width: 4,
     height: 29,
     borderRadius: 2,
-    backgroundColor: "rgba(211,20,113,0.56)",
+    backgroundColor: 'rgba(211,20,113,0.56)',
   },
   resultControlLabel: {
-    position: "absolute",
+    position: 'absolute',
     left: 22,
     right: 22,
     bottom: -17,
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   detectedBadge: {
-    position: "absolute",
+    position: 'absolute',
     right: 14,
     bottom: 14,
+    zIndex: 3,
     minHeight: 34,
     paddingHorizontal: 10,
     borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.88)",
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
   interpretationCard: {
-    position: "absolute",
+    position: 'absolute',
     left: 16,
-    top: 442,
+    top: 480,
     width: 370,
     minHeight: 126,
     padding: 18,
     borderRadius: 28,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
     ...shadows.card,
   },
+  resultIssueCard: {
+    position: 'absolute',
+    left: 16,
+    top: 480,
+    width: 370,
+    minHeight: 126,
+    padding: 18,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(217,56,56,0.16)',
+    backgroundColor: '#FFF1F0',
+    gap: 12,
+  },
+  resultIssueHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  resultIssueIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(217,56,56,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   interpretationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   confidenceBadge: {
     minWidth: 58,
     height: 36,
     paddingHorizontal: 10,
     borderRadius: 18,
-    backgroundColor: "rgba(31,187,116,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: 'rgba(31,187,116,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   resultRule: {
     height: 1,
@@ -2712,8 +3321,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.divider,
   },
   resultMeta: {
-    flexDirection: "row",
-    alignItems: "stretch",
+    flexDirection: 'row',
+    alignItems: 'stretch',
     gap: 16,
   },
   resultMetaItem: {
@@ -2725,7 +3334,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.divider,
   },
   resultActions: {
-    position: "absolute",
+    position: 'absolute',
     left: 16,
     right: 16,
     bottom: 94,
@@ -2734,12 +3343,16 @@ const styles = StyleSheet.create({
   resultSecondaryButton: {
     height: 46,
     borderRadius: 23,
-    backgroundColor: "rgba(211,20,113,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: 'rgba(211,20,113,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultSecondaryButtonLabel: {
+    alignSelf: 'stretch',
+    textAlign: 'center',
   },
   correctionHeading: {
-    position: "absolute",
+    position: 'absolute',
     top: 132,
     left: 20,
     right: 20,
@@ -2750,7 +3363,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   correctionOptions: {
-    position: "absolute",
+    position: 'absolute',
     left: 16,
     right: 16,
     top: 444,
@@ -2761,15 +3374,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: "rgba(33,33,35,0.08)",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
+    borderColor: 'rgba(33,33,35,0.08)',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 11,
   },
   correctionOptionActive: {
     borderColor: colors.brand.primary,
-    backgroundColor: "rgba(211,20,113,0.06)",
+    backgroundColor: 'rgba(211,20,113,0.06)',
   },
   radio: {
     width: 22,
@@ -2777,8 +3390,8 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     borderWidth: 1.5,
     borderColor: colors.state.disabled,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   radioActive: {
     borderColor: colors.brand.primary,
@@ -2790,7 +3403,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primary,
   },
   correctionActions: {
-    position: "absolute",
+    position: 'absolute',
     left: 16,
     right: 16,
     bottom: 94,

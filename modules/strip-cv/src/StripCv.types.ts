@@ -64,6 +64,9 @@ export type AnalyzeStripRequest = {
   cutoff?: number | null;
   cornerOverride?: readonly [Point, Point, Point, Point] | null;
   flipOrientation?: boolean;
+  /** @deprecated Accepted for native JSON compatibility; it never bypasses checks. */
+  bypassQualityChecks?: boolean;
+  includeRectifiedImage?: boolean;
 };
 
 export type PeakMetrics = {
@@ -80,6 +83,7 @@ export type AnalysisResult = {
   schema_version: '1.0';
   algorithm_version: string;
   assay_profile: { id: string; version: string };
+  rectified_image_uri?: string | null;
   status: 'valid' | 'review' | 'invalid';
   reason_codes: string[];
   calibration_mode:

@@ -23,6 +23,8 @@ export async function analyzeStripAsync(
       cutoff: request.cutoff ?? null,
       corner_override: request.cornerOverride ?? null,
       flip_orientation: request.flipOrientation ?? false,
+      bypass_quality_checks: request.bypassQualityChecks ?? false,
+      include_rectified_image: request.includeRectifiedImage ?? false,
     },
   };
   const resultJson = await nativeModule.analyzeStripJsonAsync(

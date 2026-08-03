@@ -2,9 +2,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <set>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #if CV_VERSION_MAJOR >= 5
 #include <opencv2/geometry/2d.hpp>
@@ -12,6 +17,40 @@
 
 namespace stripcv {
 namespace {
+
+std::string base64Encode(const std::vector<uchar>& bytes) {
+  static constexpr char alphabet[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string result;
+  result.reserve(((bytes.size() + 2) / 3) * 4);
+
+  for (std::size_t index = 0; index < bytes.size(); index += 3) {
+    const std::size_t remaining = bytes.size() - index;
+    const std::uint32_t first = bytes[index];
+    const std::uint32_t second = remaining > 1 ? bytes[index + 1] : 0;
+    const std::uint32_t third = remaining > 2 ? bytes[index + 2] : 0;
+    const std::uint32_t value = (first << 16) | (second << 8) | third;
+
+    result.push_back(alphabet[(value >> 18) & 0x3F]);
+    result.push_back(alphabet[(value >> 12) & 0x3F]);
+    result.push_back(remaining > 1 ? alphabet[(value >> 6) & 0x3F] : '=');
+    result.push_back(remaining > 2 ? alphabet[value & 0x3F] : '=');
+  }
+  return result;
+}
+
+json rectifiedImageToJson(const cv::Mat& image) {
+  if (image.empty()) {
+    return nullptr;
+  }
+
+  std::vector<uchar> encoded;
+  const std::vector<int> parameters = {cv::IMWRITE_JPEG_QUALITY, 88};
+  if (!cv::imencode(".jpg", image, encoded, parameters)) {
+    return nullptr;
+  }
+  return "data:image/jpeg;base64," + base64Encode(encoded);
+}
 
 template <typename T>
 void readIfPresent(const json& value, const char* key, T& destination) {
@@ -392,6 +431,8 @@ AnalysisOptions AnalysisOptions::fromJson(const json& value) {
   }
   AnalysisOptions result;
   readIfPresent(value, "flip_orientation", result.flip_orientation);
+  readIfPresent(value, "bypass_quality_checks", result.bypass_quality_checks);
+  readIfPresent(value, "include_rectified_image", result.include_rectified_image);
   if (value.contains("cutoff") && !value.at("cutoff").is_null()) {
     result.cutoff = value.at("cutoff").get<double>();
     if (!finiteInRange(*result.cutoff, 0.0, 1000.0)) {
@@ -465,6 +506,9 @@ json AnalysisResult::toJson() const {
       {"status", status},
       {"reason_codes", reason_codes},
       {"calibration_mode", calibration_mode},
+      {"rectified_image_uri",
+       include_rectified_image ? rectifiedImageToJson(rectified_rgb)
+                               : json(nullptr)},
       {"geometry",
        {{"mode", geometry.mode},
         {"corners", corners},

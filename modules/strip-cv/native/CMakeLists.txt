@@ -6,11 +6,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
 if(OpenCV_VERSION VERSION_LESS 5)
-  find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d)
+  find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d)
 else()
-  find_package(OpenCV REQUIRED COMPONENTS core imgproc geometry)
+  find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs geometry)
 endif()
 
 add_library(stripcv_core STATIC
@@ -34,3 +34,11 @@ enable_testing()
 add_executable(stripcv_c_api_boundary_test tests/c_api_boundary_test.cpp)
 target_link_libraries(stripcv_c_api_boundary_test PRIVATE stripcv_core)
 add_test(NAME stripcv_c_api_boundary COMMAND stripcv_c_api_boundary_test)
+
+add_executable(stripcv_result_serialization_test tests/result_serialization_test.cpp)
+target_link_libraries(stripcv_result_serialization_test PRIVATE stripcv_core)
+add_test(NAME stripcv_result_serialization COMMAND stripcv_result_serialization_test)
+
+add_executable(stripcv_quality_policy_test tests/quality_policy_test.cpp)
+target_link_libraries(stripcv_quality_policy_test PRIVATE stripcv_core)
+add_test(NAME stripcv_quality_policy COMMAND stripcv_quality_policy_test)

@@ -4,6 +4,7 @@ import test from 'node:test';
 import { parseCvProfileQr } from './profile-qr.ts';
 import { assertTrustedCvProfileEnvelope } from './profile-trust.ts';
 import { DEFAULT_ASSAY_PROFILE, DEFAULT_CARD_PROFILE } from './profiles.ts';
+import { ScanningConfiguration } from './scanning-configuration.ts';
 
 const incompleteProfileEnvelope = {
   schema_version: 'artificial-labs.cv-profile/1',
@@ -174,4 +175,31 @@ test('trust gate accepts only the exact bundled algorithm without a cutoff', () 
   );
   assert.ok(parsed);
   assert.doesNotThrow(() => assertTrustedCvProfileEnvelope(parsed));
+});
+
+test('test mode selects the schema-validated legacy QR pipeline', async () => {
+  const configuration = new ScanningConfiguration();
+
+  assert.equal(
+    configuration.applyQrConfiguration(JSON.stringify(validEnvelope)),
+    true,
+  );
+
+  const normalConfiguration = configuration.getConfiguration();
+  const legacyConfiguration = configuration.getConfiguration({
+    useLegacyPipeline: true,
+  });
+
+  assert.equal(normalConfiguration.assayProfile.id, DEFAULT_ASSAY_PROFILE.id);
+  assert.equal(normalConfiguration.cutoff, null);
+  assert.equal(
+    legacyConfiguration.assayProfile.id,
+    validEnvelope.assay_profile.id,
+  );
+  assert.deepEqual(legacyConfiguration.cardProfile, validEnvelope.card_profile);
+  assert.equal(legacyConfiguration.cutoff, validEnvelope.cutoff);
+  assert.throws(
+    () => configuration.assertNormalPipelineAllowed(false),
+    /доступен только в тестовом режиме/,
+  );
 });

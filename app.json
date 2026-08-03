@@ -20,9 +20,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.CAMERA"
-      ],
+      "permissions": ["android.permission.CAMERA"],
       "package": "com.anonymous.privateexpo"
     },
     "web": {
@@ -44,12 +42,19 @@
       "expo-router",
       "expo-web-browser",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Разрешите Private выбирать фотографии тестов из медиатеки."
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Разрешите приложению Private использовать камеру для сканирования QR-кодов и тестов.",
           "recordAudioAndroid": false
         }
       ],
+      "./plugins/with-camera-controls",
       [
         "expo-sqlite",
         {
@@ -90,7 +95,8 @@
             "./assets/tab-icons/today.png"
           ]
         }
-      ]
+      ],
+      "./plugins/with-physical-device-bundle"
     ]
   }
 }

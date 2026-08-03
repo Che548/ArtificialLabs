@@ -1,90 +1,59 @@
 import { analyzeStripAsync } from '../../modules/strip-cv';
-import type {
-  AnalysisResult,
-  AssayProfile,
-  CardProfile,
-} from '../../modules/strip-cv';
-import { parseCvProfileQr } from './profile-qr';
-import { assertTrustedCvProfileEnvelope } from './profile-trust';
-import { DEFAULT_ASSAY_PROFILE, DEFAULT_CARD_PROFILE } from './profiles';
+import type { AnalysisResult } from '../../modules/strip-cv';
+import {
+  ScanningConfiguration,
+  type ActiveCvConfiguration,
+  type ConfigurationOptions,
+} from './scanning-configuration';
 
-export type ScanProductMetadata = {
-  label: string;
-  batch: string;
-  expiresAt: string;
-};
-
-export type ActiveCvConfiguration = {
-  assayProfile: AssayProfile;
-  cardProfile: CardProfile | null;
-  cutoff: number | null;
-  source: 'bundled' | 'manual' | 'qr';
-  product: ScanProductMetadata;
-};
-
-const bundledConfiguration: ActiveCvConfiguration = {
-  assayProfile: DEFAULT_ASSAY_PROFILE,
-  cardProfile: DEFAULT_CARD_PROFILE,
-  cutoff: null,
-  source: 'bundled',
-  product: {
-    label: 'Двухлинейная тест-полоска',
-    batch: 'Тестовый профиль',
-    expiresAt: '—',
-  },
-};
+export type {
+  ActiveCvConfiguration,
+  ConfigurationOptions,
+  ScanProductMetadata,
+} from './scanning-configuration';
 
 export class ScanningService {
-  private activeConfiguration = bundledConfiguration;
+  private configuration = new ScanningConfiguration();
 
-  getConfiguration(): ActiveCvConfiguration {
-    return this.activeConfiguration;
+  getConfiguration(options: ConfigurationOptions = {}): ActiveCvConfiguration {
+    return this.configuration.getConfiguration(options);
   }
 
   resetConfiguration(): ActiveCvConfiguration {
-    this.activeConfiguration = bundledConfiguration;
-    return this.activeConfiguration;
+    return this.configuration.resetConfiguration();
   }
 
   applyQrConfiguration(data: string): boolean {
-    const envelope = parseCvProfileQr(data);
-    if (!envelope) {
-      return false;
-    }
-    assertTrustedCvProfileEnvelope(envelope);
-    this.activeConfiguration = {
-      assayProfile: DEFAULT_ASSAY_PROFILE,
-      cardProfile: DEFAULT_CARD_PROFILE,
-      cutoff: null,
-      source: 'qr',
-      product: {
-        label: envelope.product?.label ?? envelope.assay_profile.id,
-        batch: envelope.product?.batch ?? envelope.assay_profile.version,
-        expiresAt: envelope.product?.expires_at ?? '—',
-      },
-    };
-    return true;
+    return this.configuration.applyQrConfiguration(data);
   }
 
   applyManualBatchCode(batch: string): ActiveCvConfiguration {
-    this.activeConfiguration = {
-      ...bundledConfiguration,
-      source: 'manual',
-      product: {
-        ...bundledConfiguration.product,
-        batch: batch.trim(),
-      },
-    };
-    return this.activeConfiguration;
+    return this.configuration.applyManualBatchCode(batch);
   }
 
-  async analyze(imageUri: string): Promise<AnalysisResult> {
-    const configuration = this.activeConfiguration;
+  async analyze(
+    imageUri: string,
+    options: {
+      /** @deprecated Kept for compatibility; native quality checks remain enabled. */
+      bypassQualityChecks?: boolean;
+      useLegacyPipeline?: boolean;
+      includeRectifiedImage?: boolean;
+    } = {},
+  ): Promise<AnalysisResult> {
+    const useLegacyPipeline = options.useLegacyPipeline ?? false;
+    this.configuration.assertNormalPipelineAllowed(useLegacyPipeline);
+    const configuration = this.configuration.getConfiguration({
+      useLegacyPipeline,
+    });
     return analyzeStripAsync({
       imageUri,
       assayProfile: configuration.assayProfile,
       cardProfile: configuration.cardProfile,
       cutoff: configuration.cutoff,
+      // The native boundary accepts this deprecated field as a no-op so older
+      // callers cannot accidentally weaken the shared quality policy.
+      bypassQualityChecks: options.bypassQualityChecks,
+      includeRectifiedImage: options.includeRectifiedImage,
     });
   }
 }

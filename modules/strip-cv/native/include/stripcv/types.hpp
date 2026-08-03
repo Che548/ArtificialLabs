@@ -87,6 +87,9 @@ struct AnalysisOptions {
   std::optional<Quad> corner_override;
   std::optional<double> cutoff;
   bool flip_orientation = false;
+  // Deprecated compatibility flag. Quality checks are always enforced.
+  bool bypass_quality_checks = false;
+  bool include_rectified_image = false;
 
   static AnalysisOptions fromJson(const json& value);
 };
@@ -139,6 +142,7 @@ struct AnalysisResult {
   std::string status = "invalid";
   std::vector<std::string> reason_codes;
   std::string calibration_mode = "none";
+  bool include_rectified_image = false;
   GeometryInfo geometry;
   QualityMetrics quality;
   std::vector<double> x;
