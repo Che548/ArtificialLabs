@@ -18,13 +18,21 @@ import {
   View,
 } from 'react-native';
 
+import { SegmentedSwitcher } from '../design-system/components';
+
 type AuthChannel = 'email' | 'phone';
 type AuthFlow = 'signIn' | 'signUp';
+
+const authChannelOptions: Array<{ value: AuthChannel; label: string }> = [
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Телефон' },
+];
 
 const privacyPolicyUrl = 'https://brainwaves.engineering/docs#document-2';
 const userAgreementUrl = 'https://brainwaves.engineering/docs#document-3';
 const designWidth = 402;
 const designHeight = 874;
+const devLoginEnabled = __DEV__;
 
 function normalizePhone(value: string) {
   return value.replace(/[^\d+]/g, '').slice(0, 16);
@@ -121,11 +129,13 @@ function LegalLink({ children, url }: { children: string; url: string }) {
 export function AuthScreen({
   embedded = false,
   onAuthenticated,
+  onDevLogin,
   onPreviewComplete,
   preview = false,
 }: {
   embedded?: boolean;
   onAuthenticated?: () => void;
+  onDevLogin?: () => void;
   onPreviewComplete?: () => void;
   preview?: boolean;
 }) {
@@ -139,7 +149,6 @@ export function AuthScreen({
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
-  const channelPosition = useRef(new Animated.Value(0)).current;
 
   const normalizedIdentifier = identifier.trim();
   const validIdentifier =
@@ -156,12 +165,6 @@ export function AuthScreen({
     : Math.min(window.width / designWidth, window.height / designHeight);
 
   const changeChannel = (nextChannel: AuthChannel) => {
-    Animated.timing(channelPosition, {
-      toValue: nextChannel === 'email' ? 0 : 1,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
     setChannel(nextChannel);
     setIdentifier('');
     setError(undefined);
@@ -213,6 +216,23 @@ export function AuthScreen({
     }
   };
 
+  const enterDevMode = () => {
+    Keyboard.dismiss();
+    setError(undefined);
+
+    if (onDevLogin) {
+      onDevLogin();
+      return;
+    }
+
+    if (preview) {
+      onPreviewComplete?.();
+      return;
+    }
+
+    onAuthenticated?.();
+  };
+
   return (
     <View style={styles.root}>
       {preview ? null : <StatusBar hidden />}
@@ -245,6 +265,25 @@ export function AuthScreen({
               style={styles.canvas}
             >
               <View style={styles.content}>
+                {devLoginEnabled ? (
+                  <View
+                    style={[
+                      styles.devLoginSlot,
+                      flow === 'signIn' && styles.devLoginButtonSignIn,
+                    ]}
+                  >
+                    <Pressable
+                      accessibilityLabel="Войти в локальном режиме разработчика"
+                      accessibilityRole="button"
+                      hitSlop={10}
+                      onPress={enterDevMode}
+                      style={styles.devLoginButton}
+                    >
+                      <Text style={styles.devLoginLabel}>DEV вход</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+
                 <View style={styles.brandBlock}>
                   <Text style={styles.brand}>сфера.</Text>
                   <Text style={styles.brandSubtitle}>
@@ -252,46 +291,14 @@ export function AuthScreen({
                   </Text>
                 </View>
 
-                <View accessibilityRole="tablist" style={styles.channelPicker}>
-                  <Animated.View
-                    pointerEvents="none"
-                    style={[
-                      styles.channelSlider,
-                      {
-                        transform: [
-                          {
-                            translateX: channelPosition.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0, 170.5],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
-                  {(['email', 'phone'] as const).map((item) => {
-                    const selected = channel === item;
-
-                    return (
-                      <Pressable
-                        key={item}
-                        accessibilityRole="tab"
-                        accessibilityState={{ selected }}
-                        onPress={() => changeChannel(item)}
-                        style={styles.channelOption}
-                      >
-                        <Text
-                          style={[
-                            styles.channelLabel,
-                            selected && styles.channelLabelSelected,
-                          ]}
-                        >
-                          {item === 'email' ? 'Email' : 'Телефон'}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                <SegmentedSwitcher
+                  accessibilityLabel="Способ входа"
+                  options={authChannelOptions}
+                  value={channel}
+                  onChange={changeChannel}
+                  style={styles.channelPicker}
+                  labelStyle={styles.channelLabel}
+                />
 
                 <View style={[styles.fieldGroup, styles.identifierField]}>
                   <Text style={styles.fieldLabel}>
@@ -460,6 +467,33 @@ const styles = StyleSheet.create({
     height: 72,
     alignItems: 'center',
   },
+  devLoginSlot: {
+    position: 'absolute',
+    zIndex: 2,
+    left: 26,
+    top: 697,
+    width: 349,
+    height: 34,
+  },
+  devLoginButton: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(211, 20, 113, 0.28)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(211, 20, 113, 0.08)',
+  },
+  devLoginButtonSignIn: {
+    top: 436,
+  },
+  devLoginLabel: {
+    color: '#D31471',
+    fontFamily: 'SFProDisplay-Medium',
+    fontSize: 13,
+    lineHeight: 16,
+  },
   brand: {
     width: 244,
     color: '#EA4087',
@@ -614,7 +648,7 @@ const styles = StyleSheet.create({
   errorText: {
     position: 'absolute',
     left: 26,
-    top: 690,
+    top: 674,
     width: 349,
     color: '#D93838',
     fontFamily: 'SFProDisplay-Regular',

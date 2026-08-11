@@ -4,6 +4,7 @@ import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useConvexAuth } from 'convex/react';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { ActivityIndicator, Platform, Text, View } from 'react-native';
 
@@ -25,6 +26,7 @@ function Tabs() {
         iconColor={{ default: inactiveTint, selected: activeTint }}
         backgroundColor="rgba(255,255,255,0.20)"
         blurEffect="systemUltraThinMaterialLight"
+        shadowColor="rgba(0,0,0,0.18)"
         disableTransparentOnScrollEdge
         labelStyle={{
           default: { color: inactiveTint, fontSize: 10 },
@@ -33,26 +35,26 @@ function Tabs() {
         minimizeBehavior="never"
       >
         <NativeTabs.Trigger name="chat">
-          <Label>Чат</Label>
+          <Label>Сферка</Label>
           <Icon
             sf={{
-              default: 'bubble.left.and.bubble.right',
-              selected: 'bubble.left.and.bubble.right.fill',
+              default: 'waveform.and.person.filled',
+              selected: 'waveform.and.person.filled',
             }}
           />
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="analyses">
           <Label>Анализы</Label>
-          <Icon sf={{ default: 'cross.case', selected: 'cross.case.fill' }} />
+          <Icon sf={{ default: 'stethoscope', selected: 'stethoscope' }} />
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="index">
           <Label>Сегодня</Label>
           <Icon
             sf={{
-              default: 'heart.text.clipboard',
-              selected: 'heart.text.clipboard.fill',
+              default: 'heart.circle',
+              selected: 'heart.circle.fill',
             }}
           />
         </NativeTabs.Trigger>
@@ -68,16 +70,6 @@ function Tabs() {
             sf={{
               default: 'person.crop.circle',
               selected: 'person.crop.circle.fill',
-            }}
-          />
-        </NativeTabs.Trigger>
-
-        <NativeTabs.Trigger name="design-system">
-          <Label>UI-kit</Label>
-          <Icon
-            sf={{
-              default: 'square.grid.2x2',
-              selected: 'square.grid.2x2.fill',
             }}
           />
         </NativeTabs.Trigger>
@@ -128,19 +120,36 @@ function WebDemo() {
 function NativeApp() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const [registrationComplete, setRegistrationComplete] = useState(false);
+  const [devMode, setDevMode] = useState(false);
+
+  if (devMode) {
+    return (
+      <HealthStoreProvider mode="local">
+        <AppGate allowEmptyProfile>
+          <Tabs />
+        </AppGate>
+      </HealthStoreProvider>
+    );
+  }
 
   if (isLoading) {
     return <LoadingAuth />;
   }
 
   if (!isAuthenticated) {
-    return <AuthScreen onAuthenticated={() => setRegistrationComplete(true)} />;
+    return (
+      <AuthScreen
+        onAuthenticated={() => setRegistrationComplete(true)}
+        onDevLogin={() => setDevMode(true)}
+      />
+    );
   }
 
   if (!registrationComplete) {
     return (
       <AuthScreen
         preview
+        onDevLogin={() => setRegistrationComplete(true)}
         onPreviewComplete={() => setRegistrationComplete(true)}
       />
     );
@@ -164,6 +173,7 @@ export default function TabLayout() {
       storage={webDemo ? undefined : authTokenStorage}
       shouldHandleCode={false}
     >
+      <StatusBar style="dark" hidden={false} />
       {webDemo ? <WebDemo /> : <NativeApp />}
     </ConvexAuthProvider>
   );

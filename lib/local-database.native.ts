@@ -167,6 +167,32 @@ export async function saveLocalProfile(profile: LocalProfile) {
   });
 }
 
+export async function loadLocalSetting<T>(key: string) {
+  const db = await database();
+  const row = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    key,
+  );
+  return row ? (JSON.parse(row.value) as T) : undefined;
+}
+
+export async function saveLocalSetting(key: string, value: unknown) {
+  await withWriteTransaction(async (db) => {
+    await db.runAsync(
+      `INSERT INTO settings (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      key,
+      JSON.stringify(value),
+    );
+  });
+}
+
+export async function deleteLocalSetting(key: string) {
+  await withWriteTransaction(async (db) => {
+    await db.runAsync('DELETE FROM settings WHERE key = ?', key);
+  });
+}
+
 async function writeLocalRecord<K extends HealthEntityName>(
   transaction: SQLite.SQLiteDatabase,
   entity: K,

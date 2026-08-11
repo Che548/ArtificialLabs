@@ -69,10 +69,7 @@ import type {
 const hasNativeFlowGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 type NativeCameraControls = {
-  focusAt?: (point: {
-    x: number;
-    y: number;
-  }) => Promise<void>;
+  focusAt?: (point: { x: number; y: number }) => Promise<void>;
   setExposureCompensation?: (value: number) => Promise<void>;
 };
 
@@ -90,7 +87,9 @@ type CameraPoint = {
 function getNativeCameraControls(
   camera: CameraView | null,
 ): NativeCameraControls | null {
-  return (camera as CameraViewWithNativeControls | null)?._cameraRef?.current ?? null;
+  return (
+    (camera as CameraViewWithNativeControls | null)?._cameraRef?.current ?? null
+  );
 }
 
 type ScanFlowStage =
@@ -334,7 +333,7 @@ function RoundGlassButton({
         glassEffectStyle="clear"
         colorScheme="auto"
         isInteractive
-        style={styles.roundButton}
+        style={[styles.roundButton, shadows.control]}
       >
         <Pressable
           accessibilityRole="button"
@@ -355,7 +354,7 @@ function RoundGlassButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.roundButton,
-        shadows.floating,
+        shadows.control,
         pressed && styles.flowGlassPressed,
       ]}
     >
@@ -439,12 +438,12 @@ function FlowHeader({
           <GlassView
             glassEffectStyle="clear"
             colorScheme="auto"
-            style={styles.stepPill}
+            style={[styles.stepPill, shadows.control]}
           >
             {stepLabel}
           </GlassView>
         ) : (
-          <View style={[styles.stepPill, shadows.floating]}>
+          <View style={[styles.stepPill, shadows.control]}>
             <LiquidGlassSurface
               variant="clear"
               colorScheme="auto"
@@ -1322,8 +1321,9 @@ function TestScannerScreen({
     const nextValue = Math.max(-1, Math.min(1, value));
     exposureValue.current = nextValue;
     setExposureCompensation(nextValue);
-    const exposurePromise = getNativeCameraControls(cameraRef.current)
-      ?.setExposureCompensation?.(nextValue);
+    const exposurePromise = getNativeCameraControls(
+      cameraRef.current,
+    )?.setExposureCompensation?.(nextValue);
     void exposurePromise?.catch(() => undefined);
   };
 
@@ -1472,9 +1472,7 @@ function TestScannerScreen({
       />
       <BatchChip configuration={configuration} top={headerTop + 64} />
 
-      <View
-        style={[styles.testTarget, { top: headerTop + 182 }]}
-      >
+      <View style={[styles.testTarget, { top: headerTop + 182 }]}>
         <ScanFlowFrame
           width="100%"
           height="100%"
@@ -1761,7 +1759,8 @@ function ResultPreview({
     ? analysisResult?.peaks.test.detected === true
     : savedResult !== 'Отрицательный';
   const needsRetake =
-    usesAnalysis && getAnalysisDecision(analysisResult ?? null) !== 'reportable';
+    usesAnalysis &&
+    getAnalysisDecision(analysisResult ?? null) !== 'reportable';
   const detectionLabel = needsRetake
     ? !controlDetected
       ? 'Контрольная зона не распознана'
@@ -1790,7 +1789,10 @@ function ResultPreview({
         const { width, height } = event.nativeEvent.layout;
         setViewSize({ width, height });
       }}
-      style={[styles.resultPreview, previewTop !== undefined && { top: previewTop }]}
+      style={[
+        styles.resultPreview,
+        previewTop !== undefined && { top: previewTop },
+      ]}
     >
       {imageUri ? (
         <Image
@@ -1900,14 +1902,14 @@ export function ScanResultScreen({
     usesSavedResult || result?.peaks.control.detected === true;
   const canConfirm = usesSavedResult || reportableAnalysis;
   const needsRetake =
-    !usesSavedResult &&
-    (!controlDetected || analysisDecision !== 'reportable');
+    !usesSavedResult && (!controlDetected || analysisDecision !== 'reportable');
   const heading = needsRetake
     ? 'Требуется переснять'
     : useLegacyPipeline
       ? 'Тестовый результат'
       : 'Результат готов';
-  const interpretation = result?.signal.classification === 'POS'
+  const interpretation =
+    result?.signal.classification === 'POS'
       ? 'Положительный'
       : result?.signal.classification === 'NEG'
         ? 'Отрицательный'
@@ -2470,9 +2472,7 @@ export function ScanFlowOverlay({
       return;
     }
 
-    const confidence = Math.round(
-      100 * getAnalysisConfidence(analysisResult),
-    );
+    const confidence = Math.round(100 * getAnalysisConfidence(analysisResult));
     const productIdentity =
       `${configuration.product.label} ${configuration.assayProfile.id}`.toLowerCase();
     const type = /pregnancy|hcg|беремен/.test(productIdentity)

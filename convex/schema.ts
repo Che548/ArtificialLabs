@@ -2,7 +2,11 @@ import { authTables } from '@convex-dev/auth/server';
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-const goal = v.union(v.literal('planning'), v.literal('pregnancy'));
+const goal = v.union(
+  v.literal('cycle'),
+  v.literal('planning'),
+  v.literal('pregnancy'),
+);
 const syncState = {
   localId: v.string(),
   updatedAt: v.number(),
@@ -55,11 +59,7 @@ export default defineSchema({
     textValue: v.optional(v.string()),
     numericValue: v.optional(v.number()),
     unit: v.optional(v.string()),
-    source: v.union(
-      v.literal('manual'),
-      v.literal('scan'),
-      v.literal('lab'),
-    ),
+    source: v.union(v.literal('manual'), v.literal('scan'), v.literal('lab')),
     sourceLocalId: v.optional(v.string()),
   })
     .index('by_profile_time', ['profileId', 'occurredAt'])

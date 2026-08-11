@@ -23,6 +23,8 @@ let snapshot: HealthSnapshot = {
   scanResults: [],
   reminders: [],
 };
+const localSettings = new Map<string, unknown>();
+const LOCAL_SETTING_PREFIX = 'artificiallabs.setting.';
 
 export async function initializeLocalDatabase() {}
 export async function claimLocalDatabaseOwner(_userId: string) {}
@@ -31,6 +33,25 @@ export async function loadLocalSnapshot() {
 }
 export async function saveLocalProfile(profile: LocalProfile) {
   snapshot = { ...snapshot, profile };
+}
+export async function loadLocalSetting<T>(key: string) {
+  if (typeof localStorage !== 'undefined') {
+    const storedValue = localStorage.getItem(`${LOCAL_SETTING_PREFIX}${key}`);
+    if (storedValue !== null) return JSON.parse(storedValue) as T;
+  }
+  return localSettings.get(key) as T | undefined;
+}
+export async function saveLocalSetting(key: string, value: unknown) {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(`${LOCAL_SETTING_PREFIX}${key}`, JSON.stringify(value));
+  }
+  localSettings.set(key, value);
+}
+export async function deleteLocalSetting(key: string) {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(`${LOCAL_SETTING_PREFIX}${key}`);
+  }
+  localSettings.delete(key);
 }
 export async function saveLocalRecord<K extends HealthEntityName>(
   entity: K,

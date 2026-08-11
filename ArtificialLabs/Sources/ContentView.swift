@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 struct ContentView: View {
@@ -429,6 +430,14 @@ private struct LabsContent: View {
                     LabsDeadlineCard(count: "3", period: "3 Months")
                 }
 
+                LabsStatusChartCard()
+
+                LabsDeadlineTimelineCard()
+
+                LabsValidityTimelineCard()
+
+                LabsFerritinTrendCard()
+
                 LabsSegmentedFilter()
 
                 ForEach(tests) { test in
@@ -448,7 +457,7 @@ private struct LabsScoreCard: View {
             VStack(spacing: 15) {
                 LabsScoreMetricsRow()
 
-                LabsVolumeChart()
+                LabsAttentionTrendChart()
             }
         }
     }
@@ -562,6 +571,447 @@ private struct LabsVolumeChart: View {
     }
 }
 
+private enum LabsUXDate {
+    static let calendar = Calendar(identifier: .gregorian)
+    static let today = make(2026, 8, 11)
+
+    static func make(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day))!
+    }
+}
+
+private struct LabsAttentionPoint: Identifiable {
+    let date: Date
+    let score: Double
+
+    var id: Date { date }
+}
+
+private struct LabsAttentionTrendChart: View {
+    private let points: [LabsAttentionPoint] = [
+        .init(date: LabsUXDate.make(2026, 5, 25), score: 52),
+        .init(date: LabsUXDate.make(2026, 6, 8), score: 58),
+        .init(date: LabsUXDate.make(2026, 6, 22), score: 55),
+        .init(date: LabsUXDate.make(2026, 7, 6), score: 64),
+        .init(date: LabsUXDate.make(2026, 7, 20), score: 67),
+        .init(date: LabsUXDate.make(2026, 8, 3), score: 70),
+        .init(date: LabsUXDate.make(2026, 8, 10), score: 72)
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Attention trend")
+                    .font(.alDisplay(size: 14, weight: .medium))
+                    .foregroundStyle(Color.alMutedText)
+
+                Spacer()
+
+                Text("+20%")
+                    .font(.alDisplay(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.alGreen)
+            }
+
+            Chart(points) { point in
+                AreaMark(
+                    x: .value("Date", point.date),
+                    yStart: .value("Baseline", 45),
+                    yEnd: .value("Score", point.score)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.alGreen.opacity(0.28), Color.alGreen.opacity(0.015)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.catmullRom)
+
+                LineMark(
+                    x: .value("Date", point.date),
+                    y: .value("Score", point.score)
+                )
+                .foregroundStyle(Color.alGreen)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .interpolationMethod(.catmullRom)
+
+                if point.id == points.last?.id {
+                    PointMark(
+                        x: .value("Date", point.date),
+                        y: .value("Score", point.score)
+                    )
+                    .symbolSize(52)
+                    .foregroundStyle(Color.alGreen)
+                    .annotation(position: .top, spacing: 5) {
+                        Text("72%")
+                            .font(.alDisplay(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.alText)
+                    }
+                }
+            }
+            .chartYScale(domain: 45...78)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .month)) { value in
+                    AxisValueLabel(format: .dateTime.month(.abbreviated))
+                        .foregroundStyle(Color.alMutedText)
+                }
+            }
+            .chartYAxis(.hidden)
+            .chartPlotStyle { plot in
+                plot
+                    .background(Color.clear)
+                    .clipped()
+            }
+            .frame(height: 104)
+        }
+    }
+}
+
+private struct LabsStatusSlice: Identifiable {
+    let title: String
+    let value: Int
+    let color: Color
+
+    var id: String { title }
+}
+
+private struct LabsStatusChartCard: View {
+    private let slices: [LabsStatusSlice] = [
+        .init(title: "Upcoming", value: 3, color: .alBlue),
+        .init(title: "Overdue", value: 1, color: .alPink),
+        .init(title: "Completed", value: 8, color: .alGreen)
+    ]
+
+    var body: some View {
+        LabsCard {
+            VStack(alignment: .leading, spacing: 16) {
+                LabsChartHeader(
+                    title: "Tests overview",
+                    subtitle: "August 2026"
+                )
+
+                HStack(spacing: 24) {
+                    ZStack {
+                        Chart(slices) { slice in
+                            SectorMark(
+                                angle: .value("Tests", slice.value),
+                                innerRadius: .ratio(0.72),
+                                angularInset: 2.2
+                            )
+                            .cornerRadius(5)
+                            .foregroundStyle(slice.color)
+                        }
+                        .chartLegend(.hidden)
+
+                        VStack(spacing: -2) {
+                            Text("12")
+                                .font(.alDisplay(size: 27, weight: .semibold))
+                                .foregroundStyle(Color.alText)
+
+                            Text("total")
+                                .font(.alDisplay(size: 12, weight: .medium))
+                                .foregroundStyle(Color.alMutedText)
+                        }
+                    }
+                    .frame(width: 128, height: 128)
+
+                    VStack(alignment: .leading, spacing: 13) {
+                        ForEach(slices) { slice in
+                            HStack(spacing: 9) {
+                                Circle()
+                                    .fill(slice.color)
+                                    .frame(width: 8, height: 8)
+
+                                Text(slice.title)
+                                    .font(.alDisplay(size: 14, weight: .medium))
+                                    .foregroundStyle(Color.alMutedText)
+
+                                Spacer(minLength: 4)
+
+                                Text("\(slice.value)")
+                                    .font(.alDisplay(size: 15, weight: .semibold))
+                                    .foregroundStyle(Color.alText)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+}
+
+private struct LabsDeadlineItem: Identifiable {
+    let title: String
+    let deadline: Date
+    let color: Color
+
+    var id: String { title }
+}
+
+private struct LabsDeadlineTimelineCard: View {
+    private let items: [LabsDeadlineItem] = [
+        .init(title: "CBC", deadline: LabsUXDate.make(2026, 8, 14), color: .alPink),
+        .init(title: "Hormones", deadline: LabsUXDate.make(2026, 8, 20), color: .alBlue),
+        .init(title: "Vitamin D", deadline: LabsUXDate.make(2026, 8, 29), color: .alGreen),
+        .init(title: "Ultrasound", deadline: LabsUXDate.make(2026, 9, 8), color: .alText)
+    ]
+
+    var body: some View {
+        LabsCard {
+            VStack(alignment: .leading, spacing: 15) {
+                LabsChartHeader(
+                    title: "Upcoming deadlines",
+                    subtitle: "From today · Aug 11"
+                )
+
+                Chart(items) { item in
+                    BarMark(
+                        xStart: .value("Today", LabsUXDate.today),
+                        xEnd: .value("Deadline", item.deadline),
+                        y: .value("Test", item.title),
+                        height: .fixed(10)
+                    )
+                    .foregroundStyle(item.color)
+                    .cornerRadius(8)
+
+                    PointMark(
+                        x: .value("Deadline", item.deadline),
+                        y: .value("Test", item.title)
+                    )
+                    .symbolSize(28)
+                    .foregroundStyle(item.color)
+                }
+                .chartXScale(domain: LabsUXDate.today...LabsUXDate.make(2026, 9, 10))
+                .chartXAxis {
+                    AxisMarks(values: [
+                        LabsUXDate.today,
+                        LabsUXDate.make(2026, 8, 20),
+                        LabsUXDate.make(2026, 9, 1),
+                        LabsUXDate.make(2026, 9, 10)
+                    ]) { value in
+                        AxisGridLine()
+                            .foregroundStyle(Color.alSoftDivider)
+                        AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+                            .foregroundStyle(Color.alMutedText)
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { _ in
+                        AxisValueLabel()
+                            .foregroundStyle(Color.alMutedText)
+                    }
+                }
+                .frame(height: 155)
+            }
+        }
+    }
+}
+
+private struct LabsValidityItem: Identifiable {
+    let title: String
+    let start: Date
+    let end: Date
+    let color: Color
+
+    var id: String { title }
+}
+
+private struct LabsValidityTimelineCard: View {
+    private let items: [LabsValidityItem] = [
+        .init(
+            title: "Lipid",
+            start: LabsUXDate.make(2026, 6, 2),
+            end: LabsUXDate.make(2026, 9, 2),
+            color: .alGreen
+        ),
+        .init(
+            title: "Thyroid",
+            start: LabsUXDate.make(2026, 6, 24),
+            end: LabsUXDate.make(2026, 8, 24),
+            color: .alBlue
+        ),
+        .init(
+            title: "Urine",
+            start: LabsUXDate.make(2026, 8, 2),
+            end: LabsUXDate.make(2026, 9, 2),
+            color: .alPink
+        )
+    ]
+
+    var body: some View {
+        LabsCard {
+            VStack(alignment: .leading, spacing: 15) {
+                LabsChartHeader(
+                    title: "Result validity",
+                    subtitle: "How long results stay relevant"
+                )
+
+                Chart {
+                    ForEach(items) { item in
+                        BarMark(
+                            xStart: .value("Taken", item.start),
+                            xEnd: .value("Valid until", item.end),
+                            y: .value("Result", item.title),
+                            height: .fixed(18)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [item.color.opacity(0.42), item.color],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(9)
+                    }
+
+                    RuleMark(x: .value("Today", LabsUXDate.today))
+                        .foregroundStyle(Color.alText.opacity(0.72))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        .annotation(position: .top, alignment: .center, spacing: 3) {
+                            Text("Today")
+                                .font(.alDisplay(size: 10, weight: .semibold))
+                                .foregroundStyle(Color.alText)
+                        }
+                }
+                .chartXScale(
+                    domain: LabsUXDate.make(2026, 6, 1)...LabsUXDate.make(2026, 9, 10)
+                )
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month)) { value in
+                        AxisGridLine()
+                            .foregroundStyle(Color.alSoftDivider)
+                        AxisValueLabel(format: .dateTime.month(.abbreviated))
+                            .foregroundStyle(Color.alMutedText)
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { _ in
+                        AxisValueLabel()
+                            .foregroundStyle(Color.alMutedText)
+                    }
+                }
+                .frame(height: 142)
+            }
+        }
+    }
+}
+
+private struct LabsFerritinPoint: Identifiable {
+    let date: Date
+    let value: Double
+
+    var id: Date { date }
+}
+
+private struct LabsFerritinTrendCard: View {
+    private let points: [LabsFerritinPoint] = [
+        .init(date: LabsUXDate.make(2026, 2, 12), value: 18),
+        .init(date: LabsUXDate.make(2026, 4, 10), value: 23),
+        .init(date: LabsUXDate.make(2026, 6, 18), value: 31),
+        .init(date: LabsUXDate.make(2026, 8, 7), value: 42)
+    ]
+
+    var body: some View {
+        LabsCard {
+            VStack(alignment: .leading, spacing: 15) {
+                HStack(alignment: .top) {
+                    LabsChartHeader(
+                        title: "Ferritin",
+                        subtitle: "Reference range 30–150 ng/mL"
+                    )
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text("42")
+                            .font(.alDisplay(size: 28, weight: .semibold))
+                            .foregroundStyle(Color.alText)
+
+                        Text("ng/mL")
+                            .font(.alDisplay(size: 11, weight: .medium))
+                            .foregroundStyle(Color.alMutedText)
+                    }
+                }
+
+                Chart {
+                    RectangleMark(
+                        yStart: .value("Reference minimum", 30),
+                        yEnd: .value("Reference maximum", 60)
+                    )
+                    .foregroundStyle(Color.alGreen.opacity(0.10))
+
+                    ForEach(points) { point in
+                        LineMark(
+                            x: .value("Date", point.date),
+                            y: .value("Ferritin", point.value)
+                        )
+                        .foregroundStyle(Color.alText)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                        .interpolationMethod(.catmullRom)
+
+                        PointMark(
+                            x: .value("Date", point.date),
+                            y: .value("Ferritin", point.value)
+                        )
+                        .symbolSize(point.id == points.last?.id ? 54 : 24)
+                        .foregroundStyle(point.id == points.last?.id ? Color.alPink : Color.alText)
+                    }
+
+                    RuleMark(y: .value("Reference minimum", 30))
+                        .foregroundStyle(Color.alGreen.opacity(0.75))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                }
+                .chartYScale(domain: 10...60)
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month, count: 2)) { value in
+                        AxisValueLabel(format: .dateTime.month(.abbreviated))
+                            .foregroundStyle(Color.alMutedText)
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: [20, 30, 40, 50, 60]) { value in
+                        AxisGridLine()
+                            .foregroundStyle(Color.alSoftDivider)
+                        AxisValueLabel()
+                            .foregroundStyle(Color.alMutedText)
+                    }
+                }
+                .frame(height: 168)
+
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(Color.alGreen)
+                        .frame(width: 7, height: 7)
+
+                    Text("Back within the reference range")
+                        .font(.alDisplay(size: 13, weight: .medium))
+                        .foregroundStyle(Color.alMutedText)
+                }
+            }
+        }
+    }
+}
+
+private struct LabsChartHeader: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.alDisplay(size: 17, weight: .semibold))
+                .foregroundStyle(Color.alText)
+                .tracking(-0.28)
+
+            Text(subtitle)
+                .font(.alDisplay(size: 13, weight: .medium))
+                .foregroundStyle(Color.alMutedText)
+                .tracking(-0.18)
+        }
+    }
+}
+
 private struct LabsDeadlineCard: View {
     let count: String
     let period: String
@@ -571,9 +1021,9 @@ private struct LabsDeadlineCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .top) {
                     Text(count)
-                        .font(.alDisplay(size: 29, weight: .semibold))
+                        .font(.alDisplay(size: 34, weight: .semibold))
                         .foregroundStyle(Color.alText)
-                        .tracking(-0.5)
+                        .tracking(-1)
 
                     Spacer()
 
@@ -586,12 +1036,13 @@ private struct LabsDeadlineCard: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.alText)
                 )
-                    .font(.alDisplay(size: 14, weight: .medium))
+                    .font(.alDisplay(size: 16, weight: .medium))
                     .foregroundStyle(Color.alMutedText)
-                    .tracking(-0.22)
+                    .tracking(-0.25)
                     .lineSpacing(0)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(minHeight: 88, alignment: .top)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -2552,6 +3003,7 @@ private extension Color {
     static let alSoftDivider = Color(red: 0.894, green: 0.894, blue: 0.894)
     static let alSegmentSelected = Color(red: 0.941, green: 0.941, blue: 0.941)
     static let alGreen = Color(red: 0.122, green: 0.733, blue: 0.455)
+    static let alPink = Color(red: 0.918, green: 0.251, blue: 0.529)
 }
 
 #Preview {

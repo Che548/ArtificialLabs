@@ -1,11 +1,11 @@
-import * as Haptics from "expo-haptics";
-import { StatusBar } from "expo-status-bar";
+import * as Haptics from 'expo-haptics';
+import { StatusBar } from 'expo-status-bar';
 import {
   GlassContainer,
   GlassView,
   isLiquidGlassAvailable,
-} from "expo-glass-effect";
-import { useEffect, useMemo, useRef, useState } from "react";
+} from 'expo-glass-effect';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Alert,
@@ -18,30 +18,27 @@ import {
   StyleSheet,
   useWindowDimensions,
   View,
-} from "react-native";
-import type { StyleProp, ViewStyle, ViewToken } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+} from 'react-native';
+import type { StyleProp, ViewStyle, ViewToken } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import AddIcon from "../assets/figma/calendar-page/add.svg";
-import BackIcon from "../assets/figma/calendar-page/back.svg";
-import HeaderShape from "../assets/figma/calendar-page/header-shape.svg";
-import {
-  AppText,
-  HeaderDateLabel,
-  LiquidGlassSurface,
-} from "./components";
-import { colors, radii, shadows, sizes, spacing } from "./tokens";
+import AddIcon from '../assets/figma/calendar-page/add.svg';
+import BackIcon from '../assets/figma/calendar-page/back.svg';
+import HeaderShape from '../assets/figma/calendar-page/header-shape.svg';
+import { AppText, HeaderDateLabel, LiquidGlassSurface } from './components';
+import { colors, radii, shadows, sizes, spacing } from './tokens';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
-const HEADER_SHAPE_HEIGHT = 250;
+const HEADER_SHAPE_HEIGHT = 235;
 const CALENDAR_CONTENT_TOP = 246;
 const MONTH_SECTION_HEIGHT = 410;
 const DAY_DETAILS_HEIGHT = 196;
 const RETURN_BUTTON_SIZE = 52;
+const MENSTRUATION_HEADER_COLOR = '#EA4087';
 const MONTHS_BEFORE_SELECTED = 60;
 const MONTHS_AFTER_SELECTED = 60;
-const WEEK_DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
+const WEEK_DAYS = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
 const DEFAULT_DATE = new Date(2026, 6, 21);
 const CYCLE_START = new Date(2026, 6, 20);
 const CYCLE_LENGTH = 28;
@@ -62,15 +59,17 @@ const FERTILE_DATE_KEYS = new Set(
   ),
 );
 const OVULATION_DATE_KEY = dateKey(new Date(2026, 6, 28));
-const hasNativeLiquidGlass = Platform.OS === "ios" && isLiquidGlassAvailable();
+const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 type CalendarPageModalProps = {
   visible: boolean;
   onClose: () => void;
   initialDate?: Date;
+  onAddSymptoms?: (date: Date) => void;
+  symptomDateKeys?: ReadonlySet<string>;
 };
 
-type CalendarPageVariant = "backup" | "continuous";
+type CalendarPageVariant = 'backup' | 'continuous';
 
 type CalendarPageBaseProps = CalendarPageModalProps & {
   variant: CalendarPageVariant;
@@ -106,7 +105,7 @@ function periodDayOrdinal(date: Date, periodDates: ReadonlySet<string>) {
 }
 
 type DayForecastKind =
-  "fertile" | "menstruation" | "neutral" | "ovulation" | "upcoming";
+  'fertile' | 'menstruation' | 'neutral' | 'ovulation' | 'upcoming';
 
 type DayForecast = {
   cycleDay: number;
@@ -125,13 +124,13 @@ const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 
 const NO_CYCLE_FORECAST: DayForecast = {
   cycleDay: 0,
-  description: "Отметьте дни месячных, чтобы появился прогноз цикла.",
-  kind: "neutral",
-  title: "Нет данных о цикле",
+  description: 'Отметьте дни месячных, чтобы появился прогноз цикла.',
+  kind: 'neutral',
+  title: 'Нет данных о цикле',
 };
 
 export type CalendarSymptomStatusVariant =
-  "banner" | "compact" | "footer" | "inline" | "side" | "underDate";
+  'banner' | 'compact' | 'footer' | 'inline' | 'side' | 'underDate';
 
 function getDayForecast(date: Date): DayForecast {
   const dateUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
@@ -140,7 +139,9 @@ function getDayForecast(date: Date): DayForecast {
     CYCLE_START.getMonth(),
     CYCLE_START.getDate(),
   );
-  const difference = Math.floor((dateUtc - cycleStartUtc) / DAY_IN_MILLISECONDS);
+  const difference = Math.floor(
+    (dateUtc - cycleStartUtc) / DAY_IN_MILLISECONDS,
+  );
   const cycleDay =
     (((difference % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH) + 1;
 
@@ -148,43 +149,43 @@ function getDayForecast(date: Date): DayForecast {
     return {
       cycleDay,
       description: `Ожидается ${cycleDay}-й день менструации.`,
-      kind: "menstruation",
-      title: "Менструация",
+      kind: 'menstruation',
+      title: 'Менструация',
     };
   }
 
   if (cycleDay === 9) {
     return {
       cycleDay,
-      description: "Предполагаемый день овуляции по прогнозу цикла.",
-      kind: "ovulation",
-      title: "Овуляция",
+      description: 'Предполагаемый день овуляции по прогнозу цикла.',
+      kind: 'ovulation',
+      title: 'Овуляция',
     };
   }
 
   if (cycleDay >= 6 && cycleDay <= 11) {
     return {
       cycleDay,
-      description: "Фертильное окно по прогнозу текущего цикла.",
-      kind: "fertile",
-      title: "Повышенная вероятность забеременеть",
+      description: 'Фертильное окно по прогнозу текущего цикла.',
+      kind: 'fertile',
+      title: 'Повышенная вероятность забеременеть',
     };
   }
 
   if (cycleDay >= 26) {
     return {
       cycleDay,
-      description: "Менструация ожидается в ближайшие несколько дней.",
-      kind: "upcoming",
-      title: "Ожидается менструация",
+      description: 'Менструация ожидается в ближайшие несколько дней.',
+      kind: 'upcoming',
+      title: 'Ожидается менструация',
     };
   }
 
   return {
     cycleDay,
-    description: "Особых событий по прогнозу цикла не ожидается.",
-    kind: "neutral",
-    title: "Обычный день цикла",
+    description: 'Особых событий по прогнозу цикла не ожидается.',
+    kind: 'neutral',
+    title: 'Обычный день цикла',
   };
 }
 
@@ -193,7 +194,7 @@ function buildCalculatedCycle(
 ): CalculatedCycle | null {
   const timestamps = [...periodDates]
     .map((key) => {
-      const [year, month, day] = key.split("-").map(Number);
+      const [year, month, day] = key.split('-').map(Number);
       return Date.UTC(year, month, day);
     })
     .sort((left, right) => left - right);
@@ -204,17 +205,12 @@ function buildCalculatedCycle(
 
   const periodStarts = timestamps.filter(
     (timestamp) =>
-      !periodDates.has(
-        dateKey(new Date(timestamp - DAY_IN_MILLISECONDS)),
-      ),
+      !periodDates.has(dateKey(new Date(timestamp - DAY_IN_MILLISECONDS))),
   );
   const validCycleLengths = periodStarts
     .slice(1)
-    .map(
-      (timestamp, index) =>
-        Math.round(
-          (timestamp - periodStarts[index]) / DAY_IN_MILLISECONDS,
-        ),
+    .map((timestamp, index) =>
+      Math.round((timestamp - periodStarts[index]) / DAY_IN_MILLISECONDS),
     )
     .filter((length) => length >= 21 && length <= 45);
   const cycleLength =
@@ -251,45 +247,45 @@ function getCalculatedDayForecast(
     return {
       cycleDay,
       description: actualPeriod
-        ? "День менструации отмечен пользователем."
+        ? 'День менструации отмечен пользователем.'
         : `Ожидается ${cycleDay}-й день менструации.`,
-      kind: "menstruation",
-      title: "Менструация",
+      kind: 'menstruation',
+      title: 'Менструация',
     };
   }
 
   if (cycleDay === ovulationDay) {
     return {
       cycleDay,
-      description: "Предполагаемый день овуляции по истории цикла.",
-      kind: "ovulation",
-      title: "Овуляция",
+      description: 'Предполагаемый день овуляции по истории цикла.',
+      kind: 'ovulation',
+      title: 'Овуляция',
     };
   }
 
   if (cycleDay >= ovulationDay - 5 && cycleDay <= ovulationDay + 1) {
     return {
       cycleDay,
-      description: "Фертильное окно рассчитано по истории цикла.",
-      kind: "fertile",
-      title: "Повышенная вероятность забеременеть",
+      description: 'Фертильное окно рассчитано по истории цикла.',
+      kind: 'fertile',
+      title: 'Повышенная вероятность забеременеть',
     };
   }
 
   if (cycleDay >= cycle.cycleLength - 2) {
     return {
       cycleDay,
-      description: "Менструация ожидается в ближайшие несколько дней.",
-      kind: "upcoming",
-      title: "Ожидается менструация",
+      description: 'Менструация ожидается в ближайшие несколько дней.',
+      kind: 'upcoming',
+      title: 'Ожидается менструация',
     };
   }
 
   return {
     cycleDay,
-    description: "Особых событий по прогнозу цикла не ожидается.",
-    kind: "neutral",
-    title: "Обычный день цикла",
+    description: 'Особых событий по прогнозу цикла не ожидается.',
+    kind: 'neutral',
+    title: 'Обычный день цикла',
   };
 }
 
@@ -299,17 +295,17 @@ function capitalize(value: string) {
 
 function monthTitle(date: Date) {
   return capitalize(
-    new Intl.DateTimeFormat("ru-RU", {
-      month: "long",
-      year: "numeric",
+    new Intl.DateTimeFormat('ru-RU', {
+      month: 'long',
+      year: 'numeric',
     }).format(date),
   );
 }
 
 function dayTitle(date: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "numeric",
-    month: "long",
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
   }).format(date);
 }
 
@@ -347,6 +343,7 @@ function CalendarDayGrid({
   selectedDate,
   onSelectDate,
   showSymptomLogs = false,
+  symptomDateKeys,
   showOutsideDays = true,
   useCycleForecast = false,
 }: {
@@ -362,6 +359,7 @@ function CalendarDayGrid({
   selectedDate: Date | null;
   onSelectDate: (date: Date) => void;
   showSymptomLogs?: boolean;
+  symptomDateKeys?: ReadonlySet<string>;
   showOutsideDays?: boolean;
   useCycleForecast?: boolean;
 }) {
@@ -389,15 +387,16 @@ function CalendarDayGrid({
         const selected = key === selectedKey;
         const current = key === currentDateKey;
         const symptomsLogged =
-          showSymptomLogs && SYMPTOM_LOG_DATE_KEYS.has(key);
+          symptomDateKeys?.has(key) ??
+          (showSymptomLogs && SYMPTOM_LOG_DATE_KEYS.has(key));
         const forecast = forecastForDate
           ? forecastForDate(date)
           : getDayForecast(date);
         const fertile = useCycleForecast
-          ? forecast?.kind === "fertile" || forecast?.kind === "ovulation"
+          ? forecast?.kind === 'fertile' || forecast?.kind === 'ovulation'
           : FERTILE_DATE_KEYS.has(key);
         const forecastPeriod = useCycleForecast
-          ? forecast?.kind === "menstruation"
+          ? forecast?.kind === 'menstruation'
           : PERIOD_DATE_KEYS.has(key);
         const loggedPeriod = periodDateKeys?.has(key) ?? false;
         const loggedPeriodOrdinal =
@@ -407,8 +406,14 @@ function CalendarDayGrid({
         const period = periodSelectionMode
           ? loggedPeriod
           : forecastPeriod || loggedPeriod;
+        const futureForecastPeriod =
+          useCycleForecast &&
+          forecastPeriod &&
+          !loggedPeriod &&
+          currentDate !== undefined &&
+          dayTimestamp(date) > dayTimestamp(currentDate);
         const ovulation = useCycleForecast
-          ? forecast?.kind === "ovulation"
+          ? forecast?.kind === 'ovulation'
           : key === OVULATION_DATE_KEY;
 
         return (
@@ -416,9 +421,9 @@ function CalendarDayGrid({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${dayTitle(date)}${
-                symptomsLogged ? ", симптомы отмечены" : ""
-              }${current ? ", сегодня" : ""}${
-                futureDisabled ? ", будущая дата, недоступно" : ""
+                symptomsLogged ? ', симптомы отмечены' : ''
+              }${current ? ', сегодня' : ''}${
+                futureDisabled ? ', будущая дата, недоступно' : ''
               }`}
               accessibilityState={{ disabled: futureDisabled, selected }}
               disabled={futureDisabled}
@@ -452,11 +457,11 @@ function CalendarDayGrid({
                       styles.dayCircle,
                       fertile && styles.dayFertile,
                       period && styles.dayPeriod,
+                      futureForecastPeriod && styles.dayFuturePeriod,
                       periodSelectionMode && period && styles.dayPeriodSelected,
                       ovulation &&
                         !(periodSelectionMode && period) &&
                         styles.dayOvulation,
-                      current && styles.dayToday,
                       selected && styles.daySelected,
                       futureDisabled && styles.dayFutureDisabled,
                     ]}
@@ -466,14 +471,12 @@ function CalendarDayGrid({
                       role="label"
                       color={
                         futureDisabled
-                          ? "rgba(115,110,108,0.38)"
+                          ? 'rgba(115,110,108,0.38)'
                           : selected
-                          ? colors.text.inverse
-                          : current
-                            ? colors.brand.primary
-                          : inCurrentMonth
-                            ? colors.text.primary
-                            : "rgba(115,110,108,0.34)"
+                            ? colors.text.inverse
+                            : inCurrentMonth
+                                ? colors.text.primary
+                                : 'rgba(115,110,108,0.34)'
                       }
                       style={styles.dayNumber}
                     >
@@ -492,6 +495,25 @@ function CalendarDayGrid({
                       </View>
                     ) : null}
                   </View>
+                  {current && !periodSelectionMode ? (
+                    <View
+                      style={[
+                        styles.todayBadge,
+                        fertile && styles.todayBadgeFertile,
+                        period && styles.todayBadgeMenstruation,
+                        selected && styles.todayBadgeSelected,
+                      ]}
+                    >
+                      <AppText
+                        role="caption"
+                        weight="semibold"
+                        color={colors.text.inverse}
+                        style={styles.todayBadgeLabel}
+                      >
+                        сегодня
+                      </AppText>
+                    </View>
+                  ) : null}
                   {periodSelectionMode && !futureDisabled ? (
                     <View
                       style={[
@@ -511,7 +533,12 @@ function CalendarDayGrid({
                       ) : null}
                     </View>
                   ) : (
-                    <View style={styles.dayMarkerRow}>
+                    <View
+                      style={[
+                        styles.dayMarkerRow,
+                        current && styles.dayMarkerRowToday,
+                      ]}
+                    >
                       {period && !selected ? (
                         <View style={styles.periodMarker} />
                       ) : null}
@@ -540,12 +567,13 @@ function CalendarGlassControl({
   accessibilityLabel,
   children,
   height,
+  headerElevation = false,
   intensity = 58,
   onPress,
   radius,
   style,
   tintColor = colors.surface.headerGlassWash,
-  variant = "regular",
+  variant = 'regular',
   washColor = colors.surface.headerGlassWash,
   width,
 }: {
@@ -553,12 +581,13 @@ function CalendarGlassControl({
   accessibilityLabel: string;
   children: React.ReactNode;
   height: number;
+  headerElevation?: boolean;
   intensity?: number;
   onPress?: () => void;
   radius: number;
   style?: StyleProp<ViewStyle>;
   tintColor?: string;
-  variant?: "clear" | "regular";
+  variant?: 'clear' | 'regular';
   washColor?: string;
   width: number;
 }) {
@@ -568,16 +597,16 @@ function CalendarGlassControl({
       width,
       height,
       borderRadius: radius,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems: 'center',
+      justifyContent: 'center',
     },
   ];
   const contentStyle: StyleProp<ViewStyle> = {
     width,
     height,
     borderRadius: radius,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   };
 
   if (hasNativeLiquidGlass) {
@@ -587,7 +616,7 @@ function CalendarGlassControl({
         tintColor={tintColor}
         colorScheme="light"
         isInteractive
-        style={controlStyle}
+        style={[controlStyle, headerElevation && shadows.control]}
       >
         <Pressable
           accessibilityRole="button"
@@ -607,7 +636,12 @@ function CalendarGlassControl({
   }
 
   return (
-    <View style={[controlStyle, styles.headerGlassShadow]}>
+    <View
+      style={[
+        controlStyle,
+        headerElevation ? shadows.control : styles.headerGlassShadow,
+      ]}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
@@ -650,6 +684,7 @@ function GlassHeaderButton({
       width={sizes.touch}
       height={sizes.touch}
       radius={sizes.touch / 2}
+      headerElevation
       onPress={onPress}
     >
       {children}
@@ -663,7 +698,7 @@ function CalendarGlassGroup({
   style,
 }: React.PropsWithChildren<{
   spacing: number;
-  style: React.ComponentProps<typeof View>["style"];
+  style: React.ComponentProps<typeof View>['style'];
 }>) {
   return hasNativeLiquidGlass ? (
     <GlassContainer spacing={glassSpacing} style={style}>
@@ -678,7 +713,7 @@ function MonthArrow({
   direction,
   onPress,
 }: {
-  direction: "left" | "right";
+  direction: 'left' | 'right';
   onPress: () => void;
 }) {
   return (
@@ -686,7 +721,7 @@ function MonthArrow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
-          direction === "left" ? "Предыдущий месяц" : "Следующий месяц"
+          direction === 'left' ? 'Предыдущий месяц' : 'Следующий месяц'
         }
         onPress={onPress}
       >
@@ -700,7 +735,7 @@ function MonthArrow({
             <BackIcon
               width={18}
               height={18}
-              style={direction === "left" ? styles.backIconLeft : undefined}
+              style={direction === 'left' ? styles.backIconLeft : undefined}
             />
           </View>
         )}
@@ -714,18 +749,18 @@ function SymptomStatusMark({
 }: {
   variant: CalendarSymptomStatusVariant;
 }) {
-  const compact = variant === "compact";
-  const side = variant === "side";
-  const underDate = variant === "underDate";
+  const compact = variant === 'compact';
+  const side = variant === 'side';
+  const underDate = variant === 'underDate';
 
   return (
     <View
       style={[
         styles.symptomStatusMark,
-        variant === "banner" && styles.symptomStatusBanner,
+        variant === 'banner' && styles.symptomStatusBanner,
         compact && styles.symptomStatusCompact,
-        variant === "footer" && styles.symptomStatusFooter,
-        variant === "inline" && styles.symptomStatusInline,
+        variant === 'footer' && styles.symptomStatusFooter,
+        variant === 'inline' && styles.symptomStatusInline,
         side && styles.symptomStatusSide,
         underDate && styles.symptomStatusUnderDate,
       ]}
@@ -762,10 +797,10 @@ function SymptomStatusMark({
         ]}
       >
         {compact
-          ? "Отмечены"
+          ? 'Отмечены'
           : side
-            ? "Симптомы\nотмечены"
-            : "Симптомы успешно отмечены"}
+            ? 'Симптомы\nотмечены'
+            : 'Симптомы успешно отмечены'}
       </AppText>
     </View>
   );
@@ -776,7 +811,7 @@ function CalendarDayDetailsCard({
   forecast,
   hasLoggedSymptoms,
   onAddPress,
-  symptomStatusVariant = "banner",
+  symptomStatusVariant = 'banner',
 }: {
   date: Date;
   forecast: DayForecast;
@@ -784,13 +819,13 @@ function CalendarDayDetailsCard({
   onAddPress?: () => void;
   symptomStatusVariant?: CalendarSymptomStatusVariant;
 }) {
-  const showBanner = hasLoggedSymptoms && symptomStatusVariant === "banner";
-  const showCompact = hasLoggedSymptoms && symptomStatusVariant === "compact";
-  const showFooter = hasLoggedSymptoms && symptomStatusVariant === "footer";
-  const showInline = hasLoggedSymptoms && symptomStatusVariant === "inline";
-  const showSide = hasLoggedSymptoms && symptomStatusVariant === "side";
+  const showBanner = hasLoggedSymptoms && symptomStatusVariant === 'banner';
+  const showCompact = hasLoggedSymptoms && symptomStatusVariant === 'compact';
+  const showFooter = hasLoggedSymptoms && symptomStatusVariant === 'footer';
+  const showInline = hasLoggedSymptoms && symptomStatusVariant === 'inline';
+  const showSide = hasLoggedSymptoms && symptomStatusVariant === 'side';
   const showUnderDate =
-    hasLoggedSymptoms && symptomStatusVariant === "underDate";
+    hasLoggedSymptoms && symptomStatusVariant === 'underDate';
 
   return (
     <View style={styles.dayDetailsCard}>
@@ -857,14 +892,14 @@ function CalendarDayDetailsCard({
           <View
             style={[
               styles.dayDetailsIndicator,
-              forecast.kind === "menstruation" &&
+              forecast.kind === 'menstruation' &&
                 styles.dayDetailsIndicatorPeriod,
-              forecast.kind === "fertile" && styles.dayDetailsIndicatorFertile,
-              forecast.kind === "ovulation" &&
+              forecast.kind === 'fertile' && styles.dayDetailsIndicatorFertile,
+              forecast.kind === 'ovulation' &&
                 styles.dayDetailsIndicatorOvulation,
-              forecast.kind === "upcoming" &&
+              forecast.kind === 'upcoming' &&
                 styles.dayDetailsIndicatorUpcoming,
-              forecast.kind === "neutral" && styles.dayDetailsIndicatorNeutral,
+              forecast.kind === 'neutral' && styles.dayDetailsIndicatorNeutral,
             ]}
           />
         )}
@@ -897,7 +932,7 @@ function CalendarDayDetailsCard({
             numberOfLines={1}
             style={styles.cycleDayLabel}
           >
-            {`День цикла ${forecast.cycleDay || "—"}`}
+            {`День цикла ${forecast.cycleDay || '—'}`}
           </AppText>
         </View>
       </View>
@@ -932,6 +967,8 @@ function CalendarPageModalBase({
   visible,
   onClose,
   initialDate = DEFAULT_DATE,
+  onAddSymptoms,
+  symptomDateKeys,
   variant,
 }: CalendarPageBaseProps) {
   const { width, height } = useWindowDimensions();
@@ -943,10 +980,10 @@ function CalendarPageModalBase({
   const daySheetProgress = useRef(new Animated.Value(0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(
-    variant === "continuous" ? null : initialDate,
+    variant === 'continuous' ? null : initialDate,
   );
   const [currentMonthVisible, setCurrentMonthVisible] = useState(true);
-  const [returnDirection, setReturnDirection] = useState<"up" | "down">("up");
+  const [returnDirection, setReturnDirection] = useState<'up' | 'down'>('up');
   const [dayDetailsVisible, setDayDetailsVisible] = useState(false);
   const [periodMarkingMode, setPeriodMarkingMode] = useState(false);
   const [periodDateKeys, setPeriodDateKeys] = useState<Set<string>>(
@@ -962,7 +999,7 @@ function CalendarPageModalBase({
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
     const subscription = AccessibilityInfo.addEventListener(
-      "reduceMotionChanged",
+      'reduceMotionChanged',
       setReduceMotion,
     );
 
@@ -974,12 +1011,12 @@ function CalendarPageModalBase({
       return;
     }
 
-    setSelectedDate(variant === "continuous" ? null : initialDate);
+    setSelectedDate(variant === 'continuous' ? null : initialDate);
     setVisibleMonth(
       new Date(initialDate.getFullYear(), initialDate.getMonth(), 1),
     );
     setCurrentMonthVisible(true);
-    setReturnDirection("up");
+    setReturnDirection('up');
     setDayDetailsVisible(false);
     setPeriodMarkingMode(false);
     initialMonthPositionedRef.current = false;
@@ -1016,7 +1053,7 @@ function CalendarPageModalBase({
     [calculatedCycle],
   );
   const headerDate = dayTitle(
-    variant === "continuous" ? initialDate : detailsDate,
+    variant === 'continuous' ? initialDate : detailsDate,
   );
   const selectedForecast = calculatedCycle
     ? getCalculatedDayForecast(detailsDate, calculatedCycle)
@@ -1024,6 +1061,24 @@ function CalendarPageModalBase({
   const todayForecast = calculatedCycle
     ? getCalculatedDayForecast(initialDate, calculatedCycle)
     : NO_CYCLE_FORECAST;
+  const headerForecast = selectedDate ? selectedForecast : todayForecast;
+  const selectedHeaderIsFertile =
+    headerForecast.kind === 'fertile' || headerForecast.kind === 'ovulation';
+  const selectedHeaderIsMenstruation =
+    headerForecast.kind === 'menstruation';
+  const selectedHeaderIsColored =
+    selectedHeaderIsFertile || selectedHeaderIsMenstruation;
+  const selectedHeaderColor = selectedHeaderIsFertile
+    ? colors.brand.success
+    : selectedHeaderIsMenstruation
+      ? MENSTRUATION_HEADER_COLOR
+      : colors.surface.raised;
+  const selectedHeaderShadowColor = selectedHeaderIsColored
+    ? selectedHeaderColor
+    : colors.brand.primary;
+  const selectedHeaderLabelColor = selectedHeaderIsColored
+    ? 'rgba(255,255,255,0.82)'
+    : '#5D5D5D';
   const currentCycleDay = calculatedCycle
     ? Math.floor(
         (dayTimestamp(initialDate) - calculatedCycle.startTimestamp) /
@@ -1034,21 +1089,20 @@ function CalendarPageModalBase({
     ? Math.max(0, currentCycleDay - calculatedCycle.cycleLength)
     : 0;
   const fertilityLabel = !calculatedCycle
-    ? "—"
+    ? '—'
     : delayDays > 0
-      ? "Низкая"
-      : todayForecast.kind === "fertile" || todayForecast.kind === "ovulation"
-        ? "Высокая"
-        : "Низкая";
+      ? 'Низкая'
+      : todayForecast.kind === 'fertile' || todayForecast.kind === 'ovulation'
+        ? 'Высокая'
+        : 'Низкая';
   const fertilityColor =
-    fertilityLabel === "Высокая"
-      ? colors.brand.success
-      : colors.text.secondary;
-  const isTodayMenstruation = todayForecast.kind === "menstruation";
+    fertilityLabel === 'Высокая' ? colors.brand.success : colors.text.secondary;
+  const isTodayMenstruation = todayForecast.kind === 'menstruation';
   const isTodayFertile =
-    todayForecast.kind === "fertile" || todayForecast.kind === "ovulation";
+    todayForecast.kind === 'fertile' || todayForecast.kind === 'ovulation';
   const hasLoggedSymptoms =
-    variant === "backup" && SYMPTOM_LOG_DATE_KEYS.has(dateKey(detailsDate));
+    symptomDateKeys?.has(dateKey(detailsDate)) ??
+    (variant === 'backup' && SYMPTOM_LOG_DATE_KEYS.has(dateKey(detailsDate)));
   const sheetBottom = Math.max(6, insets.bottom / scale - 4);
   const returnButtonBottom = sheetBottom + DAY_DETAILS_HEIGHT + spacing.sm;
   const viewabilityConfig = useRef({
@@ -1073,13 +1127,13 @@ function CalendarPageModalBase({
       setCurrentMonthVisible(anchorVisible);
 
       if (!anchorVisible) {
-        setReturnDirection(indexes[0] > MONTHS_BEFORE_SELECTED ? "up" : "down");
+        setReturnDirection(indexes[0] > MONTHS_BEFORE_SELECTED ? 'up' : 'down');
       }
     },
   ).current;
 
   useEffect(() => {
-    if (!visible || variant !== "continuous") {
+    if (!visible || variant !== 'continuous') {
       return;
     }
 
@@ -1094,7 +1148,7 @@ function CalendarPageModalBase({
   }, [anchorMonthKey, variant, visible]);
 
   useEffect(() => {
-    const target = variant === "continuous" && !currentMonthVisible ? 1 : 0;
+    const target = variant === 'continuous' && !currentMonthVisible ? 1 : 0;
 
     returnButtonProgress.stopAnimation();
     if (reduceMotion) {
@@ -1112,7 +1166,7 @@ function CalendarPageModalBase({
   }, [currentMonthVisible, reduceMotion, returnButtonProgress, variant]);
 
   useEffect(() => {
-    const target = variant === "continuous" && dayDetailsVisible ? 1 : 0;
+    const target = variant === 'continuous' && dayDetailsVisible ? 1 : 0;
 
     daySheetProgress.stopAnimation();
     if (reduceMotion) {
@@ -1130,7 +1184,7 @@ function CalendarPageModalBase({
   }, [dayDetailsVisible, daySheetProgress, reduceMotion, variant]);
 
   const shiftMonth = (direction: -1 | 1) => {
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       void Haptics.selectionAsync();
     }
 
@@ -1141,7 +1195,7 @@ function CalendarPageModalBase({
   };
 
   const selectDate = (date: Date) => {
-    if (variant === "continuous" && periodMarkingMode) {
+    if (variant === 'continuous' && periodMarkingMode) {
       const key = dateKey(date);
       const todayTimestamp = dayTimestamp(initialDate);
 
@@ -1169,14 +1223,14 @@ function CalendarPageModalBase({
         return next;
       });
 
-      if (Platform.OS !== "web") {
+      if (Platform.OS !== 'web') {
         void Haptics.selectionAsync();
       }
       return;
     }
 
     const repeatedContinuousSelection =
-      variant === "continuous" &&
+      variant === 'continuous' &&
       selectedDate !== null &&
       dateKey(selectedDate) === dateKey(date);
 
@@ -1184,46 +1238,49 @@ function CalendarPageModalBase({
       setSelectedDate(null);
       setDayDetailsVisible(false);
 
-      if (Platform.OS !== "web") {
+      if (Platform.OS !== 'web') {
         void Haptics.selectionAsync();
       }
       return;
     }
 
     setSelectedDate(date);
-    if (variant === "continuous") {
+    if (variant === 'continuous') {
       setDayDetailsVisible(true);
     }
     if (
-      variant === "backup" &&
+      variant === 'backup' &&
       (date.getMonth() !== visibleMonth.getMonth() ||
         date.getFullYear() !== visibleMonth.getFullYear())
     ) {
       setVisibleMonth(new Date(date.getFullYear(), date.getMonth(), 1));
     }
 
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       void Haptics.selectionAsync();
     }
   };
 
   const showAddMenu = (date = selectedDate ?? initialDate) => {
     Alert.alert(
-      variant === "backup"
-        ? "Добавить запись"
+      variant === 'backup'
+        ? 'Добавить запись'
         : `Добавить запись · ${dayTitle(date)}`,
-      "Что вы хотите отметить в календаре?",
+      'Что вы хотите отметить в календаре?',
       [
-        { text: "Симптом" },
-        { text: "Результат теста" },
-        { text: "Отмена", style: "cancel" },
+        {
+          text: 'Симптом',
+          onPress: () => onAddSymptoms?.(date),
+        },
+        { text: 'Результат теста' },
+        { text: 'Отмена', style: 'cancel' },
       ],
     );
   };
 
   const dismissDayDetails = () => {
     setDayDetailsVisible(false);
-    if (variant === "continuous") {
+    if (variant === 'continuous') {
       setSelectedDate(null);
     }
   };
@@ -1234,7 +1291,7 @@ function CalendarPageModalBase({
     setPeriodDraftDateKeys(new Set(periodDateKeys));
     setPeriodMarkingMode(true);
 
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
@@ -1243,7 +1300,7 @@ function CalendarPageModalBase({
     setPeriodDraftDateKeys(new Set(periodDateKeys));
     setPeriodMarkingMode(false);
 
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       void Haptics.selectionAsync();
     }
   };
@@ -1252,15 +1309,13 @@ function CalendarPageModalBase({
     setPeriodDateKeys(new Set(periodDraftDateKeys));
     setPeriodMarkingMode(false);
 
-    if (Platform.OS !== "web") {
-      void Haptics.notificationAsync(
-        Haptics.NotificationFeedbackType.Success,
-      );
+    if (Platform.OS !== 'web') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };
 
   const scrollToCurrentMonth = () => {
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
@@ -1273,7 +1328,7 @@ function CalendarPageModalBase({
 
   return (
     <Modal
-      animationType={reduceMotion ? "none" : "slide"}
+      animationType={reduceMotion ? 'none' : 'slide'}
       presentationStyle="fullScreen"
       statusBarTranslucent={false}
       visible={visible}
@@ -1296,7 +1351,7 @@ function CalendarPageModalBase({
               }}
               onTouchEnd={() => {
                 if (
-                  variant === "continuous" &&
+                  variant === 'continuous' &&
                   dayDetailsVisible &&
                   !protectedDayInteractionRef.current
                 ) {
@@ -1304,7 +1359,7 @@ function CalendarPageModalBase({
                 }
               }}
             >
-              {variant === "backup" ? (
+              {variant === 'backup' ? (
                 <ScrollView
                   contentInsetAdjustmentBehavior="never"
                   showsVerticalScrollIndicator={false}
@@ -1424,12 +1479,29 @@ function CalendarPageModalBase({
                   keyExtractor={(month) =>
                     `${month.getFullYear()}-${month.getMonth()}`
                   }
-                  renderItem={({ item: month }) => (
+                  renderItem={({ item: month }) => {
+                    const initialMonthTimestamp = dayTimestamp(
+                      new Date(
+                        initialDate.getFullYear(),
+                        initialDate.getMonth(),
+                        1,
+                      ),
+                    );
+                    const futureMonth =
+                      dayTimestamp(
+                        new Date(month.getFullYear(), month.getMonth(), 1),
+                      ) > initialMonthTimestamp;
+
+                    return (
                     <View style={styles.continuousMonth}>
                       <AppText
                         role="title"
                         weight="semibold"
-                        color={colors.brand.primary}
+                        color={
+                          futureMonth
+                            ? colors.text.secondary
+                            : colors.brand.primary
+                        }
                         style={styles.continuousMonthTitle}
                       >
                         {monthTitle(month)}
@@ -1469,12 +1541,14 @@ function CalendarPageModalBase({
                         selectOnPressIn={!periodMarkingMode}
                         selectedDate={selectedDate}
                         onSelectDate={selectDate}
+                        symptomDateKeys={symptomDateKeys}
                         showOutsideDays={false}
                         useCycleForecast
                       />
                       <View style={styles.continuousMonthDivider} />
                     </View>
-                  )}
+                    );
+                  }}
                   getItemLayout={(_, index) => ({
                     index,
                     length: MONTH_SECTION_HEIGHT,
@@ -1501,19 +1575,14 @@ function CalendarPageModalBase({
                 />
               )}
 
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.headerWhiteFill,
-                  periodMarkingMode && styles.periodModeHidden,
-                ]}
-              />
               <HeaderShape
                 pointerEvents="none"
                 width={DESIGN_WIDTH}
                 height={HEADER_SHAPE_HEIGHT}
+                color={selectedHeaderColor}
                 style={[
                   styles.headerShape,
+                  { shadowColor: selectedHeaderShadowColor },
                   periodMarkingMode && styles.periodModeHidden,
                 ]}
               />
@@ -1536,15 +1605,16 @@ function CalendarPageModalBase({
 
                   <CalendarGlassControl
                     accessibilityLabel={
-                      variant === "continuous"
+                      variant === 'continuous'
                         ? `Сегодня, ${headerDate}`
-                        : "Выбранная дата"
+                        : 'Выбранная дата'
                     }
                     width={156}
                     height={sizes.touch}
                     radius={sizes.touch / 2}
+                    headerElevation
                   >
-                    {variant === "continuous" ? (
+                    {variant === 'continuous' ? (
                       <HeaderDateLabel date={initialDate} />
                     ) : (
                       <AppText
@@ -1574,6 +1644,7 @@ function CalendarPageModalBase({
                     width={sizes.touch}
                     height={sizes.touch}
                     radius={sizes.touch / 2}
+                    headerElevation
                     intensity={64}
                     tintColor="transparent"
                     variant="clear"
@@ -1603,24 +1674,26 @@ function CalendarPageModalBase({
                   <AppText
                     numeric
                     color={
-                      isTodayFertile && !isTodayMenstruation
+                      selectedHeaderIsColored
+                        ? colors.text.inverse
+                        : isTodayFertile && !isTodayMenstruation
                         ? colors.brand.success
                         : colors.brand.primary
                     }
                     style={styles.metricValue}
                   >
                     {isTodayMenstruation
-                      ? "—"
+                      ? '—'
                       : isTodayFertile
-                        ? "+"
+                        ? '+'
                         : calculatedCycle
                           ? delayDays
-                          : "—"}
+                          : '—'}
                   </AppText>
                   <AppText
                     role="caption"
                     numberOfLines={1}
-                    color="#5D5D5D"
+                    color={selectedHeaderLabelColor}
                     style={[
                       styles.metricLabel,
                       (isTodayMenstruation || isTodayFertile) &&
@@ -1628,17 +1701,26 @@ function CalendarPageModalBase({
                     ]}
                   >
                     {isTodayMenstruation
-                      ? "Менструация"
+                      ? 'Менструация'
                       : isTodayFertile
-                        ? "Овуляция"
-                        : "Задержка"}
+                        ? 'Овуляция'
+                        : 'Задержка'}
                   </AppText>
                 </View>
-                <View style={styles.metricDivider} />
+                <View
+                  style={[
+                    styles.metricDivider,
+                    selectedHeaderIsColored && styles.metricDividerOnColor,
+                  ]}
+                />
                 <View style={styles.metricWide}>
                   <AppText
                     weight="medium"
-                    color={fertilityColor}
+                    color={
+                      selectedHeaderIsColored
+                        ? colors.text.inverse
+                        : fertilityColor
+                    }
                     style={styles.metricValue}
                   >
                     {fertilityLabel}
@@ -1646,25 +1728,34 @@ function CalendarPageModalBase({
                   <AppText
                     role="caption"
                     numberOfLines={1}
-                    color="#5D5D5D"
+                    color={selectedHeaderLabelColor}
                     style={styles.metricLabel}
                   >
                     Вероятность забеременеть
                   </AppText>
                 </View>
-                <View style={styles.metricDivider} />
+                <View
+                  style={[
+                    styles.metricDivider,
+                    selectedHeaderIsColored && styles.metricDividerOnColor,
+                  ]}
+                />
                 <View style={styles.metricNarrow}>
                   <AppText
                     numeric
-                    color={colors.brand.primary}
+                    color={
+                      selectedHeaderIsColored
+                        ? colors.text.inverse
+                        : colors.brand.primary
+                    }
                     style={styles.metricValue}
                   >
-                    {calculatedCycle ? currentCycleDay : "—"}
+                    {calculatedCycle ? currentCycleDay : '—'}
                   </AppText>
                   <AppText
                     role="caption"
                     numberOfLines={1}
-                    color="#5D5D5D"
+                    color={selectedHeaderLabelColor}
                     style={styles.metricLabel}
                   >
                     День цикла
@@ -1672,10 +1763,10 @@ function CalendarPageModalBase({
                 </View>
               </View>
 
-              {variant === "continuous" ? (
+              {variant === 'continuous' ? (
                 <>
                   <Animated.View
-                    pointerEvents={currentMonthVisible ? "none" : "auto"}
+                    pointerEvents={currentMonthVisible ? 'none' : 'auto'}
                     style={[
                       styles.returnButtonWrap,
                       { bottom: returnButtonBottom },
@@ -1714,7 +1805,7 @@ function CalendarPageModalBase({
                         width={25}
                         height={25}
                         style={
-                          returnDirection === "up"
+                          returnDirection === 'up'
                             ? styles.returnArrowUp
                             : styles.returnArrowDown
                         }
@@ -1799,7 +1890,7 @@ function CalendarPageModalBase({
                     onTouchStart={() => {
                       protectedDayInteractionRef.current = true;
                     }}
-                    pointerEvents={dayDetailsVisible ? "auto" : "none"}
+                    pointerEvents={dayDetailsVisible ? 'auto' : 'none'}
                     style={[
                       styles.dayDetailsWrap,
                       { bottom: sheetBottom },
@@ -1820,7 +1911,11 @@ function CalendarPageModalBase({
                       date={detailsDate}
                       forecast={selectedForecast}
                       hasLoggedSymptoms={hasLoggedSymptoms}
-                      onAddPress={() => showAddMenu(detailsDate)}
+                      onAddPress={() =>
+                        onAddSymptoms
+                          ? onAddSymptoms(detailsDate)
+                          : showAddMenu(detailsDate)
+                      }
                       symptomStatusVariant="banner"
                     />
                   </Animated.View>
@@ -1853,21 +1948,21 @@ export function CalendarPageBackupModal(props: CalendarPageModalProps) {
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface.warm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.raised,
   },
   scaledCanvas: {
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
-    transformOrigin: "top left",
+    transformOrigin: 'top left',
   },
   canvas: {
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
-    overflow: "hidden",
+    overflow: 'hidden',
     borderRadius: radii.xl,
-    backgroundColor: colors.surface.warm,
+    backgroundColor: colors.surface.raised,
   },
   scroll: {
     ...StyleSheet.absoluteFillObject,
@@ -1900,64 +1995,59 @@ const styles = StyleSheet.create({
   },
   continuousWeekRow: {
     height: 26,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   continuousMonthDivider: {
-    position: "absolute",
+    position: 'absolute',
     left: spacing.xs,
     right: spacing.xs,
     bottom: 5,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(115,110,108,0.20)",
+    backgroundColor: 'rgba(115,110,108,0.20)',
   },
   headerShape: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
-    top: -18,
-    zIndex: 5,
-    transform: [{ scaleY: -1 }],
-  },
-  headerWhiteFill: {
-    position: "absolute",
-    left: 0,
-    right: 0,
     top: 0,
-    height: 154,
-    zIndex: 4,
-    backgroundColor: colors.surface.raised,
+    zIndex: 5,
+    shadowColor: colors.brand.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
   },
   headerControls: {
-    position: "absolute",
+    position: 'absolute',
     left: sizes.screenGutter,
     width: sizes.contentWidth,
     zIndex: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerCircle: {
     width: sizes.touch,
     height: sizes.touch,
     borderRadius: sizes.touch / 2,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   datePill: {
     width: 156,
     height: sizes.touch,
     borderRadius: sizes.touch / 2,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerDate: {
     fontSize: 18,
     lineHeight: 20,
     letterSpacing: -0.36,
-    textAlign: "center",
+    textAlign: 'center',
   },
   headerBackIcon: {
-    transform: [{ rotate: "180deg" }],
+    transform: [{ rotate: '180deg' }],
   },
   headerGlassShadow: {
     ...shadows.floating,
@@ -1966,7 +2056,7 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   periodModeClose: {
-    position: "absolute",
+    position: 'absolute',
     left: sizes.screenGutter,
     width: sizes.touch,
     height: sizes.touch,
@@ -1975,56 +2065,56 @@ const styles = StyleSheet.create({
   closeIcon: {
     width: 22,
     height: 22,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeIconLine: {
-    position: "absolute",
+    position: 'absolute',
     width: 19,
     height: 2.2,
     borderRadius: 1.1,
     backgroundColor: colors.text.primary,
   },
   closeIconLineUp: {
-    transform: [{ rotate: "45deg" }],
+    transform: [{ rotate: '45deg' }],
   },
   closeIconLineDown: {
-    transform: [{ rotate: "-45deg" }],
+    transform: [{ rotate: '-45deg' }],
   },
   pressed: {
     transform: [{ scale: 1.035 }],
   },
   metrics: {
-    position: "absolute",
+    position: 'absolute',
     left: 24,
     width: 354,
     height: 65,
     zIndex: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   metricNarrow: {
     width: 74,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   metricWide: {
     width: 174,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   metricValue: {
     fontSize: 25,
     lineHeight: 30,
     letterSpacing: -0.5,
-    textAlign: "center",
+    textAlign: 'center',
   },
   metricLabel: {
     fontSize: 13,
     lineHeight: 15,
     letterSpacing: -0.26,
-    textAlign: "center",
+    textAlign: 'center',
   },
   metricStatusLabel: {
     width: 104,
@@ -2035,8 +2125,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 7,
     backgroundColor: colors.surface.divider,
   },
+  metricDividerOnColor: {
+    backgroundColor: 'rgba(255,255,255,0.30)',
+  },
   returnButtonWrap: {
-    position: "absolute",
+    position: 'absolute',
     right: sizes.screenGutter,
     width: RETURN_BUTTON_SIZE,
     height: RETURN_BUTTON_SIZE,
@@ -2046,8 +2139,8 @@ const styles = StyleSheet.create({
     width: RETURN_BUTTON_SIZE,
     height: RETURN_BUTTON_SIZE,
     borderRadius: RETURN_BUTTON_SIZE / 2,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.surface.raised,
     ...shadows.floating,
   },
@@ -2055,7 +2148,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.05 }],
   },
   periodEntryButtonWrap: {
-    position: "absolute",
+    position: 'absolute',
     left: (DESIGN_WIDTH - 166) / 2,
     width: 166,
     height: 48,
@@ -2075,9 +2168,9 @@ const styles = StyleSheet.create({
     width: 166,
     height: 48,
     borderRadius: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 7,
   },
   periodEntryButtonLabel: {
@@ -2088,16 +2181,16 @@ const styles = StyleSheet.create({
   periodSaveCheck: {
     fontSize: 17,
     lineHeight: 20,
-    textAlign: "center",
+    textAlign: 'center',
   },
   returnArrowUp: {
-    transform: [{ rotate: "-90deg" }],
+    transform: [{ rotate: '-90deg' }],
   },
   returnArrowDown: {
-    transform: [{ rotate: "90deg" }],
+    transform: [{ rotate: '90deg' }],
   },
   dayDetailsWrap: {
-    position: "absolute",
+    position: 'absolute',
     left: sizes.screenGutter,
     width: sizes.contentWidth,
     height: DAY_DETAILS_HEIGHT,
@@ -2108,12 +2201,12 @@ const styles = StyleSheet.create({
     height: DAY_DETAILS_HEIGHT,
   },
   dayDetailsCard: {
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
     padding: spacing.md,
     borderRadius: 30,
     backgroundColor: colors.surface.raised,
-    shadowColor: "#3A171C",
+    shadowColor: '#3A171C',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.14,
     shadowRadius: 24,
@@ -2121,9 +2214,9 @@ const styles = StyleSheet.create({
   },
   dayDetailsHeader: {
     minHeight: 38,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   dayDetailsDateCopy: {
     flex: 1,
@@ -2134,8 +2227,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.48,
   },
   dayDetailsActionGroup: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 9,
   },
   dayDetailsActionLabel: {
@@ -2147,22 +2240,22 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: "rgba(211,20,113,0.16)",
-    backgroundColor: "rgba(211,20,113,0.08)",
+    borderColor: 'rgba(211,20,113,0.16)',
+    backgroundColor: 'rgba(211,20,113,0.08)',
   },
   dayDetailsAddButtonContent: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dayDetailsAddButtonPressed: {
     transform: [{ scale: 0.94 }],
-    backgroundColor: "rgba(211,20,113,0.14)",
+    backgroundColor: 'rgba(211,20,113,0.14)',
   },
   dayDetailsDivider: {
     height: StyleSheet.hairlineWidth,
@@ -2174,8 +2267,8 @@ const styles = StyleSheet.create({
   },
   dayDetailsForecastRow: {
     minHeight: 74,
-    flexDirection: "row",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: spacing.sm,
   },
   dayDetailsForecastRowWithFooter: {
@@ -2199,19 +2292,19 @@ const styles = StyleSheet.create({
     borderColor: colors.brand.success,
   },
   dayDetailsIndicatorUpcoming: {
-    backgroundColor: "rgba(211,20,113,0.36)",
+    backgroundColor: 'rgba(211,20,113,0.36)',
   },
   dayDetailsIndicatorNeutral: {
-    backgroundColor: "rgba(115,110,108,0.32)",
+    backgroundColor: 'rgba(115,110,108,0.32)',
   },
   dayDetailsForecastCopy: {
     flex: 1,
     gap: 4,
   },
   dayDetailsForecastTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 6,
   },
   dayDetailsForecastTitle: {
@@ -2226,8 +2319,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.18,
   },
   symptomStatusMark: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   symptomStatusBanner: {
@@ -2235,18 +2328,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingHorizontal: 10,
     borderRadius: 15,
-    backgroundColor: "rgba(31,187,116,0.10)",
+    backgroundColor: 'rgba(31,187,116,0.10)',
   },
   symptomStatusInline: {
     minHeight: 22,
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
   },
   symptomStatusCompact: {
     minHeight: 22,
     paddingHorizontal: 7,
     borderRadius: 11,
     gap: 5,
-    backgroundColor: "rgba(31,187,116,0.10)",
+    backgroundColor: 'rgba(31,187,116,0.10)',
   },
   symptomStatusUnderDate: {
     minHeight: 15,
@@ -2258,20 +2351,20 @@ const styles = StyleSheet.create({
     minHeight: 66,
     paddingHorizontal: 6,
     borderRadius: 18,
-    flexDirection: "column",
-    justifyContent: "center",
+    flexDirection: 'column',
+    justifyContent: 'center',
     gap: 4,
-    backgroundColor: "rgba(31,187,116,0.10)",
+    backgroundColor: 'rgba(31,187,116,0.10)',
   },
   symptomStatusFooter: {
-    width: "100%",
+    width: '100%',
     minHeight: 28,
     paddingHorizontal: 10,
     borderRadius: 14,
-    backgroundColor: "rgba(31,187,116,0.08)",
+    backgroundColor: 'rgba(31,187,116,0.08)',
   },
   symptomStatusFooterPosition: {
-    position: "absolute",
+    position: 'absolute',
     left: spacing.md,
     right: spacing.md,
     bottom: spacing.sm,
@@ -2280,8 +2373,8 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.brand.success,
   },
   symptomStatusCheckCompact: {
@@ -2302,7 +2395,7 @@ const styles = StyleSheet.create({
   symptomStatusCheckmark: {
     fontSize: 11,
     lineHeight: 13,
-    textAlign: "center",
+    textAlign: 'center',
   },
   symptomStatusCheckmarkSmall: {
     fontSize: 8,
@@ -2324,7 +2417,7 @@ const styles = StyleSheet.create({
   symptomStatusLabelSide: {
     fontSize: 10,
     lineHeight: 11,
-    textAlign: "center",
+    textAlign: 'center',
   },
   cycleDayPill: {
     minWidth: 86,
@@ -2332,14 +2425,14 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     paddingHorizontal: spacing.xs,
     borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(211,20,113,0.08)",
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(211,20,113,0.08)',
   },
   cycleDayLabel: {
     fontSize: 10,
     lineHeight: 16,
-    textAlign: "center",
+    textAlign: 'center',
   },
   calendarCard: {
     padding: spacing.md,
@@ -2349,56 +2442,56 @@ const styles = StyleSheet.create({
   },
   monthHeader: {
     height: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   monthArrow: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(211,20,113,0.08)",
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(211,20,113,0.08)',
   },
   monthArrowContent: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   monthArrowPressed: {
     transform: [{ scale: 0.94 }],
-    backgroundColor: "rgba(211,20,113,0.14)",
+    backgroundColor: 'rgba(211,20,113,0.14)',
   },
   backIconLeft: {
-    transform: [{ rotate: "180deg" }],
+    transform: [{ rotate: '180deg' }],
   },
   weekRow: {
     marginTop: spacing.sm,
-    flexDirection: "row",
+    flexDirection: 'row',
   },
   weekDay: {
-    width: "14.2857%",
-    textAlign: "center",
+    width: '14.2857%',
+    textAlign: 'center',
     fontSize: 11,
     lineHeight: 14,
   },
   daysGrid: {
     marginTop: spacing.xs,
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   dayCell: {
     height: 52,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dayCellContent: {
     height: 52,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dayCellPressed: {
     opacity: 0.66,
@@ -2408,11 +2501,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   symptomDayMarker: {
-    position: "absolute",
+    position: 'absolute',
     top: -3,
     right: -3,
     width: 15,
@@ -2420,45 +2513,51 @@ const styles = StyleSheet.create({
     borderRadius: 7.5,
     borderWidth: 1.5,
     borderColor: colors.surface.raised,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.brand.success,
   },
   symptomDayMarkerCheck: {
     fontSize: 8,
     lineHeight: 9,
-    textAlign: "center",
+    textAlign: 'center',
   },
   dayFertile: {
-    backgroundColor: "rgba(31,187,116,0.10)",
+    backgroundColor: 'rgba(31,187,116,0.10)',
   },
   dayPeriod: {
-    backgroundColor: "rgba(211,20,113,0.10)",
+    backgroundColor: 'rgba(211,20,113,0.10)',
+  },
+  dayFuturePeriod: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.brand.primarySoft,
+    backgroundColor: 'transparent',
   },
   dayPeriodSelected: {
     borderWidth: 1,
-    borderColor: "rgba(211,20,113,0.20)",
-    backgroundColor: "rgba(211,20,113,0.10)",
+    borderColor: 'rgba(211,20,113,0.20)',
+    backgroundColor: 'rgba(211,20,113,0.10)',
     shadowOpacity: 0,
     elevation: 0,
   },
   dayFutureDisabled: {
     borderWidth: 0,
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
     shadowOpacity: 0,
     elevation: 0,
   },
   periodTickbox: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 0,
     width: 16,
     height: 16,
     borderRadius: 8,
     borderWidth: 1.25,
-    borderColor: "rgba(115,110,108,0.28)",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    borderColor: 'rgba(115,110,108,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
   },
   periodTickboxSelected: {
     borderColor: colors.brand.primary,
@@ -2467,15 +2566,11 @@ const styles = StyleSheet.create({
   periodTickboxLabel: {
     fontSize: 10,
     lineHeight: 12,
-    textAlign: "center",
+    textAlign: 'center',
   },
   dayOvulation: {
     borderWidth: 1.5,
     borderColor: colors.brand.success,
-  },
-  dayToday: {
-    borderWidth: 1.5,
-    borderColor: colors.brand.primary,
   },
   daySelected: {
     borderWidth: 0,
@@ -2490,13 +2585,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 18,
   },
+  todayBadge: {
+    position: 'absolute',
+    bottom: -1,
+    minWidth: 39,
+    height: 14,
+    paddingHorizontal: 5,
+    borderRadius: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: '#EA4087',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  todayBadgeSelected: {
+    borderColor: colors.surface.raised,
+  },
+  todayBadgeFertile: {
+    backgroundColor: colors.brand.success,
+  },
+  todayBadgeMenstruation: {
+    backgroundColor: MENSTRUATION_HEADER_COLOR,
+  },
+  todayBadgeLabel: {
+    fontSize: 10,
+    lineHeight: 11,
+    letterSpacing: -0.1,
+    textAlign: 'center',
+  },
   dayMarkerRow: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 2,
     height: 4,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 2,
+  },
+  dayMarkerRowToday: {
+    opacity: 0,
   },
   periodMarker: {
     width: 4,
@@ -2523,8 +2649,8 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.md,
     backgroundColor: colors.surface.raised,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
     ...shadows.card,
   },
@@ -2549,8 +2675,8 @@ const styles = StyleSheet.create({
   },
   forecastRow: {
     minHeight: 74,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   forecastCopy: {

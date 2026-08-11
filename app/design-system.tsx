@@ -23,15 +23,34 @@ import InfoIcon from '../assets/figma/scan-screen/info.svg';
 import ScanIcon from '../assets/figma/scan-screen/scan.svg';
 import { AuthScreen } from '../components/AuthScreen';
 import {
+  AnalysisCountsBlock,
+  AnalysisKnowledgeCarousel,
+  AnalysisPersonalBlock,
+  type AnalysisPersonalBlockVariant,
+  AnalysisReferenceBlock,
+  type AnalysisReferenceBlockVariant,
+  AnalysisMetricsBentoBlock,
+  AnalysisCardAction,
+  AnalysisPlanCard,
+  AnalysisTabs,
+  type AnalysisCardActionVariant,
+  type AnalysisCardVariant,
+  type AnalysisMetricsBentoVariant,
+  type AnalysisTabKey,
+  type AnalysisTabsVariant,
   AppCard,
   AppText,
   AuthFlowModal,
   CalendarPageBackupModal,
   CalendarSymptomStatusPreview,
   type CalendarSymptomStatusVariant,
+  ChatKitPreview,
+  ChatMessageVariantsCatalog,
+  ChatSendButtonVariantsCatalog,
   colors,
   fonts,
   GlassControl,
+  HealthMetricsChartsCatalog,
   InstructionCarousel,
   type InstructionCardVariant,
   InstructionIntroCard,
@@ -39,8 +58,16 @@ import {
   InstructionNavigation,
   type InstructionNavigationVariant,
   JournalAssessment,
+  JournalFlowActionPreview,
+  JournalFlowModal,
+  JournalFlowOptionPreview,
+  type JournalFlowActionVariant,
+  type JournalFlowOptionVariant,
   type MetricActionButtonVariant,
+  NavbarIconVariantsCatalog,
+  PetalProgressStatesCatalog,
   PrimaryButton,
+  ProfileKitPreview,
   radii,
   shadows,
   sizes,
@@ -54,9 +81,114 @@ import {
   ScanTooltip,
   type ScanTooltipKind,
   type ScanTooltipVariant,
+  SymptomPetalContrastCatalog,
   TokenLabel,
   typeScale,
 } from '../design-system';
+
+const analysisKnowledgePreviewItems = [
+  {
+    id: 'blood-preparation',
+    category: 'Подготовка',
+    duration: '4 минуты',
+    image: require('../assets/analyses/blood-tubes.png'),
+    summary:
+      'Натощак, вода, нагрузки и лекарства — короткая памятка перед сдачей.',
+    title: 'Как подготовиться к анализу крови',
+    tone: '#FFF0F6',
+  },
+  {
+    id: 'cycle-dependent',
+    category: 'Цикл',
+    duration: '5 минут',
+    image: require('../assets/analyses/ultrasound.png'),
+    summary:
+      'Какие обследования важно планировать с учётом дня менструального цикла.',
+    title: 'Какие анализы зависят от дня цикла',
+    tone: '#F3F0F7',
+  },
+  {
+    id: 'result-validity',
+    category: 'Сроки',
+    duration: '3 минуты',
+    image: require('../assets/analyses/hysteroscope.png'),
+    summary:
+      'Почему срок актуальности зависит от цели обследования и рекомендации врача.',
+    title: 'Сколько актуальны результаты обследований',
+    tone: '#F0F5F2',
+  },
+];
+
+const journalFlowActionVariants: JournalFlowActionVariant[] = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+];
+
+const journalFlowOptionVariants: JournalFlowOptionVariant[] = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+];
+
+const analysisTabsVariants: AnalysisTabsVariant[] = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+];
+
+const analysisMetricsBentoVariants: AnalysisMetricsBentoVariant[] = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+];
+
+const analysisPersonalBlockVariants: AnalysisPersonalBlockVariant[] = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+];
+
+const analysisReferenceBlockVariants: AnalysisReferenceBlockVariant[] = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+];
+
+const analysisCardVariants: Array<{
+  variant: AnalysisCardVariant;
+  label: string;
+}> = [
+  { variant: 1, label: '01 / Референс' },
+  { variant: 2, label: '02 / Метрики-чипы' },
+  { variant: 3, label: '03 / Дедлайн' },
+  { variant: 4, label: '04 / Клиническая сетка' },
+  { variant: 5, label: '05 / Точки времени' },
+  { variant: 6, label: '06 / Чек-лист' },
+  { variant: 7, label: '07 / Статусная полоса' },
+  { variant: 8, label: '08 / Прогресс срока' },
+  { variant: 9, label: '09 / Редакционная' },
+  { variant: 10, label: '10 / Компактное действие' },
+  { variant: 11, label: '11 / Календарная неделя' },
+  { variant: 12, label: '12 / Окно актуальности' },
+  { variant: 13, label: '13 / Сводка срока' },
+  { variant: 14, label: '14 / Маршрут обследования' },
+  { variant: 15, label: '15 / Приоритет' },
+  { variant: 16, label: '16 / Обратный отсчёт' },
+  { variant: 17, label: '17 / Календарная лента' },
+  { variant: 18, label: '18 / Диапазон дат' },
+  { variant: 19, label: '19 / Большая дата' },
+  { variant: 20, label: '20 / Неделя до сдачи' },
+  { variant: 21, label: '21 / Контрольные точки' },
+  { variant: 22, label: '22 / Билет срока' },
+  { variant: 23, label: '23 / Индикатор дедлайна' },
+  { variant: 24, label: '24 / Сегодня — дедлайн' },
+  { variant: 25, label: '25 / Повестка' },
+];
+
+const calendarAnalysisCardVariants: Array<{
+  variant: AnalysisCardVariant;
+  actionVariant: AnalysisCardActionVariant;
+  label: string;
+}> = [
+  { variant: 26, actionVariant: 1, label: '01 / Диапазон' },
+  { variant: 27, actionVariant: 2, label: '02 / Числовая лента' },
+  { variant: 28, actionVariant: 3, label: '03 / Крупная дата' },
+  { variant: 29, actionVariant: 4, label: '04 / Три события' },
+  { variant: 30, actionVariant: 9, label: '05 / Срок и актуальность' },
+];
+
+const analysisCardActionVariants: AnalysisCardActionVariant[] = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+];
 
 const colorTokens = [
   {
@@ -457,11 +589,18 @@ function Section({
   );
 }
 
-export default function DesignSystemScreen() {
+export default function DesignSystemScreen({
+  onBack,
+}: {
+  onBack?: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const [complete, setComplete] = useState(false);
   const [authFlowVisible, setAuthFlowVisible] = useState(false);
   const [calendarBackupVisible, setCalendarBackupVisible] = useState(false);
+  const [journalFlowVisible, setJournalFlowVisible] = useState(false);
+  const [analysisPreviewTab, setAnalysisPreviewTab] =
+    useState<AnalysisTabKey>('current');
   const [fontsLoaded] = useFonts(
     Platform.OS === 'web'
       ? {
@@ -480,7 +619,7 @@ export default function DesignSystemScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" hidden={false} />
+      <StatusBar style="dark" hidden={false} />
       <ScrollView
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
@@ -512,7 +651,7 @@ export default function DesignSystemScreen() {
           <GlassContainer spacing={12} style={styles.heroControls}>
             <GlassControl
               accessibilityLabel="Вернуться назад"
-              onPress={() => router.back()}
+              onPress={onBack ?? (() => router.back())}
               style={styles.heroCircle}
             >
               <AppText
@@ -589,6 +728,271 @@ export default function DesignSystemScreen() {
         </View>
 
         <View style={styles.sheet}>
+          <Section eyebrow="00 / Health data" title="Графики показателей">
+            <View style={styles.analysisVariantHeading}>
+              <TokenLabel>18 PRODUCTION CHARTS</TokenLabel>
+              <AppText role="body" color={colors.text.secondary}>
+                Восемнадцать способов показать данные, которые уже собираются
+                в приложении: от базальной температуры, цикла и сна до
+                гормонального окна, корреляций симптомов, динамики биомаркеров
+                и сводного индекса внимания к здоровью.
+              </AppText>
+            </View>
+            <HealthMetricsChartsCatalog />
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section eyebrow="00 / AI chat" title="Сообщения в диалоге">
+            <AppText role="body" color={colors.text.secondary}>
+              Двадцать вариантов пары «сообщение пользователя + ответ Сферки».
+              Цвета и базовая композиция зафиксированы; меняются иконки,
+              типографика, внутренние отступы и ритм действий. Варианты 11–20 —
+              новая серия с пользовательским набором SVG-иконок.
+            </AppText>
+            <ChatMessageVariantsCatalog />
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section eyebrow="00 / AI chat" title="Кнопка отправки сообщения">
+            <AppText role="body" color={colors.text.secondary}>
+              Десять круглых вариантов состояния отправки, которое плавно
+              заменяет голосовой ввод после появления текста в поле.
+            </AppText>
+            <ChatSendButtonVariantsCatalog />
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section eyebrow="00 / Navigation" title="Navbar · наборы иконок">
+            <AppText role="body" color={colors.text.secondary}>
+              Десять вариантов одного navbar. Геометрия, стекло, подписи,
+              порядок табов и цветовые состояния зафиксированы; меняются только
+              SF Symbols. Нажмите на таб, чтобы проверить selected-состояние.
+            </AppText>
+            <NavbarIconVariantsCatalog />
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section eyebrow="00 / Profile" title="iOS Settings · профиль">
+            <AppText role="body" color={colors.text.secondary}>
+              Production-компоненты личного кабинета: карточка аккаунта,
+              внутренние табы и сгруппированные строки настроек в светлой теме
+              приложения.
+            </AppText>
+            <ProfileKitPreview />
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section eyebrow="00 / Analyses overview" title="Верх страницы Анализы">
+            <View style={styles.analysisVariantHeading}>
+              <TokenLabel>PRODUCTION OVERVIEW BLOCKS</TokenLabel>
+              <AppText role="body" color={colors.text.secondary}>
+                Крупный автоперелистывающийся блок материалов и единая сводка
+                по ближайшим, пропущенным и сданным анализам.
+              </AppText>
+            </View>
+            <View style={styles.analysisVariantList}>
+              <AnalysisKnowledgeCarousel items={analysisKnowledgePreviewItems} />
+              <AnalysisCountsBlock upcoming={3} missed={0} completed={2} />
+            </View>
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section eyebrow="00 / Personal insights" title="Персональный блок">
+            <View style={styles.analysisVariantHeading}>
+              <TokenLabel>10 PERSONAL BLOCK VARIANTS</TokenLabel>
+              <AppText role="body" color={colors.text.secondary}>
+                Десять production-вариантов персональной интерпретации
+                результатов. Для каждого показано состояние с данными и
+                состояние «Недостаточно данных».
+              </AppText>
+            </View>
+            <View style={styles.analysisVariantList}>
+              {analysisPersonalBlockVariants.map((variant) => (
+                <View key={variant} style={styles.analysisVariantItem}>
+                  <TokenLabel>ВАРИАНТ {variant}</TokenLabel>
+                  <View style={styles.analysisStatePreview}>
+                    <AppText
+                      role="caption"
+                      weight="medium"
+                      color={colors.text.secondary}
+                    >
+                      С ДАННЫМИ
+                    </AppText>
+                    <AnalysisPersonalBlock variant={variant} state="ready" />
+                  </View>
+                  <View style={styles.analysisStatePreview}>
+                    <AppText
+                      role="caption"
+                      weight="medium"
+                      color={colors.text.secondary}
+                    >
+                      НЕДОСТАТОЧНО ДАННЫХ
+                    </AppText>
+                    <AnalysisPersonalBlock
+                      variant={variant}
+                      state="insufficient"
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section
+            eyebrow="00.1 / Reference materials"
+            title="Справочные материалы"
+          >
+            <View style={styles.analysisVariantHeading}>
+              <TokenLabel>10 REFERENCE BLOCK VARIANTS</TokenLabel>
+              <AppText role="body" color={colors.text.secondary}>
+                Десять способов показать подготовку к анализам, расшифровку
+                показателей, сроки актуальности и ответы на частые вопросы.
+              </AppText>
+            </View>
+            <View style={styles.analysisVariantList}>
+              {analysisReferenceBlockVariants.map((variant) => (
+                <View key={variant} style={styles.analysisVariantItem}>
+                  <TokenLabel>ВАРИАНТ {variant}</TokenLabel>
+                  <AnalysisReferenceBlock variant={variant} />
+                </View>
+              ))}
+            </View>
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section eyebrow="00.2 / AI chat" title="Стартовый экран чата">
+            <AppText role="body" color={colors.text.secondary}>
+              Переиспользуемые header, три предложенные темы, безопасное пустое
+              состояние и многострочный composer над нижней навигацией.
+            </AppText>
+            <ChatKitPreview />
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section eyebrow="00 / Analyses cards" title="Карточки анализов">
+            <View style={styles.analysisVariantHeading}>
+              <TokenLabel>10 BENTO METRICS VARIANTS</TokenLabel>
+              <AppText role="heading" weight="semibold">
+                Метрики страницы «Анализы»
+              </AppText>
+              <AppText role="body" color={colors.text.secondary}>
+                Десять вариантов production-блока: главная метрика 72% и две
+                вторичные метрики 2 / 1.
+              </AppText>
+            </View>
+            <View style={styles.analysisVariantList}>
+              {analysisMetricsBentoVariants.map((variant) => (
+                <View key={variant} style={styles.analysisVariantItem}>
+                  <TokenLabel>ВАРИАНТ {variant}</TokenLabel>
+                  <AnalysisMetricsBentoBlock variant={variant} />
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.rule} />
+
+            <View style={styles.analysisVariantHeading}>
+              <TokenLabel>10 VIEW ACTIONS</TokenLabel>
+              <AppText role="heading" weight="semibold">
+                Кнопки «Посмотреть»
+              </AppText>
+              <AppText role="body" color={colors.text.secondary}>
+                Десять вариантов действия для карточек анализов.
+              </AppText>
+            </View>
+            <View style={styles.analysisActionGrid}>
+              {analysisCardActionVariants.map((variant) => (
+                <View key={variant} style={styles.analysisActionItem}>
+                  <TokenLabel>ВАРИАНТ {variant}</TokenLabel>
+                  <View style={styles.analysisActionStage}>
+                    <AnalysisCardAction
+                      variant={variant}
+                      title="Общий анализ крови"
+                      onPress={() => undefined}
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.rule} />
+
+            <View style={styles.analysisVariantHeading}>
+              <TokenLabel>5 MINIMAL VARIANTS</TokenLabel>
+              <AppText role="heading" weight="semibold">
+                Календарная лента
+              </AppText>
+              <AppText role="body" color={colors.text.secondary}>
+                Пять спокойных вариантов без бейджей, декоративных подложек и
+                теней. Только дата, смысл срока и одно действие. Сегодня — 8
+                августа 2026 года, дедлайн — 14 августа 2026 года.
+              </AppText>
+            </View>
+            <View style={styles.analysisVariantList}>
+              {calendarAnalysisCardVariants.map((item) => (
+                <View key={item.variant} style={styles.analysisVariantItem}>
+                  <TokenLabel>{item.label}</TokenLabel>
+                  <AnalysisPlanCard
+                    title="Исследования крови"
+                    description="Общий анализ крови, гематокрит, гемоглобин, тромбоциты"
+                    category="Лаборатория"
+                    dueLabel="Сдать до"
+                    dueValue="14 Августа"
+                    validityLabel="Обследование актуально"
+                    validityValue="30 дней"
+                    status="Осталось 6 Дней"
+                    image={require('../assets/analyses/blood-tubes.png')}
+                    tone="rose"
+                    variant={item.variant}
+                    actionVariant={item.actionVariant}
+                    onView={() => undefined}
+                  />
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.rule} />
+
+            <AppText role="body" color={colors.text.secondary}>
+              Двадцать пять production-вариантов одной карточки. Фото, масштаб,
+              blur и белый fade остаются неизменными.
+            </AppText>
+            <View style={styles.analysisVariantList}>
+              {analysisCardVariants.map((item) => (
+                <View key={item.variant} style={styles.analysisVariantItem}>
+                  <TokenLabel>{item.label}</TokenLabel>
+                  <AnalysisPlanCard
+                    title="Исследования крови"
+                    description="Общий анализ крови, гематокрит, гемоглобин, тромбоциты"
+                    category="Лаборатория"
+                    dueLabel="Сдать до"
+                    dueValue="14 Августа"
+                    validityLabel="Обследование актуально"
+                    validityValue="30 дней"
+                    status="Осталось 6 Дней"
+                    image={require('../assets/analyses/blood-tubes.png')}
+                    tone="rose"
+                    variant={item.variant}
+                    actionVariant={10}
+                    onView={() => undefined}
+                  />
+                </View>
+              ))}
+            </View>
+          </Section>
+
+          <View style={styles.rule} />
+
           <Section eyebrow="01 / Foundations" title="Цветовые роли">
             <View style={styles.swatchGrid}>
               {colorTokens.map((token) => (
@@ -636,9 +1040,7 @@ export default function DesignSystemScreen() {
               </View>
               <View style={styles.numericCopy}>
                 <TokenLabel>Yaro Rg</TokenLabel>
-                <AppText role="label">
-                  Все цифры, апострофы и слово «сфера.»
-                </AppText>
+                <AppText role="label">Только слово «сфера.»</AppText>
               </View>
             </View>
           </Section>
@@ -1254,6 +1656,129 @@ export default function DesignSystemScreen() {
             </AppCard>
           </Section>
 
+          <View style={styles.rule} />
+
+          <Section eyebrow="17 / Journal flow" title="Заполнение журнала">
+            <AppText role="body" color={colors.text.secondary}>
+              Полноэкранный production-компонент с семью Liquid
+              Glass-категориями и контентом, который меняется внутри одной
+              страницы.
+            </AppText>
+            <PrimaryButton
+              label="Открыть флоу журнала"
+              onPress={() => setJournalFlowVisible(true)}
+            />
+
+            <View style={styles.journalFlowKitGroup}>
+              <View style={styles.journalFlowKitHeading}>
+                <TokenLabel>10 VARIANTS · REAL BACKGROUND</TokenLabel>
+                <AppText role="heading" weight="semibold">
+                  Контраст текста на лепестках
+                </AppText>
+                <AppText role="caption" color={colors.text.secondary}>
+                  Сравнение текста, поверхности и кромки на настоящем фоне
+                  страницы «Симптомы». Вариант 1 оставлен как контрольный.
+                </AppText>
+              </View>
+              <SymptomPetalContrastCatalog />
+            </View>
+
+            <View style={styles.journalFlowKitGroup}>
+              <View style={styles.journalFlowKitHeading}>
+                <TokenLabel>10 ACTIVE + COMPLETED PAIRS</TokenLabel>
+                <AppText role="heading" weight="semibold">
+                  Активный и пройденные лепестки
+                </AppText>
+                <AppText role="caption" color={colors.text.secondary}>
+                  В каждом варианте «Симптомы» — активный лепесток, а «Цикл»,
+                  «Настроение» и «Энергия» — пройденные. Остальные сохраняют
+                  текущее неактивное состояние.
+                </AppText>
+              </View>
+              <PetalProgressStatesCatalog />
+            </View>
+
+            <View style={styles.journalFlowKitGroup}>
+              <View style={styles.journalFlowKitHeading}>
+                <TokenLabel>10 PRODUCTION-SIZE VARIANTS</TokenLabel>
+                <AppText role="heading" weight="semibold">
+                  Кнопки «Назад / Далее»
+                </AppText>
+              </View>
+
+              <View style={styles.journalFlowPreviewList}>
+                {journalFlowActionVariants.map((variant) => (
+                  <View key={variant} style={styles.journalFlowPreviewItem}>
+                    <TokenLabel>ВАРИАНТ {variant}</TokenLabel>
+                    <JournalFlowActionPreview variant={variant} />
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.journalFlowKitGroup}>
+              <View style={styles.journalFlowKitHeading}>
+                <TokenLabel>DEFAULT + SELECTED</TokenLabel>
+                <AppText role="heading" weight="semibold">
+                  Плашки выбора
+                </AppText>
+              </View>
+
+              <View style={styles.journalFlowStateLabels}>
+                <AppText role="caption" color={colors.text.secondary}>
+                  Обычное состояние
+                </AppText>
+                <AppText role="caption" color={colors.text.secondary}>
+                  Выбранное состояние
+                </AppText>
+              </View>
+
+              <View style={styles.journalFlowPreviewList}>
+                {journalFlowOptionVariants.map((variant) => (
+                  <View key={variant} style={styles.journalFlowPreviewItem}>
+                    <TokenLabel>ВАРИАНТ {variant}</TokenLabel>
+                    <JournalFlowOptionPreview variant={variant} />
+                  </View>
+                ))}
+              </View>
+            </View>
+          </Section>
+
+          <View style={styles.rule} />
+
+          <Section eyebrow="18 / Analyses" title="План обследований">
+            <AppText role="body" color={colors.text.secondary}>
+              Три группы production-компонентов страницы «Анализы». Все варианты
+              используют те же токены, контент и обработчики, что и основной
+              экран.
+            </AppText>
+
+            <View style={styles.analysisVariantGroup}>
+              <View style={styles.analysisVariantHeading}>
+                <TokenLabel>10 VARIANTS</TokenLabel>
+                <AppText role="heading" weight="semibold">
+                  Свитчер табов
+                </AppText>
+                <AppText role="caption" color={colors.text.secondary}>
+                  Вариант 2 адаптирован из свитчера Email / Телефон во флоу
+                  регистрации.
+                </AppText>
+              </View>
+              <View style={styles.analysisVariantList}>
+                {analysisTabsVariants.map((variant) => (
+                  <View key={variant} style={styles.analysisVariantItem}>
+                    <TokenLabel>ВАРИАНТ {variant}</TokenLabel>
+                    <AnalysisTabs
+                      activeTab={analysisPreviewTab}
+                      onChange={setAnalysisPreviewTab}
+                      variant={variant}
+                    />
+                  </View>
+                ))}
+              </View>
+            </View>
+          </Section>
+
           <View style={styles.footer}>
             <ScanIcon width={22} height={22} />
             <View style={styles.footerCopy}>
@@ -1274,6 +1799,11 @@ export default function DesignSystemScreen() {
       <AuthFlowModal
         visible={authFlowVisible}
         onClose={() => setAuthFlowVisible(false)}
+      />
+      <JournalFlowModal
+        visible={journalFlowVisible}
+        onClose={() => setJournalFlowVisible(false)}
+        onComplete={() => setJournalFlowVisible(false)}
       />
     </View>
   );
@@ -1500,6 +2030,61 @@ const styles = StyleSheet.create({
   journalVariant: {
     width: 370,
     gap: spacing.sm,
+  },
+  journalFlowKitGroup: {
+    width: 370,
+    marginTop: spacing.xl,
+    gap: spacing.lg,
+  },
+  journalFlowKitHeading: {
+    gap: spacing.xs,
+  },
+  journalFlowPreviewList: {
+    gap: spacing.xl,
+  },
+  journalFlowPreviewItem: {
+    width: 358,
+    gap: spacing.sm,
+  },
+  journalFlowStateLabels: {
+    width: 358,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  analysisVariantGroup: {
+    marginTop: spacing.xl,
+    gap: spacing.lg,
+  },
+  analysisVariantHeading: {
+    gap: spacing.xs,
+  },
+  analysisVariantList: {
+    gap: spacing.xl,
+  },
+  analysisVariantItem: {
+    width: 370,
+    gap: spacing.sm,
+  },
+  analysisStatePreview: {
+    gap: spacing.xs,
+  },
+  analysisActionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  analysisActionItem: {
+    width: 177,
+    gap: spacing.xs,
+  },
+  analysisActionStage: {
+    minHeight: 70,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.raised,
+    padding: spacing.sm,
   },
   variantHeader: {
     flexDirection: 'row',

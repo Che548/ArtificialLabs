@@ -1,0 +1,9 @@
+{
+  "role": "analysis-card mock assets",
+  "sources": {
+    "blood-tubes.png": "/Users/aleksandrcekmarev/Downloads/пробирка2.png",
+    "ultrasound.png": "/Users/aleksandrcekmarev/Downloads/узи.png",
+    "hysteroscope.png": "/Users/aleksandrcekmarev/Downloads/камера на гибкой трубке.png"
+  },
+  "treatment": "Original user-provided images, cropped with React Native resizeMode=cover inside large plan cards."
+}

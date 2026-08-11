@@ -9,7 +9,11 @@ const common = {
   updatedAt: v.number(),
   deletedAt: v.optional(v.number()),
 };
-const goal = v.union(v.literal('planning'), v.literal('pregnancy'));
+const goal = v.union(
+  v.literal('cycle'),
+  v.literal('planning'),
+  v.literal('pregnancy'),
+);
 const program = v.object({
   ...common,
   type: goal,
@@ -38,11 +42,7 @@ const journal = v.object({
   textValue: v.optional(v.string()),
   numericValue: v.optional(v.number()),
   unit: v.optional(v.string()),
-  source: v.union(
-    v.literal('manual'),
-    v.literal('scan'),
-    v.literal('lab'),
-  ),
+  source: v.union(v.literal('manual'), v.literal('scan'), v.literal('lab')),
   sourceLocalId: v.optional(v.string()),
 });
 const lab = v.object({
@@ -138,7 +138,9 @@ export const syncBatch = mutation({
       await upsertLocal(ctx, 'scanResults', profile._id, item);
     for (const item of batch.reminders)
       await upsertLocal(ctx, 'reminders', profile._id, item);
-    return { accepted: Object.values(batch).reduce((n, rows) => n + rows.length, 0) };
+    return {
+      accepted: Object.values(batch).reduce((n, rows) => n + rows.length, 0),
+    };
   },
 });
 
@@ -148,13 +150,39 @@ export const snapshot = query({
     const profile = await requireOwnedProfile(ctx);
     const [programs, journalEntries, labResults, scanResults, reminders] =
       await Promise.all([
-        ctx.db.query('monitoringPrograms').withIndex('by_profile', (q) => q.eq('profileId', profile._id)).collect(),
-        ctx.db.query('journalEntries').withIndex('by_profile_time', (q) => q.eq('profileId', profile._id)).order('desc').take(200),
-        ctx.db.query('labResults').withIndex('by_profile_time', (q) => q.eq('profileId', profile._id)).order('desc').take(100),
-        ctx.db.query('scanResults').withIndex('by_profile_time', (q) => q.eq('profileId', profile._id)).order('desc').take(100),
-        ctx.db.query('reminders').withIndex('by_profile_due', (q) => q.eq('profileId', profile._id)).order('desc').take(100),
+        ctx.db
+          .query('monitoringPrograms')
+          .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
+          .collect(),
+        ctx.db
+          .query('journalEntries')
+          .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
+          .order('desc')
+          .take(200),
+        ctx.db
+          .query('labResults')
+          .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
+          .order('desc')
+          .take(100),
+        ctx.db
+          .query('scanResults')
+          .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
+          .order('desc')
+          .take(100),
+        ctx.db
+          .query('reminders')
+          .withIndex('by_profile_due', (q) => q.eq('profileId', profile._id))
+          .order('desc')
+          .take(100),
       ]);
-    return { profile, programs, journalEntries, labResults, scanResults, reminders };
+    return {
+      profile,
+      programs,
+      journalEntries,
+      labResults,
+      scanResults,
+      reminders,
+    };
   },
 });
 

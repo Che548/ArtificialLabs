@@ -2,15 +2,11 @@ import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
 import { useFonts } from 'expo-font';
 import * as ImagePicker from 'expo-image-picker';
-import {
-  GlassContainer,
-  GlassView,
-  isLiquidGlassAvailable,
-} from 'expo-glass-effect';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import {
   AccessibilityInfo,
@@ -38,26 +34,27 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 import ContentShape from '../assets/figma/content-shape.svg';
-import CalendarIcon from '../assets/figma/calendar-icon.svg';
 import BuyIcon from '../assets/figma/scan-screen/buy.svg';
-import HeaderHistoryIcon from '../assets/figma/scan-screen/header-history.svg';
 import HistoryIcon from '../assets/figma/scan-screen/history.svg';
 import InfoIcon from '../assets/figma/scan-screen/info.svg';
 import ScanIcon from '../assets/figma/scan-screen/scan.svg';
 import ScannerFrame from '../assets/figma/scan-screen/circle.svg';
 import {
   CalendarPageModal,
+  AppHeader,
   colors,
   EdgeFadeGradient,
-  HeaderDateLabel,
   InstructionCard,
   InstructionIntroCard,
   InstructionNavigation,
+  JournalFlowModal,
+  type JournalFlowEntry,
   ScanBackgroundMotion,
   ScanCorrectionScreen,
   ScanFlowOverlay,
   ScanHistoryPreview,
   ScanResultScreen,
+  shadows,
   type ScanHistoryRecord,
 } from '../design-system';
 import { useHealthStore } from '../lib/health-store';
@@ -227,7 +224,7 @@ function GlassControl({
         tintColor={colors.surface.headerGlassWash}
         colorScheme="light"
         isInteractive
-        style={style}
+        style={[style, styles.glassShadow]}
       >
         <Pressable
           accessibilityRole="button"
@@ -264,23 +261,6 @@ function GlassControl({
         {children}
       </LiquidGlassSurface>
     </Pressable>
-  );
-}
-
-function LiquidGlassGroup({
-  children,
-  spacing,
-  style,
-}: PropsWithChildren<{
-  spacing: number;
-  style: StyleProp<ViewStyle>;
-}>) {
-  return hasNativeLiquidGlass ? (
-    <GlassContainer spacing={spacing} style={style}>
-      {children}
-    </GlassContainer>
-  ) : (
-    <View style={style}>{children}</View>
   );
 }
 
@@ -327,7 +307,8 @@ function HistoryBackIcon() {
 }
 
 export default function ScanScreen() {
-  const { addScanResult, scanResults } = useHealthStore();
+  const { addJournalEntry, addScanResult, journalEntries, scanResults } =
+    useHealthStore();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const instructionRef = useRef<ScrollViewType>(null);
@@ -337,6 +318,7 @@ export default function ScanScreen() {
     string | null
   >(null);
   const [calendarVisible, setCalendarVisible] = useState(false);
+  const [journalFlowDate, setJournalFlowDate] = useState<Date | null>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanHistoryRecord[]>([]);
   const [selectedHistoryResult, setSelectedHistoryResult] =
@@ -359,6 +341,38 @@ export default function ScanScreen() {
         }
       : {},
   );
+  const symptomDateKeys = useMemo(
+    () =>
+      new Set(
+        journalEntries
+          .filter(
+            (entry) =>
+              !entry.deletedAt &&
+              ['symptom', 'mood', 'energy', 'nutrition', 'activity'].includes(
+                entry.kind,
+              ),
+          )
+          .map((entry) => {
+            const date = new Date(entry.occurredAt);
+            return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+          }),
+      ),
+    [journalEntries],
+  );
+
+  const saveJournalFlow = async (entries: JournalFlowEntry[]) => {
+    if (!journalFlowDate) return;
+    const occurredAt = new Date(
+      journalFlowDate.getFullYear(),
+      journalFlowDate.getMonth(),
+      journalFlowDate.getDate(),
+      12,
+    ).getTime();
+
+    for (const entry of entries) {
+      await addJournalEntry({ occurredAt, ...entry });
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -573,7 +587,7 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style={scanFlowVisible ? 'light' : 'dark'} hidden={false} />
+      <StatusBar style="dark" hidden={false} />
       <View
         style={{
           width: DESIGN_WIDTH * scale,
@@ -592,36 +606,12 @@ export default function ScanScreen() {
               />
             </View>
 
-            <LiquidGlassGroup
-              spacing={12}
+            <AppHeader
               style={[styles.header, { top: headerTop }]}
-            >
-              <GlassControl
-                accessibilityLabel="Открыть историю"
-                onPress={() => setHistoryVisible(true)}
-                style={styles.headerCircle}
-              >
-                <HeaderHistoryIcon width={22} height={22} color="#D31471" />
-              </GlassControl>
-
-              <GlassControl
-                accessibilityLabel="Выбрать дату"
-                onPress={() => showPlaceholder('Выбор даты')}
-                style={styles.datePill}
-              >
-                <HeaderDateLabel />
-              </GlassControl>
-
-              <GlassControl
-                accessibilityLabel="Открыть календарь"
-                onPress={() => setCalendarVisible(true)}
-                style={styles.headerCircle}
-              >
-                <View style={styles.headerIconOrientation}>
-                  <CalendarIcon width={22} height={22} color="#D31471" />
-                </View>
-              </GlassControl>
-            </LiquidGlassGroup>
+              onHistory={() => setHistoryVisible(true)}
+              onDate={() => showPlaceholder('Выбор даты')}
+              onCalendar={() => setCalendarVisible(true)}
+            />
 
             <View style={[styles.scannerCard, { top: scannerTop }]}>
               <ScannerFrame
@@ -793,7 +783,7 @@ export default function ScanScreen() {
         onRequestClose={() => setScanFlowVisible(false)}
       >
         <View style={styles.flowModalRoot}>
-          <StatusBar style="light" hidden={false} />
+          <StatusBar style="dark" hidden={false} />
           <View
             style={{
               width: DESIGN_WIDTH * scale,
@@ -857,6 +847,16 @@ export default function ScanScreen() {
       <CalendarPageModal
         visible={calendarVisible}
         onClose={() => setCalendarVisible(false)}
+        onAddSymptoms={(date) => setJournalFlowDate(new Date(date))}
+        symptomDateKeys={symptomDateKeys}
+      />
+
+      <JournalFlowModal
+        visible={journalFlowDate !== null}
+        targetDate={journalFlowDate ?? new Date()}
+        initialCategory="symptoms"
+        onClose={() => setJournalFlowDate(null)}
+        onComplete={saveJournalFlow}
       />
 
       <Modal
@@ -1109,10 +1109,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 5,
     left: 16,
-    width: 370,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   headerFadeGradient: {
     top: 0,
@@ -1121,23 +1117,6 @@ const styles = StyleSheet.create({
   navbarFadeGradient: {
     bottom: 0,
     zIndex: 4,
-  },
-  headerCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  datePill: {
-    width: 156,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerIconOrientation: {
-    transform: [{ scaleY: -1 }],
   },
   nativeGlassView: {
     overflow: 'visible',
@@ -1153,11 +1132,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   glassShadow: {
-    shadowColor: '#260208',
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.24,
-    shadowRadius: 14,
-    elevation: 9,
+    ...shadows.control,
   },
   glassSurface: {
     ...StyleSheet.absoluteFillObject,
@@ -1214,7 +1189,7 @@ const styles = StyleSheet.create({
   scanButton: {
     position: 'absolute',
     left: 86,
-    top: 200,
+    top: 202,
     minWidth: 198,
     height: 46,
     borderRadius: 23,
@@ -1239,14 +1214,9 @@ const styles = StyleSheet.create({
   photoPickerButton: {
     position: 'absolute',
     left: 86,
-    top: 258,
+    top: 248,
     minWidth: 198,
     height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.38)',
-    backgroundColor: 'rgba(255,255,255,0.64)',
-    overflow: 'hidden',
   },
   photoPickerButtonContent: {
     minWidth: 198,
@@ -1256,10 +1226,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   photoPickerButtonLabel: {
-    color: '#d31471',
-    fontSize: 14,
+    color: 'rgba(115,110,108,0.78)',
+    fontSize: 13,
     lineHeight: 16,
-    letterSpacing: -0.28,
+    letterSpacing: -0.26,
   },
   contentShape: {
     position: 'absolute',
