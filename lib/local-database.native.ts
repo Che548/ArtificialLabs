@@ -10,7 +10,7 @@ import type {
   LocalProfile,
   ScanResult,
 } from './health-types';
-import { emptySnapshot } from './health-types';
+import { createEmptySnapshot } from './health-types';
 
 const DATABASE_NAME = 'artificiallabs.db';
 const DATABASE_KEY_NAME = 'artificiallabs.database-key.v1';
@@ -120,17 +120,16 @@ export async function claimLocalDatabaseOwner(userId: string) {
   const row = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM settings WHERE key = 'ownerId'",
   );
-  if (row?.value === userId) return;
+  if (row?.value === userId) return false;
   await withWriteTransaction(async (transaction) => {
-    await transaction.execAsync(
-      "DELETE FROM records; DELETE FROM outbox; DELETE FROM settings WHERE key = 'profile';",
-    );
+    await transaction.execAsync('DELETE FROM records; DELETE FROM outbox; DELETE FROM settings;');
     await transaction.runAsync(
       `INSERT INTO settings (key, value) VALUES ('ownerId', ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       userId,
     );
   });
+  return true;
 }
 
 export async function loadLocalSnapshot(): Promise<HealthSnapshot> {
@@ -142,15 +141,10 @@ export async function loadLocalSnapshot(): Promise<HealthSnapshot> {
     entity: HealthEntityName;
     payload: string;
   }>('SELECT entity, payload FROM records ORDER BY occurred_at DESC');
-  const snapshot: HealthSnapshot = {
-    ...emptySnapshot,
-    profile: profileRow ? (JSON.parse(profileRow.value) as LocalProfile) : null,
-    programs: [],
-    journalEntries: [],
-    labResults: [],
-    scanResults: [],
-    reminders: [],
-  };
+  const snapshot = createEmptySnapshot();
+  snapshot.profile = profileRow
+    ? (JSON.parse(profileRow.value) as LocalProfile)
+    : null;
   for (const row of rows) {
     (snapshot[row.entity] as unknown[]).push(JSON.parse(row.payload));
   }
@@ -209,7 +203,17 @@ async function writeLocalRecord<K extends HealthEntityName>(
           ? item.collectedAt
           : 'dueAt' in item
             ? item.dueAt
-            : item.startedAt;
+            : 'documentDate' in item
+              ? item.documentDate
+              : 'sentAt' in item
+                ? item.sentAt
+                : 'lastMessageAt' in item
+                  ? item.lastMessageAt
+                  : 'diagnosedAt' in item && item.diagnosedAt
+                    ? item.diagnosedAt
+                    : 'startedAt' in item && item.startedAt
+                      ? item.startedAt
+                      : item.updatedAt;
   await transaction.runAsync(
     `INSERT INTO records (entity, local_id, payload, occurred_at, updated_at)
        VALUES (?, ?, ?, ?, ?)
@@ -281,13 +285,7 @@ export async function acknowledgeOutbox(ids: number[]) {
 
 export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
   const local = await loadLocalSnapshot();
-  for (const entity of [
-    'programs',
-    'journalEntries',
-    'labResults',
-    'scanResults',
-    'reminders',
-  ] as const) {
+  for (const entity of Object.keys(remote) as HealthEntityName[]) {
     for (const remoteItem of remote[entity]) {
       const localItem = local[entity].find(
         (item) => item.localId === remoteItem.localId,
@@ -298,15 +296,63 @@ export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
         profileId: _remoteProfileId,
         ...portableItem
       } = remoteItem;
-      const merged =
+      let merged: Record<string, unknown> =
         entity === 'scanResults' && localItem && 'localImageUri' in localItem
           ? { ...portableItem, localImageUri: localItem.localImageUri }
           : entity === 'labResults' &&
               localItem &&
               'localDocumentUri' in localItem
             ? { ...portableItem, localDocumentUri: localItem.localDocumentUri }
-            : portableItem;
+            : entity === 'documents' &&
+                localItem &&
+                'localFileUri' in localItem
+              ? { ...portableItem, localFileUri: localItem.localFileUri }
+              : portableItem;
+      if (entity === 'scanResults') {
+        const portableScan = portableItem as Record<string, unknown>;
+        merged = {
+          ...merged,
+          resultSource:
+            portableScan.resultSource ??
+            (portableScan.confidence === 'manual' ? 'manual' : 'stripcv'),
+          confidence:
+            typeof portableScan.confidence === 'number'
+              ? portableScan.confidence
+              : undefined,
+          confirmedByUser: portableScan.confirmedByUser ?? true,
+        };
+      }
+      if (entity === 'chatMessages' && localItem && 'attachments' in localItem) {
+        const localAttachments = new Map(
+          localItem.attachments.map((attachment) => [
+            attachment.localId,
+            attachment,
+          ]),
+        );
+        merged = {
+          ...merged,
+          attachments: (
+            ((portableItem as Record<string, unknown>).attachments ?? []) as Array<{
+              localId: string;
+              [key: string]: unknown;
+            }>
+          ).map((attachment) => {
+            const localAttachment = localAttachments.get(attachment.localId);
+            return localAttachment?.localUri
+              ? { ...attachment, ...localAttachment, availableLocally: true }
+              : { ...attachment, availableLocally: false };
+          }),
+        };
+      }
       await saveLocalRecord(entity, merged as never, false);
     }
   }
+}
+
+export async function clearLocalHealthData() {
+  await withWriteTransaction(async (db) => {
+    await db.execAsync(
+      "DELETE FROM records; DELETE FROM outbox; DELETE FROM settings WHERE key = 'profile';",
+    );
+  });
 }

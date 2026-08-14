@@ -444,16 +444,16 @@ const instructionSteps = [
 ];
 
 const instructionIllustrations = [
-  require('../assets/instructions/step-1-cup.png'),
-  require('../assets/instructions/step-2-package.png'),
-  require('../assets/instructions/step-3-dip-test.png'),
-  require('../assets/instructions/step-4-test-strip.png'),
-  require('../assets/instructions/step-5-results.png'),
+  require('../assets/instructions/step_1_cup.png'),
+  require('../assets/instructions/step_2_package.png'),
+  require('../assets/instructions/step_3_dip_test.png'),
+  require('../assets/instructions/step_4_test_strip.png'),
+  require('../assets/instructions/step_5_results.png'),
 ];
 
 const instructionIntroCard = {
   title: 'Инструкция по использованию',
-  illustration: require('../assets/instructions/step-4-test-strip.png'),
+  illustration: require('../assets/instructions/step_4_test_strip.png'),
   variant: 'classic' as InstructionIntroCardVariant,
 };
 
@@ -634,7 +634,7 @@ export default function DesignSystemScreen({
           style={[styles.hero, { paddingTop: Math.max(insets.top, 16) + 12 }]}
         >
           <Image
-            source={require('../assets/figma/pregnancy-background.png')}
+            source={require('../assets/figma/pregnancy_background.png')}
             resizeMode="cover"
             style={styles.heroImage}
           />

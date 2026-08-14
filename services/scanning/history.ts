@@ -26,11 +26,27 @@ export type StoredScanRecord = {
   result: StoredScanResult;
   time: string;
   type: StoredScanType;
+  resultSource?: 'manual' | 'stripcv';
+  algorithmVersion?: string;
+  analysisStatus?: 'valid' | 'review' | 'invalid';
+  qualityFlags?: string[];
+  calibrationVersion?: string;
+  signalRatio?: number;
 };
 
 export type PendingScanRecord = Pick<
   StoredScanRecord,
-  'batch' | 'confidence' | 'imageUri' | 'result' | 'type'
+  | 'batch'
+  | 'confidence'
+  | 'imageUri'
+  | 'result'
+  | 'type'
+  | 'resultSource'
+  | 'algorithmVersion'
+  | 'analysisStatus'
+  | 'qualityFlags'
+  | 'calibrationVersion'
+  | 'signalRatio'
 >;
 
 const historyDirectory = documentDirectory

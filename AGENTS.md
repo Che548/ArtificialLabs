@@ -1,6 +1,6 @@
-# Expo SDK 57
+# Expo SDK 54
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
+Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
 
 # NativeWind
 
@@ -45,9 +45,13 @@ separate feature explicitly requires it.
   server-side. Public catalog data must not expose personal or medical data.
 - Expo web is a read-only demonstration. Do not enable account, camera, journal,
   lab, scan, or other medical-data writes on web without a separate review.
-- Current scan results are manually confirmed (`manual-v1`). Do not describe
-  them as OCR, CV, or diagnostic output.
-- Email verification, password reset, OCR/CV, AI chat, push notifications, and
+- StripCV performs on-device computer-vision analysis. Persist its source,
+  algorithm version, quality flags, signal ratio, and numeric confidence, while
+  keeping the final value explicitly user-confirmed. Never describe it as a
+  diagnostic result.
+- Cloud synchronization is an explicit per-device opt-in. Authentication alone
+  must not start medical snapshot reads or outbox writes.
+- Email verification, password reset, OCR, AI chat, push notifications, and
   the admin panel are deferred milestones. Do not imply they are operational.
 
 SQLCipher and camera changes require a native development/release build; Expo

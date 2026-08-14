@@ -1,7 +1,11 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
-import { getOwnedProfile, requireUserId } from './lib/access';
+import {
+  getOwnedProfile,
+  requireActiveAccount,
+  requireUserId,
+} from './lib/access';
 
 const goal = v.union(
   v.literal('cycle'),
@@ -22,7 +26,14 @@ export const viewer = query({
       .query('profiles')
       .withIndex('by_user', (q) => q.eq('userId', userId))
       .unique();
-    return { userId, profile };
+    const [user, accountState] = await Promise.all([
+      ctx.db.get(userId),
+      ctx.db
+        .query('accountStates')
+        .withIndex('by_user', (q) => q.eq('userId', userId))
+        .unique(),
+    ]);
+    return { userId, email: user?.email, profile, accountState };
   },
 });
 
@@ -31,6 +42,12 @@ export const save = mutation({
     displayName: v.string(),
     goal,
     onboardingCompleted: v.boolean(),
+    phone: v.optional(v.string()),
+    birthDate: v.optional(v.number()),
+    heightCm: v.optional(v.number()),
+    weightKg: v.optional(v.number()),
+    postpartum: v.optional(v.boolean()),
+    postContraception: v.optional(v.boolean()),
     pregnancyStartAt: v.optional(v.number()),
     lastPeriodStartAt: v.optional(v.number()),
     cycleLengthDays: v.optional(v.number()),
@@ -38,7 +55,7 @@ export const save = mutation({
     updatedAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireActiveAccount(ctx);
     const existing = await ctx.db
       .query('profiles')
       .withIndex('by_user', (q) => q.eq('userId', userId))

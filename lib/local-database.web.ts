@@ -6,10 +6,10 @@ import type {
   LocalProfile,
   ScanResult,
 } from './health-types';
-import { emptySnapshot } from './health-types';
+import { createEmptySnapshot } from './health-types';
 
 let snapshot: HealthSnapshot = {
-  ...emptySnapshot,
+  ...createEmptySnapshot(),
   profile: {
     displayName: 'Демо-профиль',
     goal: 'pregnancy',
@@ -27,7 +27,9 @@ const localSettings = new Map<string, unknown>();
 const LOCAL_SETTING_PREFIX = 'artificiallabs.setting.';
 
 export async function initializeLocalDatabase() {}
-export async function claimLocalDatabaseOwner(_userId: string) {}
+export async function claimLocalDatabaseOwner(_userId: string) {
+  return false;
+}
 export async function loadLocalSnapshot() {
   return snapshot;
 }
@@ -94,3 +96,13 @@ export async function acknowledgeOutbox(_ids: number[]) {}
 export async function mergeRemoteSnapshot(
   _remote: Omit<HealthSnapshot, 'profile'>,
 ) {}
+export async function clearLocalHealthData() {
+  snapshot = createEmptySnapshot();
+  localSettings.clear();
+  if (typeof localStorage !== 'undefined') {
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(LOCAL_SETTING_PREFIX)) localStorage.removeItem(key);
+    }
+  }
+}

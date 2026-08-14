@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-find_package(opencv_java5 REQUIRED CONFIG)
+find_package(OpenCV REQUIRED CONFIG)
 
 set(STRIPCV_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../../native)
 
@@ -28,7 +28,7 @@ target_compile_definitions(stripcv PRIVATE STRIPCV_VERSION="0.3.1")
 target_compile_options(stripcv PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(
   stripcv
-  opencv_java5::opencv_java5
+  OpenCV::opencv_java5
   android
   jnigraphics
   log

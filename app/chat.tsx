@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Alert,
@@ -36,6 +36,9 @@ import {
   sizes,
   spacing,
 } from '../design-system';
+import { useHealthStore } from '../lib/health-store';
+import { persistChatAttachment } from '../lib/local-files';
+import type { ChatAttachment } from '../lib/health-types';
 
 const suggestions: ChatSuggestion[] = [
   {
@@ -56,16 +59,6 @@ const suggestions: ChatSuggestion[] = [
   },
 ];
 
-const recentChats: ChatHistoryItem[] = [
-  { id: 'analyses', title: 'Какие анализы нужно сдать?' },
-  { id: 'pregnancy', title: 'Подготовка к беременности' },
-  { id: 'nutrition', title: 'Риски в рационе на 4 неделе' },
-  { id: 'clinic', title: 'Как выбрать клинику для обследований' },
-  { id: 'results', title: 'Расшифровка результатов анализа' },
-  { id: 'activity', title: 'Физическая активность и самочувствие' },
-  { id: 'cycle', title: 'Цикл и изменения самочувствия' },
-];
-
 type DemoMessage = {
   id: string;
   text: string;
@@ -74,17 +67,28 @@ type DemoMessage = {
 };
 
 export default function ChatScreen() {
+  const {
+    chatConversations,
+    chatMessages,
+    readOnly,
+    saveChatMessage,
+    saveConversation,
+  } = useHealthStore();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<DemoMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string>();
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>(
+    [],
+  );
   const [composerFocused, setComposerFocused] = useState(false);
   const [headerMode, setHeaderMode] = useState<ChatHeaderMode>('chat');
   const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
   const [conversationVisible, setConversationVisible] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRendered, setHistoryRendered] = useState(false);
-  const [selectedHistoryId, setSelectedHistoryId] = useState('nutrition');
+  const [selectedHistoryId, setSelectedHistoryId] = useState('');
   const [reduceMotion, setReduceMotion] = useState(false);
   const compactHeight = window.height < 760;
   const composerBottom = Math.max(insets.bottom, 12) + 67;
@@ -96,6 +100,17 @@ export default function ChatScreen() {
   const historyProgress = useRef(new Animated.Value(0)).current;
   const conversationScrollRef = useRef<ScrollView>(null);
   const responseTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const recentChats = useMemo<ChatHistoryItem[]>(
+    () =>
+      chatConversations
+        .filter((conversation) => !conversation.deletedAt)
+        .sort((left, right) => right.lastMessageAt - left.lastMessageAt)
+        .map((conversation) => ({
+          id: conversation.localId,
+          title: conversation.title,
+        })),
+    [chatConversations],
+  );
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
@@ -207,22 +222,46 @@ export default function ChatScreen() {
   };
 
   const openRecentChat = (item: ChatHistoryItem) => {
-    const messageTimestamp = Date.now();
     setSelectedHistoryId(item.id);
-    setMessages([
-      {
-        id: `${messageTimestamp}-user`,
-        text: item.title,
-        assistant: false,
-      },
-      {
-        id: `${messageTimestamp}-assistant`,
-        text: 'Я получила ваш вопрос. Сейчас это демонстрация интерфейса: медицинский AI и обработка персональных данных пока не подключены.',
-        assistant: true,
-      },
-    ]);
+    setConversationId(item.id);
+    setMessages(
+      chatMessages
+        .filter(
+          (message) =>
+            !message.deletedAt && message.conversationLocalId === item.id,
+        )
+        .sort((left, right) => left.sentAt - right.sentAt)
+        .map((message) => ({
+          id: message.localId,
+          text: message.text,
+          assistant: message.role === 'assistant',
+        })),
+    );
     setConversationVisible(true);
     closeHistory();
+  };
+
+  const rememberAttachment = async (input: {
+    uri: string;
+    kind: ChatAttachment['kind'];
+    name?: string | null;
+    mimeType?: string | null;
+    size?: number;
+  }) => {
+    if (readOnly) return;
+    const localUri = await persistChatAttachment(input.uri);
+    setPendingAttachments((current) => [
+      ...current,
+      {
+        localId: `attachment_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        kind: input.kind,
+        name: input.name || (input.kind === 'image' ? 'Изображение' : 'Документ'),
+        mimeType: input.mimeType ?? undefined,
+        size: input.size,
+        localUri,
+        availableLocally: true,
+      },
+    ]);
   };
 
   const openCamera = async () => {
@@ -239,11 +278,20 @@ export default function ChatScreen() {
         return;
       }
 
-      await ImagePicker.launchCameraAsync({
+      const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
         mediaTypes: ['images'],
         quality: 0.9,
       });
+      const asset = result.canceled ? undefined : result.assets[0];
+      if (asset)
+        await rememberAttachment({
+          uri: asset.uri,
+          kind: 'image',
+          name: asset.fileName,
+          mimeType: asset.mimeType,
+          size: asset.fileSize,
+        });
     } catch (error) {
       console.error('Opening chat camera failed', error);
       Alert.alert(
@@ -268,11 +316,20 @@ export default function ChatScreen() {
         return;
       }
 
-      await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({
         allowsEditing: false,
         mediaTypes: ['images'],
         quality: 0.9,
       });
+      const asset = result.canceled ? undefined : result.assets[0];
+      if (asset)
+        await rememberAttachment({
+          uri: asset.uri,
+          kind: 'image',
+          name: asset.fileName,
+          mimeType: asset.mimeType,
+          size: asset.fileSize,
+        });
     } catch (error) {
       console.error('Opening chat image library failed', error);
       Alert.alert(
@@ -287,11 +344,20 @@ export default function ChatScreen() {
     void Haptics.selectionAsync();
 
     try {
-      await DocumentPicker.getDocumentAsync({
+      const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
         multiple: false,
         type: '*/*',
       });
+      const asset = result.canceled ? undefined : result.assets[0];
+      if (asset)
+        await rememberAttachment({
+          uri: asset.uri,
+          kind: 'document',
+          name: asset.name,
+          mimeType: asset.mimeType,
+          size: asset.size,
+        });
     } catch (error) {
       console.error('Opening chat document picker failed', error);
       Alert.alert(
@@ -301,16 +367,46 @@ export default function ChatScreen() {
     }
   };
 
-  const send = () => {
+  const send = async () => {
     const text = draft.trim();
-    if (!text) return;
+    if ((!text && !pendingAttachments.length) || readOnly) return;
 
     const messageTimestamp = Date.now();
     const assistantMessageId = `${messageTimestamp}-assistant`;
+    const userMessageId = `${messageTimestamp}-user`;
+    let activeConversationId = conversationId;
+    if (!activeConversationId) {
+      activeConversationId = await saveConversation({
+        title: text || pendingAttachments[0]?.name || 'Новый чат',
+        createdAt: messageTimestamp,
+        lastMessageAt: messageTimestamp,
+      });
+      setConversationId(activeConversationId);
+      setSelectedHistoryId(activeConversationId);
+    } else {
+      const existing = chatConversations.find(
+        (conversation) => conversation.localId === activeConversationId,
+      );
+      if (existing)
+        await saveConversation({
+          ...existing,
+          lastMessageAt: messageTimestamp,
+        });
+    }
+
+    await saveChatMessage({
+      localId: userMessageId,
+      conversationLocalId: activeConversationId,
+      role: 'user',
+      source: 'user',
+      text: text || 'Вложение',
+      sentAt: messageTimestamp,
+      attachments: pendingAttachments,
+    });
 
     setMessages((current) => [
       ...current,
-      { id: `${messageTimestamp}-user`, text, assistant: false },
+      { id: userMessageId, text: text || 'Вложение', assistant: false },
       {
         id: assistantMessageId,
         text: '',
@@ -320,12 +416,14 @@ export default function ChatScreen() {
     ]);
 
     const responseTimer = setTimeout(() => {
+      const demoText =
+        'Я получила ваш вопрос. Сейчас это демонстрация интерфейса: медицинский AI и обработка персональных данных пока не подключены.';
       setMessages((current) =>
         current.map((message) =>
           message.id === assistantMessageId
             ? {
                 ...message,
-                text: 'Я получила ваш вопрос. Сейчас это демонстрация интерфейса: медицинский AI и обработка персональных данных пока не подключены.',
+                text: demoText,
                 thinking: false,
               }
             : message,
@@ -334,6 +432,15 @@ export default function ChatScreen() {
       responseTimers.current = responseTimers.current.filter(
         (timer) => timer !== responseTimer,
       );
+      void saveChatMessage({
+        localId: assistantMessageId,
+        conversationLocalId: activeConversationId,
+        role: 'assistant',
+        source: 'demo',
+        text: demoText,
+        sentAt: Date.now(),
+        attachments: [],
+      });
     }, 2000);
     responseTimers.current.push(responseTimer);
     Keyboard.dismiss();
@@ -341,6 +448,7 @@ export default function ChatScreen() {
     setAttachmentMenuVisible(false);
     setConversationVisible(true);
     setDraft('');
+    setPendingAttachments([]);
   };
 
   const closeConversation = () => {
@@ -355,6 +463,7 @@ export default function ChatScreen() {
       conversationProgress.setValue(0);
       setConversationVisible(false);
       setMessages([]);
+      setConversationId(undefined);
       return;
     }
 
@@ -367,6 +476,7 @@ export default function ChatScreen() {
       if (!finished) return;
       setConversationVisible(false);
       setMessages([]);
+      setConversationId(undefined);
     });
   };
 

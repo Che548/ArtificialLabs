@@ -119,7 +119,6 @@ function WebDemo() {
 
 function NativeApp() {
   const { isAuthenticated, isLoading } = useConvexAuth();
-  const [registrationComplete, setRegistrationComplete] = useState(false);
   const [devMode, setDevMode] = useState(false);
 
   if (devMode) {
@@ -139,18 +138,7 @@ function NativeApp() {
   if (!isAuthenticated) {
     return (
       <AuthScreen
-        onAuthenticated={() => setRegistrationComplete(true)}
         onDevLogin={() => setDevMode(true)}
-      />
-    );
-  }
-
-  if (!registrationComplete) {
-    return (
-      <AuthScreen
-        preview
-        onDevLogin={() => setRegistrationComplete(true)}
-        onPreviewComplete={() => setRegistrationComplete(true)}
       />
     );
   }

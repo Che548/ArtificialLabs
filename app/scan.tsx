@@ -92,11 +92,11 @@ const instructions = [
 ];
 
 const instructionIllustrations = [
-  require('../assets/instructions/step-1-cup.png'),
-  require('../assets/instructions/step-2-package.png'),
-  require('../assets/instructions/step-3-dip-test.png'),
-  require('../assets/instructions/step-4-test-strip.png'),
-  require('../assets/instructions/step-5-results.png'),
+  require('../assets/instructions/step_1_cup.png'),
+  require('../assets/instructions/step_2_package.png'),
+  require('../assets/instructions/step_3_dip_test.png'),
+  require('../assets/instructions/step_4_test_strip.png'),
+  require('../assets/instructions/step_5_results.png'),
 ];
 const INSTRUCTION_SLIDE_COUNT = instructions.length + 1;
 
@@ -723,7 +723,7 @@ export default function ScanScreen() {
             >
               <InstructionIntroCard
                 title="Инструкция по использованию"
-                illustration={require('../assets/instructions/step-4-test-strip.png')}
+                illustration={require('../assets/instructions/step_4_test_strip.png')}
                 variant="classic"
                 height={INSTRUCTION_CARD_HEIGHT}
               />
@@ -816,9 +816,18 @@ export default function ScanScreen() {
                           record.result === 'Пик ЛГ'
                             ? 'positive'
                             : 'negative',
-                        confidence: 'manual',
-                        qualityFlags: [],
-                        algorithmVersion: 'manual-v1',
+                        resultSource: record.resultSource ?? 'manual',
+                        confidence: Math.max(
+                          0,
+                          Math.min(1, record.confidence / 100),
+                        ),
+                        qualityFlags: record.qualityFlags ?? [],
+                        calibrationVersion: record.calibrationVersion,
+                        algorithmVersion:
+                          record.algorithmVersion ?? 'manual-v1',
+                        analysisStatus: record.analysisStatus,
+                        signalRatio: record.signalRatio,
+                        confirmedByUser: true,
                         hasLocalImage: true,
                         localImageUri: record.imageUri,
                       });
