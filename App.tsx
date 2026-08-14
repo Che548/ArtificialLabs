@@ -494,7 +494,7 @@ function MonitoringScreen({
   return (
     <View style={styles.canvas}>
       <Image
-        source={require('./assets/figma/today-pregnancy-background.png')}
+        source={require('./assets/figma/today_pregnancy_background.png')}
         resizeMode="cover"
         style={styles.heroImage}
       />

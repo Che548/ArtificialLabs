@@ -891,7 +891,7 @@ function QrScannerScreen({
             <Image
               accessible={false}
               resizeMode="contain"
-              source={require('../assets/figma/scan-screen/scan-flow-qr-final.png')}
+              source={require('../assets/figma/scan-screen/scan_flow_qr_final.png')}
               style={styles.qrImage}
             />
           </View>
@@ -1482,7 +1482,7 @@ function TestScannerScreen({
         <Image
           accessible={false}
           resizeMode="contain"
-          source={require('../assets/figma/scan-screen/scan-test-strip.png')}
+          source={require('../assets/figma/scan-screen/scan_test_strip.png')}
           style={styles.testStripImage}
         />
       </View>
