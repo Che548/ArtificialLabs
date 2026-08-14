@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { PropsWithChildren } from 'react';
@@ -51,6 +52,10 @@ import type {
 import { createEmptySnapshot, newLocalId } from './health-types';
 import { mayUseMedicalCloud } from './sync-policy';
 import { clearLocalHealthFiles } from './local-files';
+import {
+  createSingleFlightRunner,
+  synchronizeMedicalCloud,
+} from './cloud-sync';
 
 const backendApi = api;
 const CLOUD_SYNC_SETTING = 'cloudSyncPreference.v1';
@@ -105,26 +110,10 @@ type HealthStoreValue = HealthSnapshot & {
   restoreAccount: () => Promise<void>;
   clearAllLocalData: () => Promise<void>;
   importData: (preview: ImportPreview) => Promise<void>;
-  syncNow: () => Promise<void>;
+  syncNow: () => Promise<boolean>;
 };
 
 const HealthStoreContext = createContext<HealthStoreValue | null>(null);
-
-function withoutLocalFiles(item: Record<string, unknown>) {
-  const {
-    localImageUri: _image,
-    localDocumentUri: _document,
-    localFileUri: _file,
-    ...syncable
-  } = item;
-  if (Array.isArray(syncable.attachments)) {
-    syncable.attachments = syncable.attachments.map((raw) => {
-      const { localUri: _uri, ...attachment } = raw as Record<string, unknown>;
-      return { ...attachment, availableLocally: false };
-    });
-  }
-  return syncable;
-}
 
 function revisionFor(snapshot: HealthSnapshot) {
   return (Object.keys(snapshot) as Array<keyof HealthSnapshot>).reduce(
@@ -149,6 +138,7 @@ export function HealthStoreProvider({
   const [ready, setReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [cloudSyncEnabled, setCloudSyncEnabledState] = useState(false);
+  const syncSingleFlight = useRef(createSingleFlightRunner());
   const saveRemoteProfile = useMutation(backendApi.profile.save);
   const syncRemoteBatch = useMutation(backendApi.health.syncBatch);
   const requestRemoteDeletion = useMutation(backendApi.account.requestDeletion);
@@ -236,45 +226,49 @@ export function HealthStoreProvider({
     void mergeRemoteSnapshot(records as never).then(refresh);
   }, [canUseCloud, refresh, remoteSnapshot]);
 
-  const syncNow = useCallback(async () => {
-    if (readOnly || !canUseCloud || !remoteProfile) return;
+  const synchronize = useCallback(async (
+    profile: LocalProfile,
+    consentedAt?: number,
+  ) => {
     setSyncStatus('syncing');
     try {
-      for (;;) {
-        const rows = await pendingOutbox();
-        if (!rows.length) break;
-        const batch = {
-          programs: [],
-          journalEntries: [],
-          labResults: [],
-          scanResults: [],
-          reminders: [],
-          medicalConditions: [],
-          medications: [],
-          allergyRisks: [],
-          documents: [],
-          chatConversations: [],
-          chatMessages: [],
-          preferences: [],
-        } as Record<HealthEntityName, unknown[]>;
-        for (const row of rows) {
-          batch[row.entity].push(
-            withoutLocalFiles(row.payload as unknown as Record<string, unknown>),
-          );
-        }
-        await syncRemoteBatch(batch as never);
-        await acknowledgeOutbox(rows.map((row) => row.id));
-      }
+      await syncSingleFlight.current(() =>
+        synchronizeMedicalCloud({
+          profile,
+          consentedAt,
+          saveProfile: (input) => saveRemoteProfile(input),
+          loadPendingOutbox: pendingOutbox,
+          pushBatch: (batch) => syncRemoteBatch(batch as never),
+          acknowledge: acknowledgeOutbox,
+        }),
+      );
       setSyncStatus('idle');
+      return true;
     } catch (error) {
       console.error('Health sync failed', error);
       setSyncStatus('error');
+      return false;
     }
-  }, [canUseCloud, readOnly, remoteProfile, syncRemoteBatch]);
+  }, [saveRemoteProfile, syncRemoteBatch]);
+
+  const syncNow = useCallback(async () => {
+    if (readOnly || !canUseCloud || !snapshot.profile) return false;
+    try {
+      const preference = await loadLocalSetting<CloudSyncPreference>(
+        CLOUD_SYNC_SETTING,
+      );
+      if (!preference?.enabled) return false;
+      return synchronize(snapshot.profile, preference.consentedAt);
+    } catch (error) {
+      console.error('Failed to read cloud sync consent', error);
+      setSyncStatus('error');
+      return false;
+    }
+  }, [canUseCloud, readOnly, snapshot.profile, synchronize]);
 
   useEffect(() => {
-    if (canUseCloud && remoteProfile) void syncNow();
-  }, [canUseCloud, localRevision, remoteProfile, syncNow]);
+    if (canUseCloud && snapshot.profile) void syncNow();
+  }, [canUseCloud, localRevision, snapshot.profile?.updatedAt]);
 
   const writeRecord = useCallback(
     async <K extends HealthEntityName>(entity: K, item: HealthEntityMap[K]) => {
@@ -453,13 +447,13 @@ export function HealthStoreProvider({
         updatedAt: Date.now(),
       };
       await saveLocalSetting(CLOUD_SYNC_SETTING, preference);
-      if (enabled && snapshot.profile && remoteEnabled) {
-        await saveRemoteProfile(snapshot.profile);
-      }
       setCloudSyncEnabledState(enabled);
       setSyncStatus('idle');
+      if (enabled && snapshot.profile && remoteEnabled) {
+        await synchronize(snapshot.profile, preference.consentedAt);
+      }
     },
-    [readOnly, remoteEnabled, saveRemoteProfile, snapshot.profile],
+    [readOnly, remoteEnabled, snapshot.profile, synchronize],
   );
 
   const requestAccountDeletion = useCallback(async () => {

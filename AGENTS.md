@@ -33,6 +33,17 @@ Push notifications are intentionally out of scope for the initial integration.
 Do not install or configure `@convex-dev/expo-push-notifications` until a
 separate feature explicitly requires it.
 
+## E2E testing
+
+- `npm run e2e:backend` exercises the live self-hosted Auth and Convex contract
+  with guarded disposable accounts and always performs exact admin cleanup.
+- `npm run e2e:web` checks the deployed read-only demo with Playwright.
+- `npm run e2e:native` runs the iOS/Android Maestro cross-device flow.
+- Live E2E credentials and artifacts belong only in ignored `output/e2e/` and
+  `.maestro/runtime/`; never commit tokens, generated passwords, or admin keys.
+- `.github/workflows/e2e-live.yml` must remain `workflow_dispatch`-only. Never
+  expose `CONVEX_SELF_HOSTED_ADMIN_KEY` to pull requests or untrusted code.
+
 ## Health data architecture
 
 - Native iOS and Android are local-first. Write records to SQLCipher SQLite and

@@ -61,6 +61,17 @@ export const save = mutation({
       .withIndex('by_user', (q) => q.eq('userId', userId))
       .unique();
     if (existing) {
+      if (args.updatedAt < existing.updatedAt) {
+        if (
+          args.consentToCloudSyncAt &&
+          args.consentToCloudSyncAt > (existing.consentToCloudSyncAt ?? 0)
+        ) {
+          await ctx.db.patch(existing._id, {
+            consentToCloudSyncAt: args.consentToCloudSyncAt,
+          });
+        }
+        return existing._id;
+      }
       await ctx.db.patch(existing._id, args);
       return existing._id;
     }

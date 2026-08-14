@@ -1,0 +1,63 @@
+name: Live Backend and Web E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-e2e
+  cancel-in-progress: false
+
+jobs:
+  live-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+      EXPO_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
+      CONVEX_SELF_HOSTED_URL: https://artificiallabs-convex.bebra42.ru
+      E2E_WEB_URL: https://artificiallabs.bebra42.ru
+      CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require protected deployment credentials
+        run: test -n "$CONVEX_SELF_HOSTED_ADMIN_KEY"
+
+      - name: Deploy the selected Convex functions
+        run: |
+          npx convex dev --once --tail-logs disable
+          git diff --exit-code -- convex/_generated
+
+      - name: Run unit and live backend tests
+        run: |
+          npm test
+          npm run e2e:backend
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Test deployed read-only web client
+        run: npm run e2e:web
+
+      - name: Upload E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-e2e-${{ github.run_id }}
+          path: output/e2e
+          if-no-files-found: warn
+          retention-days: 14

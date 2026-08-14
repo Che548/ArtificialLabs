@@ -30,6 +30,8 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+output/e2e/
+.maestro/runtime/
 
 # macOS
 .DS_Store

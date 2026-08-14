@@ -78,6 +78,7 @@ export function OnboardingScreen() {
             синхронизируются только после вашего согласия.
           </Text>
           <TextInput
+            testID="e2e-onboarding-name"
             value={displayName}
             onChangeText={setDisplayName}
             placeholder="Как к вам обращаться"
@@ -97,6 +98,7 @@ export function OnboardingScreen() {
             />
           </View>
           <TextInput
+            testID="e2e-onboarding-date"
             value={date}
             onChangeText={setDate}
             keyboardType="numbers-and-punctuation"
@@ -109,6 +111,7 @@ export function OnboardingScreen() {
           />
           {goal !== 'pregnancy' ? (
             <TextInput
+              testID="e2e-onboarding-cycle-length"
               value={cycleLength}
               onChangeText={setCycleLength}
               keyboardType="number-pad"
@@ -122,6 +125,7 @@ export function OnboardingScreen() {
             </Text>
           ) : null}
           <Pressable
+            testID="e2e-onboarding-submit"
             disabled={submitting}
             onPress={() => void submit()}
             className="mt-5 h-12 items-center justify-center rounded-full bg-brand-primary active:opacity-70"

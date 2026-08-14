@@ -1,0 +1,6 @@
+appId: com.anonymous.privateexpo
+---
+- launchApp
+- assertVisible: "Аккаунт ожидает удаления"
+- tapOn: "Восстановить аккаунт"
+- assertVisible: "Сегодня"

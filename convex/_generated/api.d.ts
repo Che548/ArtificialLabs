@@ -16,6 +16,7 @@ import type * as http from "../http.js";
 import type * as lib_access from "../lib/access.js";
 import type * as profile from "../profile.js";
 import type * as seed from "../seed.js";
+import type * as testing from "../testing.js";
 
 import type {
   ApiFromModules,
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   "lib/access": typeof lib_access;
   profile: typeof profile;
   seed: typeof seed;
+  testing: typeof testing;
 }>;
 
 /**

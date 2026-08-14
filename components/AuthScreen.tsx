@@ -33,6 +33,7 @@ const userAgreementUrl = 'https://brainwaves.engineering/docs#document-3';
 const designWidth = 402;
 const designHeight = 874;
 const devLoginEnabled = __DEV__;
+const e2eMode = process.env.EXPO_PUBLIC_E2E_MODE === '1';
 
 function normalizePhone(value: string) {
   return value.replace(/[^\d+]/g, '').slice(0, 16);
@@ -42,10 +43,12 @@ function Checkbox({
   checked,
   label,
   onPress,
+  testID,
 }: {
   checked: boolean;
   label: string;
   onPress: () => void;
+  testID?: string;
 }) {
   const activation = useRef(new Animated.Value(checked ? 1 : 0)).current;
 
@@ -61,6 +64,7 @@ function Checkbox({
 
   return (
     <Pressable
+      testID={testID}
       accessibilityLabel={label}
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
@@ -305,6 +309,7 @@ export function AuthScreen({
                     {channel === 'email' ? 'Почта' : 'Телефон'}
                   </Text>
                   <TextInput
+                    testID="e2e-auth-identifier"
                     autoCapitalize="none"
                     autoComplete={channel === 'email' ? 'email' : 'tel'}
                     autoCorrect={false}
@@ -328,14 +333,20 @@ export function AuthScreen({
                 <View style={[styles.fieldGroup, styles.passwordField]}>
                   <Text style={styles.fieldLabel}>Пароль</Text>
                   <TextInput
+                    testID="e2e-auth-password"
                     autoCapitalize="none"
                     autoComplete={
-                      flow === 'signIn' ? 'current-password' : 'new-password'
+                      e2eMode
+                        ? 'off'
+                        : flow === 'signIn'
+                          ? 'current-password'
+                          : 'new-password'
                     }
+                    textContentType={e2eMode ? 'oneTimeCode' : undefined}
                     onChangeText={setPassword}
                     placeholder="Введите пароль"
                     placeholderTextColor="#8F8A90"
-                    secureTextEntry
+                    secureTextEntry={!e2eMode}
                     style={styles.input}
                     value={password}
                   />
@@ -347,6 +358,7 @@ export function AuthScreen({
                       <Checkbox
                         checked={personalDataConsent}
                         label="Согласие на обработку персональных данных"
+                        testID="e2e-auth-consent-personal"
                         onPress={() =>
                           setPersonalDataConsent((current) => !current)
                         }
@@ -368,6 +380,7 @@ export function AuthScreen({
                       <Checkbox
                         checked={agreementAccepted}
                         label="Принятие пользовательского соглашения"
+                        testID="e2e-auth-consent-agreement"
                         onPress={() =>
                           setAgreementAccepted((current) => !current)
                         }
@@ -390,6 +403,7 @@ export function AuthScreen({
                 ) : null}
 
                 <Pressable
+                  testID="e2e-auth-submit"
                   accessibilityRole="button"
                   accessibilityState={{ disabled: !canSubmit || submitting }}
                   disabled={!canSubmit || submitting}
@@ -415,6 +429,7 @@ export function AuthScreen({
                 </Pressable>
 
                 <Pressable
+                  testID="e2e-auth-switch-flow"
                   accessibilityRole="button"
                   hitSlop={8}
                   onPress={changeFlow}

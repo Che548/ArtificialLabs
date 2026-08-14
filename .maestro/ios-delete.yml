@@ -1,0 +1,12 @@
+appId: com.anonymous.privateexpo
+---
+- launchApp
+- tapOn: "Профиль"
+- scrollUntilVisible:
+    element:
+      text: "Удаление аккаунта"
+    direction: DOWN
+- tapOn: "Удаление аккаунта"
+- tapOn: "Запланировать удаление аккаунта"
+- tapOn: "Подтвердить удаление через 30 дней"
+- assertVisible: "Аккаунт ожидает удаления"

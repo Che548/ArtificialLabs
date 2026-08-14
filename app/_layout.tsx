@@ -1,5 +1,3 @@
-// @refresh reset
-
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useConvexAuth } from 'convex/react';

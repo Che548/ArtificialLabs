@@ -150,6 +150,7 @@ export default function ProfileScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const { signOut } = useAuthActions();
   const {
+    accountDeletion,
     allergyRisks,
     cloudSyncEnabled,
     clearAllLocalData,
@@ -246,8 +247,9 @@ export default function ProfileScreen() {
 
   const synchronize = async () => {
     setSyncMessage(undefined);
-    await syncNow();
-    setSyncMessage('Данные синхронизированы');
+    if (await syncNow()) {
+      setSyncMessage('Данные синхронизированы');
+    }
   };
 
   const openSection = (section: ProfileSection) => {
@@ -410,6 +412,8 @@ export default function ProfileScreen() {
                 requestAccountDeletion,
                 syncMessage,
                 syncNow: () => void synchronize(),
+                syncDisabled:
+                  !cloudSyncEnabled || accountDeletion.pendingDeletion,
                 syncStatus,
                 viewerEmail,
               })}
@@ -682,6 +686,7 @@ function renderProfileSectionDirect({
   signOut,
   syncMessage,
   syncNow,
+  syncDisabled,
   syncStatus,
   viewerEmail,
 }: {
@@ -738,6 +743,7 @@ function renderProfileSectionDirect({
   signOut: () => void;
   syncMessage?: string;
   syncNow: () => void;
+  syncDisabled: boolean;
   syncStatus: 'idle' | 'syncing' | 'offline' | 'error';
   viewerEmail?: string;
 }) {
@@ -1002,6 +1008,7 @@ function renderProfileSectionDirect({
             <ProfileToggleRow
               label="Облачная синхронизация"
               subtitle="Только структурированные данные"
+              testID="e2e-cloud-sync-toggle"
               value={cloudSyncEnabled}
               disabled={readOnly}
               onChange={(enabled) => void setCloudSyncEnabled(enabled)}
@@ -1041,7 +1048,7 @@ function renderProfileSectionDirect({
                 : 'Синхронизировать сейчас'
             }
             subtitle={syncStatus === 'error' ? 'Произошла ошибка' : syncMessage}
-            disabled={syncStatus === 'syncing' || readOnly}
+            disabled={syncDisabled || syncStatus === 'syncing' || readOnly}
             onPress={syncNow}
           />
         </>

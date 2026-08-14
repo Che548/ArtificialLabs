@@ -1,0 +1,51 @@
+appId: com.anonymous.privateexpo
+---
+- tapOn:
+    text: "Open"
+    optional: true
+- tapOn:
+    text: "Wait"
+    optional: true
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - back
+- extendedWaitUntil:
+    visible: "сфера."
+    timeout: 120000
+- tapOn:
+    id: "e2e-auth-identifier"
+- inputText: ${E2E_EMAIL}
+- tapOn:
+    id: "e2e-auth-password"
+- inputText: ${E2E_PASSWORD}
+- back
+- tapOn:
+    id: "e2e-auth-switch-flow"
+- tapOn:
+    id: "e2e-auth-submit"
+- assertVisible: "Настроим мониторинг"
+- tapOn:
+    id: "e2e-onboarding-name"
+- inputText: "E2E Android"
+- back
+- tapOn:
+    id: "e2e-onboarding-date"
+- inputText: "2026-07-01"
+- back
+- tapOn:
+    id: "e2e-onboarding-submit"
+- assertVisible: "Сегодня"
+- tapOn: "Профиль"
+- scrollUntilVisible:
+    element:
+      text: "Разрешения и данные"
+    direction: DOWN
+- tapOn: "Разрешения и данные"
+- tapOn:
+    id: "e2e-cloud-sync-toggle"
+- tapOn: "Синхронизировать сейчас"
+- assertNotVisible: "Произошла ошибка"
+- assertVisible: "Синхронизировать сейчас"

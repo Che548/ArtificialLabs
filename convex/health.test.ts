@@ -192,6 +192,30 @@ describe('health ownership and sync', () => {
     expect(snapshot.medications[0]?.deletedAt).toBe(30);
   });
 
+  test('does not let a stale device overwrite a newer profile', async () => {
+    const t = convexTest(schema, modules);
+    const { client } = await createUser(t, 'profile-conflict@example.test');
+    await client.mutation(api.profile.save, {
+      displayName: 'Новый профиль',
+      goal: 'pregnancy',
+      onboardingCompleted: true,
+      updatedAt: 200,
+    });
+    await client.mutation(api.profile.save, {
+      displayName: 'Старый профиль',
+      goal: 'cycle',
+      onboardingCompleted: true,
+      consentToCloudSyncAt: 250,
+      updatedAt: 100,
+    });
+
+    const viewer = await client.query(api.profile.viewer, {});
+    expect(viewer.profile?.displayName).toBe('Новый профиль');
+    expect(viewer.profile?.goal).toBe('pregnancy');
+    expect(viewer.profile?.updatedAt).toBe(200);
+    expect(viewer.profile?.consentToCloudSyncAt).toBe(250);
+  });
+
   test('blocks deleted accounts, restores them, then purges after deadline', async () => {
     const t = convexTest(schema, modules);
     const { userId, client } = await createUser(t, 'delete@example.test');
@@ -221,5 +245,26 @@ describe('health ownership and sync', () => {
     await expect(
       t.mutation(api.health.syncBatch, emptyBatch()),
     ).rejects.toThrow('UNAUTHENTICATED');
+  });
+
+  test('purges only explicitly named E2E accounts', async () => {
+    const t = convexTest(schema, modules);
+    const e2e = await createUser(
+      t,
+      'artificiallabs-e2e+12345678@example.test',
+    );
+    const ordinary = await createUser(t, 'ordinary@example.test');
+
+    await expect(
+      t.mutation(internal.testing.purgeE2EAccount, {
+        email: 'ordinary@example.test',
+      }),
+    ).rejects.toThrow('E2E_EMAIL_REQUIRED');
+    await t.mutation(internal.testing.purgeE2EAccount, {
+      email: 'artificiallabs-e2e+12345678@example.test',
+    });
+
+    expect(await t.run((ctx) => ctx.db.get(e2e.userId))).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get(ordinary.userId))).not.toBeNull();
   });
 });

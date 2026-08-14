@@ -1,0 +1,46 @@
+appId: com.anonymous.privateexpo
+---
+- tapOn:
+    text: "Continue"
+    optional: true
+- tapOn:
+    point: "90%,48%"
+    optional: true
+- extendedWaitUntil:
+    visible: "сфера."
+    timeout: 120000
+- tapOn:
+    id: "e2e-auth-identifier"
+- inputText: ${E2E_EMAIL}
+- tapOn:
+    id: "e2e-auth-password"
+- inputText: ${E2E_PASSWORD}
+- tapOn: "сфера."
+- tapOn:
+    id: "e2e-auth-consent-personal"
+- tapOn:
+    id: "e2e-auth-consent-agreement"
+- tapOn:
+    id: "e2e-auth-submit"
+- assertVisible: "Настроим мониторинг"
+- tapOn:
+    id: "e2e-onboarding-name"
+- inputText: "E2E iOS"
+- tapOn: "Настроим мониторинг"
+- tapOn:
+    id: "e2e-onboarding-date"
+- inputText: "2026-07-01"
+- tapOn: "Настроим мониторинг"
+- tapOn:
+    id: "e2e-onboarding-submit"
+- assertVisible: "Сегодня"
+- tapOn: "Профиль"
+- scrollUntilVisible:
+    element:
+      text: "Разрешения и данные"
+    direction: DOWN
+- tapOn: "Разрешения и данные"
+- tapOn:
+    id: "e2e-cloud-sync-toggle"
+- tapOn: "Синхронизировать сейчас"
+- assertNotVisible: "Произошла ошибка"

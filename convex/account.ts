@@ -88,7 +88,7 @@ async function deleteProfileData(ctx: MutationCtx, profileId: string) {
   }
 }
 
-async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
+export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
   const profile = await ctx.db
     .query('profiles')
     .withIndex('by_user', (q) => q.eq('userId', userId as never))

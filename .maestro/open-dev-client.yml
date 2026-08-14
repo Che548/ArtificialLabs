@@ -1,0 +1,5 @@
+appId: com.anonymous.privateexpo
+---
+- tapOn:
+    text: "Open"
+    optional: true

@@ -638,6 +638,7 @@ export function ProfileToggleRow({
   label,
   onChange,
   subtitle,
+  testID,
   value,
 }: {
   defaultValue?: boolean;
@@ -646,6 +647,7 @@ export function ProfileToggleRow({
   label: string;
   onChange?: (value: boolean) => void;
   subtitle?: string;
+  testID?: string;
   value?: boolean;
 }) {
   const [localValue, setLocalValue] = useState(defaultValue);
@@ -670,6 +672,7 @@ export function ProfileToggleRow({
         <View style={styles.toggleSwitchSlot}>
           <Switch
             accessibilityLabel={label}
+            testID={testID}
             disabled={disabled}
             value={currentValue}
             onValueChange={(next) => {

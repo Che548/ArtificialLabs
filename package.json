@@ -44,6 +44,7 @@
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^24.13.3",
     "@types/react": "~19.1.10",
     "babel-preset-expo": "~54.0.10",
@@ -73,7 +74,12 @@
     "test:strip-cv-server": "tsx scripts/smoke-strip-cv-server.mjs",
     "web:serve": "node scripts/web-server.mjs",
     "web:full": "npm run build:web && npm run build:strip-cv && npm run web:serve",
-    "test": "tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts services/scanning/scan-overlay-geometry.test.ts modules/strip-cv/src/StripCv.web-request.test.ts lib/data-transfer.test.ts lib/sync-policy.test.ts && vitest run convex/health.test.ts",
+    "test": "tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts services/scanning/scan-overlay-geometry.test.ts modules/strip-cv/src/StripCv.web-request.test.ts lib/cloud-sync.test.ts lib/data-transfer.test.ts lib/sync-policy.test.ts && vitest run convex/health.test.ts",
+    "e2e:backend": "node --env-file-if-exists=.env.local --import tsx tests/e2e/backend.live.ts",
+    "e2e:web": "playwright test tests/e2e/web.spec.ts",
+    "e2e:native": "./scripts/run-native-e2e.sh",
+    "e2e:all": "npm run e2e:backend && npm run e2e:web && npm run e2e:native",
+    "e2e:cleanup": "node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts cleanup",
     "verify": "npm run check:expo && npm run typecheck && npm run doctor && npm run build:web"
   },
   "engines": {
