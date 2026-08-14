@@ -17,6 +17,31 @@ import { authTokenStorage } from '../lib/secure-storage';
 
 const activeTint = '#D31471';
 const inactiveTint = '#736E6C';
+const androidTabBackground = '#FFF5F1';
+const androidTabIndicator = '#F7DDEA';
+
+const tabIcons = {
+  chat: {
+    default: require('../assets/tab-icons/chat.png'),
+    selected: require('../assets/tab-icons/chat_selected.png'),
+  },
+  analyses: {
+    default: require('../assets/tab-icons/analyses.png'),
+    selected: require('../assets/tab-icons/analyses_selected.png'),
+  },
+  today: {
+    default: require('../assets/tab-icons/today.png'),
+    selected: require('../assets/tab-icons/today_selected.png'),
+  },
+  scan: {
+    default: require('../assets/tab-icons/scan.png'),
+    selected: require('../assets/tab-icons/scan_selected.png'),
+  },
+  profile: {
+    default: require('../assets/tab-icons/profile.png'),
+    selected: require('../assets/tab-icons/profile_selected.png'),
+  },
+} as const;
 
 function Tabs() {
   return (
@@ -24,9 +49,15 @@ function Tabs() {
       <NativeTabs
         tintColor={activeTint}
         iconColor={{ default: inactiveTint, selected: activeTint }}
-        backgroundColor="rgba(255,255,255,0.20)"
+        backgroundColor={
+          Platform.OS === 'android'
+            ? androidTabBackground
+            : 'rgba(255,255,255,0.20)'
+        }
         blurEffect="systemUltraThinMaterialLight"
         shadowColor="rgba(0,0,0,0.18)"
+        indicatorColor={androidTabIndicator}
+        labelVisibilityMode={Platform.OS === 'android' ? 'labeled' : undefined}
         disableTransparentOnScrollEdge
         labelStyle={{
           default: { color: inactiveTint, fontSize: 10 },
@@ -41,12 +72,16 @@ function Tabs() {
               default: 'waveform.and.person.filled',
               selected: 'waveform.and.person.filled',
             }}
+            androidSrc={tabIcons.chat}
           />
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="analyses">
           <Label>Анализы</Label>
-          <Icon sf={{ default: 'stethoscope', selected: 'stethoscope' }} />
+          <Icon
+            sf={{ default: 'stethoscope', selected: 'stethoscope' }}
+            androidSrc={tabIcons.analyses}
+          />
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="index">
@@ -56,12 +91,16 @@ function Tabs() {
               default: 'heart.circle',
               selected: 'heart.circle.fill',
             }}
+            androidSrc={tabIcons.today}
           />
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="scan">
           <Label>Скан</Label>
-          <Icon sf={{ default: 'viewfinder', selected: 'viewfinder' }} />
+          <Icon
+            sf={{ default: 'viewfinder', selected: 'viewfinder' }}
+            androidSrc={tabIcons.scan}
+          />
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="profile">
@@ -71,6 +110,7 @@ function Tabs() {
               default: 'person.crop.circle',
               selected: 'person.crop.circle.fill',
             }}
+            androidSrc={tabIcons.profile}
           />
         </NativeTabs.Trigger>
       </NativeTabs>

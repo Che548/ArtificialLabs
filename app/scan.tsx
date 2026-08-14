@@ -183,11 +183,22 @@ function LiquidGlassSurface({
                 },
               ]}
             />
+          ) : Platform.OS === 'android' ? (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor:
+                    highlight === 'dark'
+                      ? 'rgba(49,5,12,0.34)'
+                      : 'rgba(255,255,255,0.62)',
+                },
+              ]}
+            />
           ) : (
             <BlurView
               tint={fallbackTint}
               intensity={intensity}
-              experimentalBlurMethod="dimezisBlurView"
               style={StyleSheet.absoluteFill}
             />
           )}
@@ -235,6 +246,29 @@ function GlassControl({
           {children}
         </Pressable>
       </GlassView>
+    );
+  }
+
+  if (Platform.OS === 'android') {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        onPress={onPress}
+        style={({ pressed }) => [
+          style,
+          styles.androidMaterialControl,
+          styles.glassShadow,
+          pressed && styles.fallbackPressed,
+        ]}
+      >
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#FFFDFC', '#FFF5F8']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        {children}
+      </Pressable>
     );
   }
 
@@ -1158,6 +1192,12 @@ const styles = StyleSheet.create({
   },
   fallbackPressed: {
     transform: [{ scale: 1.035 }],
+  },
+  androidMaterialControl: {
+    overflow: 'hidden',
+    borderWidth: 0.8,
+    borderColor: '#ECDDE2',
+    backgroundColor: '#FFFDFC',
   },
   scannerCard: {
     position: 'absolute',

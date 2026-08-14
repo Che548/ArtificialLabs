@@ -2689,7 +2689,7 @@ export function AnalysisReferenceCard({
               key={band.top}
               intensity={band.intensity}
               tint="light"
-              experimentalBlurMethod="dimezisBlurView"
+              experimentalBlurMethod="none"
               style={[
                 styles.exactCardImageBlurBand,
                 { top: band.top, height: band.height },

@@ -74,12 +74,15 @@ function ChatComposerGlass({
 
   return (
     <View style={[style, styles.composerGlassFallback]}>
-      <BlurView
-        tint="systemUltraThinMaterialLight"
-        intensity={58}
-        experimentalBlurMethod="dimezisBlurView"
-        style={StyleSheet.absoluteFillObject}
-      />
+      {Platform.OS === 'android' ? (
+        <View style={[StyleSheet.absoluteFill, styles.composerAndroidSurface]} />
+      ) : (
+        <BlurView
+          tint="systemUltraThinMaterialLight"
+          intensity={58}
+          style={StyleSheet.absoluteFillObject}
+        />
+      )}
       <View style={styles.composerGlassWash} />
       <LinearGradient
         pointerEvents="none"
@@ -1984,6 +1987,9 @@ const styles = StyleSheet.create({
   composerGlassFallback: {
     overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.20)',
+  },
+  composerAndroidSurface: {
+    backgroundColor: 'rgba(255,255,255,0.76)',
   },
   composerGlassWash: {
     ...StyleSheet.absoluteFillObject,

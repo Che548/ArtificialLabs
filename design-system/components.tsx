@@ -729,6 +729,7 @@ export function AppText({
           color,
           fontFamily: sfByWeight[weight],
           fontVariant: numeric ? ['tabular-nums'] : undefined,
+          includeFontPadding: false,
         },
         style,
       ]}
@@ -838,11 +839,14 @@ export function LiquidGlassSurface({
         <>
           {Platform.OS === 'web' ? (
             <View style={[StyleSheet.absoluteFill, styles.webGlassFallback]} />
+          ) : Platform.OS === 'android' ? (
+            <View
+              style={[StyleSheet.absoluteFill, styles.androidGlassFallback]}
+            />
           ) : (
             <BlurView
               tint={fallbackTint}
               intensity={intensity}
-              experimentalBlurMethod="dimezisBlurView"
               style={StyleSheet.absoluteFillObject}
             />
           )}
@@ -906,6 +910,31 @@ export function GlassControl({
           {children}
         </Pressable>
       </GlassView>
+    );
+  }
+
+  if (Platform.OS === 'android') {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        onPress={onPress}
+        style={({ pressed }) => [
+          style,
+          styles.androidMaterialControl,
+          elevated && shadows.control,
+          pressed && {
+            transform: [{ scale: motion.pressedScale }],
+          },
+        ]}
+      >
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#FFFDFC', '#FFF5F8']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        {children}
+      </Pressable>
     );
   }
 
@@ -3986,6 +4015,15 @@ const styles = StyleSheet.create({
   },
   clipped: {
     overflow: 'hidden',
+  },
+  androidGlassFallback: {
+    backgroundColor: 'rgba(255,255,255,0.68)',
+  },
+  androidMaterialControl: {
+    overflow: 'hidden',
+    borderWidth: 0.8,
+    borderColor: '#ECDDE2',
+    backgroundColor: '#FFFDFC',
   },
   centerFill: {
     ...StyleSheet.absoluteFillObject,

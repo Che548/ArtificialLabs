@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   type StyleProp,
@@ -373,6 +374,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 22,
     letterSpacing: -0.4,
+    includeFontPadding: false,
   },
   heroLabelStrong: {
     color: colors.text.primary,
@@ -395,7 +397,7 @@ const styles = StyleSheet.create({
   },
   deadlineCard: {
     position: 'relative',
-    height: 104,
+    height: Platform.OS === 'android' ? 120 : 104,
     minWidth: 0,
     flexBasis: 0,
     flexGrow: 1,
@@ -445,6 +447,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 18,
     letterSpacing: -0.25,
+    includeFontPadding: false,
   },
   deadlineStrong: {
     color: colors.text.primary,

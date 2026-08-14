@@ -170,11 +170,22 @@ function LiquidGlassSurface({
                 },
               ]}
             />
+          ) : Platform.OS === 'android' ? (
+            <View
+              style={[
+                StyleSheet.absoluteFillObject,
+                {
+                  backgroundColor:
+                    highlight === 'dark'
+                      ? 'rgba(49,5,12,0.34)'
+                      : 'rgba(255,255,255,0.62)',
+                },
+              ]}
+            />
           ) : (
             <BlurView
               tint={fallbackTint}
               intensity={intensity}
-              experimentalBlurMethod="dimezisBlurView"
               style={StyleSheet.absoluteFillObject}
             />
           )}
@@ -192,7 +203,9 @@ function LiquidGlassSurface({
             style={StyleSheet.absoluteFillObject}
           />
           <View style={[styles.glassInnerStroke, { borderRadius: radius }]} />
-          {children}
+          <View pointerEvents="none" style={styles.nativeGlassContent}>
+            {children}
+          </View>
         </>
       )}
     </View>
@@ -243,6 +256,31 @@ function LiquidGlassPressable({
           {children}
         </Pressable>
       </GlassView>
+    );
+  }
+
+  if (Platform.OS === 'android') {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        onPress={onPress}
+        style={({ pressed }) => [
+          controlStyle,
+          styles.androidMaterialControl,
+          headerElevation
+            ? styles.headerControlShadow
+            : styles.glassControlShadow,
+          pressed && styles.glassFallbackPressed,
+        ]}
+      >
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#FFFDFC', '#FFF5F8']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        {children}
+      </Pressable>
     );
   }
 
@@ -1187,6 +1225,12 @@ const styles = StyleSheet.create({
   glassFallbackPressed: {
     transform: [{ scale: 1.035 }],
   },
+  androidMaterialControl: {
+    overflow: 'hidden',
+    borderWidth: 0.8,
+    borderColor: '#ECDDE2',
+    backgroundColor: '#FFFDFC',
+  },
   glassSurface: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 999,
@@ -1216,5 +1260,6 @@ const styles = StyleSheet.create({
   },
   projectText: {
     fontFamily: FONT_SF_REGULAR,
+    includeFontPadding: false,
   },
 });

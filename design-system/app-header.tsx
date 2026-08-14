@@ -88,22 +88,24 @@ export function AppHeader({
 
   return (
     <View style={[styles.header, style]}>
-      <View pointerEvents="none" style={styles.shadowLayer}>
-        <View style={[styles.headerCircle, styles.shadowSurface]} />
-        <View
-          style={[
-            centerContent ? styles.centerSlot : styles.datePill,
-            centerContent ? centerStyle : undefined,
-            centerContent ? undefined : styles.shadowSurface,
-          ]}
-        />
-        <View
-          style={[
-            styles.headerCircle,
-            hideRightControl ? undefined : styles.shadowSurface,
-          ]}
-        />
-      </View>
+      {Platform.OS === 'android' ? null : (
+        <View pointerEvents="none" style={styles.shadowLayer}>
+          <View style={[styles.headerCircle, styles.shadowSurface]} />
+          <View
+            style={[
+              centerContent ? styles.centerSlot : styles.datePill,
+              centerContent ? centerStyle : undefined,
+              centerContent ? undefined : styles.shadowSurface,
+            ]}
+          />
+          <View
+            style={[
+              styles.headerCircle,
+              hideRightControl ? undefined : styles.shadowSurface,
+            ]}
+          />
+        </View>
+      )}
 
       {hasNativeLiquidGlass ? (
         <GlassContainer spacing={12} style={styles.headerContent}>
