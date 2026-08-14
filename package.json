@@ -24,6 +24,7 @@
     "expo-linking": "~8.0.12",
     "expo-router": "~6.0.24",
     "expo-secure-store": "~15.0.8",
+    "expo-sharing": "~14.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
@@ -69,7 +70,7 @@
     "test:strip-cv-server": "tsx scripts/smoke-strip-cv-server.mjs",
     "web:serve": "node scripts/web-server.mjs",
     "web:full": "npm run build:web && npm run build:strip-cv && npm run web:serve",
-    "test": "tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts services/scanning/scan-overlay-geometry.test.ts modules/strip-cv/src/StripCv.web-request.test.ts",
+    "test": "tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts services/scanning/scan-overlay-geometry.test.ts modules/strip-cv/src/StripCv.web-request.test.ts lib/data-transfer.test.ts lib/sync-policy.test.ts",
     "verify": "npm run check:expo && npm run typecheck && npm run doctor && npm run build:web"
   },
   "engines": {

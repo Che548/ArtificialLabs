@@ -2492,6 +2492,12 @@ export function ScanFlowOverlay({
         imageUri: capturedImageUri,
         result: correctedResult ?? detectedResult,
         type,
+        resultSource: analysisResult ? 'stripcv' : 'manual',
+        algorithmVersion: analysisResult?.algorithm_version ?? 'manual-v1',
+        analysisStatus: analysisResult?.status,
+        qualityFlags: analysisResult?.reason_codes ?? [],
+        calibrationVersion: analysisResult?.assay_profile.version,
+        signalRatio: analysisResult?.signal.value ?? undefined,
       }),
     )
       .then(() => discardCapturedImage())

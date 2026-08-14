@@ -1,16 +1,23 @@
 import { useAuthActions } from '@convex-dev/auth/react';
+import * as DocumentPicker from 'expo-document-picker';
+import {
+  cacheDirectory,
+  readAsStringAsync,
+  writeAsStringAsync,
+} from 'expo-file-system/legacy';
 import { useLocalSearchParams } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   AccessibilityInfo,
-  Alert,
   Animated,
   Easing,
   Linking,
   ScrollView,
   StyleSheet,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -53,9 +60,21 @@ import {
   spacing,
 } from '../design-system';
 import { useHealthStore } from '../lib/health-store';
+import {
+  createEntityCsv,
+  createJsonArchive,
+  parseImportPayload,
+} from '../lib/data-transfer';
+import { persistLabDocument } from '../lib/local-files';
 import type {
+  AllergyRisk,
+  HealthDocument,
+  HealthEntityMap,
+  HealthEntityName,
   HealthGoal,
   LocalProfile,
+  MedicalCondition,
+  Medication,
   MonitoringProgram,
 } from '../lib/health-types';
 import DesignSystemScreen from './design-system';
@@ -131,14 +150,30 @@ export default function ProfileScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const { signOut } = useAuthActions();
   const {
+    allergyRisks,
+    cloudSyncEnabled,
+    clearAllLocalData,
+    deleteRecord,
+    documents,
     labResults,
+    medicalConditions,
+    medications,
+    preferences,
     profile,
     programs,
     readOnly,
+    requestAccountDeletion,
+    saveAllergyRisk,
+    saveDocument,
+    saveMedicalCondition,
+    saveMedication,
+    savePreferences,
+    setCloudSyncEnabled,
     setProgramStatus,
     syncNow,
     syncStatus,
     updateProfile,
+    viewerEmail,
   } = useHealthStore();
   const [activeSection, setActiveSection] = useState<ProfileSection | null>(
     null,
@@ -146,6 +181,8 @@ export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [journalNotifications, setJournalNotifications] = useState(true);
   const [resultNotifications, setResultNotifications] = useState(true);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
+  const [medicalRecommendations, setMedicalRecommendations] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string>();
   const [reducePageMotion, setReducePageMotion] = useState(false);
   const sectionProgress = useRef(new Animated.Value(0)).current;
@@ -155,6 +192,16 @@ export default function ProfileScreen() {
       setActiveSection('ui-kit');
     }
   }, [panel]);
+
+  useEffect(() => {
+    const stored = preferences.find((item) => !item.deletedAt);
+    if (!stored) return;
+    setNotificationsEnabled(stored.notificationsEnabled);
+    setJournalNotifications(stored.journalNotifications);
+    setResultNotifications(stored.resultNotifications);
+    setAnalyticsEnabled(stored.anonymousAnalytics);
+    setMedicalRecommendations(stored.medicalRecommendations);
+  }, [preferences]);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReducePageMotion);
@@ -188,9 +235,13 @@ export default function ProfileScreen() {
   }, [activeSection, reducePageMotion, sectionProgress]);
 
   const visiblePrograms = programs.filter((program) => !program.deletedAt);
-  const documentCount = labResults.filter(
-    (result) => !result.deletedAt && result.hasLocalSourceDocument,
-  ).length;
+  const visibleDocuments = documents.filter((item) => !item.deletedAt);
+  const documentCount = Math.max(
+    visibleDocuments.length,
+    labResults.filter(
+      (result) => !result.deletedAt && result.hasLocalSourceDocument,
+    ).length,
+  );
   const displayName = profile?.displayName?.trim() || 'Демо-профиль';
 
   const synchronize = async () => {
@@ -201,6 +252,27 @@ export default function ProfileScreen() {
 
   const openSection = (section: ProfileSection) => {
     setActiveSection(section);
+  };
+
+  const addDocumentFromPicker = async () => {
+    if (readOnly) return;
+    const picked = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: '*/*',
+    });
+    const asset = picked.canceled ? undefined : picked.assets[0];
+    if (!asset) return;
+    const localFileUri = await persistLabDocument(asset.uri);
+    await saveDocument({
+      title: asset.name,
+      category: 'medical',
+      documentDate: Date.now(),
+      hasLocalFile: true,
+      localFileUri,
+      mimeType: asset.mimeType ?? undefined,
+      size: asset.size,
+    });
   };
 
   const closeSection = () => {
@@ -263,7 +335,12 @@ export default function ProfileScreen() {
           />
 
           <ProfileOverview
+            allergyCount={allergyRisks.filter((item) => !item.deletedAt).length}
+            conditionCount={
+              medicalConditions.filter((item) => !item.deletedAt).length
+            }
             documentCount={documentCount}
+            medicationCount={medications.filter((item) => !item.deletedAt).length}
             programCount={visiblePrograms.length}
             onOpen={openSection}
           />
@@ -296,7 +373,18 @@ export default function ProfileScreen() {
               onBack={closeSection}
             >
               {renderProfileSectionDirect({
+                analyticsEnabled,
                 documentCount,
+                documents: visibleDocuments,
+                allergyRisks: allergyRisks.filter((item) => !item.deletedAt),
+                cloudSyncEnabled,
+                clearAllLocalData,
+                deleteRecord,
+                medicalConditions: medicalConditions.filter(
+                  (item) => !item.deletedAt,
+                ),
+                medications: medications.filter((item) => !item.deletedAt),
+                medicalRecommendations,
                 journalNotifications,
                 notificationsEnabled,
                 openSystemSettings: () => void Linking.openSettings(),
@@ -306,14 +394,24 @@ export default function ProfileScreen() {
                 resultNotifications,
                 section: activeSection,
                 saveProfile: updateProfile,
+                saveAllergyRisk,
+                saveDocumentFromPicker: addDocumentFromPicker,
+                saveMedicalCondition,
+                saveMedication,
+                savePreferences,
+                setCloudSyncEnabled,
+                setAnalyticsEnabled,
                 setJournalNotifications,
+                setMedicalRecommendations,
                 setNotificationsEnabled,
                 setProgramStatus,
                 setResultNotifications,
                 signOut: () => void signOut(),
+                requestAccountDeletion,
                 syncMessage,
                 syncNow: () => void synchronize(),
                 syncStatus,
+                viewerEmail,
               })}
             </ProfileDetailScreen>
           )}
@@ -324,11 +422,17 @@ export default function ProfileScreen() {
 }
 
 function ProfileOverview({
+  allergyCount,
+  conditionCount,
   documentCount,
+  medicationCount,
   onOpen,
   programCount,
 }: {
+  allergyCount: number;
+  conditionCount: number;
   documentCount: number;
+  medicationCount: number;
   onOpen: (section: ProfileSection) => void;
   programCount: number;
 }) {
@@ -351,7 +455,7 @@ function ProfileOverview({
           iconBackground={profileTones.health.tile}
           iconColor={profileTones.health.glyph}
           label="Медицинская история"
-          value="Не заполнено"
+          value={conditionCount ? String(conditionCount) : 'Не заполнено'}
           onPress={() => onOpen('medical-history')}
         />
         <ProfileSettingsRow
@@ -361,7 +465,7 @@ function ProfileOverview({
           iconBackground={profileTones.health.tile}
           iconColor={profileTones.health.glyph}
           label="Препараты"
-          value="Нет активных"
+          value={medicationCount ? String(medicationCount) : 'Нет активных'}
           onPress={() => onOpen('medications')}
         />
         <ProfileSettingsRow
@@ -371,7 +475,7 @@ function ProfileOverview({
           iconBackground={profileTones.health.tile}
           iconColor={profileTones.health.glyph}
           label="Аллергии и риски"
-          value="Не заполнено"
+          value={allergyCount ? String(allergyCount) : 'Не заполнено'}
           onPress={() => onOpen('allergies')}
         />
         <ProfileSettingsRow
@@ -543,17 +647,35 @@ function ProfileDetailScreen({
 }
 
 function renderProfileSectionDirect({
+  analyticsEnabled,
+  allergyRisks,
+  cloudSyncEnabled,
+  clearAllLocalData,
+  deleteRecord,
   documentCount,
+  documents,
   journalNotifications,
+  medicalConditions,
+  medications,
+  medicalRecommendations,
   notificationsEnabled,
   openSystemSettings,
   profile,
   programs,
   readOnly,
   resultNotifications,
+  requestAccountDeletion,
+  saveAllergyRisk,
+  saveDocumentFromPicker,
+  saveMedicalCondition,
+  saveMedication,
+  savePreferences,
   saveProfile,
   section,
+  setCloudSyncEnabled,
+  setAnalyticsEnabled,
   setJournalNotifications,
+  setMedicalRecommendations,
   setNotificationsEnabled,
   setProgramStatus,
   setResultNotifications,
@@ -561,29 +683,52 @@ function renderProfileSectionDirect({
   syncMessage,
   syncNow,
   syncStatus,
+  viewerEmail,
 }: {
+  analyticsEnabled: boolean;
+  allergyRisks: AllergyRisk[];
+  cloudSyncEnabled: boolean;
+  clearAllLocalData: () => Promise<void>;
+  deleteRecord: <K extends HealthEntityName>(
+    entity: K,
+    item: HealthEntityMap[K],
+  ) => Promise<void>;
   documentCount: number;
+  documents: HealthDocument[];
   journalNotifications: boolean;
+  medicalConditions: MedicalCondition[];
+  medications: Medication[];
+  medicalRecommendations: boolean;
   notificationsEnabled: boolean;
   openSystemSettings: () => void;
   profile: LocalProfile | null;
   programs: MonitoringProgram[];
   readOnly: boolean;
   resultNotifications: boolean;
-  saveProfile: (
-    input: Partial<
-      Pick<
-        LocalProfile,
-        | 'displayName'
-        | 'goal'
-        | 'pregnancyStartAt'
-        | 'lastPeriodStartAt'
-        | 'cycleLengthDays'
-      >
-    >,
+  requestAccountDeletion: () => Promise<void>;
+  saveAllergyRisk: (
+    input: Omit<AllergyRisk, 'localId' | 'updatedAt'> & { localId?: string },
   ) => Promise<void>;
+  saveDocumentFromPicker: () => Promise<void>;
+  saveMedicalCondition: (
+    input: Omit<MedicalCondition, 'localId' | 'updatedAt'> & { localId?: string },
+  ) => Promise<void>;
+  saveMedication: (
+    input: Omit<Medication, 'localId' | 'updatedAt'> & { localId?: string },
+  ) => Promise<void>;
+  savePreferences: (input: {
+    anonymousAnalytics?: boolean;
+    medicalRecommendations?: boolean;
+    notificationsEnabled?: boolean;
+    journalNotifications?: boolean;
+    resultNotifications?: boolean;
+  }) => Promise<void>;
+  saveProfile: (input: Partial<Omit<LocalProfile, 'updatedAt'>>) => Promise<void>;
   section: ProfileSection;
+  setCloudSyncEnabled: (enabled: boolean) => Promise<void>;
+  setAnalyticsEnabled: (value: boolean) => void;
   setJournalNotifications: (value: boolean) => void;
+  setMedicalRecommendations: (value: boolean) => void;
   setNotificationsEnabled: (value: boolean) => void;
   setProgramStatus: (
     program: MonitoringProgram,
@@ -594,10 +739,8 @@ function renderProfileSectionDirect({
   syncMessage?: string;
   syncNow: () => void;
   syncStatus: 'idle' | 'syncing' | 'offline' | 'error';
+  viewerEmail?: string;
 }) {
-  const action = (title: string, message: string) =>
-    Alert.alert(title, message, [{ text: 'Понятно' }]);
-
   switch (section) {
     case 'account':
       return (
@@ -606,14 +749,17 @@ function renderProfileSectionDirect({
             <ProfileFieldRow
               label="E-mail"
               inputMode="email"
-              placeholder="Добавить"
-              disabled={readOnly}
+              defaultValue={viewerEmail}
+              placeholder="E-mail входа"
+              disabled
             />
             <ProfileFieldRow
               label="Телефон"
               inputMode="tel"
+              defaultValue={profile?.phone}
               placeholder="Добавить"
               disabled={readOnly}
+              onSubmit={(phone) => void saveProfile({ phone: phone || undefined })}
               isLast
             />
           </ProfileSettingsGroup>
@@ -682,11 +828,20 @@ function renderProfileSectionDirect({
           </ProfileSettingsGroup>
 
           <ProfileSettingsGroup title="Состояния">
-            <ProfileToggleRow label="Послеродовый период" disabled={readOnly} />
+            <ProfileToggleRow
+              label="Послеродовый период"
+              value={profile?.postpartum ?? false}
+              disabled={readOnly}
+              onChange={(postpartum) => void saveProfile({ postpartum })}
+            />
             <ProfileToggleRow
               label="После отмены контрацепции"
+              value={profile?.postContraception ?? false}
               disabled={readOnly}
               isLast
+              onChange={(postContraception) =>
+                void saveProfile({ postContraception })
+              }
             />
           </ProfileSettingsGroup>
         </>
@@ -706,22 +861,36 @@ function renderProfileSectionDirect({
             />
             <ProfileDateRow
               label="Дата рождения"
+              value={profile?.birthDate}
               minimumDate={new Date(1900, 0, 1)}
               maximumDate={new Date()}
               disabled={readOnly}
+              onChange={(birthDate) => void saveProfile({ birthDate })}
             />
             <ProfileFieldRow
               label="Рост"
+              defaultValue={profile?.heightCm ? String(profile.heightCm) : ''}
               inputMode="numeric"
               suffix="см"
               disabled={readOnly}
+              onSubmit={(value) => {
+                const heightCm = Number(value);
+                if (heightCm >= 80 && heightCm <= 250)
+                  void saveProfile({ heightCm });
+              }}
             />
             <ProfileFieldRow
               label="Вес"
+              defaultValue={profile?.weightKg ? String(profile.weightKg) : ''}
               inputMode="numeric"
               suffix="кг"
               disabled={readOnly}
               isLast
+              onSubmit={(value) => {
+                const weightKg = Number(value.replace(',', '.'));
+                if (weightKg >= 20 && weightKg <= 400)
+                  void saveProfile({ weightKg });
+              }}
             />
           </ProfileSettingsGroup>
         </>
@@ -729,53 +898,35 @@ function renderProfileSectionDirect({
 
     case 'medical-history':
       return (
-        <View style={styles.medicalHistoryLayout}>
-          <ProfileActionRow
-            icon="plus"
-            label="Добавить запись"
-            pill
-            onPress={() =>
-              action(
-                'Новая запись',
-                'Форма медицинской записи будет открыта здесь.',
-              )
-            }
-          />
-          <ProfileEmptyMessage title="История пока не заполнена" />
-        </View>
+        <MedicalCrudSection
+          kind="condition"
+          readOnly={readOnly}
+          records={medicalConditions}
+          onDelete={(item) => deleteRecord('medicalConditions', item)}
+          onSave={saveMedicalCondition}
+        />
       );
 
     case 'medications':
       return (
-        <View style={styles.medicalHistoryLayout}>
-          <ProfileActionRow
-            icon="plus"
-            label="Добавить препарат"
-            pill
-            onPress={() =>
-              action('Новый препарат', 'Форма препарата будет открыта здесь.')
-            }
-          />
-          <ProfileEmptyMessage title="Препараты пока не добавлены" />
-        </View>
+        <MedicalCrudSection
+          kind="medication"
+          readOnly={readOnly}
+          records={medications}
+          onDelete={(item) => deleteRecord('medications', item)}
+          onSave={saveMedication}
+        />
       );
 
     case 'allergies':
       return (
-        <View style={styles.medicalHistoryLayout}>
-          <ProfileActionRow
-            icon="plus"
-            label="Добавить аллергию или риск"
-            pill
-            onPress={() =>
-              action(
-                'Новая запись',
-                'Форма аллергии или риска будет открыта здесь.',
-              )
-            }
-          />
-          <ProfileEmptyMessage title="Аллергии и риски пока не добавлены" />
-        </View>
+        <MedicalCrudSection
+          kind="allergy"
+          readOnly={readOnly}
+          records={allergyRisks}
+          onDelete={(item) => deleteRecord('allergyRisks', item)}
+          onSave={saveAllergyRisk}
+        />
       );
 
     case 'documents':
@@ -785,17 +936,27 @@ function renderProfileSectionDirect({
             icon="doc.badge.plus"
             label="Добавить документ"
             pill
-            onPress={() =>
-              action('Добавить документ', 'Выберите камеру, фото или файл.')
-            }
+            disabled={readOnly}
+            onPress={() => void saveDocumentFromPicker()}
           />
-          <ProfileEmptyMessage
-            title={
-              documentCount
-                ? `Сохранено документов: ${documentCount}`
-                : 'Документы пока не добавлены'
-            }
-          />
+          {documents.length ? (
+            <ProfileSettingsGroup title={`Сохранено: ${documentCount}`}>
+              {documents.map((item, index) => (
+                <ProfileSettingsRow
+                  key={item.localId}
+                  icon="doc.text.fill"
+                  fallback="Д"
+                  iconBackground={profileTones.health.tile}
+                  label={item.title}
+                  value={formatDate(item.documentDate)}
+                  isLast={index === documents.length - 1}
+                  onPress={() => void deleteRecord('documents', item)}
+                />
+              ))}
+            </ProfileSettingsGroup>
+          ) : (
+            <ProfileEmptyMessage title="Документы пока не добавлены" />
+          )}
         </View>
       );
 
@@ -841,19 +1002,28 @@ function renderProfileSectionDirect({
             <ProfileToggleRow
               label="Облачная синхронизация"
               subtitle="Только структурированные данные"
-              defaultValue={Boolean(profile?.consentToCloudSyncAt)}
+              value={cloudSyncEnabled}
               disabled={readOnly}
+              onChange={(enabled) => void setCloudSyncEnabled(enabled)}
             />
             <ProfileToggleRow
               label="Анонимная аналитика"
-              defaultValue
+              value={analyticsEnabled}
               disabled={readOnly}
+              onChange={(value) => {
+                setAnalyticsEnabled(value);
+                void savePreferences({ anonymousAnalytics: value });
+              }}
             />
             <ProfileToggleRow
               label="Медицинские данные"
               subtitle="Использовать для персональных рекомендаций"
-              defaultValue
+              value={medicalRecommendations}
               disabled={readOnly}
+              onChange={(value) => {
+                setMedicalRecommendations(value);
+                void savePreferences({ medicalRecommendations: value });
+              }}
               isLast
             />
           </ProfileSettingsGroup>
@@ -878,77 +1048,18 @@ function renderProfileSectionDirect({
       );
 
     case 'imports':
-      return (
-        <>
-          <ProfileChoiceControl
-            accessibilityLabel="Источник импорта"
-            defaultValue="health"
-            label="Источник"
-            options={[
-              { value: 'health', label: 'Apple Health' },
-              { value: 'file', label: 'Файл' },
-            ]}
-          />
-          <ProfileActionRow
-            icon="square.and.arrow.down"
-            label="Начать импорт"
-            onPress={() =>
-              action(
-                'Импорт данных',
-                'Выбор данных для импорта будет открыт здесь.',
-              )
-            }
-          />
-        </>
-      );
+      return <DataTransferSection mode="import" />;
 
     case 'exports':
-      return (
-        <>
-          <ProfileChoiceControl
-            accessibilityLabel="Формат экспорта"
-            defaultValue="pdf"
-            label="Формат"
-            options={[
-              { value: 'pdf', label: 'PDF' },
-              { value: 'csv', label: 'CSV' },
-            ]}
-          />
-          <ProfileSettingsGroup title="Включить в экспорт">
-            <ProfileToggleRow label="Профиль и программы" defaultValue />
-            <ProfileToggleRow label="Графики и отчеты" defaultValue />
-            <ProfileToggleRow label="Исходные документы" isLast />
-          </ProfileSettingsGroup>
-          <ProfileActionRow
-            icon="square.and.arrow.up"
-            label="Подготовить экспорт"
-            onPress={() =>
-              action(
-                'Экспорт данных',
-                'Файл будет подготовлен после подтверждения состава данных.',
-              )
-            }
-          />
-        </>
-      );
+      return <DataTransferSection mode="export" />;
 
     case 'security':
       return (
         <>
-          <ProfileActionRow
-            destructive
-            icon="trash.fill"
-            label="Удалить все данные"
-            onPress={() =>
-              Alert.alert(
-                'Удалить все данные?',
-                'Это действие нельзя отменить.',
-                [
-                  { text: 'Отмена', style: 'cancel' },
-                  { text: 'Удалить', style: 'destructive' },
-                ],
-              )
-            }
+          <ConfirmedAction
+            label="Удалить локальные данные"
+            confirmation="Нажмите ещё раз: данные устройства будут удалены"
+            onConfirm={clearAllLocalData}
           />
           <ProfileActionRow
             destructive
@@ -967,19 +1078,28 @@ function renderProfileSectionDirect({
             <ProfileToggleRow
               label="Разрешить уведомления"
               value={notificationsEnabled}
-              onChange={setNotificationsEnabled}
+              onChange={(value) => {
+                setNotificationsEnabled(value);
+                void savePreferences({ notificationsEnabled: value });
+              }}
             />
             <ProfileToggleRow
               label="Системные"
               value={notificationsEnabled && journalNotifications}
               disabled={!notificationsEnabled}
-              onChange={setJournalNotifications}
+              onChange={(value) => {
+                setJournalNotifications(value);
+                void savePreferences({ journalNotifications: value });
+              }}
             />
             <ProfileToggleRow
               label="Результаты и анализы"
               value={notificationsEnabled && resultNotifications}
               disabled={!notificationsEnabled}
-              onChange={setResultNotifications}
+              onChange={(value) => {
+                setResultNotifications(value);
+                void savePreferences({ resultNotifications: value });
+              }}
               isLast
             />
           </ProfileSettingsGroup>
@@ -1001,31 +1121,414 @@ function renderProfileSectionDirect({
               weight="semibold"
               color={colors.state.error}
             >
-              Необратимое действие
+              Восстановление доступно 30 дней
             </AppText>
             <AppText
               role="label"
               color={colors.text.secondary}
               style={styles.dangerDescription}
             >
-              Будут удалены профиль, Journal, программы, результаты, документы и
-              история чата.
+              Синхронизация сразу остановится. Через 30 дней будут окончательно
+              удалены профиль, журнал, программы, результаты и история чата.
             </AppText>
           </View>
-          <ProfileActionRow
-            destructive
-            icon="trash.fill"
-            label="Удалить аккаунт и все данные"
-            onPress={() =>
-              Alert.alert('Удалить аккаунт?', 'Это действие нельзя отменить.', [
-                { text: 'Отмена', style: 'cancel' },
-                { text: 'Удалить', style: 'destructive' },
-              ])
-            }
+          <ConfirmedAction
+            label="Запланировать удаление аккаунта"
+            confirmation="Подтвердить удаление через 30 дней"
+            onConfirm={requestAccountDeletion}
           />
         </>
       );
   }
+}
+
+type MedicalCrudProps =
+  | {
+      kind: 'condition';
+      readOnly: boolean;
+      records: MedicalCondition[];
+      onSave: (
+        input: Omit<MedicalCondition, 'localId' | 'updatedAt'> & {
+          localId?: string;
+        },
+      ) => Promise<void>;
+      onDelete: (item: MedicalCondition) => Promise<void>;
+    }
+  | {
+      kind: 'medication';
+      readOnly: boolean;
+      records: Medication[];
+      onSave: (
+        input: Omit<Medication, 'localId' | 'updatedAt'> & {
+          localId?: string;
+        },
+      ) => Promise<void>;
+      onDelete: (item: Medication) => Promise<void>;
+    }
+  | {
+      kind: 'allergy';
+      readOnly: boolean;
+      records: AllergyRisk[];
+      onSave: (
+        input: Omit<AllergyRisk, 'localId' | 'updatedAt'> & {
+          localId?: string;
+        },
+      ) => Promise<void>;
+      onDelete: (item: AllergyRisk) => Promise<void>;
+    };
+
+function MedicalCrudSection(props: MedicalCrudProps) {
+  const [selectedId, setSelectedId] = useState<string>();
+  const [primary, setPrimary] = useState('');
+  const [secondary, setSecondary] = useState('');
+  const records = props.records;
+  const selected = records.find((item) => item.localId === selectedId);
+  const primaryLabel =
+    props.kind === 'condition'
+      ? 'Состояние или диагноз'
+      : props.kind === 'medication'
+        ? 'Название препарата'
+        : 'Аллерген или риск';
+  const secondaryLabel =
+    props.kind === 'condition'
+      ? 'Заметка'
+      : props.kind === 'medication'
+        ? 'Дозировка'
+        : 'Реакция';
+
+  const reset = () => {
+    setSelectedId(undefined);
+    setPrimary('');
+    setSecondary('');
+  };
+
+  const select = (item: MedicalCondition | Medication | AllergyRisk) => {
+    setSelectedId(item.localId);
+    if ('title' in item) {
+      setPrimary(item.title);
+      setSecondary(item.notes ?? '');
+    } else if ('name' in item) {
+      setPrimary(item.name);
+      setSecondary(item.dosage ?? '');
+    } else {
+      setPrimary(item.allergen);
+      setSecondary(item.reaction ?? '');
+    }
+  };
+
+  const save = async () => {
+    const normalized = primary.trim();
+    if (!normalized || props.readOnly) return;
+    if (props.kind === 'condition') {
+      const current = selected as MedicalCondition | undefined;
+      await props.onSave({
+        ...current,
+        localId: current?.localId,
+        title: normalized,
+        status: current?.status ?? 'active',
+        notes: secondary.trim() || undefined,
+      });
+    } else if (props.kind === 'medication') {
+      const current = selected as Medication | undefined;
+      await props.onSave({
+        ...current,
+        localId: current?.localId,
+        name: normalized,
+        dosage: secondary.trim() || undefined,
+        active: current?.active ?? true,
+      });
+    } else {
+      const current = selected as AllergyRisk | undefined;
+      await props.onSave({
+        ...current,
+        localId: current?.localId,
+        allergen: normalized,
+        reaction: secondary.trim() || undefined,
+        severity: current?.severity ?? 'unknown',
+      });
+    }
+    reset();
+  };
+
+  const remove = async () => {
+    if (!selected) return;
+    if (props.kind === 'condition')
+      await props.onDelete(selected as MedicalCondition);
+    else if (props.kind === 'medication')
+      await props.onDelete(selected as Medication);
+    else await props.onDelete(selected as AllergyRisk);
+    reset();
+  };
+
+  return (
+    <View style={styles.medicalHistoryLayout}>
+      {records.length ? (
+        <ProfileSettingsGroup title="Сохранённые записи">
+          {records.map((item, index) => {
+            const label =
+              'title' in item
+                ? item.title
+                : 'name' in item
+                  ? item.name
+                  : item.allergen;
+            const value =
+              'status' in item
+                ? item.status === 'active'
+                  ? 'Активно'
+                  : 'Завершено'
+                : 'active' in item
+                  ? item.active
+                    ? 'Принимается'
+                    : 'Завершён'
+                  : item.severity === 'unknown'
+                    ? undefined
+                    : item.severity;
+            return (
+              <ProfileSettingsRow
+                key={item.localId}
+                icon="cross.case.fill"
+                fallback="+"
+                iconBackground={profileTones.health.tile}
+                iconColor={profileTones.health.glyph}
+                label={label}
+                value={value}
+                isLast={index === records.length - 1}
+                onPress={() => select(item)}
+              />
+            );
+          })}
+        </ProfileSettingsGroup>
+      ) : (
+        <ProfileEmptyMessage title="Записей пока нет" />
+      )}
+      <View style={styles.inlineEditor}>
+        <AppText role="label" weight="semibold">
+          {selected ? 'Изменить запись' : 'Добавить запись'}
+        </AppText>
+        <TextInput
+          editable={!props.readOnly}
+          value={primary}
+          onChangeText={setPrimary}
+          placeholder={primaryLabel}
+          placeholderTextColor="#989395"
+          style={styles.inlineInput}
+        />
+        <TextInput
+          editable={!props.readOnly}
+          value={secondary}
+          onChangeText={setSecondary}
+          placeholder={secondaryLabel}
+          placeholderTextColor="#989395"
+          style={styles.inlineInput}
+        />
+        <ProfileActionRow
+          icon="checkmark"
+          label="Сохранить"
+          disabled={props.readOnly || !primary.trim()}
+          onPress={() => void save()}
+        />
+        {selected ? (
+          <ConfirmedAction
+            label="Удалить запись"
+            confirmation="Подтвердить удаление записи"
+            onConfirm={remove}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const csvCategories: Array<{
+  value: HealthEntityName;
+  label: string;
+}> = [
+  { value: 'journalEntries', label: 'Дневник' },
+  { value: 'labResults', label: 'Анализы' },
+  { value: 'scanResults', label: 'Сканы' },
+  { value: 'medicalConditions', label: 'История' },
+  { value: 'medications', label: 'Препараты' },
+  { value: 'allergyRisks', label: 'Аллергии' },
+];
+
+function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
+  const store = useHealthStore();
+  const [format, setFormat] = useState<'json' | 'csv'>('json');
+  const [category, setCategory] = useState<HealthEntityName>('journalEntries');
+  const [preview, setPreview] = useState<ReturnType<typeof parseImportPayload>>();
+  const [message, setMessage] = useState<string>();
+  const [busy, setBusy] = useState(false);
+
+  const snapshot = {
+    profile: store.profile,
+    programs: store.programs,
+    journalEntries: store.journalEntries,
+    labResults: store.labResults,
+    scanResults: store.scanResults,
+    reminders: store.reminders,
+    medicalConditions: store.medicalConditions,
+    medications: store.medications,
+    allergyRisks: store.allergyRisks,
+    documents: store.documents,
+    chatConversations: store.chatConversations,
+    chatMessages: store.chatMessages,
+    preferences: store.preferences,
+  };
+
+  const pickImport = async () => {
+    setMessage(undefined);
+    const picked = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: ['application/json', 'text/csv', 'text/comma-separated-values'],
+    });
+    const asset = picked.canceled ? undefined : picked.assets[0];
+    if (!asset) return;
+    try {
+      const parsed = parseImportPayload(await readAsStringAsync(asset.uri));
+      setPreview(parsed);
+      setMessage(`Проверено записей: ${parsed.total}`);
+    } catch (error) {
+      console.error('Import validation failed', error);
+      setPreview(undefined);
+      setMessage('Файл не соответствует формату ArtificialLabs JSON/CSV.');
+    }
+  };
+
+  const applyImport = async () => {
+    if (!preview) return;
+    setBusy(true);
+    try {
+      await store.importData(preview);
+      setMessage(`Импортировано записей: ${preview.total}`);
+      setPreview(undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const exportData = async () => {
+    if (!cacheDirectory) {
+      setMessage('Экспорт файлов недоступен на этой платформе.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const content =
+        format === 'json'
+          ? createJsonArchive(snapshot)
+          : createEntityCsv(category, snapshot[category] as never);
+      const extension = format === 'json' ? 'json' : 'csv';
+      const uri = `${cacheDirectory}artificiallabs-export-${Date.now()}.${extension}`;
+      await writeAsStringAsync(uri, content);
+      if (!(await Sharing.isAvailableAsync())) {
+        setMessage(`Файл подготовлен: ${uri}`);
+        return;
+      }
+      await Sharing.shareAsync(uri, {
+        dialogTitle: 'Экспорт ArtificialLabs',
+        mimeType: format === 'json' ? 'application/json' : 'text/csv',
+      });
+      setMessage('Файл подготовлен для экспорта.');
+    } catch (error) {
+      console.error('Export failed', error);
+      setMessage('Не удалось подготовить файл экспорта.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (mode === 'import') {
+    return (
+      <View style={styles.medicalHistoryLayout}>
+        <ProfileEmptyMessage title="Поддерживаются ArtificialLabs JSON и CSV" />
+        <ProfileActionRow
+          icon="square.and.arrow.down"
+          label="Выбрать файл"
+          disabled={store.readOnly || busy}
+          onPress={() => void pickImport()}
+        />
+        {preview ? (
+          <ProfileActionRow
+            icon="checkmark"
+            label={`Импортировать ${preview.total} записей`}
+            disabled={busy}
+            onPress={() => void applyImport()}
+          />
+        ) : null}
+        {message ? (
+          <AppText role="label" color={colors.text.secondary}>
+            {message}
+          </AppText>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.medicalHistoryLayout}>
+      <ProfileChoiceControl
+        accessibilityLabel="Формат экспорта"
+        defaultValue="json"
+        label="Формат"
+        value={format}
+        options={[
+          { value: 'json', label: 'JSON' },
+          { value: 'csv', label: 'CSV' },
+        ]}
+        onChange={setFormat}
+      />
+      {format === 'csv' ? (
+        <ProfileVerticalChoiceControl
+          accessibilityLabel="Категория CSV"
+          defaultValue="journalEntries"
+          label="Категория"
+          value={category}
+          options={csvCategories}
+          onChange={setCategory}
+        />
+      ) : null}
+      <ProfileEmptyMessage title="Исходные файлы и локальные URI в экспорт не включаются" />
+      <ProfileActionRow
+        icon="square.and.arrow.up"
+        label="Подготовить экспорт"
+        disabled={store.readOnly || busy}
+        onPress={() => void exportData()}
+      />
+      {message ? (
+        <AppText role="label" color={colors.text.secondary}>
+          {message}
+        </AppText>
+      ) : null}
+    </View>
+  );
+}
+
+function ConfirmedAction({
+  confirmation,
+  label,
+  onConfirm,
+}: {
+  confirmation: string;
+  label: string;
+  onConfirm: () => Promise<void>;
+}) {
+  const [armed, setArmed] = useState(false);
+  return (
+    <ProfileActionRow
+      destructive
+      icon="trash.fill"
+      label={armed ? confirmation : label}
+      onPress={() => {
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        setArmed(false);
+        void onConfirm();
+      }}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
@@ -1091,6 +1594,20 @@ const styles = StyleSheet.create({
     minHeight: 0,
     flex: 1,
     gap: spacing.lg,
+  },
+  inlineEditor: {
+    gap: spacing.sm,
+    borderRadius: radii.lg,
+    backgroundColor: '#FFFFFF',
+    padding: spacing.md,
+  },
+  inlineInput: {
+    minHeight: 48,
+    borderRadius: radii.md,
+    backgroundColor: '#F3F1F2',
+    paddingHorizontal: spacing.md,
+    color: colors.text.primary,
+    fontSize: 16,
   },
   dangerIntro: {
     padding: spacing.md,

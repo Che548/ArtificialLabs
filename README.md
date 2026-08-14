@@ -18,9 +18,10 @@ pipeline.
 
 Medical records are written to SQLCipher SQLite first. Scan images and lab
 source documents remain in app document storage on the device and are never
-included in Convex mutations. StripCV results help the user inspect a scan,
-but the saved health record remains the user's manual positive, negative, or
-invalid confirmation (`manual-v1`). The web build is a read-only product demo.
+included in Convex mutations. StripCV provenance, quality flags, signal ratio,
+algorithm version, and confidence are stored as structured values; the final
+result remains explicitly user-confirmed and is not diagnostic. The web build
+is a read-only product demo.
 
 Email verification, password reset, medical interpretation, AI chat, push
 notifications, and the admin panel are deferred.

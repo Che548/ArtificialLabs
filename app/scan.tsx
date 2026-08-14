@@ -816,9 +816,18 @@ export default function ScanScreen() {
                           record.result === 'Пик ЛГ'
                             ? 'positive'
                             : 'negative',
-                        confidence: 'manual',
-                        qualityFlags: [],
-                        algorithmVersion: 'manual-v1',
+                        resultSource: record.resultSource ?? 'manual',
+                        confidence: Math.max(
+                          0,
+                          Math.min(1, record.confidence / 100),
+                        ),
+                        qualityFlags: record.qualityFlags ?? [],
+                        calibrationVersion: record.calibrationVersion,
+                        algorithmVersion:
+                          record.algorithmVersion ?? 'manual-v1',
+                        analysisStatus: record.analysisStatus,
+                        signalRatio: record.signalRatio,
+                        confirmedByUser: true,
                         hasLocalImage: true,
                         localImageUri: record.imageUri,
                       });

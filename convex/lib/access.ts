@@ -19,7 +19,26 @@ export async function getOwnedProfile(ctx: Ctx) {
     .unique();
 }
 
+export async function getAccountState(ctx: Ctx) {
+  const userId = await requireUserId(ctx);
+  return await ctx.db
+    .query('accountStates')
+    .withIndex('by_user', (q) => q.eq('userId', userId))
+    .unique();
+}
+
+export async function requireActiveAccount(ctx: Ctx) {
+  const userId = await requireUserId(ctx);
+  const state = await ctx.db
+    .query('accountStates')
+    .withIndex('by_user', (q) => q.eq('userId', userId))
+    .unique();
+  if (state?.scheduledDeletionAt) throw new Error('ACCOUNT_PENDING_DELETION');
+  return userId;
+}
+
 export async function requireOwnedProfile(ctx: Ctx): Promise<Doc<'profiles'>> {
+  await requireActiveAccount(ctx);
   const profile = await getOwnedProfile(ctx);
   if (!profile) throw new Error('PROFILE_REQUIRED');
   return profile;
