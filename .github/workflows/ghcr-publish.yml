@@ -27,6 +27,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Require Expo deployment files
+        run: |
+          test -f package.json
+          test -f package-lock.json
+          test -f Dockerfile
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:

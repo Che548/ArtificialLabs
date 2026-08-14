@@ -4,6 +4,7 @@ module.exports = {
   content: [
     './App.{js,jsx,ts,tsx}',
     './app/**/*.{js,jsx,ts,tsx}',
+    './components/**/*.{js,jsx,ts,tsx}',
     './design-system/**/*.{js,jsx,ts,tsx}',
   ],
   presets: [require('nativewind/preset')],
@@ -19,6 +20,9 @@ module.exports = {
         ink: {
           DEFAULT: '#212123',
           muted: '#736E6C',
+        },
+        text: {
+          secondary: '#736E6C',
         },
         surface: {
           canvas: '#F5F3F3',
@@ -37,7 +41,10 @@ module.exports = {
         'sf-medium': ['SFProDisplay-Medium'],
         'sf-semibold': ['SFProDisplay-Semibold'],
         'sf-bold': ['SFProDisplay-Bold'],
-        yaro: ['YaroRg-Regular'],
+        yaro: ['YaroRg'],
+      },
+      boxShadow: {
+        card: '0 12px 30px rgba(55, 31, 39, 0.10)',
       },
       borderRadius: {
         'card-sm': '12px',

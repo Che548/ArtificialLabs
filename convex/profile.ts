@@ -3,7 +3,11 @@ import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { getOwnedProfile, requireUserId } from './lib/access';
 
-const goal = v.union(v.literal('planning'), v.literal('pregnancy'));
+const goal = v.union(
+  v.literal('cycle'),
+  v.literal('planning'),
+  v.literal('pregnancy'),
+);
 
 export const current = query({
   args: {},

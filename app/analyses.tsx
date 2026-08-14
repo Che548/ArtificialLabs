@@ -1,33 +1,101 @@
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  AnalysisAttentionHero,
+  AnalysisDeadlineSummary,
+  AnalysisReferenceHeader,
+  AnalysisReferencePlanCard,
+  AnalysisTabs,
+  AppText,
+  colors,
+  type AnalysisPlanCardProps,
+  type AnalysisTabKey,
+  fonts,
+  radii,
+  shadows,
+  sizes,
+  spacing,
+} from '../design-system';
 import { useHealthStore } from '../lib/health-store';
 import { persistLabDocument } from '../lib/local-files';
 
-const recommendations = {
-  planning: [
-    ['progesterone', 'Прогестерон', 'По фазе цикла'],
-    ['thyroid', 'ТТГ', 'В течение месяца'],
-  ],
-  pregnancy: [
-    ['blood-count', 'Общий анализ крови', 'В течение месяца'],
-    ['urine', 'Общий анализ мочи', 'В течение 2 недель'],
-  ],
-} as const;
+const bloodTubesImage = require('../assets/analyses/blood-tubes.png');
+const ultrasoundImage = require('../assets/analyses/ultrasound.png');
+const hysteroscopeImage = require('../assets/analyses/hysteroscope.png');
+const mascotHandsImage = require('../assets/analyses/mascot-hands-reference.png');
+
+type PlannedAnalysis = Omit<AnalysisPlanCardProps, 'onView'> & {
+  id: string;
+  tab: Exclude<AnalysisTabKey, 'completed'>;
+};
+
+const plannedAnalyses: PlannedAnalysis[] = [
+  {
+    id: 'blood-count',
+    tab: 'current',
+    title: 'Исследования крови',
+    description: 'Общий анализ крови, гематокрит, гемоглобин, тромбоциты',
+    category: 'Лаборатория',
+    dueLabel: 'Сдать до',
+    dueValue: '14 августа',
+    validityLabel: 'Актуален',
+    validityValue: '30 дней',
+    status: 'Осталось 6 Дней',
+    image: bloodTubesImage,
+    imagePosition: 'center',
+    tone: 'rose',
+  },
+  {
+    id: 'pelvic-ultrasound',
+    tab: 'current',
+    title: 'УЗИ малого таза',
+    description: 'Ультразвуковое исследование органов малого таза',
+    category: 'Диагностика',
+    dueLabel: 'Пройти до',
+    dueValue: '26 августа',
+    validityLabel: 'Актуально',
+    validityValue: '3 месяца',
+    status: 'Запланировать визит',
+    image: ultrasoundImage,
+    imagePosition: 'center',
+    tone: 'lilac',
+  },
+  {
+    id: 'hysteroscopy',
+    tab: 'upcoming',
+    title: 'Гистероскопия',
+    description: 'Исследование полости матки и эндометрия',
+    category: 'Процедура',
+    dueLabel: 'Рекомендуемая дата',
+    dueValue: '5 сентября',
+    validityLabel: 'Актуально',
+    validityValue: '6 месяцев',
+    status: 'В следующем месяце',
+    image: hysteroscopeImage,
+    imagePosition: 'top',
+    tone: 'pearl',
+  },
+];
 
 export default function AnalysesScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, labResults, addLabResult, readOnly } = useHealthStore();
+  const headerTop = Platform.OS === 'web' ? 16 : Math.max(16, insets.top + 8);
+  const { labResults, addLabResult, readOnly } = useHealthStore();
+  const [activeTab, setActiveTab] = useState<AnalysisTabKey>('current');
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [analyte, setAnalyte] = useState('');
@@ -36,6 +104,11 @@ export default function AnalysesScreen() {
   const [documentUri, setDocumentUri] = useState<string>();
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+
+  const savedResults = useMemo(
+    () => labResults.filter((item) => !item.deletedAt),
+    [labResults],
+  );
 
   const pickDocument = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -75,6 +148,7 @@ export default function AnalysesScreen() {
       setUnit('');
       setDocumentUri(undefined);
       setFormOpen(false);
+      setActiveTab('completed');
     } catch (cause) {
       console.error('Saving lab result failed', cause);
       setError('Не удалось сохранить результат.');
@@ -83,140 +157,161 @@ export default function AnalysesScreen() {
     }
   };
 
-  const items = recommendations[profile?.goal ?? 'planning'];
+  const visiblePlans =
+    activeTab === 'upcoming'
+      ? plannedAnalyses
+      : plannedAnalyses.filter((item) => item.tab === 'current');
+
   return (
-    <View className="flex-1 bg-surface-canvas">
+    <View style={styles.root}>
       <StatusBar style="dark" />
       <ScrollView
-        contentContainerStyle={{
-          paddingTop: insets.top + 24,
-          paddingBottom: 120,
-        }}
-        className="px-4"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: headerTop + 48,
+            paddingBottom: Math.max(insets.bottom + 118, 132),
+          },
+        ]}
       >
-        <View className="flex-row items-end justify-between">
-          <View>
-            <Text className="font-sf-semibold text-[30px] leading-9 text-ink">
-              Анализы
-            </Text>
-            <Text className="text-text-secondary mt-1 font-sf text-[15px]">
-              План и подтверждённые результаты
-            </Text>
-          </View>
-          <Pressable
-            disabled={readOnly}
-            onPress={() => setFormOpen(true)}
-            className={`h-11 items-center justify-center rounded-full px-5 ${readOnly ? 'bg-state-disabled' : 'bg-brand-primary'}`}
-          >
-            <Text className="font-sf-medium text-[14px] text-white">
-              Добавить
-            </Text>
-          </Pressable>
+        <View style={styles.heroWrap}>
+          <AnalysisAttentionHero
+            mascot={mascotHandsImage}
+            score={72}
+            onPress={() => setActiveTab('current')}
+          />
         </View>
 
-        <View className="mt-5 flex-row gap-3">
-          <View className="shadow-card flex-1 rounded-card-lg bg-white p-4">
-            <Text className="font-yaro text-[32px] text-brand-primary">
-              {labResults.length}
-            </Text>
-            <Text className="text-text-secondary font-sf text-[13px]">
-              результатов сохранено
-            </Text>
-          </View>
-          <View className="shadow-card flex-1 rounded-card-lg bg-white p-4">
-            <Text className="font-yaro text-[32px] text-brand-primary">
-              {items.length}
-            </Text>
-            <Text className="text-text-secondary font-sf text-[13px]">
-              рекомендовано сейчас
-            </Text>
-          </View>
+        <AnalysisDeadlineSummary
+          currentCount={
+            plannedAnalyses.filter((item) => item.tab === 'current').length
+          }
+          upcomingCount={plannedAnalyses.length}
+          onCurrent={() => setActiveTab('current')}
+          onUpcoming={() => setActiveTab('upcoming')}
+          style={styles.summaryWrap}
+        />
+
+        <View style={styles.tabsWrap}>
+          <AnalysisTabs
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            variant={2}
+          />
         </View>
 
-        <Text className="mt-6 font-sf-semibold text-[20px] text-ink">
-          Ближайшие проверки
-        </Text>
-        {items.map(([key, name, due]) => (
-          <View
-            key={key}
-            className="shadow-card mt-3 rounded-card-lg bg-white p-4"
-          >
-            <Text className="font-sf-semibold text-[17px] text-ink">
-              {name}
-            </Text>
-            <Text className="text-text-secondary mt-1 font-sf text-[14px]">
-              {due}
-            </Text>
+        {activeTab !== 'completed' ? (
+          <View style={styles.cardsList}>
+            {visiblePlans.map((item) => (
+              <AnalysisReferencePlanCard
+                key={item.id}
+                title={item.title}
+                description={item.description}
+                dueLabel={item.dueLabel}
+                dueValue={item.dueValue}
+                validityLabel={item.validityLabel}
+                validityValue={item.validityValue}
+                image={item.image}
+                onView={() => undefined}
+              />
+            ))}
           </View>
-        ))}
-
-        <Text className="mt-6 font-sf-semibold text-[20px] text-ink">
-          История
-        </Text>
-        {labResults.filter((item) => !item.deletedAt).length ? (
-          labResults
-            .filter((item) => !item.deletedAt)
-            .map((result) => (
-              <View
-                key={result.localId}
-                className="shadow-card mt-3 rounded-card-lg bg-white p-4"
-              >
-                <View className="flex-row items-start justify-between">
-                  <View className="flex-1">
-                    <Text className="font-sf-semibold text-[17px] text-ink">
-                      {result.title}
-                    </Text>
-                    <Text className="text-text-secondary mt-1 font-sf text-[13px]">
-                      {new Date(result.collectedAt).toLocaleDateString('ru-RU')}
-                      {result.hasLocalSourceDocument
-                        ? ' · исходник на устройстве'
-                        : ''}
-                    </Text>
-                  </View>
-                  <View className="rounded-full bg-surface-warm px-3 py-1.5">
-                    <Text className="font-sf-medium text-[12px] text-ink">
-                      Нужна проверка
-                    </Text>
-                  </View>
-                </View>
-                {result.analytes.map((item) => (
-                  <View
-                    key={`${result.localId}-${item.name}`}
-                    className="mt-3 flex-row justify-between border-t border-surface-divider pt-3"
-                  >
-                    <Text className="text-text-secondary font-sf text-[14px]">
-                      {item.name}
-                    </Text>
-                    <Text className="font-sf-semibold text-[14px] text-ink">
-                      {item.value}
-                      {item.unit ? ` ${item.unit}` : ''}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ))
+        ) : savedResults.length ? (
+          <View style={styles.cardsList}>
+            {savedResults.map((result, index) => {
+              const firstAnalyte = result.analytes[0];
+              const resultImages = [
+                bloodTubesImage,
+                ultrasoundImage,
+                hysteroscopeImage,
+              ];
+              return (
+                <AnalysisReferencePlanCard
+                  key={result.localId}
+                  title={result.title}
+                  dueLabel="Дата сдачи"
+                  dueValue={new Date(result.collectedAt).toLocaleDateString(
+                    'ru-RU',
+                  )}
+                  validityLabel={firstAnalyte?.name ?? 'Результат'}
+                  validityValue={
+                    firstAnalyte
+                      ? `${firstAnalyte.value}${firstAnalyte.unit ? ` ${firstAnalyte.unit}` : ''}`
+                      : 'Сохранён'
+                  }
+                  image={resultImages[index % resultImages.length]}
+                  onView={() => undefined}
+                />
+              );
+            })}
+          </View>
         ) : (
-          <View className="mt-3 rounded-card-lg bg-white p-5">
-            <Text className="text-text-secondary font-sf text-[14px] leading-5">
-              Пока нет результатов. Добавьте значение вручную; OCR появится
-              отдельным этапом.
-            </Text>
+          <View style={styles.emptyState}>
+            <AppText role="heading" weight="semibold">
+              Здесь появятся результаты
+            </AppText>
+            <AppText
+              role="label"
+              color={colors.text.secondary}
+              style={styles.emptyCopy}
+            >
+              Добавьте анализ вручную или прикрепите фотографию документа —
+              данные сохранятся на устройстве.
+            </AppText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Добавить первый результат"
+              disabled={readOnly}
+              onPress={() => setFormOpen(true)}
+              style={({ pressed }) => [
+                styles.emptyButton,
+                readOnly && styles.addButtonDisabled,
+                pressed && !readOnly && styles.pressed,
+              ]}
+            >
+              <AppText
+                role="label"
+                weight="medium"
+                color={colors.brand.primary}
+              >
+                Добавить результат
+              </AppText>
+            </Pressable>
           </View>
         )}
       </ScrollView>
 
+      <LinearGradient
+        pointerEvents="none"
+        colors={[colors.surface.canvas, colors.surface.canvas, 'rgba(245,243,243,0)']}
+        locations={[0, 0.72, 1]}
+        style={[styles.headerFade, { height: headerTop + 48 }]}
+      />
+
+      <View style={[styles.fixedHeader, { top: headerTop }]}>
+        <AnalysisReferenceHeader
+          dateLabel="21 июля"
+          onChart={() => setActiveTab('completed')}
+          onDate={() => undefined}
+          onCalendar={() => setActiveTab('upcoming')}
+        />
+      </View>
+
       {formOpen ? (
-        <View className="absolute inset-0 z-50 justify-end bg-black/30 px-4 pb-[92px]">
-          <View className="rounded-[30px] bg-white p-5">
-            <View className="flex-row items-center justify-between">
-              <Text className="font-sf-semibold text-[22px] text-ink">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.formSheet}>
+            <View style={styles.formHeader}>
+              <AppText role="heading" weight="semibold">
                 Новый результат
-              </Text>
+              </AppText>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Закрыть"
                 onPress={() => setFormOpen(false)}
-                className="h-10 w-10 items-center justify-center rounded-full bg-[#f2f2f7]"
+                style={styles.closeButton}
               >
-                <Text className="text-[22px]">×</Text>
+                <Text style={styles.closeButtonText}>×</Text>
               </Pressable>
             </View>
             {[
@@ -230,35 +325,53 @@ export default function AnalysesScreen() {
                 value={field as string}
                 onChangeText={setter as (text: string) => void}
                 placeholder={placeholder as string}
-                className="mt-3 h-11 rounded-2xl bg-[#f2f2f7] px-4 font-sf text-[15px] text-ink"
+                placeholderTextColor="rgba(115,110,108,0.72)"
+                style={styles.input}
               />
             ))}
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Добавить фото результата"
               onPress={() => void pickDocument()}
-              className="mt-3 h-11 items-center justify-center rounded-full border border-brand-primary"
+              style={styles.photoButton}
             >
-              <Text className="font-sf-medium text-[14px] text-brand-primary">
+              <AppText
+                role="label"
+                weight="medium"
+                color={colors.brand.primary}
+              >
                 {documentUri
                   ? 'Фото сохранено на устройстве'
                   : 'Добавить фото результата'}
-              </Text>
+              </AppText>
             </Pressable>
             {error ? (
-              <Text className="mt-3 font-sf text-[13px] text-state-error">
+              <AppText
+                role="caption"
+                color={colors.state.error}
+                style={styles.error}
+              >
                 {error}
-              </Text>
+              </AppText>
             ) : null}
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Сохранить результат"
+              accessibilityState={{ disabled: saving }}
               disabled={saving}
               onPress={() => void save()}
-              className="mt-4 h-12 items-center justify-center rounded-full bg-brand-primary"
+              style={styles.saveButton}
             >
               {saving ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text className="font-sf-medium text-[15px] text-white">
+                <AppText
+                  role="label"
+                  weight="medium"
+                  color={colors.text.inverse}
+                >
                   Сохранить
-                </Text>
+                </AppText>
               )}
             </Pressable>
           </View>
@@ -267,3 +380,138 @@ export default function AnalysesScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.surface.canvas,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+  },
+  headerFade: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    zIndex: 8,
+  },
+  fixedHeader: {
+    position: 'absolute',
+    right: sizes.screenGutter,
+    left: sizes.screenGutter,
+    zIndex: 10,
+  },
+  addButtonDisabled: {
+    backgroundColor: colors.state.disabled,
+  },
+  heroWrap: {
+    marginTop: spacing.md,
+    zIndex: 2,
+  },
+  summaryWrap: {
+    alignSelf: 'stretch',
+    marginTop: 16,
+  },
+  tabsWrap: {
+    marginTop: 16,
+  },
+  cardsList: {
+    marginTop: 20,
+    gap: spacing.md,
+  },
+  emptyState: {
+    marginTop: spacing.sm,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  emptyCopy: {
+    marginTop: spacing.xs,
+    lineHeight: 20,
+  },
+  emptyButton: {
+    minHeight: 44,
+    marginTop: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    borderRadius: radii.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(211,20,113,0.36)',
+    backgroundColor: colors.surface.raised,
+    paddingHorizontal: spacing.md,
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 50,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.30)',
+    paddingHorizontal: sizes.screenGutter,
+    paddingBottom: 92,
+  },
+  formSheet: {
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    padding: 20,
+    ...shadows.floating,
+  },
+  formHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    backgroundColor: '#F2F2F7',
+  },
+  closeButtonText: {
+    color: colors.text.primary,
+    fontFamily: fonts.sfRegular,
+    fontSize: 22,
+    lineHeight: 24,
+  },
+  input: {
+    height: 44,
+    marginTop: 12,
+    borderRadius: 16,
+    backgroundColor: '#F2F2F7',
+    paddingHorizontal: 16,
+    color: colors.text.primary,
+    fontFamily: fonts.sfRegular,
+    fontSize: 15,
+  },
+  photoButton: {
+    height: 44,
+    marginTop: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.brand.primary,
+  },
+  error: {
+    marginTop: 12,
+  },
+  saveButton: {
+    height: 48,
+    marginTop: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    backgroundColor: colors.brand.primary,
+  },
+  pressed: {
+    opacity: 0.76,
+    transform: [{ scale: 0.985 }],
+  },
+});

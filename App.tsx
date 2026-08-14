@@ -1,6 +1,7 @@
 import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
 import { useFonts } from 'expo-font';
+import * as Haptics from 'expo-haptics';
 import {
   GlassContainer,
   GlassView,
@@ -9,7 +10,14 @@ import {
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { PropsWithChildren } from 'react';
 import {
   Animated,
@@ -19,7 +27,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -38,21 +45,33 @@ import ArrowCard from './assets/figma/arrow-card.svg';
 import CalendarIcon from './assets/figma/calendar-icon.svg';
 import ContentShape from './assets/figma/content-shape.svg';
 import MonitoringIcon from './assets/figma/monitoring-icon.svg';
+import {
+  CalendarPageModal,
+  colors,
+  HeaderDateLabel,
+  JournalFlowModal,
+  type JournalFlowCategory,
+  type JournalFlowEntry,
+  JournalAssessment,
+} from './design-system';
 import { useHealthStore } from './lib/health-store';
-import type { JournalKind } from './lib/health-types';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 const FONT_SF_REGULAR = 'SFProDisplay-Regular';
 const FONT_SF_SEMIBOLD = 'SFProDisplay-Semibold';
-const FONT_YARO_RG = 'YaroRg-Regular';
+const FONT_YARO_RG = 'YaroRg';
 const FontReadyContext = createContext(false);
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const MAX_PREGNANCY_WEEK = 42;
-const WEEK_ITEM_WIDTH = 76;
+const INITIAL_WEEK = 7;
+const WEEK_ITEM_WIDTH = 84;
 const WEEK_BUBBLE_SIZE = 75;
 const WEEK_CENTER_PADDING = (DESIGN_WIDTH - WEEK_ITEM_WIDTH) / 2;
-const journalBars = Array.from({ length: 24 }, (_, index) => index < 16);
+const weeks = Array.from(
+  { length: MAX_PREGNANCY_WEEK },
+  (_, index) => index + 1,
+);
 
 function getWeekLabel(week: number) {
   const lastTwoDigits = week % 100;
@@ -125,9 +144,8 @@ function LiquidGlassSurface({
           glassEffectStyle={variant}
           tintColor={tintColor}
           colorScheme={colorScheme}
-          isInteractive
           style={[
-            StyleSheet.absoluteFill,
+            StyleSheet.absoluteFillObject,
             styles.nativeGlassView,
             { borderRadius: radius },
           ]}
@@ -143,7 +161,7 @@ function LiquidGlassSurface({
           {Platform.OS === 'web' ? (
             <View
               style={[
-                StyleSheet.absoluteFill,
+                StyleSheet.absoluteFillObject,
                 {
                   backgroundColor:
                     highlight === 'dark'
@@ -157,18 +175,21 @@ function LiquidGlassSurface({
               tint={fallbackTint}
               intensity={intensity}
               experimentalBlurMethod="dimezisBlurView"
-              style={StyleSheet.absoluteFill}
+              style={StyleSheet.absoluteFillObject}
             />
           )}
           <View
-            style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
+            style={[
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: washColor },
+            ]}
           />
           <LinearGradient
             colors={highlightColors}
             locations={[0, 0.42, 1]}
             start={{ x: 0.04, y: 0 }}
             end={{ x: 0.96, y: 1 }}
-            style={StyleSheet.absoluteFill}
+            style={StyleSheet.absoluteFillObject}
           />
           <View style={[styles.glassInnerStroke, { borderRadius: radius }]} />
           {children}
@@ -178,21 +199,112 @@ function LiquidGlassSurface({
   );
 }
 
+type LiquidGlassPressableProps = LiquidGlassSurfaceProps & {
+  accessibilityLabel: string;
+  controlStyle: StyleProp<ViewStyle>;
+  onPress?: () => void;
+  headerElevation?: boolean;
+};
+
+function LiquidGlassPressable({
+  accessibilityLabel,
+  children,
+  controlStyle,
+  onPress,
+  headerElevation = false,
+  variant = 'clear',
+  tintColor,
+  colorScheme = 'light',
+  fallbackTint = 'systemUltraThinMaterialLight',
+  intensity = 58,
+  washColor = 'transparent',
+  highlight = 'light',
+  radius = 999,
+}: LiquidGlassPressableProps) {
+  if (hasNativeLiquidGlass) {
+    return (
+      <GlassView
+        glassEffectStyle={variant}
+        tintColor={tintColor}
+        colorScheme={colorScheme}
+        isInteractive
+        style={[
+          controlStyle,
+          headerElevation && styles.headerControlShadow,
+          { borderRadius: radius },
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          onPress={onPress}
+          style={styles.nativeGlassPressTarget}
+        >
+          {children}
+        </Pressable>
+      </GlassView>
+    );
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      style={({ pressed }) => [
+        controlStyle,
+        headerElevation
+          ? styles.headerControlShadow
+          : styles.glassControlShadow,
+        pressed && styles.glassFallbackPressed,
+      ]}
+    >
+      <LiquidGlassSurface
+        variant={variant}
+        tintColor={tintColor}
+        colorScheme={colorScheme}
+        fallbackTint={fallbackTint}
+        intensity={intensity}
+        washColor={washColor}
+        highlight={highlight}
+        radius={radius}
+      >
+        {children}
+      </LiquidGlassSurface>
+    </Pressable>
+  );
+}
+
+function LiquidGlassGroup({
+  children,
+  spacing,
+  style,
+}: PropsWithChildren<{
+  spacing: number;
+  style: StyleProp<ViewStyle>;
+}>) {
+  return hasNativeLiquidGlass ? (
+    <GlassContainer spacing={spacing} style={style}>
+      {children}
+    </GlassContainer>
+  ) : (
+    <View style={style}>{children}</View>
+  );
+}
+
 type ProjectTextProps = Omit<TextProps, 'children'> & {
   children: string | number;
-  className?: string;
   weight?: 'regular' | 'semibold';
 };
 
 function ProjectText({
   children,
-  className = '',
   style,
   weight = 'regular',
   ...props
 }: ProjectTextProps) {
   const fontsReady = useContext(FontReadyContext);
-  const segments = String(children).split(/(\d+|сфера)/gi);
+  const segments = String(children).split(/(сфера)/gi);
   const sfFont =
     fontsReady && weight === 'semibold'
       ? FONT_SF_SEMIBOLD
@@ -210,11 +322,14 @@ function ProjectText({
   return (
     <Text
       {...props}
-      className={`font-sf ${className}`}
-      style={[style, { fontFamily: sfFont, fontWeight: fallbackWeight }]}
+      style={[
+        styles.projectText,
+        style,
+        { fontFamily: sfFont, fontWeight: fallbackWeight },
+      ]}
     >
       {segments.map((segment, index) =>
-        /^\d+$|^сфера$/i.test(segment) ? (
+        /^сфера$/i.test(segment) ? (
           <Text
             key={`${segment}-${index}`}
             style={{
@@ -239,72 +354,68 @@ type FeatureCardProps = {
 
 function FeatureCard({ title, accent = false }: FeatureCardProps) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      className={`h-32 w-[118px] items-end justify-between rounded-card-lg p-4 active:opacity-[0.72] ${accent ? 'bg-brand-primary' : 'bg-[#f2a8cb]'}`}
+    <View
+      style={[
+        styles.featureCard,
+        accent ? styles.featureCardAccent : styles.featureCardSoft,
+      ]}
     >
-      {accent ? (
-        <ProjectText className="self-start text-[32px] leading-[38px] tracking-[-0.64px] text-brand-success">
-          72%
-        </ProjectText>
-      ) : (
-        <View className="h-[27px] w-[27px] items-center justify-center rounded-full bg-brand-primary">
-          <ArrowCard width={18.3} height={18.3} />
-        </View>
-      )}
-      <ProjectText
-        numberOfLines={3}
-        className={`w-full text-[14.2px] leading-[17px] tracking-[-0.284px] ${accent ? 'text-white' : 'text-[#171717]'}`}
-        weight="regular"
-      >
-        {title}
-      </ProjectText>
-    </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={title}>
+        {({ pressed }) => (
+          <View style={[styles.featureCardContent, pressed && styles.pressed]}>
+            {accent ? (
+              <ProjectText style={styles.attentionValue}>72%</ProjectText>
+            ) : (
+              <View style={styles.cardArrow}>
+                <ArrowCard width={18.3} height={18.3} />
+              </View>
+            )}
+            <ProjectText
+              numberOfLines={3}
+              style={[styles.featureTitle, accent && styles.featureTitleLight]}
+              weight="regular"
+            >
+              {title}
+            </ProjectText>
+          </View>
+        )}
+      </Pressable>
+    </View>
   );
 }
 
-function MonitoringScreen({ headerTop }: { headerTop: number }) {
-  const { profile, journalEntries, addJournalEntry, readOnly, syncStatus } =
-    useHealthStore();
-  const pregnancyMode = profile?.goal === 'pregnancy';
-  const maxPeriod = pregnancyMode
-    ? MAX_PREGNANCY_WEEK
-    : (profile?.cycleLengthDays ?? 28);
-  const initialPeriod = pregnancyMode
-    ? Math.min(
-        maxPeriod,
-        Math.max(
-          1,
-          Math.floor(
-            (Date.now() - (profile?.pregnancyStartAt ?? Date.now())) /
-              (7 * 24 * 60 * 60 * 1000),
-          ) + 1,
-        ),
-      )
-    : Math.min(
-        maxPeriod,
-        Math.max(
-          1,
-          Math.floor(
-            (Date.now() - (profile?.lastPeriodStartAt ?? Date.now())) /
-              (24 * 60 * 60 * 1000),
-          ) + 1,
-        ),
-      );
-  const periods = Array.from({ length: maxPeriod }, (_, index) => index + 1);
-  const [activeWeek, setActiveWeek] = useState(initialPeriod);
-  const [journalOpen, setJournalOpen] = useState(false);
-  const [journalKind, setJournalKind] = useState<JournalKind>('symptom');
-  const [journalText, setJournalText] = useState('');
-  const [journalError, setJournalError] = useState<string>();
+function MonitoringScreen({
+  headerTop,
+  onCalendarPress,
+  onJournalPress,
+}: {
+  headerTop: number;
+  onCalendarPress: () => void;
+  onJournalPress: () => void;
+}) {
+  const { profile, journalEntries, labResults, scanResults } = useHealthStore();
+  const initialWeek =
+    profile?.goal === 'pregnancy' && profile.pregnancyStartAt
+      ? Math.min(
+          MAX_PREGNANCY_WEEK,
+          Math.max(
+            1,
+            Math.floor(
+              (Date.now() - profile.pregnancyStartAt) /
+                (7 * 24 * 60 * 60 * 1000),
+            ) + 1,
+          ),
+        )
+      : INITIAL_WEEK;
+  const [activeWeek, setActiveWeek] = useState(initialWeek);
   const fontsReady = useContext(FontReadyContext);
   const weekScrollRef = useRef<ScrollView>(null);
+  const hapticWeekRef = useRef(initialWeek);
   const scrollX = useRef(
-    new Animated.Value((initialPeriod - 1) * WEEK_ITEM_WIDTH),
+    new Animated.Value((initialWeek - 1) * WEEK_ITEM_WIDTH),
   ).current;
   const weekNumberFont = fontsReady
-    ? FONT_YARO_RG
+    ? FONT_SF_REGULAR
     : Platform.OS === 'ios'
       ? 'System'
       : 'sans-serif';
@@ -314,13 +425,47 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
       ? 'System'
       : 'sans-serif';
 
+  useEffect(() => {
+    hapticWeekRef.current = initialWeek;
+    setActiveWeek(initialWeek);
+    scrollX.setValue((initialWeek - 1) * WEEK_ITEM_WIDTH);
+    requestAnimationFrame(() => {
+      weekScrollRef.current?.scrollTo({
+        x: (initialWeek - 1) * WEEK_ITEM_WIDTH,
+        animated: false,
+      });
+    });
+  }, [initialWeek, scrollX]);
+
   const selectWeekFromOffset = (offsetX: number) => {
     const nextWeek = Math.min(
-      maxPeriod,
+      MAX_PREGNANCY_WEEK,
       Math.max(1, Math.round(offsetX / WEEK_ITEM_WIDTH) + 1),
     );
 
+    hapticWeekRef.current = nextWeek;
     setActiveWeek(nextWeek);
+  };
+
+  const handleWeekScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const centeredWeek = Math.min(
+      MAX_PREGNANCY_WEEK,
+      Math.max(
+        1,
+        Math.round(event.nativeEvent.contentOffset.x / WEEK_ITEM_WIDTH) + 1,
+      ),
+    );
+
+    if (centeredWeek === hapticWeekRef.current) {
+      return;
+    }
+
+    hapticWeekRef.current = centeredWeek;
+    setActiveWeek(centeredWeek);
+
+    if (Platform.OS !== 'web') {
+      void Haptics.selectionAsync();
+    }
   };
 
   const handleWeekScrollEnd = (
@@ -330,7 +475,6 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
   };
 
   const scrollToWeek = (week: number) => {
-    setActiveWeek(week);
     weekScrollRef.current?.scrollTo({
       x: (week - 1) * WEEK_ITEM_WIDTH,
       animated: true,
@@ -338,452 +482,372 @@ function MonitoringScreen({ headerTop }: { headerTop: number }) {
   };
 
   const todayStart = new Date().setHours(0, 0, 0, 0);
-  const todayEntries = journalEntries.filter(
+  const journalCompleted = journalEntries.some(
     (entry) => !entry.deletedAt && entry.occurredAt >= todayStart,
   );
-  const journalCompleted = todayEntries.length > 0;
-
-  const saveJournal = async () => {
-    if (!journalText.trim()) {
-      setJournalError('Добавьте короткую запись.');
-      return;
-    }
-    await addJournalEntry({
-      occurredAt: Date.now(),
-      kind: journalKind,
-      label:
-        journalKind === 'mood'
-          ? 'Настроение'
-          : journalKind === 'energy'
-            ? 'Энергия'
-            : journalKind === 'nutrition'
-              ? 'Питание'
-              : 'Симптомы',
-      textValue: journalText.trim(),
-    });
-    setJournalText('');
-    setJournalError(undefined);
-    setJournalOpen(false);
-  };
+  const completedCheckups = Math.min(
+    6,
+    labResults.filter((item) => !item.deletedAt).length +
+      scanResults.filter((item) => !item.deletedAt).length,
+  );
 
   return (
-    <View className="h-[874px] w-[402px] overflow-hidden rounded-card-xl bg-[#f2f2f2]">
+    <View style={styles.canvas}>
       <Image
-        source={require('./assets/figma/pregnancy-background.png')}
+        source={require('./assets/figma/today-pregnancy-background.png')}
         resizeMode="cover"
-        className="absolute -left-[159px] -top-3 h-[573px] w-[717px]"
+        style={styles.heroImage}
       />
 
       <LinearGradient
-        colors={['rgba(130,53,55,0.96)', 'rgba(130,53,55,0)']}
-        locations={[0, 0.96]}
-        className="absolute left-0 top-0 h-[100px] w-[402px]"
+        pointerEvents="none"
+        colors={['rgba(252,231,220,1)', 'rgba(252,231,220,0)']}
+        locations={[0, 1]}
+        style={styles.headerFadeGradient}
       />
 
-      <GlassContainer spacing={12} style={[styles.topBar, { top: headerTop }]}>
-        <Pressable
-          accessibilityRole="button"
+      <LiquidGlassGroup
+        spacing={12}
+        style={[styles.topBar, { top: headerTop }]}
+      >
+        <LiquidGlassPressable
           accessibilityLabel="Открыть мониторинг"
-          className="h-12 w-12 items-center justify-center rounded-full"
-          style={({ pressed }) => [
-            styles.topCircle,
-            !hasNativeLiquidGlass && styles.glassControlShadow,
-            pressed && !hasNativeLiquidGlass && styles.glassFallbackPressed,
-          ]}
+          controlStyle={styles.topCircle}
+          headerElevation
+          tintColor={colors.surface.headerGlassWash}
+          washColor={colors.surface.headerGlassWash}
         >
-          <LiquidGlassSurface
-            variant="clear"
-            colorScheme="light"
-            fallbackTint="systemUltraThinMaterialLight"
-            intensity={58}
-            washColor="transparent"
-            highlight="light"
-          >
-            <View className="-scale-y-100">
-              <MonitoringIcon width={22} height={22} />
-            </View>
-          </LiquidGlassSurface>
-        </Pressable>
+          <View style={styles.headerIconOrientation}>
+            <MonitoringIcon width={22} height={22} color="#D31471" />
+          </View>
+        </LiquidGlassPressable>
 
-        <Pressable
-          accessibilityRole="button"
+        <LiquidGlassPressable
           accessibilityLabel="Выбрать дату"
-          className="h-12 w-[156px] items-center justify-center rounded-full"
-          style={({ pressed }) => [
-            styles.datePill,
-            !hasNativeLiquidGlass && styles.glassControlShadow,
-            pressed && !hasNativeLiquidGlass && styles.glassFallbackPressed,
-          ]}
+          controlStyle={styles.datePill}
+          headerElevation
+          tintColor={colors.surface.headerGlassWash}
+          washColor={colors.surface.headerGlassWash}
         >
-          <LiquidGlassSurface
-            variant="clear"
-            colorScheme="light"
-            fallbackTint="systemUltraThinMaterialLight"
-            intensity={58}
-            washColor="transparent"
-            highlight="light"
-          >
-            <ProjectText className="text-[18px] leading-5 tracking-[-0.36px] text-ink">
-              21 июля
-            </ProjectText>
-          </LiquidGlassSurface>
-        </Pressable>
+          <HeaderDateLabel />
+        </LiquidGlassPressable>
 
-        <Pressable
-          accessibilityRole="button"
+        <LiquidGlassPressable
           accessibilityLabel="Открыть календарь"
-          className="h-12 w-12 items-center justify-center rounded-full"
-          style={({ pressed }) => [
-            styles.topCircle,
-            !hasNativeLiquidGlass && styles.glassControlShadow,
-            pressed && !hasNativeLiquidGlass && styles.glassFallbackPressed,
-          ]}
+          controlStyle={styles.topCircle}
+          headerElevation
+          onPress={onCalendarPress}
+          tintColor={colors.surface.headerGlassWash}
+          washColor={colors.surface.headerGlassWash}
         >
-          <LiquidGlassSurface
-            variant="clear"
-            colorScheme="light"
-            fallbackTint="systemUltraThinMaterialLight"
-            intensity={58}
-            washColor="transparent"
-            highlight="light"
-          >
-            <View className="-scale-y-100">
-              <CalendarIcon width={22} height={22} />
-            </View>
-          </LiquidGlassSurface>
-        </Pressable>
-      </GlassContainer>
+          <View style={styles.headerIconOrientation}>
+            <CalendarIcon width={22} height={22} color="#D31471" />
+          </View>
+        </LiquidGlassPressable>
+      </LiquidGlassGroup>
 
-      <Animated.ScrollView
-        ref={weekScrollRef}
-        horizontal
-        accessibilityRole="adjustable"
-        accessibilityLabel="Текущая неделя беременности"
+      <ScrollView
         contentInsetAdjustmentBehavior="never"
-        contentOffset={{
-          x: (initialPeriod - 1) * WEEK_ITEM_WIDTH,
-          y: 0,
-        }}
-        contentContainerStyle={styles.weekCarouselContent}
-        decelerationRate="fast"
-        disableIntervalMomentum
-        showsHorizontalScrollIndicator={false}
-        snapToAlignment="start"
-        snapToInterval={WEEK_ITEM_WIDTH}
-        style={styles.weekCarousel}
-        onMomentumScrollEnd={handleWeekScrollEnd}
-        onScrollEndDrag={handleWeekScrollEnd}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: true },
-        )}
-        scrollEventThrottle={16}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+        style={styles.dashboardScroll}
+        contentContainerStyle={styles.dashboardScrollContent}
       >
-        {periods.map((week, index) => {
-          const selected = week === activeWeek;
-          const weekLabel = pregnancyMode ? getWeekLabel(week) : 'день';
-          const itemOffset = index * WEEK_ITEM_WIDTH;
-          const inputRange = [
-            itemOffset - WEEK_ITEM_WIDTH * 2,
-            itemOffset - WEEK_ITEM_WIDTH,
-            itemOffset,
-            itemOffset + WEEK_ITEM_WIDTH,
-            itemOffset + WEEK_ITEM_WIDTH * 2,
-          ];
-          const scale = scrollX.interpolate({
-            inputRange,
-            outputRange: [0.8, 0.867, 1, 0.867, 0.8],
-            extrapolate: 'clamp',
-          });
-          const translateY = scrollX.interpolate({
-            inputRange,
-            outputRange: [-8, 21, 28, 21, -8],
-            extrapolate: 'clamp',
-          });
-
-          return (
-            <Animated.View
-              key={week}
-              style={[
-                styles.weekItem,
-                { transform: [{ translateY }, { scale }] },
-              ]}
-            >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`${week} ${weekLabel}`}
-                className="h-[75px] w-[75px] items-center justify-center rounded-full"
-                hitSlop={10}
-                onPress={() => scrollToWeek(week)}
-                style={({ pressed }) => [
-                  styles.weekBubble,
-                  !hasNativeLiquidGlass && styles.weekBubbleFallbackShadow,
-                  pressed &&
-                    !hasNativeLiquidGlass &&
-                    styles.glassFallbackPressed,
-                ]}
-              >
-                <LiquidGlassSurface
-                  variant="clear"
-                  colorScheme="light"
-                  fallbackTint="systemUltraThinMaterialLight"
-                  intensity={58}
-                  washColor="transparent"
-                  highlight="light"
-                >
-                  <View className="h-[75px] w-[75px] items-center justify-center">
-                    <Text
-                      className="text-[18px] leading-[19px] tracking-[-0.32px] text-white"
-                      style={{ fontFamily: weekNumberFont }}
-                    >
-                      {week}
-                    </Text>
-                    <Text
-                      className="-mt-0.5 text-[14px] leading-[15px] tracking-[-0.24px] text-white"
-                      style={{ fontFamily: weekLabelFont }}
-                    >
-                      {weekLabel}
-                    </Text>
-                  </View>
-                </LiquidGlassSurface>
-              </Pressable>
-            </Animated.View>
-          );
-        })}
-      </Animated.ScrollView>
-
-      <View
-        pointerEvents="none"
-        style={[styles.weekSelector, styles.weekBubbleSelected]}
-      >
-        <View className="absolute inset-0 rounded-full border-[0.8px] border-white/90 bg-white" />
-      </View>
-
-      <View pointerEvents="none" style={styles.weekTextCarousel}>
-        <Animated.View
-          style={[
-            styles.weekTextTrack,
-            {
-              transform: [{ translateX: Animated.multiply(scrollX, -1) }],
-            },
-          ]}
-        >
-          {periods.map((week, index) => {
-            const weekLabel = pregnancyMode ? getWeekLabel(week) : 'день';
-            const itemOffset = index * WEEK_ITEM_WIDTH;
-            const inputRange = [
-              itemOffset - WEEK_ITEM_WIDTH * 2,
-              itemOffset - WEEK_ITEM_WIDTH,
-              itemOffset,
-              itemOffset + WEEK_ITEM_WIDTH,
-              itemOffset + WEEK_ITEM_WIDTH * 2,
-            ];
-            const scale = scrollX.interpolate({
-              inputRange,
-              outputRange: [0.8, 0.867, 1, 0.867, 0.8],
-              extrapolate: 'clamp',
-            });
-            const translateY = scrollX.interpolate({
-              inputRange,
-              outputRange: [-8, 21, 28, 21, -8],
-              extrapolate: 'clamp',
-            });
-            const selectedTextOpacity = scrollX.interpolate({
-              inputRange: [
+        <View style={styles.dashboardScrollCanvas}>
+          <Animated.ScrollView
+            ref={weekScrollRef}
+            horizontal
+            nestedScrollEnabled
+            accessibilityRole="adjustable"
+            accessibilityLabel="Текущая неделя беременности"
+            contentInsetAdjustmentBehavior="never"
+            contentOffset={{
+              x: (initialWeek - 1) * WEEK_ITEM_WIDTH,
+              y: 0,
+            }}
+            contentContainerStyle={styles.weekCarouselContent}
+            decelerationRate="fast"
+            disableIntervalMomentum
+            showsHorizontalScrollIndicator={false}
+            snapToAlignment="start"
+            snapToInterval={WEEK_ITEM_WIDTH}
+            style={styles.weekCarousel}
+            onMomentumScrollEnd={handleWeekScrollEnd}
+            onScrollEndDrag={handleWeekScrollEnd}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+              {
+                useNativeDriver: true,
+                listener: handleWeekScroll,
+              },
+            )}
+            scrollEventThrottle={16}
+          >
+            {weeks.map((week, index) => {
+              const selected = week === activeWeek;
+              const weekLabel = getWeekLabel(week);
+              const itemOffset = index * WEEK_ITEM_WIDTH;
+              const inputRange = [
+                itemOffset - WEEK_ITEM_WIDTH * 2,
                 itemOffset - WEEK_ITEM_WIDTH,
                 itemOffset,
                 itemOffset + WEEK_ITEM_WIDTH,
-              ],
-              outputRange: [0, 1, 0],
-              extrapolate: 'clamp',
-            });
+                itemOffset + WEEK_ITEM_WIDTH * 2,
+              ];
+              const scale = scrollX.interpolate({
+                inputRange,
+                outputRange: [0.8, 0.867, 1, 0.867, 0.8],
+                extrapolate: 'clamp',
+              });
+              const translateY = scrollX.interpolate({
+                inputRange,
+                outputRange: [-8, 21, 28, 21, -8],
+                extrapolate: 'clamp',
+              });
 
-            return (
-              <Animated.View
-                key={week}
-                style={[
-                  styles.weekItem,
-                  { transform: [{ translateY }, { scale }] },
-                ]}
-              >
-                <View className="h-[75px] w-[75px] items-center justify-center">
+              return (
+                <Animated.View
+                  key={week}
+                  style={[
+                    styles.weekItem,
+                    { transform: [{ translateY }, { scale }] },
+                  ]}
+                >
+                  <LiquidGlassPressable
+                    accessibilityLabel={`${week} ${weekLabel}`}
+                    controlStyle={styles.weekBubble}
+                    onPress={() => scrollToWeek(week)}
+                    washColor="transparent"
+                  >
+                    <View style={styles.weekCopy}>
+                      <Text
+                        style={[
+                          styles.weekNumber,
+                          { fontFamily: weekNumberFont },
+                        ]}
+                      >
+                        {week}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.weekLabel,
+                          { fontFamily: weekLabelFont },
+                        ]}
+                      >
+                        {weekLabel}
+                      </Text>
+                    </View>
+                  </LiquidGlassPressable>
+                </Animated.View>
+              );
+            })}
+          </Animated.ScrollView>
+
+          <View
+            pointerEvents="none"
+            style={[styles.weekSelector, styles.weekBubbleSelected]}
+          >
+            <View style={styles.selectedWeekFill} />
+          </View>
+
+          <View pointerEvents="none" style={styles.weekTextCarousel}>
+            <Animated.View
+              style={[
+                styles.weekTextTrack,
+                {
+                  transform: [{ translateX: Animated.multiply(scrollX, -1) }],
+                },
+              ]}
+            >
+              {weeks.map((week, index) => {
+                const weekLabel = getWeekLabel(week);
+                const itemOffset = index * WEEK_ITEM_WIDTH;
+                const inputRange = [
+                  itemOffset - WEEK_ITEM_WIDTH * 2,
+                  itemOffset - WEEK_ITEM_WIDTH,
+                  itemOffset,
+                  itemOffset + WEEK_ITEM_WIDTH,
+                  itemOffset + WEEK_ITEM_WIDTH * 2,
+                ];
+                const scale = scrollX.interpolate({
+                  inputRange,
+                  outputRange: [0.8, 0.867, 1, 0.867, 0.8],
+                  extrapolate: 'clamp',
+                });
+                const translateY = scrollX.interpolate({
+                  inputRange,
+                  outputRange: [-8, 21, 28, 21, -8],
+                  extrapolate: 'clamp',
+                });
+                const selectedTextOpacity = scrollX.interpolate({
+                  inputRange: [
+                    itemOffset - WEEK_ITEM_WIDTH,
+                    itemOffset,
+                    itemOffset + WEEK_ITEM_WIDTH,
+                  ],
+                  outputRange: [0, 1, 0],
+                  extrapolate: 'clamp',
+                });
+
+                return (
                   <Animated.View
+                    key={week}
                     style={[
-                      styles.weekSelectedCopy,
-                      { opacity: selectedTextOpacity },
+                      styles.weekItem,
+                      { transform: [{ translateY }, { scale }] },
                     ]}
                   >
-                    <Animated.Text
-                      style={[
-                        styles.weekNumber,
-                        styles.weekTextSelected,
-                        { fontFamily: weekNumberFont },
-                      ]}
-                    >
-                      {week}
-                    </Animated.Text>
-                    <Animated.Text
-                      style={[
-                        styles.weekLabel,
-                        styles.weekTextSelected,
-                        { fontFamily: weekLabelFont },
-                      ]}
-                    >
-                      {weekLabel}
-                    </Animated.Text>
+                    <View style={styles.weekCopy}>
+                      <Animated.View
+                        style={[
+                          styles.weekSelectedCopy,
+                          { opacity: selectedTextOpacity },
+                        ]}
+                      >
+                        <Animated.Text
+                          style={[
+                            styles.weekNumber,
+                            styles.weekTextSelected,
+                            { fontFamily: weekNumberFont },
+                          ]}
+                        >
+                          {week}
+                        </Animated.Text>
+                        <Animated.Text
+                          style={[
+                            styles.weekLabel,
+                            styles.weekTextSelected,
+                            { fontFamily: weekLabelFont },
+                          ]}
+                        >
+                          {weekLabel}
+                        </Animated.Text>
+                      </Animated.View>
+                    </View>
                   </Animated.View>
-                </View>
-              </Animated.View>
-            );
-          })}
-        </Animated.View>
-      </View>
-
-      <ContentShape
-        pointerEvents="none"
-        width={DESIGN_WIDTH}
-        height={361}
-        style={styles.contentShape}
-      />
-
-      <View className="absolute left-4 top-[579px] h-32 w-[386px] flex-row gap-2.5">
-        <FeatureCard accent title={'Индекс внимания\nк здоровью'} />
-        <FeatureCard
-          title={
-            pregnancyMode
-              ? 'Подбор\nпитания в 1-м\nтриместре'
-              : 'Наблюдение\nза циклом и\nсамочувствием'
-          }
-        />
-        <FeatureCard title={'Важные\nобследования\nи анализы'} />
-      </View>
-
-      <View className="absolute left-4 right-4 top-[716px] h-[58px] flex-row items-end justify-between">
-        <View className="w-60 gap-[3px]">
-          <ProjectText className="text-[12px] leading-[14px] tracking-[-0.24px] text-[#5d5d5d]">
-            Оценка заполнения журнала
-          </ProjectText>
-          <View className="h-5 w-60 flex-row justify-between">
-            {journalBars.map((filled, index) => (
-              <View
-                key={index}
-                className={`h-5 w-0.5 rounded-sm ${filled || journalCompleted ? 'bg-brand-success' : 'bg-[#e4e4e4]'}`}
-              />
-            ))}
+                );
+              })}
+            </Animated.View>
           </View>
-          <View className="w-60 flex-row justify-between">
-            <ProjectText className="text-[12px] leading-[14px] tracking-[-0.24px] text-[#5d5d5d]">
-              Прошлый месяц 5/7
-            </ProjectText>
-            <ProjectText className="text-[12px] leading-[14px] tracking-[-0.24px] text-[#5d5d5d]">
-              Лучший результат 8/7
-            </ProjectText>
-          </View>
-        </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Заполнить журнал"
-          onPress={() => setJournalOpen(true)}
-          className="h-12 min-w-[116px] flex-row items-center justify-center gap-0.5 rounded-full bg-brand-primary px-3.5 active:opacity-[0.72]"
-        >
-          <ProjectText className="text-[15px] leading-[17px] tracking-[-0.3px] text-white">
-            {journalCompleted ? 'Дополнить' : 'Заполнить'}
-          </ProjectText>
-          <ArrowButton width={18.3} height={18.3} />
-        </Pressable>
-      </View>
+          <View pointerEvents="none" style={styles.contentSurfaceExtension} />
 
-      {journalOpen ? (
-        <View className="absolute inset-0 z-50 justify-end bg-black/25 px-4 pb-[92px]">
-          <View className="shadow-card rounded-[30px] bg-white p-5">
-            <View className="flex-row items-center justify-between">
-              <ProjectText
-                className="text-[22px] leading-6 text-ink"
-                weight="semibold"
-              >
-                Запись в дневник
-              </ProjectText>
-              <Pressable
-                onPress={() => setJournalOpen(false)}
-                className="h-10 w-10 items-center justify-center rounded-full bg-[#f2f2f7]"
-              >
-                <ProjectText className="text-[18px] text-ink">×</ProjectText>
-              </Pressable>
-            </View>
-            <View className="mt-4 flex-row gap-2">
-              {(['symptom', 'mood', 'energy', 'nutrition'] as const).map(
-                (kind) => (
-                  <Pressable
-                    key={kind}
-                    onPress={() => setJournalKind(kind)}
-                    className={`h-9 flex-1 items-center justify-center rounded-full ${journalKind === kind ? 'bg-brand-primary' : 'bg-[#f2f2f7]'}`}
-                  >
-                    <ProjectText
-                      className={`text-[12px] ${journalKind === kind ? 'text-white' : 'text-ink'}`}
-                    >
-                      {
-                        {
-                          symptom: 'Симптом',
-                          mood: 'Настроение',
-                          energy: 'Энергия',
-                          nutrition: 'Питание',
-                        }[kind]
-                      }
-                    </ProjectText>
-                  </Pressable>
-                ),
-              )}
-            </View>
-            <TextInput
-              value={journalText}
-              onChangeText={setJournalText}
-              multiline
-              placeholder="Что важно отметить сегодня?"
-              className="mt-3 min-h-[92px] rounded-2xl bg-[#f2f2f7] px-4 py-3 font-sf text-[16px] text-ink"
+          <ContentShape
+            pointerEvents="none"
+            width={DESIGN_WIDTH}
+            height={361}
+            style={styles.contentShape}
+          />
+
+          <View style={styles.journalArea}>
+            <JournalAssessment
+              variant="ring"
+              value={journalCompleted ? 24 : 16}
+              actionLabel={journalCompleted ? 'Готово' : 'Заполнить'}
+              actionVariant="outline"
+              onPress={onJournalPress}
+              actionIcon={<ArrowButton width={18.3} height={18.3} />}
             />
-            {journalError ? (
-              <ProjectText className="mt-2 text-[13px] text-state-error">
-                {journalError}
-              </ProjectText>
-            ) : null}
-            {readOnly ? (
-              <ProjectText className="text-text-secondary mt-2 text-[13px]">
-                В web-демо сохранение отключено.
-              </ProjectText>
-            ) : null}
-            <Pressable
-              disabled={readOnly}
-              onPress={() => void saveJournal()}
-              className={`mt-4 h-12 items-center justify-center rounded-full ${readOnly ? 'bg-state-disabled' : 'bg-brand-primary'}`}
-            >
-              <ProjectText className="text-[15px] text-white">
-                Сохранить локально
-              </ProjectText>
-            </Pressable>
-            <ProjectText className="text-text-secondary mt-2 text-center text-[11px]">
-              {syncStatus === 'syncing'
-                ? 'Синхронизация…'
-                : 'Сначала сохраняется на устройстве'}
-            </ProjectText>
+          </View>
+
+          <View style={styles.checkupsArea}>
+            <JournalAssessment
+              variant="fraction"
+              value={completedCheckups}
+              total={6}
+              title="Прохождение чекапов"
+              status="Средняя регулярность"
+              leftCaption={`Пройдено ${completedCheckups}`}
+              rightCaption="Всего 6"
+              actionLabel={completedCheckups >= 6 ? 'Готово' : 'Пройти'}
+              actionVariant="outline"
+              actionIcon={<ArrowButton width={18.3} height={18.3} />}
+            />
+          </View>
+
+          <View pointerEvents="none" style={styles.metricsDivider} />
+
+          <View style={styles.cardsRow}>
+            <FeatureCard title={'Подбор\nпитания в 1-м\nтриместре'} />
+            <FeatureCard title={'7 Важных\nобследований\nи анализов'} />
+            <FeatureCard title={'Индекс внимания\nк здоровью'} />
           </View>
         </View>
-      ) : null}
+      </ScrollView>
+
+      <LinearGradient
+        pointerEvents="none"
+        colors={[
+          'rgba(255,255,255,0)',
+          'rgba(255,255,255,0)',
+          'rgba(255,255,255,1)',
+        ]}
+        locations={[0, 0.62, 1]}
+        style={styles.navbarFadeGradient}
+      />
     </View>
   );
 }
 
 export default function App() {
+  const { addJournalEntry, journalEntries } = useHealthStore();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [fontsLoaded, fontError] = useFonts({
-    [FONT_SF_REGULAR]: require('./assets/fonts/SF-Pro-Display-Regular.otf'),
-    [FONT_SF_SEMIBOLD]: require('./assets/fonts/SF-Pro-Display-Semibold.otf'),
-    [FONT_YARO_RG]: require('./assets/fonts/Yaro-Rg-Regular.otf'),
-  });
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [journalFlowDate, setJournalFlowDate] = useState<Date | null>(null);
+  const [journalFlowCategory, setJournalFlowCategory] =
+    useState<JournalFlowCategory>('cycle');
+  const [fontsLoaded, fontError] = useFonts(
+    Platform.OS === 'web'
+      ? {
+          [FONT_SF_REGULAR]: require('./assets/fonts/SF-Pro-Display-Regular.otf'),
+          [FONT_SF_SEMIBOLD]: require('./assets/fonts/SF-Pro-Display-Semibold.otf'),
+          [FONT_YARO_RG]: require('./assets/fonts/Yaro-Rg-Regular.otf'),
+        }
+      : {},
+  );
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
-  const headerTop = Math.max(16, insets.top / scale + 12);
+  const headerTop = Math.max(16, insets.top / scale + 8);
+  const symptomDateKeys = useMemo(
+    () =>
+      new Set(
+        journalEntries
+          .filter(
+            (entry) =>
+              !entry.deletedAt &&
+              ['symptom', 'mood', 'energy', 'nutrition', 'activity'].includes(
+                entry.kind,
+              ),
+          )
+          .map((entry) => {
+            const date = new Date(entry.occurredAt);
+            return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+          }),
+      ),
+    [journalEntries],
+  );
+
+  const openJournalFlow = (
+    date: Date,
+    category: JournalFlowCategory = 'cycle',
+  ) => {
+    setJournalFlowCategory(category);
+    setJournalFlowDate(new Date(date));
+  };
+
+  const saveJournalFlow = async (entries: JournalFlowEntry[]) => {
+    if (!journalFlowDate) return;
+    const occurredAt = new Date(
+      journalFlowDate.getFullYear(),
+      journalFlowDate.getMonth(),
+      journalFlowDate.getDate(),
+      12,
+    ).getTime();
+
+    for (const entry of entries) {
+      await addJournalEntry({ occurredAt, ...entry });
+    }
+  };
 
   useEffect(() => {
     if (fontError) {
@@ -793,34 +857,90 @@ export default function App() {
 
   return (
     <FontReadyContext.Provider value={fontsLoaded && !fontError}>
-      <View className="flex-1 items-center justify-center bg-brand-burgundy">
-        <StatusBar style="light" hidden={false} />
+      <View style={styles.root}>
+        <StatusBar style="dark" hidden={false} />
         <View
           style={{
             width: DESIGN_WIDTH * scale,
             height: DESIGN_HEIGHT * scale,
           }}
         >
-          <View
-            className="h-[874px] w-[402px]"
-            style={{ transform: [{ scale }], transformOrigin: 'top left' }}
-          >
-            <MonitoringScreen headerTop={headerTop} />
+          <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
+            <MonitoringScreen
+              headerTop={headerTop}
+              onCalendarPress={() => setCalendarVisible(true)}
+              onJournalPress={() => openJournalFlow(new Date(), 'cycle')}
+            />
           </View>
         </View>
+        <CalendarPageModal
+          visible={calendarVisible}
+          onClose={() => setCalendarVisible(false)}
+          onAddSymptoms={(date) => openJournalFlow(date, 'symptoms')}
+          symptomDateKeys={symptomDateKeys}
+        />
+        <JournalFlowModal
+          visible={journalFlowDate !== null}
+          targetDate={journalFlowDate ?? new Date()}
+          initialCategory={journalFlowCategory}
+          onClose={() => setJournalFlowDate(null)}
+          onComplete={saveJournalFlow}
+        />
       </View>
     </FontReadyContext.Provider>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FDECE5',
+  },
+  scaledCanvas: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+    transformOrigin: 'top left',
+  },
+  canvas: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+    overflow: 'hidden',
+    backgroundColor: '#FDECE5',
+    borderRadius: 40,
+  },
+  heroImage: {
+    position: 'absolute',
+    left: 0,
+    top: 48,
+    width: DESIGN_WIDTH,
+    height: 714,
+  },
   topBar: {
     position: 'absolute',
+    zIndex: 10,
     left: 16,
     width: 370,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerFadeGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 132,
+    zIndex: 9,
+  },
+  navbarFadeGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 72,
+    zIndex: 8,
   },
   topCircle: {
     width: 48,
@@ -835,6 +955,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerIconOrientation: {
+    transform: [{ scaleY: -1 }],
   },
   weekBubble: {
     width: WEEK_BUBBLE_SIZE,
@@ -860,7 +983,7 @@ const styles = StyleSheet.create({
   weekSelector: {
     position: 'absolute',
     left: (DESIGN_WIDTH - WEEK_BUBBLE_SIZE) / 2,
-    top: 471,
+    top: 48,
     width: WEEK_BUBBLE_SIZE,
     height: WEEK_BUBBLE_SIZE,
     borderRadius: WEEK_BUBBLE_SIZE / 2,
@@ -868,7 +991,7 @@ const styles = StyleSheet.create({
   weekCarousel: {
     position: 'absolute',
     left: 0,
-    top: 423,
+    top: 0,
     width: DESIGN_WIDTH,
     height: 150,
   },
@@ -880,13 +1003,13 @@ const styles = StyleSheet.create({
   weekTextCarousel: {
     position: 'absolute',
     left: 0,
-    top: 423,
+    top: 0,
     width: DESIGN_WIDTH,
     height: 150,
     overflow: 'hidden',
   },
   weekTextTrack: {
-    width: MAX_PREGNANCY_WEEK * WEEK_ITEM_WIDTH + WEEK_CENTER_PADDING * 2,
+    width: weeks.length * WEEK_ITEM_WIDTH + WEEK_CENTER_PADDING * 2,
     height: WEEK_BUBBLE_SIZE + 40,
     paddingHorizontal: WEEK_CENTER_PADDING,
     paddingTop: 20,
@@ -899,13 +1022,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  weekSelectedCopy: {
-    ...StyleSheet.absoluteFill,
+  weekCopy: {
+    width: WEEK_BUBBLE_SIZE,
+    height: WEEK_BUBBLE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  weekSelectedCopy: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedWeekFill: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+    borderWidth: 0.8,
+    borderColor: 'rgba(255,255,255,0.92)',
+  },
   weekNumber: {
-    color: '#ffffff',
+    color: '#F2A8CB',
     fontFamily: FONT_SF_REGULAR,
     fontSize: 18,
     lineHeight: 19,
@@ -913,25 +1049,138 @@ const styles = StyleSheet.create({
   },
   weekLabel: {
     marginTop: -2,
-    color: '#ffffff',
+    color: '#F2A8CB',
     fontFamily: FONT_SF_REGULAR,
     fontSize: 14,
     lineHeight: 15,
     letterSpacing: -0.24,
   },
   weekTextSelected: {
-    color: '#171717',
+    color: '#D31471',
   },
   contentShape: {
     position: 'absolute',
     left: 0,
-    top: 513,
+    top: 90,
+  },
+  contentSurfaceExtension: {
+    position: 'absolute',
+    left: 0,
+    top: 180,
+    width: DESIGN_WIDTH,
+    height: 371,
+    backgroundColor: '#ffffff',
+  },
+  cardsRow: {
+    position: 'absolute',
+    left: 16,
+    top: 322,
+    width: 386,
+    height: 128,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  featureCard: {
+    width: 118,
+    height: 128,
+    borderRadius: 30,
+    overflow: 'hidden',
+  },
+  featureCardContent: {
+    width: 118,
+    height: 128,
+    padding: 16,
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  featureCardAccent: {
+    backgroundColor: '#d31471',
+  },
+  featureCardSoft: {
+    backgroundColor: '#f2a8cb',
+  },
+  attentionValue: {
+    alignSelf: 'flex-start',
+    color: '#1fbb74',
+    fontFamily: FONT_SF_REGULAR,
+    fontSize: 32,
+    lineHeight: 38,
+    letterSpacing: -0.64,
+  },
+  cardArrow: {
+    width: 27,
+    height: 27,
+    borderRadius: 13.5,
+    backgroundColor: '#d31471',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureTitle: {
+    width: '100%',
+    color: '#171717',
+    fontFamily: FONT_SF_REGULAR,
+    fontSize: 14.2,
+    lineHeight: 17,
+    letterSpacing: -0.284,
+  },
+  featureTitleLight: {
+    color: '#ffffff',
+    fontFamily: FONT_SF_REGULAR,
+    fontSize: 14.2,
+    lineHeight: 17,
+  },
+  journalArea: {
+    position: 'absolute',
+    left: 16,
+    top: 156,
+    width: 370,
+    height: 58,
+  },
+  checkupsArea: {
+    position: 'absolute',
+    left: 16,
+    top: 230,
+    width: 370,
+    height: 58,
+  },
+  metricsDivider: {
+    position: 'absolute',
+    left: 16,
+    top: 304,
+    width: 370,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#ededed',
+  },
+  dashboardScroll: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+  },
+  dashboardScrollContent: {
+    width: DESIGN_WIDTH,
+    height: 974,
+  },
+  dashboardScrollCanvas: {
+    width: DESIGN_WIDTH,
+    height: 551,
+    marginTop: 423,
+  },
+  pressed: {
+    opacity: 0.72,
   },
   nativeGlassView: {
     overflow: 'visible',
   },
   nativeGlassContent: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nativeGlassPressTarget: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -939,14 +1188,14 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.035 }],
   },
   glassSurface: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     borderRadius: 999,
   },
   glassSurfaceClipped: {
     overflow: 'hidden',
   },
   glassInnerStroke: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     borderRadius: 999,
     borderWidth: 0.8,
     borderColor: 'rgba(255,255,255,0.52)',
@@ -957,5 +1206,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.24,
     shadowRadius: 14,
     elevation: 9,
+  },
+  headerControlShadow: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  projectText: {
+    fontFamily: FONT_SF_REGULAR,
   },
 });

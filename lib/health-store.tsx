@@ -19,6 +19,7 @@ import {
   pendingOutbox,
   saveLocalProfile,
   saveLocalRecord,
+  saveScanResultWithJournal,
 } from './local-database';
 import type {
   HealthGoal,
@@ -35,6 +36,12 @@ import { emptySnapshot, newLocalId } from './health-types';
 
 const backendApi = api;
 
+function programTitleForGoal(goal: HealthGoal) {
+  if (goal === 'pregnancy') return 'Сопровождение беременности';
+  if (goal === 'planning') return 'Планирование беременности';
+  return 'Отслеживание цикла';
+}
+
 type OnboardingInput = {
   displayName: string;
   goal: HealthGoal;
@@ -48,6 +55,18 @@ type HealthStoreValue = HealthSnapshot & {
   readOnly: boolean;
   syncStatus: SyncStatus;
   completeOnboarding: (input: OnboardingInput) => Promise<void>;
+  updateProfile: (
+    input: Partial<
+      Pick<
+        LocalProfile,
+        | 'displayName'
+        | 'goal'
+        | 'pregnancyStartAt'
+        | 'lastPeriodStartAt'
+        | 'cycleLengthDays'
+      >
+    >,
+  ) => Promise<void>;
   addJournalEntry: (
     input: Omit<JournalEntry, 'localId' | 'updatedAt' | 'source'>,
   ) => Promise<void>;
@@ -79,20 +98,21 @@ function withoutLocalFiles<T extends Record<string, unknown>>(item: T) {
 export function HealthStoreProvider({
   children,
   mode = 'authenticated',
-}: PropsWithChildren<{ mode?: 'authenticated' | 'demo' }>) {
+}: PropsWithChildren<{ mode?: 'authenticated' | 'demo' | 'local' }>) {
   const [snapshot, setSnapshot] = useState<HealthSnapshot>(emptySnapshot);
   const [ready, setReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const saveRemoteProfile = useMutation(backendApi.profile.save);
   const syncRemoteBatch = useMutation(backendApi.health.syncBatch);
+  const remoteEnabled = mode === 'authenticated';
   const viewer = useQuery(
     backendApi.profile.viewer,
-    mode === 'authenticated' ? {} : 'skip',
+    remoteEnabled ? {} : 'skip',
   );
   const remoteProfile = viewer?.profile;
   const remoteSnapshot = useQuery(
     backendApi.health.snapshot,
-    mode === 'authenticated' && remoteProfile ? {} : 'skip',
+    remoteEnabled && remoteProfile ? {} : 'skip',
   );
   const readOnly = mode === 'demo';
   const localRevision = Math.max(
@@ -111,9 +131,9 @@ export function HealthStoreProvider({
 
   useEffect(() => {
     void initializeLocalDatabase().then(() => {
-      if (mode === 'demo') void refresh();
+      if (!remoteEnabled) void refresh();
     });
-  }, [mode, refresh]);
+  }, [refresh, remoteEnabled]);
 
   useEffect(() => {
     if (!viewer) return;
@@ -147,7 +167,7 @@ export function HealthStoreProvider({
   }, [refresh, remoteSnapshot]);
 
   const syncNow = useCallback(async () => {
-    if (readOnly || !remoteProfile) return;
+    if (readOnly || !remoteEnabled || !remoteProfile) return;
     setSyncStatus('syncing');
     try {
       const rows = await pendingOutbox();
@@ -174,7 +194,7 @@ export function HealthStoreProvider({
       console.error('Health sync failed', error);
       setSyncStatus('error');
     }
-  }, [readOnly, remoteProfile, syncRemoteBatch]);
+  }, [readOnly, remoteEnabled, remoteProfile, syncRemoteBatch]);
 
   useEffect(() => {
     if (remoteProfile) void syncNow();
@@ -191,14 +211,11 @@ export function HealthStoreProvider({
         updatedAt: now,
       };
       await saveLocalProfile(profile);
-      await saveRemoteProfile(profile);
+      if (remoteEnabled) await saveRemoteProfile(profile);
       const program: MonitoringProgram = {
         localId: newLocalId('program'),
         type: input.goal,
-        title:
-          input.goal === 'pregnancy'
-            ? 'Сопровождение беременности'
-            : 'Планирование беременности',
+        title: programTitleForGoal(input.goal),
         status: 'active',
         startedAt: now,
         updatedAt: now,
@@ -215,7 +232,7 @@ export function HealthStoreProvider({
       await saveLocalRecord('reminders', reminder);
       await refresh();
     },
-    [readOnly, refresh, saveRemoteProfile],
+    [readOnly, refresh, remoteEnabled, saveRemoteProfile],
   );
 
   const addJournalEntry = useCallback(
@@ -231,6 +248,53 @@ export function HealthStoreProvider({
       await refresh();
     },
     [readOnly, refresh],
+  );
+
+  const updateProfile = useCallback(
+    async (
+      input: Partial<
+        Pick<
+          LocalProfile,
+          | 'displayName'
+          | 'goal'
+          | 'pregnancyStartAt'
+          | 'lastPeriodStartAt'
+          | 'cycleLengthDays'
+        >
+      >,
+    ) => {
+      if (readOnly || !snapshot.profile) return;
+      const updatedAt = Date.now();
+      const nextProfile: LocalProfile = {
+        ...snapshot.profile,
+        ...input,
+        updatedAt,
+      };
+      await saveLocalProfile(nextProfile);
+      if (input.goal && input.goal !== snapshot.profile.goal) {
+        const activeProgram = snapshot.programs.find(
+          (program) => !program.deletedAt && program.status === 'active',
+        );
+        if (activeProgram) {
+          await saveLocalRecord('programs', {
+            ...activeProgram,
+            type: input.goal,
+            title: programTitleForGoal(input.goal),
+            updatedAt,
+          });
+        }
+      }
+      if (remoteEnabled) await saveRemoteProfile(nextProfile);
+      await refresh();
+    },
+    [
+      readOnly,
+      refresh,
+      remoteEnabled,
+      saveRemoteProfile,
+      snapshot.profile,
+      snapshot.programs,
+    ],
   );
 
   const addLabResult = useCallback(
@@ -267,8 +331,7 @@ export function HealthStoreProvider({
         localId: newLocalId('scan'),
         updatedAt: Date.now(),
       };
-      await saveLocalRecord('scanResults', result);
-      await saveLocalRecord('journalEntries', {
+      const journalEntry: JournalEntry = {
         localId: newLocalId('journal'),
         occurredAt: result.capturedAt,
         kind: 'measurement',
@@ -280,8 +343,11 @@ export function HealthStoreProvider({
         source: 'scan',
         sourceLocalId: result.localId,
         updatedAt: result.updatedAt,
+      };
+      await saveScanResultWithJournal(result, journalEntry);
+      await refresh().catch((cause: unknown) => {
+        console.error('Refreshing health data after scan save failed', cause);
       });
-      await refresh();
     },
     [readOnly, refresh],
   );
@@ -319,6 +385,7 @@ export function HealthStoreProvider({
       readOnly,
       syncStatus,
       completeOnboarding,
+      updateProfile,
       addJournalEntry,
       addLabResult,
       addScanResult,
@@ -332,6 +399,7 @@ export function HealthStoreProvider({
       readOnly,
       syncStatus,
       completeOnboarding,
+      updateProfile,
       addJournalEntry,
       addLabResult,
       addScanResult,

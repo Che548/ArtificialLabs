@@ -1,4 +1,4 @@
-export type HealthGoal = 'planning' | 'pregnancy';
+export type HealthGoal = 'cycle' | 'planning' | 'pregnancy';
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error';
 
 export type LocalProfile = {

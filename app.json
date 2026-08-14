@@ -7,10 +7,10 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#823537",
+    "backgroundColor": "#FDECE5",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.private-expo"
+      "bundleIdentifier": "com.anonymous.privateexpo"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,26 +20,41 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": ["android.permission.CAMERA"],
+      "package": "com.anonymous.privateexpo"
     },
     "web": {
-      "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/SF-Pro-Display-Regular.otf",
+            "./assets/fonts/SF-Pro-Display-Medium.otf",
+            "./assets/fonts/SF-Pro-Display-Semibold.otf",
+            "./assets/fonts/SF-Pro-Display-Bold.otf",
+            "./assets/fonts/Yaro-Rg-Regular.otf"
+          ]
+        }
+      ],
       "expo-router",
       "expo-web-browser",
-      "expo-status-bar",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Разрешите Private выбирать фотографии тестов из медиатеки."
+        }
+      ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Разрешите ArtificialLabs сфотографировать домашний тест. Снимок останется только на этом устройстве."
+          "cameraPermission": "Разрешите приложению Private использовать камеру для сканирования QR-кодов и тестов.",
+          "recordAudioAndroid": false
         }
       ],
+      "./plugins/with-camera-controls",
       [
         "expo-sqlite",
         {
@@ -50,9 +65,38 @@
         "expo-secure-store",
         {
           "configureAndroidBackup": true,
-          "faceIDPermission": "Разрешите ArtificialLabs защищать локальные медицинские данные."
+          "faceIDPermission": "Разрешите Private защищать локальные медицинские данные."
         }
-      ]
+      ],
+      [
+        "expo-asset",
+        {
+          "assets": [
+            "./assets/figma/pregnancy-background.png",
+            "./assets/figma/today-pregnancy-background.png",
+            "./assets/figma/scan-screen/background.png",
+            "./assets/figma/scan-screen/scan-flow-qr-final.png",
+            "./assets/figma/scan-screen/scan-flow-qr.png",
+            "./assets/figma/scan-screen/scan-test-strip.png",
+            "./assets/instructions/step-1-cup.png",
+            "./assets/instructions/step-2-package.png",
+            "./assets/instructions/step-3-dip-test.png",
+            "./assets/instructions/step-4-test-strip.png",
+            "./assets/instructions/step-5-results.png",
+            "./assets/tab-icons/analyses-selected.png",
+            "./assets/tab-icons/analyses.png",
+            "./assets/tab-icons/chat-selected.png",
+            "./assets/tab-icons/chat.png",
+            "./assets/tab-icons/profile-selected.png",
+            "./assets/tab-icons/profile.png",
+            "./assets/tab-icons/scan-selected.png",
+            "./assets/tab-icons/scan.png",
+            "./assets/tab-icons/today-selected.png",
+            "./assets/tab-icons/today.png"
+          ]
+        }
+      ],
+      "./plugins/with-physical-device-bundle"
     ]
   }
 }

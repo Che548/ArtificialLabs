@@ -10,6 +10,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Local AI/tooling configuration
+.claude/
+
 # Native
 .kotlin/
 *.orig.*
@@ -43,3 +46,12 @@ infra/web/.env
 # generated native folders
 /ios
 /android
+
+# Preserved Swift/Xcode baseline
+DerivedData/
+build/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.moved-aside

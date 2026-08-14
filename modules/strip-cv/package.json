@@ -1,0 +1,6 @@
+{
+  "name": "strip-cv",
+  "version": "0.3.1",
+  "private": true,
+  "main": "index.ts"
+}
