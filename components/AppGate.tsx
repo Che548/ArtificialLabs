@@ -12,9 +12,9 @@ export function AppGate({
   if (!ready) {
     return (
       <View className="flex-1 items-center justify-center bg-surface-canvas">
-        <ActivityIndicator color="#D31471" />
+        <ActivityIndicator color="#EA4087" />
         <Text className="text-text-secondary mt-3 font-sf text-[14px]">
-          Открываем защищённое хранилище…
+          Загружаем контент...
         </Text>
       </View>
     );

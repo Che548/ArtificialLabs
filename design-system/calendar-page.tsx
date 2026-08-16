@@ -25,8 +25,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AddIcon from '../assets/figma/calendar-page/add.svg';
 import BackIcon from '../assets/figma/calendar-page/back.svg';
 import HeaderShape from '../assets/figma/calendar-page/header-shape.svg';
-import { AppText, HeaderDateLabel, LiquidGlassSurface } from './components';
-import { colors, radii, shadows, sizes, spacing } from './tokens';
+import {
+  AppText,
+  LiquidGlassSurface,
+  SegmentedSwitcher,
+} from './components';
+import {
+  androidShadows,
+  colors,
+  getHeaderTop,
+  radii,
+  shadows,
+  sizes,
+  spacing,
+} from './tokens';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
@@ -35,6 +47,9 @@ const CALENDAR_CONTENT_TOP = 246;
 const MONTH_SECTION_HEIGHT = 410;
 const DAY_DETAILS_HEIGHT = 196;
 const RETURN_BUTTON_SIZE = 52;
+const YEAR_SECTION_HEIGHT = 646;
+const YEARS_BEFORE_SELECTED = 5;
+const YEARS_AFTER_SELECTED = 5;
 const MENSTRUATION_HEADER_COLOR = '#EA4087';
 const MONTHS_BEFORE_SELECTED = 60;
 const MONTHS_AFTER_SELECTED = 60;
@@ -60,6 +75,7 @@ const FERTILE_DATE_KEYS = new Set(
 );
 const OVULATION_DATE_KEY = dateKey(new Date(2026, 6, 28));
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+const AnimatedHeaderShape = Animated.createAnimatedComponent(HeaderShape);
 
 type CalendarPageModalProps = {
   visible: boolean;
@@ -70,6 +86,15 @@ type CalendarPageModalProps = {
 };
 
 type CalendarPageVariant = 'backup' | 'continuous';
+type CalendarViewMode = 'month' | 'year';
+
+const calendarViewModes: ReadonlyArray<{
+  value: CalendarViewMode;
+  label: string;
+}> = [
+  { value: 'month', label: 'Месяц' },
+  { value: 'year', label: 'Год' },
+];
 
 type CalendarPageBaseProps = CalendarPageModalProps & {
   variant: CalendarPageVariant;
@@ -562,6 +587,146 @@ function CalendarDayGrid({
   );
 }
 
+function compactMonthTitle(date: Date) {
+  return capitalize(
+    new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(date),
+  );
+}
+
+function YearMiniMonth({
+  currentDate,
+  forecastForDate,
+  month,
+  onSelectDate,
+  periodDateKeys,
+  selectedDate,
+}: {
+  currentDate: Date;
+  forecastForDate: (date: Date) => DayForecast | null;
+  month: Date;
+  onSelectDate: (date: Date) => void;
+  periodDateKeys: ReadonlySet<string>;
+  selectedDate: Date | null;
+}) {
+  const cells = useMemo(() => makeCalendarCells(month), [month]);
+  const currentKey = dateKey(currentDate);
+  const selectedKey = selectedDate ? dateKey(selectedDate) : null;
+  const currentMonth =
+    month.getFullYear() === currentDate.getFullYear() &&
+    month.getMonth() === currentDate.getMonth();
+
+  return (
+    <View style={styles.yearMiniMonth}>
+      <AppText
+        role="label"
+        weight={currentMonth ? 'semibold' : 'medium'}
+        style={styles.yearMiniMonthTitle}
+      >
+        {compactMonthTitle(month)}
+      </AppText>
+      <View style={styles.yearMiniDays}>
+        {cells.map(({ date, inCurrentMonth }) => {
+          const key = dateKey(date);
+
+          if (!inCurrentMonth) {
+            return <View key={key} style={styles.yearMiniDayCell} />;
+          }
+
+          const forecast = forecastForDate(date) ?? getDayForecast(date);
+          const loggedPeriod = periodDateKeys.has(key);
+          const period = forecast.kind === 'menstruation' || loggedPeriod;
+          const futurePeriod =
+            period && !loggedPeriod && dayTimestamp(date) > dayTimestamp(currentDate);
+          const fertile = forecast.kind === 'fertile';
+          const ovulation = forecast.kind === 'ovulation';
+          const current = key === currentKey;
+          const selected = key === selectedKey;
+
+          return (
+            <Pressable
+              key={key}
+              accessibilityRole="button"
+              accessibilityLabel={dayTitle(date)}
+              accessibilityState={{ selected }}
+              onPress={() => onSelectDate(date)}
+              style={styles.yearMiniDayCell}
+            >
+              {({ pressed }) => (
+                <View
+                  style={[
+                    styles.yearMiniDay,
+                    fertile && styles.yearMiniDayFertile,
+                    ovulation && styles.yearMiniDayOvulation,
+                    period && !futurePeriod && styles.yearMiniDayPeriod,
+                    futurePeriod && styles.yearMiniDayFuturePeriod,
+                    selected && styles.yearMiniDaySelected,
+                    pressed && styles.yearMiniDayPressed,
+                  ]}
+                >
+                  <AppText
+                    numeric
+                    role="caption"
+                    weight={current ? 'bold' : 'regular'}
+                    color={
+                      period && !futurePeriod
+                        ? colors.text.inverse
+                        : futurePeriod
+                          ? colors.brand.primary
+                          : fertile || ovulation
+                            ? '#2EB7B1'
+                            : colors.text.primary
+                    }
+                    style={styles.yearMiniDayNumber}
+                  >
+                    {date.getDate()}
+                  </AppText>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function YearCalendarSection({
+  currentDate,
+  forecastForDate,
+  onSelectDate,
+  periodDateKeys,
+  selectedDate,
+  year,
+}: {
+  currentDate: Date;
+  forecastForDate: (date: Date) => DayForecast | null;
+  onSelectDate: (date: Date) => void;
+  periodDateKeys: ReadonlySet<string>;
+  selectedDate: Date | null;
+  year: number;
+}) {
+  return (
+    <View style={styles.yearSection}>
+      <AppText numeric role="display" weight="semibold" style={styles.yearTitle}>
+        {year}
+      </AppText>
+      <View style={styles.yearMonthsGrid}>
+        {Array.from({ length: 12 }, (_, monthIndex) => (
+          <YearMiniMonth
+            key={monthIndex}
+            currentDate={currentDate}
+            forecastForDate={forecastForDate}
+            month={new Date(year, monthIndex, 1)}
+            onSelectDate={onSelectDate}
+            periodDateKeys={periodDateKeys}
+            selectedDate={selectedDate}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function CalendarGlassControl({
   activateOnPressIn = false,
   accessibilityLabel,
@@ -639,7 +804,13 @@ function CalendarGlassControl({
     <View
       style={[
         controlStyle,
-        headerElevation ? shadows.control : styles.headerGlassShadow,
+        Platform.OS === 'android'
+          ? headerElevation
+            ? androidShadows.control
+            : androidShadows.floating
+          : headerElevation
+            ? shadows.control
+            : styles.headerGlassShadow,
       ]}
     >
       <Pressable
@@ -978,7 +1149,9 @@ function CalendarPageModalBase({
   const protectedDayInteractionRef = useRef(false);
   const returnButtonProgress = useRef(new Animated.Value(0)).current;
   const daySheetProgress = useRef(new Animated.Value(0)).current;
+  const viewProgress = useRef(new Animated.Value(0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
   const [selectedDate, setSelectedDate] = useState<Date | null>(
     variant === 'continuous' ? null : initialDate,
   );
@@ -1019,13 +1192,36 @@ function CalendarPageModalBase({
     setReturnDirection('up');
     setDayDetailsVisible(false);
     setPeriodMarkingMode(false);
+    setViewMode('month');
     initialMonthPositionedRef.current = false;
     returnButtonProgress.setValue(0);
     daySheetProgress.setValue(0);
-  }, [daySheetProgress, initialDate, returnButtonProgress, visible]);
+    viewProgress.setValue(0);
+  }, [daySheetProgress, initialDate, returnButtonProgress, viewProgress, visible]);
+
+  useEffect(() => {
+    const target = viewMode === 'year' ? 1 : 0;
+
+    viewProgress.stopAnimation();
+    if (reduceMotion) {
+      viewProgress.setValue(target);
+      return;
+    }
+
+    Animated.spring(viewProgress, {
+      toValue: target,
+      damping: 24,
+      stiffness: 230,
+      mass: 0.78,
+      overshootClamping: true,
+      restDisplacementThreshold: 0.001,
+      restSpeedThreshold: 0.001,
+      useNativeDriver: true,
+    }).start();
+  }, [reduceMotion, viewMode, viewProgress]);
 
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
-  const headerTop = Math.max(16, insets.top / scale + 8);
+  const headerTop = getHeaderTop(insets.top, scale);
   const anchorMonthKey = `${initialDate.getFullYear()}-${initialDate.getMonth()}`;
   const monthSequence = useMemo(
     () =>
@@ -1040,6 +1236,15 @@ function CalendarPageModalBase({
       ),
     [initialDate],
   );
+  const yearSequence = useMemo(
+    () =>
+      Array.from(
+        { length: YEARS_BEFORE_SELECTED + YEARS_AFTER_SELECTED + 1 },
+        (_, index) =>
+          initialDate.getFullYear() + index - YEARS_BEFORE_SELECTED,
+      ),
+    [initialDate],
+  );
   const detailsDate = selectedDate ?? initialDate;
   const calculatedCycle = useMemo(
     () => buildCalculatedCycle(periodDateKeys),
@@ -1050,6 +1255,13 @@ function CalendarPageModalBase({
       calculatedCycle
         ? (date: Date) => getCalculatedDayForecast(date, calculatedCycle)
         : (_date: Date) => null,
+    [calculatedCycle],
+  );
+  const yearForecastForDate = useMemo(
+    () =>
+      calculatedCycle
+        ? (date: Date) => getCalculatedDayForecast(date, calculatedCycle)
+        : (date: Date) => getDayForecast(date),
     [calculatedCycle],
   );
   const headerDate = dayTitle(
@@ -1326,6 +1538,49 @@ function CalendarPageModalBase({
     dismissDayDetails();
   };
 
+  const changeViewMode = (nextMode: CalendarViewMode) => {
+    if (nextMode === viewMode) {
+      return;
+    }
+
+    setViewMode(nextMode);
+    setDayDetailsVisible(false);
+    setPeriodMarkingMode(false);
+
+    if (Platform.OS !== 'web') {
+      void Haptics.selectionAsync();
+    }
+  };
+
+  const selectDateFromYear = (date: Date) => {
+    const monthOffset =
+      (date.getFullYear() - initialDate.getFullYear()) * 12 +
+      date.getMonth() -
+      initialDate.getMonth();
+    const targetIndex = Math.max(
+      0,
+      Math.min(
+        monthSequence.length - 1,
+        MONTHS_BEFORE_SELECTED + monthOffset,
+      ),
+    );
+
+    setSelectedDate(date);
+    setDayDetailsVisible(false);
+    setViewMode('month');
+    setCurrentMonthVisible(targetIndex === MONTHS_BEFORE_SELECTED);
+    requestAnimationFrame(() => {
+      monthListRef.current?.scrollToOffset({
+        animated: false,
+        offset: targetIndex * MONTH_SECTION_HEIGHT,
+      });
+    });
+
+    if (Platform.OS !== 'web') {
+      void Haptics.selectionAsync();
+    }
+  };
+
   return (
     <Modal
       animationType={reduceMotion ? 'none' : 'slide'}
@@ -1473,7 +1728,28 @@ function CalendarPageModalBase({
                   </View>
                 </ScrollView>
               ) : (
-                <FlatList
+                <>
+                  <Animated.View
+                    pointerEvents={viewMode === 'month' ? 'auto' : 'none'}
+                    style={[
+                      styles.calendarViewLayer,
+                      {
+                        opacity: viewProgress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 0],
+                        }),
+                        transform: [
+                          {
+                            scale: viewProgress.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [1, 0.94],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <FlatList
                   ref={monthListRef}
                   data={monthSequence}
                   keyExtractor={(month) =>
@@ -1572,10 +1848,59 @@ function CalendarPageModalBase({
                     periodMarkingMode,
                     selectedDate,
                   }}
-                />
+                    />
+                  </Animated.View>
+
+                  <Animated.View
+                    pointerEvents={viewMode === 'year' ? 'auto' : 'none'}
+                    style={[
+                      styles.calendarViewLayer,
+                      {
+                        opacity: viewProgress,
+                        transform: [
+                          {
+                            scale: viewProgress.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.94, 1],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <FlatList
+                      data={yearSequence}
+                      keyExtractor={(year) => String(year)}
+                      renderItem={({ item: year }) => (
+                        <YearCalendarSection
+                          currentDate={initialDate}
+                          forecastForDate={yearForecastForDate}
+                          onSelectDate={selectDateFromYear}
+                          periodDateKeys={periodDateKeys}
+                          selectedDate={selectedDate}
+                          year={year}
+                        />
+                      )}
+                      getItemLayout={(_, index) => ({
+                        index,
+                        length: YEAR_SECTION_HEIGHT,
+                        offset: YEAR_SECTION_HEIGHT * index,
+                      })}
+                      initialScrollIndex={YEARS_BEFORE_SELECTED}
+                      initialNumToRender={2}
+                      maxToRenderPerBatch={3}
+                      windowSize={5}
+                      contentInsetAdjustmentBehavior="never"
+                      showsVerticalScrollIndicator={false}
+                      style={[styles.yearScroll, { top: headerTop + 62 }]}
+                      contentContainerStyle={styles.yearScrollContent}
+                      extraData={{ periodDateKeys, selectedDate }}
+                    />
+                  </Animated.View>
+                </>
               )}
 
-              <HeaderShape
+              <AnimatedHeaderShape
                 pointerEvents="none"
                 width={DESIGN_WIDTH}
                 height={HEADER_SHAPE_HEIGHT}
@@ -1584,6 +1909,12 @@ function CalendarPageModalBase({
                   styles.headerShape,
                   { shadowColor: selectedHeaderShadowColor },
                   periodMarkingMode && styles.periodModeHidden,
+                  variant === 'continuous' && {
+                    opacity: viewProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 0],
+                    }),
+                  },
                 ]}
               />
 
@@ -1603,20 +1934,23 @@ function CalendarPageModalBase({
                     />
                   </GlassHeaderButton>
 
-                  <CalendarGlassControl
-                    accessibilityLabel={
-                      variant === 'continuous'
-                        ? `Сегодня, ${headerDate}`
-                        : 'Выбранная дата'
-                    }
-                    width={156}
-                    height={sizes.touch}
-                    radius={sizes.touch / 2}
-                    headerElevation
-                  >
-                    {variant === 'continuous' ? (
-                      <HeaderDateLabel date={initialDate} />
-                    ) : (
+                  {variant === 'continuous' ? (
+                    <View style={styles.calendarModeHeaderSlot}>
+                      <SegmentedSwitcher
+                        accessibilityLabel="Масштаб календаря"
+                        options={calendarViewModes}
+                        value={viewMode}
+                        onChange={changeViewMode}
+                      />
+                    </View>
+                  ) : (
+                    <CalendarGlassControl
+                      accessibilityLabel="Выбранная дата"
+                      width={156}
+                      height={sizes.touch}
+                      radius={sizes.touch / 2}
+                      headerElevation
+                    >
                       <AppText
                         role="body"
                         weight="medium"
@@ -1625,8 +1959,8 @@ function CalendarPageModalBase({
                       >
                         {headerDate}
                       </AppText>
-                    )}
-                  </CalendarGlassControl>
+                    </CalendarGlassControl>
+                  )}
 
                   <GlassHeaderButton
                     accessibilityLabel="Добавить запись"
@@ -1662,12 +1996,18 @@ function CalendarPageModalBase({
                 </View>
               )}
 
-              <View
+              <Animated.View
                 pointerEvents="none"
                 style={[
                   styles.metrics,
                   { top: headerTop + 61 },
                   periodMarkingMode && styles.periodModeHidden,
+                  variant === 'continuous' && {
+                    opacity: viewProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 0],
+                    }),
+                  },
                 ]}
               >
                 <View style={styles.metricNarrow}>
@@ -1761,9 +2101,9 @@ function CalendarPageModalBase({
                     День цикла
                   </AppText>
                 </View>
-              </View>
+              </Animated.View>
 
-              {variant === 'continuous' ? (
+              {variant === 'continuous' && viewMode === 'month' ? (
                 <>
                   <Animated.View
                     pointerEvents={currentMonthVisible ? 'none' : 'auto'}
@@ -1968,6 +2308,101 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 1,
   },
+  calendarViewLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  yearScroll: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  yearScrollContent: {
+    paddingHorizontal: sizes.screenGutter,
+    paddingBottom: 96,
+  },
+  yearSection: {
+    height: YEAR_SECTION_HEIGHT,
+    paddingTop: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(115,110,108,0.18)',
+  },
+  yearTitle: {
+    height: 46,
+    fontSize: 32,
+    lineHeight: 38,
+    letterSpacing: -0.64,
+    textAlign: 'center',
+  },
+  yearMonthsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    columnGap: 8,
+    rowGap: 8,
+  },
+  yearMiniMonth: {
+    width: 112,
+    height: 136,
+  },
+  yearMiniMonthTitle: {
+    height: 22,
+    fontSize: 14,
+    lineHeight: 18,
+    letterSpacing: -0.18,
+    textAlign: 'center',
+  },
+  yearMiniDays: {
+    marginTop: 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  yearMiniDayCell: {
+    width: '14.2857%',
+    height: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearMiniDay: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearMiniDayFertile: {
+    backgroundColor: 'rgba(46,183,177,0.05)',
+  },
+  yearMiniDayOvulation: {
+    borderWidth: 1,
+    borderStyle: 'dotted',
+    borderColor: '#2EB7B1',
+    backgroundColor: 'transparent',
+  },
+  yearMiniDayPeriod: {
+    backgroundColor: colors.brand.primary,
+  },
+  yearMiniDayFuturePeriod: {
+    borderWidth: 1,
+    borderStyle: 'dotted',
+    borderColor: colors.brand.primary,
+    backgroundColor: 'transparent',
+  },
+  yearMiniDaySelected: {
+    borderWidth: 1.25,
+    borderColor: colors.text.primary,
+  },
+  yearMiniDayPressed: {
+    opacity: 0.6,
+    transform: [{ scale: 0.88 }],
+  },
+  yearMiniDayNumber: {
+    fontSize: 8.5,
+    lineHeight: 10,
+    letterSpacing: -0.12,
+    textAlign: 'center',
+  },
   scrollContent: {
     paddingTop: CALENDAR_CONTENT_TOP,
     paddingHorizontal: sizes.screenGutter,
@@ -2012,7 +2447,7 @@ const styles = StyleSheet.create({
     top: 0,
     zIndex: 5,
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 16,
     elevation: 8,
@@ -2025,6 +2460,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  calendarModeHeaderSlot: {
+    width: 184,
+    height: 46,
   },
   headerCircle: {
     width: sizes.touch,
@@ -2082,7 +2521,8 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-45deg' }],
   },
   pressed: {
-    transform: [{ scale: 1.035 }],
+    opacity: Platform.OS === 'android' ? 0.94 : 1,
+    transform: [{ scale: Platform.OS === 'android' ? 0.98 : 1.035 }],
   },
   metrics: {
     position: 'absolute',
@@ -2207,7 +2647,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: colors.surface.raised,
     shadowColor: '#3A171C',
-    shadowOffset: { width: 0, height: 12 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.14,
     shadowRadius: 24,
     elevation: 8,
@@ -2576,7 +3016,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     backgroundColor: colors.brand.primary,
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.24,
     shadowRadius: 8,
     elevation: 4,

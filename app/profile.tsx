@@ -12,9 +12,11 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   Animated,
   Easing,
   Linking,
+  Modal,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -29,7 +31,6 @@ import ProfileIcon02 from '../assets/profile/settings-icons/2.svg';
 import ProfileIcon03 from '../assets/profile/settings-icons/3.svg';
 import ProfileIcon04 from '../assets/profile/settings-icons/4.svg';
 import ProfileIcon05 from '../assets/profile/settings-icons/5.svg';
-import ProfileIcon06 from '../assets/profile/settings-icons/6.svg';
 import ProfileIcon07 from '../assets/profile/settings-icons/7.svg';
 import ProfileIcon08 from '../assets/profile/settings-icons/8.svg';
 import ProfileIcon09 from '../assets/profile/settings-icons/9.svg';
@@ -38,6 +39,10 @@ import ProfileIcon11 from '../assets/profile/settings-icons/11.svg';
 import ProfileIcon12 from '../assets/profile/settings-icons/12.svg';
 import ProfileIcon13 from '../assets/profile/settings-icons/13.svg';
 
+import {
+  PlanningTodayScreenCatalogPreview,
+  TodayScreenCatalogPreview,
+} from '../App';
 import {
   AppText,
   colors,
@@ -50,6 +55,8 @@ import {
   ProfileEmptyState,
   ProfileFieldRow,
   ProfileLanguageSelector,
+  OnboardingPreviewFlow,
+  ScanConceptsLab,
   ProfileSettingsGroup,
   ProfileSettingsRow,
   ProfileToggleRow,
@@ -94,6 +101,10 @@ type ProfileSection =
   | 'security'
   | 'notification-settings'
   | 'delete-account'
+  | 'onboarding'
+  | 'planning-today-ui-kit'
+  | 'scan-concepts'
+  | 'today-ui-kit'
   | 'ui-kit';
 
 const SECTION_TITLES: Record<ProfileSection, string> = {
@@ -111,6 +122,10 @@ const SECTION_TITLES: Record<ProfileSection, string> = {
   security: 'Аккаунт и безопасность',
   'notification-settings': 'Настройки уведомлений',
   'delete-account': 'Удаление аккаунта',
+  onboarding: 'Онбординг',
+  'planning-today-ui-kit': 'Сегодня · Планирование',
+  'scan-concepts': 'Варианты сканирования',
+  'today-ui-kit': 'Сегодня · UI kit',
   'ui-kit': 'UI kit',
 };
 
@@ -125,8 +140,7 @@ function formatDate(timestamp?: number) {
 
 function goalLabel(goal?: HealthGoal) {
   if (goal === 'pregnancy') return 'Беременность';
-  if (goal === 'planning') return 'Планирование';
-  return 'Отслеживание цикла';
+  return 'Планирование';
 }
 
 function ProfileHistoryBackIcon() {
@@ -135,7 +149,7 @@ function ProfileHistoryBackIcon() {
       <Path
         d="M13.5 5.5 8 11l5.5 5.5"
         fill="none"
-        stroke="#D31471"
+        stroke="#EA4087"
         strokeWidth={1.8}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -191,6 +205,14 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (panel === 'ui-kit') {
       setActiveSection('ui-kit');
+    } else if (panel === 'onboarding') {
+      setActiveSection('onboarding');
+    } else if (panel === 'scan-concepts') {
+      setActiveSection('scan-concepts');
+    } else if (panel === 'today-ui-kit') {
+      setActiveSection('today-ui-kit');
+    } else if (panel === 'planning-today-ui-kit') {
+      setActiveSection('planning-today-ui-kit');
     }
   }, [panel]);
 
@@ -249,6 +271,8 @@ export default function ProfileScreen() {
     setSyncMessage(undefined);
     if (await syncNow()) {
       setSyncMessage('Данные синхронизированы');
+    } else {
+      setSyncMessage('Не удалось синхронизировать данные');
     }
   };
 
@@ -343,13 +367,14 @@ export default function ProfileScreen() {
             }
             documentCount={documentCount}
             medicationCount={medications.filter((item) => !item.deletedAt).length}
-            programCount={visiblePrograms.length}
             onOpen={openSection}
           />
         </ScrollView>
       </Animated.View>
 
-      {activeSection ? (
+      {activeSection &&
+      activeSection !== 'onboarding' &&
+      activeSection !== 'scan-concepts' ? (
         <Animated.View
           style={[
             styles.detailPage,
@@ -367,6 +392,24 @@ export default function ProfileScreen() {
         >
           {activeSection === 'ui-kit' ? (
             <DesignSystemScreen onBack={closeSection} />
+          ) : activeSection === 'today-ui-kit' ? (
+            <ProfileDetailScreen
+              bottomInset={insets.bottom}
+              title={SECTION_TITLES[activeSection]}
+              topInset={insets.top}
+              onBack={closeSection}
+            >
+              <TodayProfileKitPreview />
+            </ProfileDetailScreen>
+          ) : activeSection === 'planning-today-ui-kit' ? (
+            <ProfileDetailScreen
+              bottomInset={insets.bottom}
+              title={SECTION_TITLES[activeSection]}
+              topInset={insets.top}
+              onBack={closeSection}
+            >
+              <PlanningTodayProfileKitPreview />
+            </ProfileDetailScreen>
           ) : (
             <ProfileDetailScreen
               bottomInset={insets.bottom}
@@ -413,7 +456,9 @@ export default function ProfileScreen() {
                 syncMessage,
                 syncNow: () => void synchronize(),
                 syncDisabled:
-                  !cloudSyncEnabled || accountDeletion.pendingDeletion,
+                  !viewerEmail ||
+                  !cloudSyncEnabled ||
+                  accountDeletion.pendingDeletion,
                 syncStatus,
                 viewerEmail,
               })}
@@ -421,6 +466,26 @@ export default function ProfileScreen() {
           )}
         </Animated.View>
       ) : null}
+
+      <Modal
+        animationType="slide"
+        presentationStyle="fullScreen"
+        statusBarTranslucent={false}
+        visible={activeSection === 'onboarding'}
+        onRequestClose={closeSection}
+      >
+        <OnboardingPreviewFlow onClose={closeSection} />
+      </Modal>
+
+      <Modal
+        animationType="slide"
+        presentationStyle="fullScreen"
+        statusBarTranslucent={false}
+        visible={activeSection === 'scan-concepts'}
+        onRequestClose={closeSection}
+      >
+        <ScanConceptsLab onClose={closeSection} />
+      </Modal>
     </View>
   );
 }
@@ -431,14 +496,12 @@ function ProfileOverview({
   documentCount,
   medicationCount,
   onOpen,
-  programCount,
 }: {
   allergyCount: number;
   conditionCount: number;
   documentCount: number;
   medicationCount: number;
   onOpen: (section: ProfileSection) => void;
-  programCount: number;
 }) {
   return (
     <View style={styles.overview}>
@@ -492,20 +555,6 @@ function ProfileOverview({
           value={documentCount ? String(documentCount) : 'Нет документов'}
           isLast
           onPress={() => onOpen('documents')}
-        />
-      </ProfileSettingsGroup>
-
-      <ProfileSettingsGroup title="Наблюдение">
-        <ProfileSettingsRow
-          icon="heart.text.square.fill"
-          iconAsset={ProfileIcon06}
-          fallback="Н"
-          iconBackground={profileTones.monitoring.tile}
-          iconColor={profileTones.monitoring.glyph}
-          label="Подключённые программы"
-          value={programCount ? String(programCount) : 'Нет программ'}
-          isLast
-          onPress={() => onOpen('programs')}
         />
       </ProfileSettingsGroup>
 
@@ -591,10 +640,120 @@ function ProfileOverview({
           iconColor={colors.brand.primary}
           label="UI kit"
           value="Компоненты"
-          isLast
           onPress={() => onOpen('ui-kit')}
         />
+        <ProfileSettingsRow
+          icon="sparkles.rectangle.stack.fill"
+          fallback="ОБ"
+          iconBackground="#F4E7EB"
+          iconColor={colors.brand.primary}
+          label="Онбординг"
+          value="5 вариантов"
+          onPress={() => onOpen('onboarding')}
+        />
+        <ProfileSettingsRow
+          icon="viewfinder"
+          fallback="СК"
+          iconBackground="#E7EDF0"
+          iconColor="#3E6472"
+          label="Варианты страницы Скан"
+          value="5 концептов"
+          isLast
+          onPress={() => onOpen('scan-concepts')}
+        />
       </ProfileSettingsGroup>
+
+      <ProfileSettingsGroup title="Сохранённые экраны">
+        <ProfileSettingsRow
+          icon="heart.circle.fill"
+          fallback="СГ"
+          iconBackground="#FBE7F0"
+          iconColor={colors.brand.primary}
+          label="Страница «Сегодня»"
+          value="UI kit"
+          onPress={() => onOpen('today-ui-kit')}
+        />
+        <ProfileSettingsRow
+          icon="heart.circle"
+          fallback="ПЛ"
+          iconBackground="#FFF0F4"
+          iconColor={colors.brand.primary}
+          label="Сегодня · Планирование"
+          value="Вариант"
+          isLast
+          onPress={() => onOpen('planning-today-ui-kit')}
+        />
+      </ProfileSettingsGroup>
+    </View>
+  );
+}
+
+function TodayProfileKitPreview() {
+  const { width } = useWindowDimensions();
+  const previewWidth = Math.min(370, width - sizes.screenGutter * 2);
+  const previewScale = previewWidth / 402;
+
+  return (
+    <View style={styles.todayKitSection}>
+      <View style={styles.todayKitCopy}>
+        <AppText role="heading" weight="semibold">
+          Текущая версия
+        </AppText>
+        <AppText role="body" color={colors.text.secondary}>
+          Сохранённый полноэкранный образец страницы «Сегодня».
+        </AppText>
+      </View>
+      <View
+        pointerEvents="none"
+        style={[
+          styles.todayKitStage,
+          { width: previewWidth, height: 874 * previewScale },
+        ]}
+      >
+        <View
+          style={[
+            styles.todayKitCanvas,
+            { transform: [{ scale: previewScale }] },
+          ]}
+        >
+          <TodayScreenCatalogPreview />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function PlanningTodayProfileKitPreview() {
+  const { width } = useWindowDimensions();
+  const previewWidth = Math.min(370, width - sizes.screenGutter * 2);
+  const previewScale = previewWidth / 402;
+
+  return (
+    <View style={styles.todayKitSection}>
+      <View style={styles.todayKitCopy}>
+        <AppText role="heading" weight="semibold">
+          Режим «Планирование»
+        </AppText>
+        <AppText role="body" color={colors.text.secondary}>
+          Прогноз фертильного окна, лучшие дни для зачатия и быстрые отметки
+          цикла. Кнопки внутри образца работают.
+        </AppText>
+      </View>
+      <View
+        style={[
+          styles.todayKitStage,
+          { width: previewWidth, height: 874 * previewScale },
+        ]}
+      >
+        <View
+          style={[
+            styles.todayKitCanvas,
+            { transform: [{ scale: previewScale }] },
+          ]}
+        >
+          <PlanningTodayScreenCatalogPreview />
+        </View>
+      </View>
     </View>
   );
 }
@@ -772,13 +931,14 @@ function renderProfileSectionDirect({
 
           <ProfileVerticalChoiceControl<HealthGoal>
             accessibilityLabel="Цель использования"
-            defaultValue={profile?.goal ?? 'cycle'}
+            defaultValue={
+              profile?.goal === 'pregnancy' ? 'pregnancy' : 'planning'
+            }
             disabled={readOnly}
             grouped
             label="Цель использования"
-            value={profile?.goal ?? 'cycle'}
+            value={profile?.goal === 'pregnancy' ? 'pregnancy' : 'planning'}
             options={[
-              { value: 'cycle', label: 'Отслеживание цикла' },
               { value: 'planning', label: 'Планирование' },
               { value: 'pregnancy', label: 'Беременность' },
             ]}
@@ -833,23 +993,6 @@ function renderProfileSectionDirect({
             />
           </ProfileSettingsGroup>
 
-          <ProfileSettingsGroup title="Состояния">
-            <ProfileToggleRow
-              label="Послеродовый период"
-              value={profile?.postpartum ?? false}
-              disabled={readOnly}
-              onChange={(postpartum) => void saveProfile({ postpartum })}
-            />
-            <ProfileToggleRow
-              label="После отмены контрацепции"
-              value={profile?.postContraception ?? false}
-              disabled={readOnly}
-              isLast
-              onChange={(postContraception) =>
-                void saveProfile({ postContraception })
-              }
-            />
-          </ProfileSettingsGroup>
         </>
       );
 
@@ -1010,7 +1153,7 @@ function renderProfileSectionDirect({
               subtitle="Только структурированные данные"
               testID="e2e-cloud-sync-toggle"
               value={cloudSyncEnabled}
-              disabled={readOnly}
+              disabled={readOnly || !viewerEmail}
               onChange={(enabled) => void setCloudSyncEnabled(enabled)}
             />
             <ProfileToggleRow
@@ -1072,7 +1215,7 @@ function renderProfileSectionDirect({
             destructive
             icon="rectangle.portrait.and.arrow.right"
             label="Выйти из аккаунта"
-            disabled={readOnly}
+            disabled={readOnly || !viewerEmail}
             onPress={signOut}
           />
         </>
@@ -1122,27 +1265,32 @@ function renderProfileSectionDirect({
     case 'delete-account':
       return (
         <>
-          <View style={styles.dangerIntro}>
-            <AppText
-              role="heading"
-              weight="semibold"
-              color={colors.state.error}
-            >
-              Восстановление доступно 30 дней
-            </AppText>
-            <AppText
-              role="label"
-              color={colors.text.secondary}
-              style={styles.dangerDescription}
-            >
-              Синхронизация сразу остановится. Через 30 дней будут окончательно
-              удалены профиль, журнал, программы, результаты и история чата.
-            </AppText>
-          </View>
-          <ConfirmedAction
-            label="Запланировать удаление аккаунта"
-            confirmation="Подтвердить удаление через 30 дней"
-            onConfirm={requestAccountDeletion}
+          <ProfileActionRow
+            destructive
+            icon="trash.fill"
+            label="Удалить аккаунт и все данные"
+            disabled={readOnly || !viewerEmail}
+            onPress={() =>
+              Alert.alert(
+                'Удалить аккаунт?',
+                'Данные можно будет восстановить в течение 30 дней.',
+                [
+                { text: 'Отмена', style: 'cancel' },
+                  {
+                    text: 'Удалить',
+                    style: 'destructive',
+                    onPress: () =>
+                      void requestAccountDeletion().catch((error) => {
+                        console.error('Account deletion request failed', error);
+                        Alert.alert(
+                          'Не удалось удалить аккаунт',
+                          'Проверьте подключение и попробуйте ещё раз.',
+                        );
+                      }),
+                  },
+                ],
+              )
+            }
           />
         </>
       );
@@ -1597,6 +1745,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: sizes.screenGutter,
     gap: spacing.lg,
   },
+  todayKitSection: {
+    gap: spacing.lg,
+  },
+  todayKitCopy: {
+    gap: spacing.xs,
+  },
+  todayKitStage: {
+    alignSelf: 'center',
+    overflow: 'hidden',
+    borderRadius: 37,
+    backgroundColor: '#FDECE5',
+    shadowColor: '#2F151B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 22,
+    elevation: 10,
+  },
+  todayKitCanvas: {
+    width: 402,
+    height: 874,
+    transformOrigin: 'top left',
+  },
   medicalHistoryLayout: {
     minHeight: 0,
     flex: 1,
@@ -1611,14 +1781,13 @@ const styles = StyleSheet.create({
   inlineInput: {
     minHeight: 48,
     borderRadius: radii.md,
-    backgroundColor: '#F3F1F2',
+    backgroundColor: '#F6F3F4',
     paddingHorizontal: spacing.md,
     color: colors.text.primary,
-    fontSize: 16,
   },
   dangerIntro: {
+    borderRadius: radii.lg,
     padding: spacing.md,
-    borderRadius: radii.md,
     backgroundColor: '#FDEAEA',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(217,56,56,0.24)',

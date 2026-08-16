@@ -1,6 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import DateTimePicker, {
   DateTimePickerAndroid,
   type DateTimePickerEvent,
@@ -29,7 +30,16 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import Svg, { Path, type SvgProps } from 'react-native-svg';
 
 import { AppText, SegmentedSwitcher } from './components';
-import { colors, fonts, profileTones, radii, shadows, spacing } from './tokens';
+import {
+  androidMaterials,
+  androidShadows,
+  colors,
+  fonts,
+  profileTones,
+  radii,
+  shadows,
+  spacing,
+} from './tokens';
 
 const profileAvatarImage = require('../assets/profile/avatar.png');
 
@@ -683,7 +693,7 @@ export function ProfileToggleRow({
             thumbColor={
               Platform.OS === 'android'
                 ? currentValue
-                  ? '#D31471'
+                  ? '#EA4087'
                   : '#FFFFFF'
                 : undefined
             }
@@ -946,12 +956,46 @@ function ProfileSelectionPopover<T extends string>({
           ]}
         >
           <View style={styles.languagePopoverMaterial}>
-            <BlurView
-              intensity={82}
-              tint="light"
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View pointerEvents="none" style={styles.languagePopoverTint} />
+            {Platform.OS === 'android' ? (
+              <>
+                <BlurView
+                  pointerEvents="none"
+                  tint="light"
+                  intensity={46}
+                  experimentalBlurMethod="dimezisBlurView"
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <LinearGradient
+                  pointerEvents="none"
+                  colors={[
+                    'rgba(255,255,255,0.92)',
+                    'rgba(255,244,249,0.70)',
+                  ]}
+                  start={{ x: 0.1, y: 0 }}
+                  end={{ x: 0.9, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View
+                  pointerEvents="none"
+                  style={[
+                    StyleSheet.absoluteFillObject,
+                    androidMaterials.strong,
+                  ]}
+                />
+              </>
+            ) : (
+              <>
+                <BlurView
+                  intensity={82}
+                  tint="light"
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View
+                  pointerEvents="none"
+                  style={styles.languagePopoverTint}
+                />
+              </>
+            )}
             {options.map((option, index) => {
               const selected = option.value === selectedValue;
               const isLast = index === options.length - 1;
@@ -1385,7 +1429,7 @@ export function ProfileKitPreview() {
         <ProfileSettingsRow
           icon="person.text.rectangle.fill"
           fallback="Я"
-          iconBackground="#D31471"
+          iconBackground="#EA4087"
           label="Основная информация"
           value="Заполнено"
           isLast
@@ -1407,10 +1451,9 @@ export function ProfileKitPreview() {
       </ProfileSettingsGroup>
       <ProfileVerticalChoiceControl
         accessibilityLabel="Цель использования, вертикальный вариант"
-        defaultValue="cycle"
+        defaultValue="planning"
         label="Цель использования"
         options={[
-          { value: 'cycle', label: 'Отслеживание цикла' },
           { value: 'planning', label: 'Планирование' },
           { value: 'pregnancy', label: 'Беременность' },
         ]}
@@ -1444,7 +1487,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(35, 26, 30, 0.045)',
     shadowColor: '#32131E',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.045,
     shadowRadius: 10,
     elevation: 1,
@@ -1505,7 +1548,7 @@ const styles = StyleSheet.create({
   tabButtonActive: {
     backgroundColor: colors.surface.raised,
     shadowColor: '#32131E',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 1,
@@ -1536,7 +1579,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(35, 26, 30, 0.04)',
     shadowColor: '#32131E',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.035,
     shadowRadius: 10,
     elevation: 1,
@@ -1668,7 +1711,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingBottom: 4,
     shadowColor: '#261017',
-    shadowOffset: { width: 0, height: 12 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.12,
     shadowRadius: 30,
     elevation: 12,
@@ -1859,11 +1902,15 @@ const styles = StyleSheet.create({
   languagePopover: {
     position: 'absolute',
     borderRadius: 16,
-    shadowColor: '#21151A',
-    shadowOffset: { width: 0, height: 9 },
-    shadowOpacity: 0.16,
-    shadowRadius: 26,
-    elevation: 14,
+    ...(Platform.OS === 'android'
+      ? androidShadows.floating
+      : {
+          shadowColor: '#21151A',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.16,
+          shadowRadius: 26,
+          elevation: 14,
+        }),
   },
   languagePopoverMaterial: {
     width: '100%',
@@ -1881,7 +1928,10 @@ const styles = StyleSheet.create({
     minHeight: 54,
   },
   languageOptionPressed: {
-    backgroundColor: 'rgba(120,112,116,0.12)',
+    backgroundColor:
+      Platform.OS === 'android'
+        ? 'rgba(234,64,135,0.07)'
+        : 'rgba(120,112,116,0.12)',
   },
   languageOptionLayout: {
     width: '100%',

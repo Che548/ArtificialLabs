@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
   channelOptionActive: {
     backgroundColor: colors.surface.raised,
     shadowColor: '#2A1116',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.08,
     shadowRadius: 5,
   },
@@ -1001,7 +1001,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 14,
   },

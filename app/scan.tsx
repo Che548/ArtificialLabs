@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
 import { useFonts } from 'expo-font';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,6 +12,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -22,34 +22,24 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import type {
-  ColorValue,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  ScrollView as ScrollViewType,
-  StyleProp,
-  ViewStyle,
-} from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
-import ContentShape from '../assets/figma/content-shape.svg';
 import BuyIcon from '../assets/figma/scan-screen/buy.svg';
 import HistoryIcon from '../assets/figma/scan-screen/history.svg';
 import InfoIcon from '../assets/figma/scan-screen/info.svg';
 import ScanIcon from '../assets/figma/scan-screen/scan.svg';
-import ScannerFrame from '../assets/figma/scan-screen/circle.svg';
 import {
   CalendarPageModal,
   AppHeader,
+  androidMaterials,
+  androidShadows,
   colors,
   EdgeFadeGradient,
-  InstructionCard,
-  InstructionIntroCard,
-  InstructionNavigation,
+  getHeaderTop,
   JournalFlowModal,
   type JournalFlowEntry,
-  ScanBackgroundMotion,
   ScanCorrectionScreen,
   ScanFlowOverlay,
   ScanHistoryPreview,
@@ -57,6 +47,7 @@ import {
   shadows,
   type ScanHistoryRecord,
 } from '../design-system';
+import { FallbackGlassBackdrop } from '../design-system/glass-fallback';
 import { useHealthStore } from '../lib/health-store';
 import { loadScanHistory, saveScanToHistory } from '../services/scanning';
 
@@ -64,41 +55,11 @@ const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 const FONT_SF_REGULAR = 'SFProDisplay-Regular';
 const FONT_YARO_RG = 'YaroRg';
-const INSTRUCTION_CARD_WIDTH = 360;
-const INSTRUCTION_CARD_HEIGHT = 130;
-const INSTRUCTION_GAP = 10;
-const INSTRUCTION_SNAP = INSTRUCTION_CARD_WIDTH + INSTRUCTION_GAP;
 const IOS_PAGE_DURATION = 280;
 const IOS_PAGE_EXIT_DURATION = 220;
 const IOS_PAGE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
-const instructions = [
-  {
-    body: 'Соберите мочу в чистую сухую емкость.',
-  },
-  {
-    body: 'Вскройте фольгированную упаковку и достаньте тест-полоску.',
-  },
-  {
-    body: 'Опустите тест-полоску в мочу до отметки ”MAX” на 3–5 секунд.',
-  },
-  {
-    body: 'Достаньте тест-полоску и положите её на ровную сухую поверхность.',
-  },
-  {
-    body: 'Спустя 3-7 минут отсканируйте результат в приложении.',
-  },
-];
-
-const instructionIllustrations = [
-  require('../assets/instructions/step_1_cup.png'),
-  require('../assets/instructions/step_2_package.png'),
-  require('../assets/instructions/step_3_dip_test.png'),
-  require('../assets/instructions/step_4_test_strip.png'),
-  require('../assets/instructions/step_5_results.png'),
-];
-const INSTRUCTION_SLIDE_COUNT = instructions.length + 1;
 
 type GlassControlProps = {
   accessibilityLabel: string;
@@ -131,19 +92,6 @@ function LiquidGlassSurface({
   highlight = 'light',
   radius = 999,
 }: LiquidGlassSurfaceProps) {
-  const highlightColors: readonly [ColorValue, ColorValue, ColorValue] =
-    highlight === 'light'
-      ? [
-          'rgba(255,255,255,0.52)',
-          'rgba(255,255,255,0.10)',
-          'rgba(255,255,255,0.18)',
-        ]
-      : [
-          'rgba(255,255,255,0.26)',
-          'rgba(255,255,255,0.03)',
-          'rgba(255,255,255,0.10)',
-        ];
-
   return (
     <View
       pointerEvents={hasNativeLiquidGlass ? 'box-none' : 'none'}
@@ -171,7 +119,17 @@ function LiquidGlassSurface({
         </GlassView>
       ) : (
         <>
-          {Platform.OS === 'web' ? (
+          {Platform.OS === 'android' ? (
+            <View
+              style={[
+                StyleSheet.absoluteFillObject,
+                highlight === 'dark'
+                  ? androidMaterials.dark
+                  : androidMaterials.light,
+                { borderRadius: radius },
+              ]}
+            />
+          ) : Platform.OS === 'web' ? (
             <View
               style={[
                 StyleSheet.absoluteFill,
@@ -183,36 +141,20 @@ function LiquidGlassSurface({
                 },
               ]}
             />
-          ) : Platform.OS === 'android' ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  backgroundColor:
-                    highlight === 'dark'
-                      ? 'rgba(49,5,12,0.34)'
-                      : 'rgba(255,255,255,0.62)',
-                },
-              ]}
-            />
           ) : (
-            <BlurView
-              tint={fallbackTint}
+            <FallbackGlassBackdrop
               intensity={intensity}
-              style={StyleSheet.absoluteFill}
+              radius={radius}
+              tint={fallbackTint}
+              tone={highlight}
+              washColor={washColor}
             />
           )}
-          <View
-            style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
-          />
-          <LinearGradient
-            colors={highlightColors}
-            locations={[0, 0.42, 1]}
-            start={{ x: 0.04, y: 0 }}
-            end={{ x: 0.96, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={[styles.glassInnerStroke, { borderRadius: radius }]} />
+          {Platform.OS === 'web' ? (
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
+            />
+          ) : null}
           <View pointerEvents="none" style={styles.nativeGlassContent}>
             {children}
           </View>
@@ -251,50 +193,52 @@ function GlassControl({
 
   if (Platform.OS === 'android') {
     return (
+      <View
+        style={[
+          style,
+          androidMaterials.light,
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          onPress={onPress}
+          style={({ pressed }) => [
+            StyleSheet.absoluteFillObject,
+            pressed && styles.fallbackPressed,
+          ]}
+        >
+          <View pointerEvents="none" style={styles.androidGlassControlContent}>
+            {children}
+          </View>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[style, styles.fallbackGlassHost, styles.glassShadow]}>
+      <FallbackGlassBackdrop
+        intensity={58}
+        radius={999}
+        tint="systemUltraThinMaterialLight"
+        tone="light"
+        washColor={colors.surface.headerGlassWash}
+      />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         onPress={onPress}
         style={({ pressed }) => [
-          style,
-          styles.androidMaterialControl,
-          styles.glassShadow,
+          StyleSheet.absoluteFillObject,
           pressed && styles.fallbackPressed,
         ]}
       >
-        <LinearGradient
-          pointerEvents="none"
-          colors={['#FFFDFC', '#FFF5F8']}
-          style={StyleSheet.absoluteFillObject}
-        />
-        {children}
+        <View pointerEvents="none" style={styles.androidGlassControlContent}>
+          {children}
+        </View>
       </Pressable>
-    );
-  }
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      style={({ pressed }) => [
-        style,
-        styles.glassShadow,
-        pressed && styles.fallbackPressed,
-      ]}
-    >
-      <LiquidGlassSurface
-        variant="clear"
-        tintColor={colors.surface.headerGlassWash}
-        colorScheme="light"
-        fallbackTint="systemUltraThinMaterialLight"
-        intensity={58}
-        washColor={colors.surface.headerGlassWash}
-        highlight="light"
-      >
-        {children}
-      </LiquidGlassSurface>
-    </Pressable>
+    </View>
   );
 }
 
@@ -325,13 +269,54 @@ function ActionButton({ icon, label, onPress }: ActionButtonProps) {
   );
 }
 
+function ScannerCorners() {
+  return (
+    <Svg
+      pointerEvents="none"
+      width={338}
+      height={344}
+      viewBox="0 0 338 344"
+      style={styles.scannerCorners}
+    >
+      <Path
+        d="M79 6H43C22.6 6 6 22.6 6 43v36"
+        fill="none"
+        stroke="#F2A8CB"
+        strokeWidth={6}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M259 6h36c20.4 0 37 16.6 37 37v36"
+        fill="none"
+        stroke="#F2A8CB"
+        strokeWidth={6}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M79 338H43c-20.4 0-37-16.6-37-37v-36"
+        fill="none"
+        stroke="#F2A8CB"
+        strokeWidth={6}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M259 338h36c20.4 0 37-16.6 37-37v-36"
+        fill="none"
+        stroke="#F2A8CB"
+        strokeWidth={6}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
 function HistoryBackIcon() {
   return (
     <Svg width={22} height={22} viewBox="0 0 22 22">
       <Path
         d="M13.5 5.5 8 11l5.5 5.5"
         fill="none"
-        stroke="#D31471"
+        stroke="#EA4087"
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -345,8 +330,6 @@ export default function ScanScreen() {
     useHealthStore();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const instructionRef = useRef<ScrollViewType>(null);
-  const [activeInstruction, setActiveInstruction] = useState(0);
   const [scanFlowVisible, setScanFlowVisible] = useState(false);
   const [selectedScanImageUri, setSelectedScanImageUri] = useState<
     string | null
@@ -363,7 +346,6 @@ export default function ScanScreen() {
     useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [hasSeenScanBriefing, setHasSeenScanBriefing] = useState(false);
-  const [hasSavedScan, setHasSavedScan] = useState(false);
   const historyResultProgress = useRef(new Animated.Value(0)).current;
   const historyCorrectionProgress = useRef(new Animated.Value(0)).current;
   const photoPickerBusy = useRef(false);
@@ -416,7 +398,6 @@ export default function ScanScreen() {
         return;
       }
       setScanHistory(records);
-      setHasSavedScan(records.length > 0);
     });
 
     return () => {
@@ -475,7 +456,6 @@ export default function ScanScreen() {
           )
         : current;
     });
-    setHasSavedScan(true);
   }, [scanResults]);
 
   useEffect(() => {
@@ -489,8 +469,8 @@ export default function ScanScreen() {
   }, []);
 
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
-  const headerTop = Math.max(16, insets.top / scale + 8);
-  const scannerTop = Math.max(123, headerTop + 79);
+  const headerTop = getHeaderTop(insets.top, scale);
+  const scannerTop = Math.max(108, headerTop + 70);
   const sfRegular = fontsLoaded
     ? FONT_SF_REGULAR
     : Platform.OS === 'ios'
@@ -501,15 +481,6 @@ export default function ScanScreen() {
     : Platform.OS === 'ios'
       ? 'System'
       : 'sans-serif';
-
-  const scrollToInstruction = (index: number) => {
-    const nextIndex = Math.max(0, Math.min(INSTRUCTION_SLIDE_COUNT - 1, index));
-    setActiveInstruction(nextIndex);
-    instructionRef.current?.scrollTo({
-      x: nextIndex * INSTRUCTION_SNAP,
-      animated: true,
-    });
-  };
 
   const pickScanPhoto = async () => {
     if (photoPickerBusy.current) {
@@ -550,17 +521,6 @@ export default function ScanScreen() {
     } finally {
       photoPickerBusy.current = false;
     }
-  };
-
-  const handleInstructionScrollEnd = (
-    event: NativeSyntheticEvent<NativeScrollEvent>,
-  ) => {
-    const index = Math.round(
-      event.nativeEvent.contentOffset.x / INSTRUCTION_SNAP,
-    );
-    setActiveInstruction(
-      Math.max(0, Math.min(INSTRUCTION_SLIDE_COUNT - 1, index)),
-    );
   };
 
   const showPlaceholder = (title: string) => {
@@ -620,7 +580,9 @@ export default function ScanScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <View
+      style={[styles.root, Platform.OS === 'android' && styles.androidRoot]}
+    >
       <StatusBar style="dark" hidden={false} />
       <View
         style={{
@@ -630,15 +592,12 @@ export default function ScanScreen() {
       >
         <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
           <View style={styles.canvas}>
-            <View style={styles.background}>
-              <ScanBackgroundMotion
-                source={require('../assets/figma/scan-screen/background.png')}
-                variant="drift"
-                width={DESIGN_WIDTH}
-                height={869}
-                flipY
-              />
-            </View>
+            <Image
+              accessibilityIgnoresInvertColors
+              source={require('../assets/figma/scan-screen/background.png')}
+              resizeMode="cover"
+              style={styles.scanPageBackground}
+            />
 
             <AppHeader
               style={[styles.header, { top: headerTop }]}
@@ -647,24 +606,15 @@ export default function ScanScreen() {
               onCalendar={() => setCalendarVisible(true)}
             />
 
-            <View style={[styles.scannerCard, { top: scannerTop }]}>
-              <ScannerFrame
-                width={340}
-                height={340}
-                style={styles.scannerFrame}
-              />
+            <View style={[styles.scannerStage, { top: scannerTop }]}>
+              <ScannerCorners />
 
-              <View style={styles.scannerCopy}>
-                <Text style={[styles.sphere, { fontFamily: yaro }]}>
-                  сфера.
-                </Text>
-                <Text
-                  style={[styles.scannerDescription, { fontFamily: sfRegular }]}
-                >
-                  Мгновенный анализ тестов на{'\n'}
-                  овуляцию или беременность
-                </Text>
-              </View>
+              <Image
+                accessibilityIgnoresInvertColors
+                source={require('../assets/scan/mascot-test.png')}
+                resizeMode="contain"
+                style={styles.scanMascot}
+              />
 
               <View style={styles.scanButton}>
                 <Pressable
@@ -686,98 +636,61 @@ export default function ScanScreen() {
                           { fontFamily: sfRegular },
                         ]}
                       >
-                        {hasSavedScan
-                          ? 'Сканировать снова'
-                          : 'Начать сканирование'}
+                        Начать сканирование
                       </Text>
                     </View>
                   )}
                 </Pressable>
               </View>
 
-              <View style={styles.photoPickerButton}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Выбрать фото теста из устройства"
-                  onPress={() => {
-                    void pickScanPhoto();
-                  }}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Выбрать тест из галереи"
+                onPress={() => {
+                  void pickScanPhoto();
+                }}
+                style={styles.galleryButton}
+              >
+                {({ pressed }) => (
+                  <Text
+                    style={[
+                      styles.galleryButtonLabel,
+                      { fontFamily: sfRegular },
+                      pressed && styles.galleryButtonLabelPressed,
+                    ]}
+                  >
+                    Выбрать из галереи
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+
+            <View style={styles.scanContentPanel}>
+              <View style={styles.scanBrandCopy}>
+                <Text
+                  style={[
+                    styles.sphere,
+                    { fontFamily: yaro },
+                    Platform.OS === 'android' && styles.sphereAndroid,
+                  ]}
                 >
-                  {({ pressed }) => (
-                    <View
-                      style={[
-                        styles.photoPickerButtonContent,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.photoPickerButtonLabel,
-                          { fontFamily: sfRegular },
-                        ]}
-                      >
-                        Выбрать фото из галереи
-                      </Text>
-                    </View>
-                  )}
-                </Pressable>
+                  сфера.
+                </Text>
+                <Text
+                  style={[styles.scannerDescription, { fontFamily: sfRegular }]}
+                >
+                  Мгновенный анализ тестов на{'\n'}
+                  овуляцию или беременность
+                </Text>
               </View>
             </View>
 
-            <ContentShape
-              pointerEvents="none"
-              width={DESIGN_WIDTH}
-              height={361}
-              style={styles.contentShape}
-            />
-
-            <View style={styles.instructionNavigation}>
-              <InstructionNavigation
-                variant="outline"
-                leftDisabled={activeInstruction === 0}
-                rightDisabled={
-                  activeInstruction === INSTRUCTION_SLIDE_COUNT - 1
-                }
-                onPrevious={() => scrollToInstruction(activeInstruction - 1)}
-                onNext={() => scrollToInstruction(activeInstruction + 1)}
-              />
-            </View>
-
-            <ScrollView
-              ref={instructionRef}
-              horizontal
-              decelerationRate="fast"
-              disableIntervalMomentum
-              contentInsetAdjustmentBehavior="never"
-              contentContainerStyle={styles.instructionsContent}
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={INSTRUCTION_SNAP}
-              onMomentumScrollEnd={handleInstructionScrollEnd}
-              style={styles.instructions}
+            <View
+              style={[
+                styles.actions,
+                Platform.OS === 'android' && styles.actionsAndroid,
+              ]}
             >
-              <InstructionIntroCard
-                title="Инструкция по использованию"
-                illustration={require('../assets/instructions/step_4_test_strip.png')}
-                variant="classic"
-                height={INSTRUCTION_CARD_HEIGHT}
-              />
-
-              {instructions.map((instruction, index) => (
-                <InstructionCard
-                  key={index}
-                  step={index + 1}
-                  total={instructions.length}
-                  text={instruction.body}
-                  variant="illustrated"
-                  height={INSTRUCTION_CARD_HEIGHT}
-                  illustration={instructionIllustrations[index]}
-                />
-              ))}
-            </ScrollView>
-
-            <View style={styles.divider} />
-
-            <View style={styles.actions}>
               <ActionButton
                 label="Инфо"
                 onPress={() => showPlaceholder('Инфо')}
@@ -795,11 +708,6 @@ export default function ScanScreen() {
               />
             </View>
 
-            <EdgeFadeGradient
-              edge="top"
-              height={headerTop + 60}
-              style={styles.headerFadeGradient}
-            />
             <EdgeFadeGradient
               edge="bottom"
               height={108}
@@ -870,7 +778,6 @@ export default function ScanScreen() {
                           (left, right) => right.capturedAt - left.capturedAt,
                         ),
                       );
-                      setHasSavedScan(true);
                       setScanFlowVisible(false);
                     } catch (error) {
                       Alert.alert(
@@ -1139,23 +1046,20 @@ const styles = StyleSheet.create({
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
     borderRadius: 40,
-    backgroundColor: '#fee8e3',
+    backgroundColor: '#FDE9E3',
   },
-  background: {
-    position: 'absolute',
-    left: 0,
-    top: -15,
+  scanPageBackground: {
+    ...StyleSheet.absoluteFillObject,
     width: DESIGN_WIDTH,
-    height: 869,
+    height: DESIGN_HEIGHT,
+  },
+  androidRoot: {
+    justifyContent: 'flex-start',
   },
   header: {
     position: 'absolute',
     zIndex: 5,
     left: 16,
-  },
-  headerFadeGradient: {
-    top: 0,
-    zIndex: 4,
   },
   navbarFadeGradient: {
     bottom: 0,
@@ -1166,6 +1070,7 @@ const styles = StyleSheet.create({
   },
   nativeGlassContent: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1173,6 +1078,15 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  androidGlassControlContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidGlassMaterialFill: {
+    flex: 1,
+    alignSelf: 'stretch',
   },
   glassShadow: {
     ...shadows.control,
@@ -1191,62 +1105,62 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.52)',
   },
   fallbackPressed: {
-    transform: [{ scale: 1.035 }],
+    opacity: Platform.OS === 'android' ? 0.94 : 1,
+    transform: [{ scale: Platform.OS === 'android' ? 0.98 : 1.035 }],
   },
-  androidMaterialControl: {
-    overflow: 'hidden',
-    borderWidth: 0.8,
-    borderColor: '#ECDDE2',
-    backgroundColor: '#FFFDFC',
+  fallbackGlassHost: {
+    position: 'relative',
   },
-  scannerCard: {
+  scannerStage: {
     position: 'absolute',
-    left: 16,
-    width: 370,
-    height: 370,
-    borderRadius: 150,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.20)',
+    left: 32,
+    width: 338,
+    height: 344,
   },
-  scannerFrame: {
+  scannerCorners: {
     position: 'absolute',
-    left: 15,
-    top: 15,
+    left: 0,
+    top: 0,
   },
-  scannerCopy: {
+  scanMascot: {
     position: 'absolute',
-    top: 116,
-    left: 61,
-    width: 249,
-    alignItems: 'center',
-    gap: 4,
+    zIndex: 3,
+    left: 75,
+    top: 82,
+    width: 216,
+    height: 138,
   },
   sphere: {
-    color: '#ea4087',
-    fontSize: 27,
-    lineHeight: 30,
-    letterSpacing: -0.54,
+    color: '#EA4087',
+    fontSize: 34.125,
+    lineHeight: 37.5,
+    letterSpacing: -0.68,
+  },
+  sphereAndroid: {
+    width: 320,
+    textAlign: 'center',
   },
   scannerDescription: {
-    width: 249,
-    color: '#ea4087',
+    width: 320,
+    color: '#EA4087',
     textAlign: 'center',
-    fontSize: 17,
-    lineHeight: 19,
-    letterSpacing: -0.34,
+    fontSize: 21.5,
+    lineHeight: 24,
+    letterSpacing: -0.43,
   },
   scanButton: {
     position: 'absolute',
-    left: 86,
-    top: 202,
-    minWidth: 198,
+    zIndex: 2,
+    left: 59,
+    top: 205,
+    width: 220,
     height: 46,
     borderRadius: 23,
     overflow: 'hidden',
-    backgroundColor: '#d31471',
+    backgroundColor: '#EA4087',
   },
   scanButtonContent: {
-    minWidth: 198,
+    width: 220,
     height: 46,
     paddingHorizontal: 14,
     flexDirection: 'row',
@@ -1256,78 +1170,65 @@ const styles = StyleSheet.create({
   },
   scanButtonLabel: {
     color: '#ffffff',
-    fontSize: 15,
-    lineHeight: 17,
-    letterSpacing: -0.3,
+    fontSize: 17,
+    lineHeight: 20,
+    letterSpacing: -0.34,
   },
-  photoPickerButton: {
+  galleryButton: {
     position: 'absolute',
-    left: 86,
-    top: 248,
-    minWidth: 198,
-    height: 42,
-  },
-  photoPickerButtonContent: {
-    minWidth: 198,
-    height: 42,
-    paddingHorizontal: 12,
+    zIndex: 4,
+    left: 89,
+    top: 258,
+    width: 160,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoPickerButtonLabel: {
-    color: 'rgba(115,110,108,0.78)',
-    fontSize: 13,
-    lineHeight: 16,
-    letterSpacing: -0.26,
+  galleryButtonLabel: {
+    color: '#EA4087',
+    fontSize: 16,
+    lineHeight: 19,
+    letterSpacing: -0.32,
   },
-  contentShape: {
+  galleryButtonLabelPressed: {
+    opacity: 0.55,
+  },
+  scanContentPanel: {
     position: 'absolute',
     left: 0,
-    top: 513,
-  },
-  instructionNavigation: {
-    position: 'absolute',
-    left: 11,
-    top: 524,
-    width: 380,
-    height: 40,
-  },
-  instructions: {
-    position: 'absolute',
-    left: 0,
-    top: 570,
+    top: 520,
     width: DESIGN_WIDTH,
-    height: INSTRUCTION_CARD_HEIGHT,
+    height: 354,
+    borderTopLeftRadius: 46,
+    borderTopRightRadius: 46,
+    backgroundColor: '#FFFFFF',
   },
-  instructionsContent: {
-    paddingLeft: 16,
-    paddingRight: 26,
-    gap: INSTRUCTION_GAP,
-  },
-  divider: {
+  scanBrandCopy: {
     position: 'absolute',
-    left: 16,
-    top: 713,
-    width: 370,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: '#ededed',
+    left: 41,
+    top: 62,
+    width: 320,
+    alignItems: 'center',
+    gap: 7,
   },
   actions: {
     position: 'absolute',
     left: 16,
-    top: 726,
+    top: 732,
     width: 370,
     height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  actionsAndroid: {
+    top: 760,
+  },
   actionButton: {
     height: 48,
     borderRadius: 24,
     overflow: 'hidden',
-    backgroundColor: '#d31471',
+    backgroundColor: '#EA4087',
   },
   actionButtonContent: {
     width: '100%',

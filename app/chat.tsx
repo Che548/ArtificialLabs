@@ -1,9 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
+import { useNavigation } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
   Alert,
@@ -31,7 +33,9 @@ import {
   type ChatHistoryItem,
   ChatMessageBubble,
   ChatSuggestionList,
+  androidTabBarBaseStyle,
   colors,
+  getHeaderTop,
   type ChatSuggestion,
   sizes,
   spacing,
@@ -59,12 +63,44 @@ const suggestions: ChatSuggestion[] = [
   },
 ];
 
+const hasNativeLiquidGlass =
+  Platform.OS === 'ios' && isLiquidGlassAvailable();
+
 type DemoMessage = {
   id: string;
   text: string;
   assistant: boolean;
   thinking?: boolean;
 };
+
+function ConversationOverlay({
+  children,
+  onRequestClose,
+  visible,
+}: {
+  children: ReactNode;
+  onRequestClose: () => void;
+  visible: boolean;
+}) {
+  if (Platform.OS === 'android') {
+    if (!visible) return null;
+
+    return <View style={styles.androidConversationOverlay}>{children}</View>;
+  }
+
+  return (
+    <Modal
+      animationType="none"
+      transparent
+      visible={visible}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      onRequestClose={onRequestClose}
+    >
+      {children}
+    </Modal>
+  );
+}
 
 export default function ChatScreen() {
   const {
@@ -74,6 +110,7 @@ export default function ChatScreen() {
     saveChatMessage,
     saveConversation,
   } = useHealthStore();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const [draft, setDraft] = useState('');
@@ -88,19 +125,25 @@ export default function ChatScreen() {
   const [conversationVisible, setConversationVisible] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRendered, setHistoryRendered] = useState(false);
+  const [surfaceResetKey, setSurfaceResetKey] = useState(0);
+  const [recentChats, setRecentChats] = useState<ChatHistoryItem[]>([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState('');
   const [reduceMotion, setReduceMotion] = useState(false);
   const compactHeight = window.height < 760;
-  const composerBottom = Math.max(insets.bottom, 12) + 67;
+  const composerBottom =
+    Platform.OS === 'android'
+      ? Math.max(insets.bottom, 8) + 60 + 12
+      : Math.max(insets.bottom, 12) + (!hasNativeLiquidGlass ? 72 : 58);
   const conversationComposerBottom = Math.max(insets.bottom + 4, 16);
   const historyPanelWidth = Math.min(window.width * 0.76, 318);
+  const headerTop = getHeaderTop(insets.top);
   const suggestionsVisible = !composerFocused;
   const suggestionsProgress = useRef(new Animated.Value(1)).current;
   const conversationProgress = useRef(new Animated.Value(0)).current;
   const historyProgress = useRef(new Animated.Value(0)).current;
   const conversationScrollRef = useRef<ScrollView>(null);
   const responseTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
-  const recentChats = useMemo<ChatHistoryItem[]>(
+  const persistedRecentChats = useMemo<ChatHistoryItem[]>(
     () =>
       chatConversations
         .filter((conversation) => !conversation.deletedAt)
@@ -111,6 +154,15 @@ export default function ChatScreen() {
         })),
     [chatConversations],
   );
+
+  useEffect(() => {
+    setRecentChats((current) =>
+      persistedRecentChats.map((chat) => ({
+        ...chat,
+        pinned: current.find((item) => item.id === chat.id)?.pinned,
+      })),
+    );
+  }, [persistedRecentChats]);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
@@ -145,6 +197,29 @@ export default function ChatScreen() {
     animation.start();
     return () => animation.stop();
   }, [conversationProgress, conversationVisible, reduceMotion]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const bottomInset = Math.max(insets.bottom, 8);
+    const visibleTabBarStyle = [
+      androidTabBarBaseStyle,
+      {
+        height: 60 + bottomInset,
+        paddingBottom: bottomInset,
+      },
+    ];
+
+    navigation.setOptions({
+      tabBarStyle: conversationVisible
+        ? [visibleTabBarStyle, { display: 'none' }]
+        : visibleTabBarStyle,
+    });
+
+    return () => {
+      navigation.setOptions({ tabBarStyle: visibleTabBarStyle });
+    };
+  }, [conversationVisible, insets.bottom, navigation]);
 
   useEffect(() => {
     if (!conversationVisible || messages.length === 0) return undefined;
@@ -201,13 +276,23 @@ export default function ChatScreen() {
     }).start();
   };
 
-  const closeHistory = () => {
+  const closeHistory = (onClosed?: () => void) => {
     setHistoryOpen(false);
     historyProgress.stopAnimation();
 
-    if (reduceMotion) {
+    const finishClosing = () => {
       historyProgress.setValue(0);
       setHistoryRendered(false);
+      if (Platform.OS === 'android') {
+        setSurfaceResetKey((current) => current + 1);
+      }
+      if (onClosed) {
+        requestAnimationFrame(() => requestAnimationFrame(onClosed));
+      }
+    };
+
+    if (reduceMotion) {
+      finishClosing();
       return;
     }
 
@@ -217,7 +302,7 @@ export default function ChatScreen() {
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: false,
     }).start(({ finished }) => {
-      if (finished) setHistoryRendered(false);
+      if (finished) finishClosing();
     });
   };
 
@@ -262,6 +347,101 @@ export default function ChatScreen() {
         availableLocally: true,
       },
     ]);
+    closeHistory(() => setConversationVisible(true));
+  };
+
+  const renameRecentChat = (item: ChatHistoryItem) => {
+    const applyRename = (nextTitle?: string) => {
+      const title = nextTitle?.trim();
+      if (!title || title === item.title) return;
+      const conversation = chatConversations.find(
+        (candidate) => candidate.localId === item.id,
+      );
+      if (conversation) {
+        void saveConversation({ ...conversation, title }).catch((error) => {
+          console.error('Renaming chat failed', error);
+          Alert.alert(
+            'Не удалось переименовать чат',
+            'Проверьте подключение и попробуйте ещё раз.',
+          );
+        });
+      }
+      setRecentChats((current) =>
+        current.map((chat) =>
+          chat.id === item.id ? { ...chat, title } : chat,
+        ),
+      );
+    };
+
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        'Переименовать чат',
+        undefined,
+        [
+          { text: 'Отмена', style: 'cancel' },
+          { text: 'Сохранить', onPress: applyRename },
+        ],
+        'plain-text',
+        item.title,
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Переименовать чат',
+      'Редактирование названия доступно в iOS-версии.',
+    );
+  };
+
+  const deleteRecentChat = (item: ChatHistoryItem) => {
+    Alert.alert(
+      'Удалить чат?',
+      `«${item.title}» будет удалён из истории.`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: () => {
+            const conversation = chatConversations.find(
+              (candidate) => candidate.localId === item.id,
+            );
+            if (conversation) {
+              void saveConversation({
+                ...conversation,
+                deletedAt: Date.now(),
+              }).catch((error) => {
+                console.error('Deleting chat failed', error);
+                Alert.alert(
+                  'Не удалось удалить чат',
+                  'Проверьте подключение и попробуйте ещё раз.',
+                );
+              });
+            }
+            setRecentChats((current) => {
+              const nextChats = current.filter((chat) => chat.id !== item.id);
+              if (selectedHistoryId === item.id) {
+                setSelectedHistoryId(nextChats[0]?.id ?? '');
+              }
+              return nextChats;
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const togglePinnedRecentChat = (item: ChatHistoryItem) => {
+    void Haptics.selectionAsync();
+    setRecentChats((current) => {
+      const updated = current.map((chat) =>
+        chat.id === item.id ? { ...chat, pinned: !chat.pinned } : chat,
+      );
+      return [
+        ...updated.filter((chat) => chat.pinned),
+        ...updated.filter((chat) => !chat.pinned),
+      ];
+    });
   };
 
   const openCamera = async () => {
@@ -480,6 +660,30 @@ export default function ChatScreen() {
     });
   };
 
+  const historySurfaceMotionStyle =
+    Platform.OS !== 'android' || historyRendered
+      ? {
+          borderRadius: historyProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 56],
+          }),
+          transform: [
+            {
+              translateX: historyProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, historyPanelWidth],
+              }),
+            },
+            {
+              scale: historyProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0.97],
+              }),
+            },
+          ],
+        }
+      : undefined;
+
   return (
     <KeyboardAvoidingView
       style={styles.drawerRoot}
@@ -489,6 +693,9 @@ export default function ChatScreen() {
       {historyRendered ? (
         <ChatHistoryPanel
           items={recentChats}
+          onDelete={deleteRecentChat}
+          onPin={togglePinnedRecentChat}
+          onRename={renameRecentChat}
           onSelect={openRecentChat}
           selectedId={selectedHistoryId}
           topInset={insets.top}
@@ -497,36 +704,18 @@ export default function ChatScreen() {
       ) : null}
 
       <Animated.View
+        key={`chat-surface-${surfaceResetKey}`}
         style={[
           styles.chatSurface,
           historyRendered && styles.chatSurfaceRaised,
-          {
-            borderRadius: historyProgress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 56],
-            }),
-            transform: [
-              {
-                translateX: historyProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, historyPanelWidth],
-                }),
-              },
-              {
-                scale: historyProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 0.97],
-                }),
-              },
-            ],
-          },
+          historySurfaceMotionStyle,
         ]}
       >
         <StatusBar style="dark" />
 
         <View
           onTouchStart={dismissComposer}
-          style={[styles.headerWrap, { top: Math.max(16, insets.top + 8) }]}
+          style={[styles.headerWrap, { top: headerTop }]}
         >
           <ChatHeader
             activeMode={headerMode}
@@ -650,19 +839,15 @@ export default function ChatScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Закрыть историю чатов"
-            onPress={closeHistory}
+            onPress={() => closeHistory()}
             pointerEvents={historyOpen ? 'auto' : 'none'}
             style={styles.historyDismissLayer}
           />
         ) : null}
       </Animated.View>
 
-      <Modal
-        animationType="none"
-        transparent
+      <ConversationOverlay
         visible={conversationVisible}
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
         onRequestClose={closeConversation}
       >
         <KeyboardAvoidingView
@@ -673,6 +858,9 @@ export default function ChatScreen() {
           {historyRendered ? (
             <ChatHistoryPanel
               items={recentChats}
+              onDelete={deleteRecentChat}
+              onPin={togglePinnedRecentChat}
+              onRename={renameRecentChat}
               onSelect={openRecentChat}
               selectedId={selectedHistoryId}
               topInset={insets.top}
@@ -681,29 +869,11 @@ export default function ChatScreen() {
           ) : null}
 
           <Animated.View
+            key={`conversation-surface-${surfaceResetKey}`}
             style={[
               styles.conversationSurface,
               historyRendered && styles.chatSurfaceRaised,
-              {
-                borderRadius: historyProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 56],
-                }),
-                transform: [
-                  {
-                    translateX: historyProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, historyPanelWidth],
-                    }),
-                  },
-                  {
-                    scale: historyProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 0.97],
-                    }),
-                  },
-                ],
-              },
+              historySurfaceMotionStyle,
             ]}
           >
           <Animated.View
@@ -716,7 +886,7 @@ export default function ChatScreen() {
           />
 
           <View
-            style={[styles.headerWrap, { top: Math.max(16, insets.top + 8) }]}
+            style={[styles.headerWrap, { top: headerTop }]}
           >
             <ChatHeader
               activeMode={headerMode}
@@ -793,21 +963,23 @@ export default function ChatScreen() {
             ]}
           />
 
-          <LinearGradient
-            pointerEvents="none"
-            colors={[
-              'rgba(255,255,255,0)',
-              'rgba(255,255,255,0.72)',
-              'rgba(255,255,255,1)',
-            ]}
-            locations={[0, 0.5, 1]}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={[
-              styles.conversationBottomFade,
-              { height: conversationComposerBottom + 120 },
-            ]}
-          />
+          {Platform.OS !== 'android' ? (
+            <LinearGradient
+              pointerEvents="none"
+              colors={[
+                'rgba(255,255,255,0)',
+                'rgba(255,255,255,0.72)',
+                'rgba(255,255,255,1)',
+              ]}
+              locations={[0, 0.5, 1]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={[
+                styles.conversationBottomFade,
+                { height: conversationComposerBottom + 120 },
+              ]}
+            />
+          ) : null}
 
           <Animated.View
             pointerEvents="box-none"
@@ -862,14 +1034,14 @@ export default function ChatScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Закрыть историю чатов"
-              onPress={closeHistory}
+              onPress={() => closeHistory()}
               pointerEvents={historyOpen ? 'auto' : 'none'}
               style={styles.historyDismissLayer}
             />
           ) : null}
           </Animated.View>
         </KeyboardAvoidingView>
-      </Modal>
+      </ConversationOverlay>
     </KeyboardAvoidingView>
   );
 }
@@ -954,6 +1126,11 @@ const styles = StyleSheet.create({
   },
   conversationModal: {
     flex: 1,
+  },
+  androidConversationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 200,
+    backgroundColor: '#FFFFFF',
   },
   conversationBackground: {
     backgroundColor: '#FFFFFF',

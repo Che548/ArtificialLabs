@@ -1,7 +1,4 @@
 import * as Haptics from "expo-haptics";
-import {
-  isLiquidGlassAvailable,
-} from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,12 +39,13 @@ import {
 } from "../lib/local-database";
 import LiquidGlassPetalView from "../modules/liquid-glass-petal";
 import { AppText, GlassControl, HeaderDateLabel } from "./components";
-import { colors, radii, shadows, sizes, spacing } from "./tokens";
+import { colors, getHeaderTop, radii, shadows, sizes, spacing } from "./tokens";
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
-const hasNativePetalGlass =
-  Platform.OS === "ios" && isLiquidGlassAvailable();
+// The custom native view uses real Liquid Glass on iOS 26 and a shaped
+// SwiftUI Material fallback on older iOS versions.
+const hasNativePetalGlass = Platform.OS === "ios";
 const PETAL_STRUCTURE_CENTER = { x: 201, y: 266 };
 const PETAL_RADIUS = 98;
 const PETAL_LABEL_RADIUS = 132;
@@ -55,7 +53,7 @@ const PETAL_WIDTH = 160;
 const PETAL_HEIGHT = 242;
 const PETAL_RENDER_SCALE_X = 0.72;
 const PETAL_RENDER_SCALE_Y = 0.68;
-const PETAL_ACTIVE_COLOR = "#D31471";
+const PETAL_ACTIVE_COLOR = "#EA4087";
 const PETAL_COMPLETED_COLOR = "#F2A8CB";
 const OPTIONS_VIEWPORT_HEIGHT = 146;
 const OPTIONS_EMPTY_VIEWPORT_HEIGHT = 168;
@@ -125,7 +123,7 @@ const journalFlowActionVariantConfig: Record<
   },
   5: {
     back: { backgroundColor: "#FFFFFF", borderRadius: 16, ...shadows.card },
-    next: { backgroundColor: activeFlowAccentColor, borderRadius: 16, shadowColor: activeFlowAccentColor, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 10 },
+    next: { backgroundColor: activeFlowAccentColor, borderRadius: 16, shadowColor: activeFlowAccentColor, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.2, shadowRadius: 10 },
   },
   6: {
     row: { gap: 0, overflow: "hidden", borderRadius: 16, borderWidth: 1, borderColor: "#E2DDDF" },
@@ -203,7 +201,7 @@ const journalFlowOptionVariantConfig: Record<
   },
   9: {
     idle: { backgroundColor: "#FFFFFF", borderColor: "transparent", borderRadius: 17, ...shadows.card },
-    selected: { backgroundColor: "#FFF4F8", borderColor: "rgba(211,20,113,0.24)", borderRadius: 17, shadowColor: colors.brand.primary, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.16, shadowRadius: 9 },
+    selected: { backgroundColor: "#FFF4F8", borderColor: "rgba(211,20,113,0.24)", borderRadius: 17, shadowColor: colors.brand.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.16, shadowRadius: 9 },
     selectedText: { color: colors.brand.primary },
   },
   10: {
@@ -672,18 +670,44 @@ function PetalGlass({
         preserveAspectRatio="none"
       >
         <Path
-          d="M40 96Q80-8 120 96L155 187C169 224 147 242 116 242H44C13 242-9 224 5 187L40 96Z"
+          d="M40 96Q80-8 120 96L155 187C169 226 140 242 104 242H56C20 242-9 226 5 187L40 96Z"
           fill={
-            active
-              ? PETAL_ACTIVE_COLOR
-              : completed
-                ? PETAL_COMPLETED_COLOR
-                : "#FFFFFF"
+            Platform.OS === "android"
+              ? active
+                ? colors.brand.primary
+                : completed
+                  ? colors.brand.burgundy
+                  : "#FFFCFD"
+              : active
+                ? PETAL_ACTIVE_COLOR
+                : completed
+                  ? PETAL_COMPLETED_COLOR
+                  : "#FFFFFF"
           }
-          fillOpacity={active ? 0.28 : completed ? 0.18 : 0.14}
-          stroke="#FFFFFF"
-          strokeOpacity={active ? 0.56 : 0.34}
-          strokeWidth={active ? 0.9 : 0.8}
+          fillOpacity={
+            Platform.OS === "android"
+              ? active
+                ? 0.9
+                : completed
+                  ? 0.76
+                  : 0.96
+              : active
+                ? 0.28
+                : completed
+                  ? 0.18
+                  : 0.14
+          }
+          stroke={
+            Platform.OS === "android"
+              ? active
+                ? "rgba(255,255,255,0.58)"
+                : "rgba(74,52,61,0.12)"
+              : "#FFFFFF"
+          }
+          strokeOpacity={
+            Platform.OS === "android" ? 1 : active ? 0.56 : 0.34
+          }
+          strokeWidth={Platform.OS === "android" ? 1 : active ? 0.9 : 0.8}
         />
       </Svg>
     </View>
@@ -708,7 +732,10 @@ function PetalLabel({
     config.petalStyle.rotation,
     config.labelStyle.width,
   );
-  const color = colors.text.inverse;
+  const color =
+    Platform.OS === "android" && state === "inactive"
+      ? colors.text.primary
+      : colors.text.inverse;
 
   useEffect(() => {
     transition.stopAnimation();
@@ -987,7 +1014,7 @@ export function JournalFlowModal({
   const transitioningRef = useRef(false);
   const optionsScrollOffsetRef = useRef(0);
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
-  const headerTop = Math.max(16, insets.top / scale + 8);
+  const headerTop = getHeaderTop(insets.top, scale);
   const pages = categories[category].pages;
   const page = pages[pageIndex] ?? pages[0];
   const selectedOptions = selections[page.id] ?? [];

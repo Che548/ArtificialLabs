@@ -270,12 +270,7 @@ export function AuthScreen({
             >
               <View style={styles.content}>
                 {devLoginEnabled ? (
-                  <View
-                    style={[
-                      styles.devLoginSlot,
-                      flow === 'signIn' && styles.devLoginButtonSignIn,
-                    ]}
-                  >
+                  <View style={styles.devLoginSlot}>
                     <Pressable
                       accessibilityLabel="Войти в локальном режиме разработчика"
                       accessibilityRole="button"
@@ -397,7 +392,13 @@ export function AuthScreen({
                 ) : null}
 
                 {error ? (
-                  <Text accessibilityRole="alert" style={styles.errorText}>
+                  <Text
+                    accessibilityRole="alert"
+                    style={[
+                      styles.errorText,
+                      flow === 'signIn' && styles.errorTextSignIn,
+                    ]}
+                  >
                     {error}
                   </Text>
                 ) : null}
@@ -410,7 +411,6 @@ export function AuthScreen({
                   onPress={() => void submit()}
                   style={[
                     styles.primaryButton,
-                    flow === 'signIn' && styles.primaryButtonSignIn,
                     !canSubmit && styles.primaryButtonDisabled,
                   ]}
                 >
@@ -500,11 +500,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(211, 20, 113, 0.08)',
   },
-  devLoginButtonSignIn: {
-    top: 436,
-  },
   devLoginLabel: {
-    color: '#D31471',
+    color: '#EA4087',
     fontFamily: 'SFProDisplay-Medium',
     fontSize: 13,
     lineHeight: 16,
@@ -555,7 +552,7 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     backgroundColor: '#FFFFFF',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 1,
@@ -670,6 +667,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
   },
+  errorTextSignIn: {
+    top: 446,
+  },
   primaryButton: {
     position: 'absolute',
     left: 26,
@@ -680,9 +680,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 15,
     backgroundColor: '#EA4087',
-  },
-  primaryButtonSignIn: {
-    top: 480,
   },
   primaryButtonDisabled: {
     backgroundColor: '#DEDADD',

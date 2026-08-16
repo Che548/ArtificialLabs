@@ -13,6 +13,7 @@ import {
 
 import CalendarIcon from '../assets/figma/calendar-icon.svg';
 import MonitoringIcon from '../assets/figma/monitoring-icon.svg';
+import AndroidGraphIcon from '../assets/android-icons/graph.svg';
 import ArrowUpRightIcon from '../assets/figma/arrow-card.svg';
 import { AppText, GlassControl, HeaderDateLabel } from './components';
 import { colors, fonts, radii, shadows, spacing } from './tokens';
@@ -41,9 +42,17 @@ export function AnalysisReferenceHeader({
         washColor={headerWash}
         style={styles.headerCircle}
       >
-        <View style={styles.headerIconOrientation}>
-          <MonitoringIcon width={22} height={22} color={colors.brand.primary} />
-        </View>
+        {Platform.OS === 'android' ? (
+          <AndroidGraphIcon width={24} height={24} />
+        ) : (
+          <View style={styles.headerIconOrientation}>
+            <MonitoringIcon
+              width={22}
+              height={22}
+              color={colors.brand.primary}
+            />
+          </View>
+        )}
       </GlassControl>
 
       <GlassControl
@@ -86,7 +95,7 @@ export function AnalysisAttentionHero({
     <View style={styles.hero}>
       <View pointerEvents="box-none" style={styles.heroActionSlot}>
         <View pointerEvents="none" style={styles.heroActionVisual}>
-          <ArrowUpRightIcon width={18} height={18} />
+          <ArrowUpRightIcon width={23} height={23} />
         </View>
         <Pressable
           accessibilityRole="button"
@@ -151,11 +160,11 @@ function DeadlineCard({
           {count}
         </AppText>
         <View style={styles.deadlineArrow}>
-          <ArrowUpRightIcon width={12} height={12} />
+          <ArrowUpRightIcon width={16} height={16} />
         </View>
         <Text style={styles.deadlineCopy}>
-          {displayNoun} нужно сдать{`\n`}
-          в течение <Text style={styles.deadlineStrong}>{duration}</Text>
+          {displayNoun} нужно сдать{`\n`}в течение{' '}
+          <Text style={styles.deadlineStrong}>{duration}</Text>
         </Text>
       </View>
     </Pressable>
@@ -195,6 +204,7 @@ export function AnalysisReferencePlanCard({
   description,
   dueLabel,
   dueValue,
+  hasAttachedResult = false,
   image,
   onView,
   title,
@@ -204,6 +214,7 @@ export function AnalysisReferencePlanCard({
   description?: string;
   dueLabel: string;
   dueValue: string;
+  hasAttachedResult?: boolean;
   image: ImageSourcePropType;
   onView?: () => void;
   title: string;
@@ -229,6 +240,18 @@ export function AnalysisReferencePlanCard({
       </View>
 
       <View style={styles.planCopy}>
+        {hasAttachedResult ? (
+          <View style={styles.planAttachedBadge}>
+            <View style={styles.planAttachedDot} />
+            <AppText
+              role="caption"
+              weight="semibold"
+              style={styles.planAttachedText}
+            >
+              Результат прикреплён
+            </AppText>
+          </View>
+        ) : null}
         <AppText weight="semibold" numberOfLines={1} style={styles.planTitle}>
           {title}
         </AppText>
@@ -281,15 +304,7 @@ export function AnalysisReferencePlanCard({
           </View>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Посмотреть: ${title}`}
-          onPress={onView}
-          style={({ pressed }) => [
-            styles.planAction,
-            pressed && styles.pressed,
-          ]}
-        >
+        <View style={styles.planAction}>
           <AppText
             role="caption"
             weight="semibold"
@@ -297,8 +312,28 @@ export function AnalysisReferencePlanCard({
           >
             Посмотреть ↗
           </AppText>
-        </Pressable>
+        </View>
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Открыть: ${title}${
+          hasAttachedResult ? ', результат прикреплён' : ''
+        }`}
+        disabled={!onView}
+        onPress={onView}
+        style={StyleSheet.absoluteFillObject}
+      >
+        {({ pressed }) => (
+          <View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFillObject,
+              pressed && onView && styles.planCardPressedOverlay,
+            ]}
+          />
+        )}
+      </Pressable>
     </View>
   );
 }
@@ -317,6 +352,9 @@ const styles = StyleSheet.create({
   },
   headerCircle: {
     width: 48,
+    minWidth: 48,
+    flexBasis: 48,
+    flexShrink: 0,
     height: 48,
     borderRadius: 24,
     alignItems: 'center',
@@ -352,7 +390,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 14,
-    backgroundColor: '#D31471',
+    backgroundColor: '#ECA4C8',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -433,7 +471,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: colors.brand.primary,
+    backgroundColor: '#ECA4C8',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -463,6 +501,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(33,31,32,0.10)',
     backgroundColor: colors.surface.raised,
   },
+  planCardPressedOverlay: {
+    backgroundColor: 'rgba(234,64,135,0.035)',
+  },
   planMedia: {
     position: 'absolute',
     top: 12,
@@ -488,6 +529,32 @@ const styles = StyleSheet.create({
     top: 45,
     right: 18,
     left: 112,
+  },
+  planAttachedBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: '100%',
+    marginBottom: 7,
+    height: 24,
+    paddingHorizontal: 9,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFF0F6',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(234,64,135,0.22)',
+  },
+  planAttachedDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.brand.primary,
+  },
+  planAttachedText: {
+    color: colors.brand.primary,
+    fontSize: 11.5,
+    lineHeight: 14,
   },
   planTitle: {
     fontSize: 20,

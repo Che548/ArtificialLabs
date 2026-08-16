@@ -5,8 +5,9 @@ import type { StyleProp, ViewStyle } from 'react-native';
 
 import CalendarIcon from '../assets/figma/calendar-icon.svg';
 import HeaderHistoryIcon from '../assets/figma/scan-screen/header-history.svg';
+import AndroidHistoryIcon from '../assets/android-icons/history.svg';
 import { GlassControl, HeaderDateLabel } from './components';
-import { colors, shadows } from './tokens';
+import { androidShadows, colors, shadows } from './tokens';
 
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
@@ -41,13 +42,17 @@ export function AppHeader({
     <>
       <GlassControl
         accessibilityLabel={historyAccessibilityLabel}
-        elevated={false}
+        elevated={Platform.OS === 'android'}
         onPress={onHistory}
         tintColor={colors.surface.headerGlassWash}
         washColor={colors.surface.headerGlassWash}
         style={styles.headerCircle}
       >
-        <HeaderHistoryIcon width={22} height={22} color="#D31471" />
+        {Platform.OS === 'android' ? (
+          <AndroidHistoryIcon width={24} height={24} />
+        ) : (
+          <HeaderHistoryIcon width={22} height={22} color="#EA4087" />
+        )}
       </GlassControl>
 
       {centerContent ? (
@@ -55,7 +60,7 @@ export function AppHeader({
       ) : (
         <GlassControl
           accessibilityLabel={dateAccessibilityLabel}
-          elevated={false}
+          elevated={Platform.OS === 'android'}
           onPress={onDate}
           tintColor={colors.surface.headerGlassWash}
           washColor={colors.surface.headerGlassWash}
@@ -70,7 +75,7 @@ export function AppHeader({
       ) : (
         <GlassControl
           accessibilityLabel={rightAccessibilityLabel ?? 'Открыть календарь'}
-          elevated={false}
+          elevated={Platform.OS === 'android'}
           onPress={rightContent ? onRightAction : onCalendar}
           tintColor={colors.surface.headerGlassWash}
           washColor={colors.surface.headerGlassWash}
@@ -78,7 +83,7 @@ export function AppHeader({
         >
           {rightContent ?? (
             <View style={styles.headerIconOrientation}>
-              <CalendarIcon width={22} height={22} color="#D31471" />
+              <CalendarIcon width={22} height={22} color="#EA4087" />
             </View>
           )}
         </GlassControl>
@@ -137,10 +142,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   shadowSurface: {
-    ...shadows.control,
+    ...(Platform.OS === 'android' ? androidShadows.control : shadows.control),
+    ...(Platform.OS === 'android'
+      ? {
+          backgroundColor: 'rgba(255,250,252,0.76)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.90)',
+        }
+      : null),
   },
   headerCircle: {
     width: 48,
+    minWidth: 48,
+    flexBasis: 48,
+    flexShrink: 0,
     height: 48,
     borderRadius: 24,
     alignItems: 'center',

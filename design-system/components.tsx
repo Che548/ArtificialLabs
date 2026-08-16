@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
@@ -25,7 +24,6 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 import type {
-  ColorValue,
   ImageSourcePropType,
   PressableProps,
   StyleProp,
@@ -35,6 +33,8 @@ import type {
 } from 'react-native';
 
 import {
+  androidMaterials,
+  androidShadows,
   colors,
   fonts,
   motion,
@@ -44,6 +44,7 @@ import {
   typeScale,
 } from './tokens';
 import type { StoredScanRecord } from '../services/scanning';
+import { FallbackGlassBackdrop } from './glass-fallback';
 
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const SvgDefs = Defs as unknown as ComponentType<PropsWithChildren>;
@@ -59,6 +60,8 @@ export function EdgeFadeGradient({
   height,
   style,
 }: EdgeFadeGradientProps) {
+  if (Platform.OS === 'android' && edge === 'bottom') return null;
+
   const isTop = edge === 'top';
 
   return (
@@ -793,6 +796,7 @@ type LiquidGlassSurfaceProps = PropsWithChildren<{
   washColor?: string;
   radius?: number;
   showFallbackDecoration?: boolean;
+  androidTone?: 'light' | 'strong' | 'dark';
 }>;
 
 export function LiquidGlassSurface({
@@ -806,13 +810,8 @@ export function LiquidGlassSurface({
   washColor = 'transparent',
   radius = radii.pill,
   showFallbackDecoration = true,
+  androidTone = 'light',
 }: LiquidGlassSurfaceProps) {
-  const fallbackHighlight: readonly [ColorValue, ColorValue, ColorValue] = [
-    'rgba(255,255,255,0.44)',
-    'rgba(255,255,255,0.08)',
-    'rgba(255,255,255,0.16)',
-  ];
-
   return (
     <View
       pointerEvents={hasNativeLiquidGlass ? 'box-none' : 'none'}
@@ -837,32 +836,50 @@ export function LiquidGlassSurface({
         </GlassView>
       ) : (
         <>
-          {Platform.OS === 'web' ? (
-            <View style={[StyleSheet.absoluteFill, styles.webGlassFallback]} />
-          ) : Platform.OS === 'android' ? (
+          {Platform.OS === 'android' ? (
             <View
-              style={[StyleSheet.absoluteFill, styles.androidGlassFallback]}
+              style={[
+                StyleSheet.absoluteFillObject,
+                androidMaterials[androidTone],
+                { borderRadius: radius },
+              ]}
             />
+          ) : Platform.OS === 'web' ? (
+            <View style={[StyleSheet.absoluteFill, styles.webGlassFallback]} />
           ) : (
-            <BlurView
-              tint={fallbackTint}
+            <FallbackGlassBackdrop
+              decoration={showFallbackDecoration}
               intensity={intensity}
-              style={StyleSheet.absoluteFillObject}
+              radius={radius}
+              tint={fallbackTint}
+              tone="light"
+              washColor={washColor}
             />
           )}
-          <View
-            style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
-          />
-          {showFallbackDecoration ? (
+          {Platform.OS === 'web' ? (
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: washColor }]}
+            />
+          ) : null}
+          {showFallbackDecoration && Platform.OS === 'web' ? (
             <>
               <LinearGradient
-                colors={fallbackHighlight}
-                locations={[0, 0.46, 1]}
+                colors={[
+                  'rgba(255,255,255,0.44)',
+                  'rgba(255,255,255,0.08)',
+                  'rgba(255,255,255,0.16)',
+                ]}
+                locations={[0, 0.48, 1]}
                 start={{ x: 0.05, y: 0 }}
                 end={{ x: 0.95, y: 1 }}
                 style={StyleSheet.absoluteFillObject}
               />
-              <View style={[styles.fallbackStroke, { borderRadius: radius }]} />
+              <View
+                style={[
+                  styles.fallbackStroke,
+                  { borderRadius: radius },
+                ]}
+              />
             </>
           ) : null}
           <View pointerEvents="none" style={styles.centerFill}>
@@ -915,46 +932,54 @@ export function GlassControl({
 
   if (Platform.OS === 'android') {
     return (
+      <View
+        style={[
+          style,
+          androidMaterials.light,
+          styles.androidGlassControlBorder,
+          elevated && androidShadows.control,
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          onPress={onPress}
+          style={({ pressed }) => [
+            StyleSheet.absoluteFillObject,
+            pressed && styles.androidGlassPressed,
+          ]}
+        >
+          <View pointerEvents="none" style={styles.androidGlassControlContent}>
+            {children}
+          </View>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[style, styles.fallbackGlassHost, shadows.control]}>
+      <FallbackGlassBackdrop
+        intensity={58}
+        radius={radii.pill}
+        tint="systemUltraThinMaterialLight"
+        tone="light"
+        washColor={washColor}
+      />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         onPress={onPress}
         style={({ pressed }) => [
-          style,
-          styles.androidMaterialControl,
-          elevated && shadows.control,
-          pressed && {
-            transform: [{ scale: motion.pressedScale }],
-          },
+          styles.fallbackPressTarget,
+          pressed && { transform: [{ scale: motion.pressedScale }] },
         ]}
       >
-        <LinearGradient
-          pointerEvents="none"
-          colors={['#FFFDFC', '#FFF5F8']}
-          style={StyleSheet.absoluteFillObject}
-        />
-        {children}
+        <View pointerEvents="none" style={styles.fallbackGlassContent}>
+          {children}
+        </View>
       </Pressable>
-    );
-  }
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      style={({ pressed }) => [
-        style,
-        elevated && shadows.control,
-        pressed && {
-          transform: [{ scale: motion.pressedScale }],
-        },
-      ]}
-    >
-      <LiquidGlassSurface tintColor={tintColor} washColor={washColor}>
-        {children}
-      </LiquidGlassSurface>
-    </Pressable>
+    </View>
   );
 }
 
@@ -3976,7 +4001,7 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     backgroundColor: colors.surface.raised,
     shadowColor: '#251119',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 2,
@@ -4027,6 +4052,7 @@ const styles = StyleSheet.create({
   },
   centerFill: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4034,6 +4060,18 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  fallbackGlassContent: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fallbackGlassHost: {
+    position: 'relative',
+  },
+  fallbackPressTarget: {
+    ...StyleSheet.absoluteFillObject,
   },
   headerDateLabel: {
     alignItems: 'center',
@@ -4059,6 +4097,33 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderWidth: 0.8,
     borderColor: 'rgba(255,255,255,0.48)',
+  },
+  androidGlassStroke: {
+    borderWidth: 1,
+    borderColor: 'rgba(74,52,61,0.10)',
+  },
+  androidGlassPressed: {
+    opacity: 0.94,
+    transform: [{ scale: 0.98 }],
+  },
+  androidGlassControlClip: {
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  androidGlassControlBorder: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.88)',
+  },
+  androidGlassMaterialFill: {
+    flex: 1,
+    alignSelf: 'stretch',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  androidGlassControlContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryButton: {
     minHeight: 48,
@@ -5614,7 +5679,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(19,19,22,0.88)',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.22,
     shadowRadius: 18,
   },
@@ -5626,7 +5691,7 @@ const styles = StyleSheet.create({
   },
   scanTooltipBrand: {
     shadowColor: '#260208',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.24,
     shadowRadius: 18,
   },
@@ -5692,7 +5757,7 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     shadowColor: '#260208',
-    shadowOffset: { width: 0, height: 5 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
   },

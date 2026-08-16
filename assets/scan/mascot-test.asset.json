@@ -1,0 +1,34 @@
+{
+  "src": "/Users/aleksandrcekmarev/Downloads/сферка_с_тестом.png",
+  "out": "assets/scan/mascot-test.png",
+  "source_size": [
+    1254,
+    1254
+  ],
+  "crop_box": [
+    172,
+    324,
+    1225,
+    995
+  ],
+  "transparent_edge": null,
+  "threshold": 24,
+  "feather": 0.0,
+  "matte": null,
+  "brightness": 1.0,
+  "saturation": 1.0,
+  "output": {
+    "size": [
+      1053,
+      671
+    ],
+    "alpha_bbox": [
+      3,
+      2,
+      1046,
+      657
+    ],
+    "opaque_edge_pixel_count": 0,
+    "opaque_edge_pixel_ratio": 0.0
+  }
+}

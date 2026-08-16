@@ -43,12 +43,20 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import {
   AppText,
+  InstructionCard,
   LiquidGlassSurface,
   PrimaryButton,
   ScanTooltip,
   type ScanTooltipKind,
 } from './components';
-import { colors, motion, radii, shadows, spacing } from './tokens';
+import {
+  androidShadows,
+  colors,
+  motion,
+  radii,
+  shadows,
+  spacing,
+} from './tokens';
 import ScanFlowFrame from '../assets/figma/scan-screen/scan-flow-frame.svg';
 import type { AnalysisResult } from '../modules/strip-cv';
 import {
@@ -67,6 +75,22 @@ import type {
 } from '../services/scanning/scan-overlay-geometry';
 
 const hasNativeFlowGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+
+const briefingInstructions = [
+  'Соберите мочу в чистую сухую емкость.',
+  'Вскройте фольгированную упаковку и достаньте тест-полоску.',
+  'Опустите тест-полоску в мочу до отметки ”MAX” на 3–5 секунд.',
+  'Достаньте тест-полоску и положите её на ровную сухую поверхность.',
+  'Спустя 3-7 минут отсканируйте результат в приложении.',
+];
+
+const briefingIllustrations = [
+  require('../assets/instructions/step_1_cup.png'),
+  require('../assets/instructions/step_2_package.png'),
+  require('../assets/instructions/step_3_dip_test.png'),
+  require('../assets/instructions/step_4_test_strip.png'),
+  require('../assets/instructions/step_5_results.png'),
+];
 
 type NativeCameraControls = {
   focusAt?: (point: { x: number; y: number }) => Promise<void>;
@@ -354,7 +378,7 @@ function RoundGlassButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.roundButton,
-        shadows.control,
+        Platform.OS === 'android' ? androidShadows.control : shadows.control,
         pressed && styles.flowGlassPressed,
       ]}
     >
@@ -365,6 +389,7 @@ function RoundGlassButton({
         washColor="transparent"
         intensity={72}
         showFallbackDecoration={false}
+        androidTone={darkContent ? 'light' : 'dark'}
       >
         {iconElement}
       </LiquidGlassSurface>
@@ -391,6 +416,7 @@ function FlowGlassGroup({
 
 function FlowHeader({
   currentStep,
+  emphasizeCurrentStep = false,
   leadingIcon = 'close',
   light = true,
   onClose,
@@ -400,6 +426,7 @@ function FlowHeader({
   top,
 }: {
   currentStep?: string;
+  emphasizeCurrentStep?: boolean;
   leadingIcon?: 'back' | 'close';
   light?: boolean;
   onClose: () => void;
@@ -410,7 +437,13 @@ function FlowHeader({
 }) {
   const color = light ? '#ffffff' : colors.text.primary;
   const stepLabel = currentStep ? (
-    <AppText role="label" weight="medium" color={color}>
+    <AppText
+      numeric={emphasizeCurrentStep}
+      role={emphasizeCurrentStep ? 'body' : 'label'}
+      weight={emphasizeCurrentStep ? 'semibold' : 'medium'}
+      color={emphasizeCurrentStep ? colors.brand.primary : color}
+      style={emphasizeCurrentStep ? styles.briefingProgressText : undefined}
+    >
       {currentStep}
     </AppText>
   ) : null;
@@ -451,6 +484,7 @@ function FlowHeader({
               washColor="transparent"
               intensity={72}
               showFallbackDecoration={false}
+              androidTone={light ? 'dark' : 'light'}
             >
               {stepLabel}
             </LiquidGlassSurface>
@@ -610,31 +644,58 @@ function BriefingScreen({
   onClose: () => void;
   onContinue: () => void;
 }) {
-  const items: Array<{
-    icon: FlowIconName;
-    title: string;
-    body: string;
-  }> = [
-    {
-      icon: 'qr',
-      title: 'Сначала QR-код',
-      body: 'Мы определим тип теста, партию и срок годности.',
-    },
-    {
-      icon: 'surface',
-      title: 'Подготовьте поверхность',
-      body: 'Положите тест ровно на светлый однородный фон.',
-    },
-    {
-      icon: 'light',
-      title: 'Проверьте освещение',
-      body: 'Избегайте теней и бликов на диагностическом окне.',
-    },
-  ];
+  const [activeStep, setActiveStep] = useState(0);
+  const [stepTransitioning, setStepTransitioning] = useState(false);
+  const stepProgress = useRef(new Animated.Value(1)).current;
+  const stepDirection = useRef(1);
+  const isFirstStep = activeStep === 0;
+  const isLastStep = activeStep === briefingInstructions.length - 1;
+
+  const moveToStep = (nextStep: number, direction: 1 | -1) => {
+    if (stepTransitioning) return;
+
+    stepDirection.current = direction;
+    setStepTransitioning(true);
+    Animated.timing(stepProgress, {
+      toValue: 0,
+      duration: 130,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) {
+        setStepTransitioning(false);
+        return;
+      }
+
+      setActiveStep(nextStep);
+      stepProgress.setValue(0);
+      Animated.timing(stepProgress, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => setStepTransitioning(false));
+    });
+  };
+
+  const goBack = () => {
+    if (!isFirstStep) moveToStep(activeStep - 1, -1);
+  };
+
+  const goNext = () => {
+    if (stepTransitioning) return;
+    if (isLastStep) {
+      onContinue();
+      return;
+    }
+    moveToStep(activeStep + 1, 1);
+  };
 
   return (
     <View style={styles.briefingScreen}>
       <FlowHeader
+        currentStep={`${activeStep + 1}/${briefingInstructions.length}`}
+        emphasizeCurrentStep
         light={false}
         onClose={onClose}
         onHelp={() => undefined}
@@ -643,49 +704,98 @@ function BriefingScreen({
         top={headerTop}
       />
 
-      <View style={styles.briefingHero}>
-        <AppText role="title" weight="semibold" style={styles.centerText}>
-          Перед сканированием
-        </AppText>
-        <AppText
-          role="body"
-          color={colors.text.secondary}
-          style={styles.briefingSubtitle}
+      <View
+        style={[
+          styles.briefingContent,
+          { paddingTop: headerTop + 64 },
+        ]}
+      >
+        <View style={styles.briefingHero}>
+          <AppText role="title" weight="semibold" style={styles.centerText}>
+            Перед сканированием
+          </AppText>
+          <AppText
+            role="body"
+            color={colors.text.secondary}
+            style={styles.briefingSubtitle}
+          >
+            Выполните пять шагов перед сканированием тест-полоски.
+          </AppText>
+        </View>
+
+        <Animated.View
+          style={[
+            styles.briefingStepStage,
+            {
+              opacity: stepProgress,
+              transform: [
+                {
+                  translateX: stepProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [12 * stepDirection.current, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
         >
-          Это займёт меньше минуты. Инструктаж показывается только перед первым
-          сканированием.
-        </AppText>
-      </View>
+          <InstructionCard
+            height={150}
+            illustration={briefingIllustrations[activeStep]}
+            step={activeStep + 1}
+            text={briefingInstructions[activeStep]}
+            total={briefingInstructions.length}
+            variant="illustrated"
+          />
+        </Animated.View>
 
-      <View style={styles.briefingList}>
-        {items.map((item, index) => (
-          <View key={item.title} style={styles.briefingRow}>
-            <View style={styles.briefingRowIcon}>
-              <FlowIcon
-                name={item.icon}
-                color={colors.brand.primary}
-                size={23}
-              />
-            </View>
-            <View style={styles.briefingRowCopy}>
-              <AppText role="body" weight="medium">
-                {item.title}
+        <View style={styles.briefingActions}>
+          <View
+            style={[
+              styles.briefingSecondaryAction,
+              isFirstStep && styles.briefingSecondaryActionDisabled,
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Назад"
+              accessibilityState={{ disabled: isFirstStep }}
+              disabled={isFirstStep || stepTransitioning}
+              onPress={goBack}
+              style={({ pressed }) => [
+                styles.briefingActionPressTarget,
+                pressed && styles.briefingActionPressed,
+              ]}
+            >
+              <AppText role="label" weight="medium">
+                ‹  Назад
               </AppText>
-              <AppText role="label" color={colors.text.secondary}>
-                {item.body}
-              </AppText>
-            </View>
-            <View style={styles.briefingRowNumber}>
-              <AppText numeric role="label" color={colors.brand.primary}>
-                {index + 1}
-              </AppText>
-            </View>
+            </Pressable>
           </View>
-        ))}
-      </View>
 
-      <View style={styles.bottomAction}>
-        <PrimaryButton label="Продолжить" onPress={onContinue} />
+          <View
+            style={[
+              styles.briefingPrimaryAction,
+              stepTransitioning && styles.briefingPrimaryActionDisabled,
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={isLastStep ? 'Продолжить' : 'Далее'}
+              accessibilityState={{ disabled: stepTransitioning }}
+              disabled={stepTransitioning}
+              onPress={goNext}
+              style={({ pressed }) => [
+                styles.briefingActionPressTarget,
+                pressed && styles.briefingActionPressed,
+              ]}
+            >
+              <AppText role="label" weight="medium" color={colors.text.inverse}>
+                {isLastStep ? 'Продолжить  ›' : 'Далее  ›'}
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -1228,6 +1338,7 @@ function BatchChip({
         washColor="transparent"
         radius={20}
         showFallbackDecoration={false}
+        androidTone="dark"
       >
         {content}
       </LiquidGlassSurface>
@@ -2711,7 +2822,8 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.985 }],
   },
   flowGlassPressed: {
-    transform: [{ scale: 1.035 }],
+    opacity: Platform.OS === 'android' ? 0.94 : 1,
+    transform: [{ scale: Platform.OS === 'android' ? 0.98 : 1.035 }],
   },
   flowHeader: {
     position: 'absolute',
@@ -2848,8 +2960,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.14)',
-    backgroundColor: colors.surface.warm,
+    borderColor: 'rgba(234,64,135,0.20)',
+    backgroundColor: '#F8F5F6',
     color: colors.text.primary,
     fontFamily: 'SFProDisplay-Regular',
     fontSize: 17,
@@ -2994,62 +3106,81 @@ const styles = StyleSheet.create({
   },
   briefingScreen: {
     flex: 1,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: '#FFFFFF',
+  },
+  briefingContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 104,
   },
   briefingHero: {
-    position: 'absolute',
-    top: 205,
-    left: 24,
-    right: 24,
+    width: '100%',
+    maxWidth: 360,
     alignItems: 'center',
     gap: 9,
   },
   briefingSubtitle: {
-    width: 338,
+    width: '100%',
+    maxWidth: 338,
     lineHeight: 20,
     textAlign: 'center',
   },
-  briefingList: {
-    position: 'absolute',
-    top: 348,
-    left: 16,
-    right: 16,
-    gap: 12,
-  },
-  briefingRow: {
-    minHeight: 92,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
+  briefingStepStage: {
+    width: 360,
     alignItems: 'center',
-    gap: 12,
-    ...shadows.card,
+    marginTop: 28,
   },
-  briefingRowIcon: {
-    width: 46,
+  briefingProgressText: {
+    fontSize: 23,
+    lineHeight: 27,
+  },
+  briefingActions: {
+    width: 358,
+    alignSelf: 'center',
+    height: 46,
+    flexDirection: 'row',
+    gap: 15,
+    marginTop: 32,
+    zIndex: 2,
+  },
+  briefingSecondaryAction: {
+    width: 171.5,
     height: 46,
     borderRadius: 23,
-    backgroundColor: '#FDECE5',
+    overflow: 'hidden',
+    backgroundColor: '#ECEBEC',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  briefingRowCopy: {
-    flex: 1,
-    paddingRight: 4,
-    gap: 5,
+  briefingSecondaryActionDisabled: {
+    opacity: 0.5,
   },
-  briefingRowNumber: {
-    width: 20,
+  briefingPrimaryAction: {
+    width: 171.5,
+    height: 46,
+    borderRadius: 23,
+    overflow: 'hidden',
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.brand.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+  },
+  briefingPrimaryActionDisabled: {
+    backgroundColor: colors.state.disabled,
+    shadowOpacity: 0,
+  },
+  briefingActionPressTarget: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bottomAction: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 108,
+  briefingActionPressed: {
+    transform: [{ scale: 1.025 }],
   },
   processingScreen: {
     flex: 1,

@@ -18,10 +18,11 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import {
   Animated,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -31,8 +32,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Rect } from 'react-native-svg';
 import type {
-  ColorValue,
   NativeScrollEvent,
   NativeSyntheticEvent,
   StyleProp,
@@ -44,16 +45,27 @@ import ArrowButton from './assets/figma/arrow-button.svg';
 import ArrowCard from './assets/figma/arrow-card.svg';
 import CalendarIcon from './assets/figma/calendar-icon.svg';
 import ContentShape from './assets/figma/content-shape.svg';
+import CycleIcon from './assets/figma/journal-flow/icon-cycle.svg';
 import MonitoringIcon from './assets/figma/monitoring-icon.svg';
+import AndroidGraphIcon from './assets/android-icons/graph.svg';
+import PlanningHeartIcon from './assets/today/planning-heart.svg';
+import PlanningSymptomsIcon from './assets/today/planning-symptoms.svg';
 import {
+  AppText,
   CalendarPageModal,
+  androidMaterials,
+  androidShadows,
   colors,
   HeaderDateLabel,
+  HealthInsightsPage,
+  getHeaderTop,
   JournalFlowModal,
   type JournalFlowCategory,
   type JournalFlowEntry,
   JournalAssessment,
+  shadows,
 } from './design-system';
+import { FallbackGlassBackdrop } from './design-system/glass-fallback';
 import { useHealthStore } from './lib/health-store';
 
 const DESIGN_WIDTH = 402;
@@ -116,19 +128,6 @@ function LiquidGlassSurface({
   highlight = 'light',
   radius = 999,
 }: LiquidGlassSurfaceProps) {
-  const highlightColors: readonly [ColorValue, ColorValue, ColorValue] =
-    highlight === 'light'
-      ? [
-          'rgba(255,255,255,0.52)',
-          'rgba(255,255,255,0.10)',
-          'rgba(255,255,255,0.18)',
-        ]
-      : [
-          'rgba(255,255,255,0.26)',
-          'rgba(255,255,255,0.03)',
-          'rgba(255,255,255,0.10)',
-        ];
-
   return (
     <View
       pointerEvents={hasNativeLiquidGlass ? 'box-none' : 'none'}
@@ -154,11 +153,28 @@ function LiquidGlassSurface({
             <View pointerEvents="none" style={styles.nativeGlassContent}>
               {children}
             </View>
-          ) : null}
+          ) : (
+            <BlurView
+              tint={fallbackTint}
+              intensity={intensity}
+              experimentalBlurMethod="dimezisBlurView"
+              style={StyleSheet.absoluteFillObject}
+            />
+          )}
         </GlassView>
       ) : (
         <>
-          {Platform.OS === 'web' ? (
+          {Platform.OS === 'android' ? (
+            <View
+              style={[
+                StyleSheet.absoluteFillObject,
+                highlight === 'dark'
+                  ? androidMaterials.dark
+                  : androidMaterials.light,
+                { borderRadius: radius },
+              ]}
+            />
+          ) : Platform.OS === 'web' ? (
             <View
               style={[
                 StyleSheet.absoluteFillObject,
@@ -170,42 +186,28 @@ function LiquidGlassSurface({
                 },
               ]}
             />
-          ) : Platform.OS === 'android' ? (
+          ) : (
+            <FallbackGlassBackdrop
+              intensity={intensity}
+              radius={radius}
+              tint={fallbackTint}
+              tone={highlight}
+              washColor={washColor}
+            />
+          )}
+          {Platform.OS === 'web' ? (
             <View
               style={[
                 StyleSheet.absoluteFillObject,
-                {
-                  backgroundColor:
-                    highlight === 'dark'
-                      ? 'rgba(49,5,12,0.34)'
-                      : 'rgba(255,255,255,0.62)',
-                },
+                { backgroundColor: washColor },
               ]}
             />
-          ) : (
-            <BlurView
-              tint={fallbackTint}
-              intensity={intensity}
-              style={StyleSheet.absoluteFillObject}
-            />
-          )}
-          <View
-            style={[
-              StyleSheet.absoluteFillObject,
-              { backgroundColor: washColor },
-            ]}
-          />
-          <LinearGradient
-            colors={highlightColors}
-            locations={[0, 0.42, 1]}
-            start={{ x: 0.04, y: 0 }}
-            end={{ x: 0.96, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={[styles.glassInnerStroke, { borderRadius: radius }]} />
-          <View pointerEvents="none" style={styles.nativeGlassContent}>
-            {children}
-          </View>
+          ) : null}
+          {children ? (
+            <View pointerEvents="none" style={styles.nativeGlassContent}>
+              {children}
+            </View>
+          ) : null}
         </>
       )}
     </View>
@@ -214,6 +216,7 @@ function LiquidGlassSurface({
 
 type LiquidGlassPressableProps = LiquidGlassSurfaceProps & {
   accessibilityLabel: string;
+  androidShape?: 'circle' | 'pill';
   controlStyle: StyleProp<ViewStyle>;
   onPress?: () => void;
   headerElevation?: boolean;
@@ -221,6 +224,7 @@ type LiquidGlassPressableProps = LiquidGlassSurfaceProps & {
 
 function LiquidGlassPressable({
   accessibilityLabel,
+  androidShape = 'circle',
   children,
   controlStyle,
   onPress,
@@ -261,55 +265,95 @@ function LiquidGlassPressable({
 
   if (Platform.OS === 'android') {
     return (
+      <View
+        style={[
+          controlStyle,
+          { borderRadius: radius },
+        ]}
+      >
+        <Svg
+          pointerEvents="none"
+          width="100%"
+          height="100%"
+          style={StyleSheet.absoluteFillObject}
+        >
+          {androidShape === 'circle' ? (
+            <Circle
+              cx="50%"
+              cy="50%"
+              r="48.5%"
+              fill={
+                highlight === 'dark'
+                  ? 'rgba(31,24,27,0.82)'
+                  : 'rgba(255,250,252,0.82)'
+              }
+              stroke={
+                highlight === 'dark'
+                  ? 'rgba(255,255,255,0.24)'
+                  : 'rgba(255,255,255,0.94)'
+              }
+              strokeWidth={1}
+            />
+          ) : (
+            <Rect
+              x="0.5%"
+              y="1%"
+              width="99%"
+              height="98%"
+              rx={24}
+              ry={24}
+              fill="rgba(255,250,252,0.82)"
+              stroke="rgba(255,255,255,0.94)"
+              strokeWidth={1}
+            />
+          )}
+        </Svg>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          onPress={onPress}
+          style={({ pressed }) => [
+            StyleSheet.absoluteFillObject,
+            pressed && styles.glassFallbackPressed,
+          ]}
+        >
+          <View pointerEvents="none" style={styles.androidGlassControlContent}>
+            {children}
+          </View>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        controlStyle,
+        styles.fallbackGlassHost,
+        headerElevation ? styles.headerControlShadow : styles.glassControlShadow,
+      ]}
+    >
+      <FallbackGlassBackdrop
+        intensity={intensity}
+        radius={radius}
+        tint={fallbackTint}
+        tone={highlight}
+        washColor={washColor}
+      />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         onPress={onPress}
         style={({ pressed }) => [
-          controlStyle,
-          styles.androidMaterialControl,
-          headerElevation
-            ? styles.headerControlShadow
-            : styles.glassControlShadow,
+          StyleSheet.absoluteFillObject,
           pressed && styles.glassFallbackPressed,
         ]}
       >
-        <LinearGradient
-          pointerEvents="none"
-          colors={['#FFFDFC', '#FFF5F8']}
-          style={StyleSheet.absoluteFillObject}
-        />
-        {children}
+        <View pointerEvents="none" style={styles.androidGlassControlContent}>
+          {children}
+        </View>
       </Pressable>
-    );
-  }
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      style={({ pressed }) => [
-        controlStyle,
-        headerElevation
-          ? styles.headerControlShadow
-          : styles.glassControlShadow,
-        pressed && styles.glassFallbackPressed,
-      ]}
-    >
-      <LiquidGlassSurface
-        variant={variant}
-        tintColor={tintColor}
-        colorScheme={colorScheme}
-        fallbackTint={fallbackTint}
-        intensity={intensity}
-        washColor={washColor}
-        highlight={highlight}
-        radius={radius}
-      >
-        {children}
-      </LiquidGlassSurface>
-    </Pressable>
+    </View>
   );
 }
 
@@ -422,13 +466,56 @@ function FeatureCard({ title, accent = false }: FeatureCardProps) {
   );
 }
 
+function ImportantMascotCard() {
+  const fontsReady = useContext(FontReadyContext);
+
+  return (
+    <View style={styles.importantCard}>
+      <View pointerEvents="none" style={styles.importantCardSurface} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Важно"
+        style={({ pressed }) => [
+          styles.importantCardHitArea,
+          pressed && styles.pressed,
+        ]}
+      />
+      <View pointerEvents="none" style={styles.importantMascotLayer}>
+        <Image
+          source={require('./assets/today/spherka-side-cutout.png')}
+          resizeMode="contain"
+          style={styles.importantMascot}
+        />
+      </View>
+      <Text
+        pointerEvents="none"
+        numberOfLines={1}
+        style={[
+          styles.importantCardLabel,
+          {
+            fontFamily: fontsReady
+              ? FONT_YARO_RG
+              : Platform.OS === 'ios'
+                ? 'System'
+                : 'sans-serif',
+          },
+        ]}
+      >
+        ВАЖНО
+      </Text>
+    </View>
+  );
+}
+
 function MonitoringScreen({
   headerTop,
   onCalendarPress,
+  onChartsPress,
   onJournalPress,
 }: {
   headerTop: number;
   onCalendarPress: () => void;
+  onChartsPress: () => void;
   onJournalPress: () => void;
 }) {
   const { profile, journalEntries, labResults, scanResults } = useHealthStore();
@@ -552,16 +639,22 @@ function MonitoringScreen({
           accessibilityLabel="Открыть мониторинг"
           controlStyle={styles.topCircle}
           headerElevation
+          onPress={onChartsPress}
           tintColor={colors.surface.headerGlassWash}
           washColor={colors.surface.headerGlassWash}
         >
-          <View style={styles.headerIconOrientation}>
-            <MonitoringIcon width={22} height={22} color="#D31471" />
-          </View>
+          {Platform.OS === 'android' ? (
+            <AndroidGraphIcon width={24} height={24} />
+          ) : (
+            <View style={styles.headerIconOrientation}>
+              <MonitoringIcon width={22} height={22} color="#EA4087" />
+            </View>
+          )}
         </LiquidGlassPressable>
 
         <LiquidGlassPressable
           accessibilityLabel="Выбрать дату"
+          androidShape="pill"
           controlStyle={styles.datePill}
           headerElevation
           tintColor={colors.surface.headerGlassWash}
@@ -579,7 +672,7 @@ function MonitoringScreen({
           washColor={colors.surface.headerGlassWash}
         >
           <View style={styles.headerIconOrientation}>
-            <CalendarIcon width={22} height={22} color="#D31471" />
+            <CalendarIcon width={22} height={22} color="#EA4087" />
           </View>
         </LiquidGlassPressable>
       </LiquidGlassGroup>
@@ -806,9 +899,9 @@ function MonitoringScreen({
           <View pointerEvents="none" style={styles.metricsDivider} />
 
           <View style={styles.cardsRow}>
+            <ImportantMascotCard />
             <FeatureCard title={'Подбор\nпитания в 1-м\nтриместре'} />
             <FeatureCard title={'7 Важных\nобследований\nи анализов'} />
-            <FeatureCard title={'Индекс внимания\nк здоровью'} />
           </View>
         </View>
       </ScrollView>
@@ -827,11 +920,765 @@ function MonitoringScreen({
   );
 }
 
+type PlanningQuickActionProps = {
+  glyph: ReactNode;
+  label: string;
+  primary?: boolean;
+  onPress: () => void;
+};
+
+function PlanningQuickAction({
+  glyph,
+  label,
+  onPress,
+  primary = false,
+}: PlanningQuickActionProps) {
+  const content = <View style={styles.planningActionIcon}>{glyph}</View>;
+
+  return (
+    <View style={styles.planningActionItem}>
+      <LiquidGlassPressable
+        accessibilityLabel={label}
+        controlStyle={styles.planningActionCircle}
+        onPress={onPress}
+        tintColor={primary ? '#EA4087' : 'rgba(255,255,255,0.62)'}
+        washColor={
+          primary ? 'rgba(234,64,135,0.94)' : 'rgba(255,255,255,0.22)'
+        }
+        intensity={72}
+      >
+        {primary ? (
+          <View pointerEvents="none" style={styles.planningActionPrimaryFill} />
+        ) : null}
+        {content}
+      </LiquidGlassPressable>
+      <ProjectText
+        numberOfLines={2}
+        style={styles.planningActionLabel}
+        weight="semibold"
+      >
+        {label}
+      </ProjectText>
+    </View>
+  );
+}
+
+type PlanningIntimacyOption = {
+  glyph: string;
+  group: 'contact' | 'desire';
+  id: string;
+  label: string;
+};
+
+const planningIntimacyOptions: PlanningIntimacyOption[] = [
+  { id: 'none', group: 'contact', glyph: '—', label: 'Близости не было' },
+  { id: 'protected', group: 'contact', glyph: '✓', label: 'С защитой' },
+  { id: 'unprotected', group: 'contact', glyph: '♡', label: 'Без защиты' },
+  { id: 'withdrawal', group: 'contact', glyph: '◐', label: 'Прерванный акт' },
+  { id: 'touch', group: 'contact', glyph: '∞', label: 'Прикосновения' },
+  { id: 'high', group: 'desire', glyph: '↑', label: 'Высокое желание' },
+  { id: 'medium', group: 'desire', glyph: '•', label: 'Среднее желание' },
+  { id: 'low', group: 'desire', glyph: '↓', label: 'Низкое желание' },
+];
+
+function PlanningIntimacyModal({
+  onClose,
+  onSave,
+  visible,
+}: {
+  onClose: () => void;
+  onSave: (labels: string[]) => void | Promise<void>;
+  visible: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  const [selection, setSelection] = useState<{
+    contact?: string;
+    desire?: string;
+  }>({});
+  const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
+  const [scrollContentHeight, setScrollContentHeight] = useState(0);
+  const scrollEnabled =
+    scrollViewportHeight > 0 &&
+    scrollContentHeight > scrollViewportHeight + 1;
+  const selectedLabels = planningIntimacyOptions
+    .filter((option) => selection[option.group] === option.id)
+    .map((option) => option.label);
+
+  const close = () => {
+    setSelection({});
+    onClose();
+  };
+
+  return (
+    <Modal
+      animationType="slide"
+      onRequestClose={close}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      transparent
+      visible={visible}
+    >
+      <View style={styles.planningModalRoot}>
+        <Pressable
+          accessibilityLabel="Закрыть окно"
+          onPress={close}
+          style={styles.planningModalScrim}
+        />
+        <ScrollView
+          alwaysBounceVertical={false}
+          bounces={scrollEnabled}
+          contentContainerStyle={styles.planningModalPageContent}
+          onContentSizeChange={(_width, height) =>
+            setScrollContentHeight(height)
+          }
+          onLayout={({ nativeEvent }) =>
+            setScrollViewportHeight(nativeEvent.layout.height)
+          }
+          scrollEnabled={scrollEnabled}
+          showsVerticalScrollIndicator={false}
+          style={styles.planningModalPageScroll}
+        >
+          <Pressable
+            accessibilityLabel="Закрыть окно"
+            onPress={close}
+            style={styles.planningModalDismissArea}
+          />
+          <View
+            style={[
+              styles.planningModalSheet,
+              { paddingBottom: Math.max(insets.bottom + 102, 118) },
+            ]}
+          >
+          <View style={styles.planningModalHandle} />
+
+          <View style={styles.planningModalContent}>
+            {(
+              [
+                {
+                  group: 'contact' as const,
+                  title: 'Близость',
+                  caption: 'Выберите один вариант',
+                },
+                {
+                  group: 'desire' as const,
+                  title: 'Желание',
+                  caption: 'Необязательно',
+                },
+              ] as const
+            ).map((section) => (
+              <View key={section.group} style={styles.planningOptionSection}>
+                <View style={styles.planningOptionSectionHeader}>
+                  <AppText role="label" weight="semibold">
+                    {section.title}
+                  </AppText>
+                  <AppText role="caption" color={colors.text.secondary}>
+                    {section.caption}
+                  </AppText>
+                </View>
+
+                <View style={styles.planningOptionList}>
+                  {planningIntimacyOptions
+                    .filter((option) => option.group === section.group)
+                    .map((option) => {
+                      const selected = selection[option.group] === option.id;
+                      return (
+                        <View
+                          key={option.id}
+                          style={[
+                            styles.planningOption,
+                            selected && styles.planningOptionSelected,
+                          ]}
+                        >
+                          <Pressable
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected }}
+                            accessibilityLabel={option.label}
+                            onPress={() =>
+                              setSelection((current) => ({
+                                ...current,
+                                [option.group]:
+                                  current[option.group] === option.id
+                                    ? undefined
+                                : option.id,
+                              }))
+                            }
+                            style={StyleSheet.absoluteFillObject}
+                          >
+                            {({ pressed }) => (
+                              <View
+                               style={[
+                                  styles.planningOptionContent,
+                                  pressed && styles.planningActionPressed,
+                                ]}
+                              >
+                                <View
+                                  style={[
+                                    styles.planningOptionIcon,
+                                    selected && styles.planningOptionIconSelected,
+                                  ]}
+                                >
+                                  <AppText
+                                    weight="semibold"
+                                    style={[
+                                      styles.planningOptionGlyph,
+                                      selected && styles.planningOptionGlyphSelected,
+                                    ]}
+                                  >
+                                    {option.glyph}
+                                  </AppText>
+                                </View>
+
+                                <AppText
+                                  role="label"
+                                  weight="medium"
+                                  style={styles.planningOptionLabel}
+                                >
+                                  {option.label}
+                                </AppText>
+
+                                <View
+                                  style={[
+                                    styles.planningOptionRadio,
+                                    selected && styles.planningOptionRadioSelected,
+                                  ]}
+                                >
+                                  {selected ? (
+                                    <View style={styles.planningOptionRadioDot} />
+                                  ) : null}
+                                </View>
+                              </View>
+                            )}
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                </View>
+              </View>
+            ))}
+          </View>
+
+        </View>
+        </ScrollView>
+        <View
+          style={[
+            styles.planningModalActionsFixed,
+            { paddingBottom: Math.max(insets.bottom + 18, 34) },
+          ]}
+        >
+          <View style={styles.planningModalActions}>
+            <View style={styles.planningModalActionSlot}>
+              <View style={styles.planningModalCancel}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Отменить"
+                  onPress={close}
+                  style={StyleSheet.absoluteFillObject}
+                >
+                  {({ pressed }) => (
+                    <View
+                      style={[
+                        styles.planningModalActionContent,
+                        pressed && styles.planningActionPressed,
+                      ]}
+                    >
+                      <AppText
+                        role="label"
+                        weight="medium"
+                        color={colors.text.secondary}
+                      >
+                        Отмена
+                      </AppText>
+                    </View>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.planningModalActionSlot}>
+              <View
+                style={[
+                  styles.planningModalSave,
+                  selectedLabels.length === 0 && styles.planningModalSaveDisabled,
+                ]}
+              >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Сохранить отметки"
+                  accessibilityState={{ disabled: selectedLabels.length === 0 }}
+                  disabled={selectedLabels.length === 0}
+                  onPress={() => {
+                    void onSave(selectedLabels);
+                    close();
+                  }}
+                  style={StyleSheet.absoluteFillObject}
+                >
+                  {({ pressed }) => (
+                    <View
+                      style={[
+                        styles.planningModalActionContent,
+                        pressed &&
+                          selectedLabels.length > 0 &&
+                          styles.planningActionPressed,
+                      ]}
+                    >
+                      <AppText role="label" weight="semibold" color="#FFFFFF">
+                        Сохранить
+                      </AppText>
+                    </View>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function formatPlanningDateRange(start: Date, end: Date) {
+  const month = new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(end);
+  return `${start.getDate()}–${end.getDate()} ${month}`;
+}
+
+function PlanningMonitoringScreen({
+  headerTop,
+  onCalendarPress,
+  onChartsPress,
+  onIntimacyPress,
+  onSymptomsPress,
+}: {
+  headerTop: number;
+  onCalendarPress: () => void;
+  onChartsPress: () => void;
+  onIntimacyPress: () => void;
+  onSymptomsPress: () => void;
+}) {
+  const { journalEntries, labResults, profile, scanResults } = useHealthStore();
+  const today = new Date();
+  const cycleLength = profile?.cycleLengthDays ?? 28;
+  const fallbackPeriodStart = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() - 11,
+  ).getTime();
+  const periodStartAt =
+    profile?.goal === 'planning' && profile.lastPeriodStartAt
+      ? profile.lastPeriodStartAt
+      : fallbackPeriodStart;
+  const dayMilliseconds = 24 * 60 * 60 * 1000;
+  const elapsedDays = Math.floor(
+    (new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() -
+      new Date(periodStartAt).setHours(0, 0, 0, 0)) /
+      dayMilliseconds,
+  );
+  const cycleDay =
+    ((elapsedDays % cycleLength) + cycleLength) % cycleLength + 1;
+  const ovulationDay = Math.max(10, cycleLength - 14);
+  const fertileStartDay = Math.max(1, ovulationDay - 5);
+  const fertileEndDay = Math.min(cycleLength, ovulationDay + 1);
+  const highProbability =
+    cycleDay >= fertileStartDay && cycleDay <= fertileEndDay;
+  const nearWindow =
+    cycleDay >= fertileStartDay - 2 && cycleDay <= fertileEndDay + 2;
+  const probabilityLabel = highProbability
+    ? 'Высокая'
+    : nearWindow
+      ? 'Средняя'
+      : 'Низкая';
+  const daysUntilOvulation =
+    ovulationDay >= cycleDay
+      ? ovulationDay - cycleDay
+      : cycleLength - cycleDay + ovulationDay;
+  const completedCycles = Math.floor(elapsedDays / cycleLength);
+  const currentCycleStart = new Date(periodStartAt);
+  currentCycleStart.setHours(12, 0, 0, 0);
+  currentCycleStart.setDate(
+    currentCycleStart.getDate() + completedCycles * cycleLength,
+  );
+  const fertileStart = new Date(currentCycleStart);
+  fertileStart.setHours(12, 0, 0, 0);
+  fertileStart.setDate(fertileStart.getDate() + fertileStartDay - 1);
+  const fertileEnd = new Date(currentCycleStart);
+  fertileEnd.setHours(12, 0, 0, 0);
+  fertileEnd.setDate(fertileEnd.getDate() + fertileEndDay - 1);
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const journalCompleted = journalEntries.some(
+    (entry) => !entry.deletedAt && entry.occurredAt >= todayStart,
+  );
+  const completedCheckups = Math.min(
+    6,
+    labResults.filter((item) => !item.deletedAt).length +
+      scanResults.filter((item) => !item.deletedAt).length,
+  );
+
+  return (
+    <View style={styles.planningCanvas}>
+      <Image
+        source={require('./assets/today/planning-background.png')}
+        resizeMode="cover"
+        style={styles.planningBackground}
+      />
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(255,246,246,0.92)', 'rgba(255,246,246,0)']}
+        locations={[0, 1]}
+        style={styles.planningHeaderFade}
+      />
+
+      <LiquidGlassGroup
+        spacing={12}
+        style={[styles.topBar, { top: headerTop }]}
+      >
+        <LiquidGlassPressable
+          accessibilityLabel="Открыть мониторинг"
+          controlStyle={styles.topCircle}
+          headerElevation
+          onPress={onChartsPress}
+          tintColor={colors.surface.headerGlassWash}
+          washColor={colors.surface.headerGlassWash}
+        >
+          <View style={styles.headerIconOrientation}>
+            <MonitoringIcon width={22} height={22} color="#EA4087" />
+          </View>
+        </LiquidGlassPressable>
+        <LiquidGlassPressable
+          accessibilityLabel="Выбрать дату"
+          androidShape="pill"
+          controlStyle={styles.datePill}
+          headerElevation
+          tintColor={colors.surface.headerGlassWash}
+          washColor={colors.surface.headerGlassWash}
+        >
+          <HeaderDateLabel />
+        </LiquidGlassPressable>
+        <LiquidGlassPressable
+          accessibilityLabel="Открыть календарь"
+          controlStyle={styles.topCircle}
+          headerElevation
+          onPress={onCalendarPress}
+          tintColor={colors.surface.headerGlassWash}
+          washColor={colors.surface.headerGlassWash}
+        >
+          <View style={styles.headerIconOrientation}>
+            <CalendarIcon width={22} height={22} color="#EA4087" />
+          </View>
+        </LiquidGlassPressable>
+      </LiquidGlassGroup>
+
+      <View style={styles.planningForecast}>
+        <ProjectText style={styles.planningCycleDay} weight="semibold">
+          {`${cycleDay}-й день цикла`}
+        </ProjectText>
+        <ProjectText style={styles.planningProbability} weight="semibold">
+          {`${probabilityLabel} вероятность`}
+        </ProjectText>
+        <ProjectText style={styles.planningProbabilityCaption}>
+          забеременеть
+        </ProjectText>
+        <View style={styles.planningForecastMeta}>
+          <ProjectText style={styles.planningForecastMetaText} weight="semibold">
+            {`Лучшие дни: ${formatPlanningDateRange(fertileStart, fertileEnd)}`}
+          </ProjectText>
+          <ProjectText style={styles.planningForecastMetaText}>
+            {daysUntilOvulation === 0
+              ? 'Овуляция ожидается сегодня'
+              : `Овуляция ожидается через ${daysUntilOvulation} дн.`}
+          </ProjectText>
+        </View>
+      </View>
+
+      <ScrollView
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        style={styles.planningLowerScroll}
+        contentContainerStyle={styles.planningLowerScrollContent}
+      >
+        <View style={styles.planningLowerCanvas}>
+          <ContentShape
+            pointerEvents="none"
+            width={DESIGN_WIDTH}
+            height={361}
+            style={styles.planningContentShape}
+          />
+          <View pointerEvents="none" style={styles.planningContentExtension} />
+
+          <View style={styles.planningActions}>
+            <PlanningQuickAction
+              glyph={
+                <View style={styles.planningCycleIconOrientation}>
+                  <CycleIcon width={28} height={28} color="#FFFFFF" />
+                </View>
+              }
+              label="Месячные"
+              onPress={onCalendarPress}
+              primary
+            />
+            <PlanningQuickAction
+              glyph={
+                <PlanningSymptomsIcon
+                  width={28}
+                  height={28}
+                  color="#EA4087"
+                />
+              }
+              label="Симптомы"
+              onPress={onSymptomsPress}
+            />
+            <PlanningQuickAction
+              glyph={<PlanningHeartIcon width={28} height={28} color="#EA4087" />}
+              label="Близость"
+              onPress={onIntimacyPress}
+            />
+          </View>
+
+          <View
+            pointerEvents="none"
+            style={[
+              styles.planningMetricsDivider,
+              styles.planningMetricsTopDivider,
+            ]}
+          />
+
+          <View style={styles.planningJournalArea}>
+            <JournalAssessment
+              variant="ring"
+              value={journalCompleted ? 24 : 16}
+              actionLabel={journalCompleted ? 'Готово' : 'Заполнить'}
+              actionVariant="outline"
+              onPress={onSymptomsPress}
+              actionIcon={<ArrowButton width={18.3} height={18.3} />}
+            />
+          </View>
+
+          <View style={styles.planningCheckupsArea}>
+            <JournalAssessment
+              variant="fraction"
+              value={completedCheckups}
+              total={6}
+              title="Прохождение чекапов"
+              status="Средняя регулярность"
+              leftCaption={`Пройдено ${completedCheckups}`}
+              rightCaption="Всего 6"
+              actionLabel={completedCheckups >= 6 ? 'Готово' : 'Пройти'}
+              actionVariant="outline"
+              actionIcon={<ArrowButton width={18.3} height={18.3} />}
+            />
+          </View>
+
+          <View pointerEvents="none" style={styles.planningMetricsDivider} />
+
+          <View style={styles.planningCyclesContent}>
+            <ProjectText style={styles.planningCyclesTitle} weight="semibold">
+              Мои циклы
+            </ProjectText>
+
+            <View style={styles.planningCyclesStatsCard}>
+              <View style={styles.planningCyclesRow}>
+                <View style={styles.planningCyclesMetricCopy}>
+                  <ProjectText style={styles.planningCyclesMetricLabel}>
+                    Предыдущий цикл
+                  </ProjectText>
+                  <ProjectText
+                    style={styles.planningCyclesMetricValue}
+                    weight="semibold"
+                  >
+                    {`${cycleLength} дней`}
+                  </ProjectText>
+                </View>
+                <View style={styles.planningCyclesStatus}>
+                  <View style={styles.planningCyclesStatusGood}>
+                    <ProjectText
+                      style={styles.planningCyclesStatusGoodGlyph}
+                      weight="semibold"
+                    >
+                      ✓
+                    </ProjectText>
+                  </View>
+                  <ProjectText
+                    style={styles.planningCyclesStatusLabel}
+                    weight="semibold"
+                  >
+                    В норме
+                  </ProjectText>
+                </View>
+              </View>
+
+              <View style={styles.planningCyclesRowDivider} />
+
+              <View style={styles.planningCyclesRow}>
+                <View style={styles.planningCyclesMetricCopy}>
+                  <ProjectText style={styles.planningCyclesMetricLabel}>
+                    Предыдущие месячные
+                  </ProjectText>
+                  <ProjectText
+                    style={styles.planningCyclesMetricValue}
+                    weight="semibold"
+                  >
+                    4 дня
+                  </ProjectText>
+                </View>
+                <View style={styles.planningCyclesStatus}>
+                  <View style={styles.planningCyclesStatusGood}>
+                    <ProjectText
+                      style={styles.planningCyclesStatusGoodGlyph}
+                      weight="semibold"
+                    >
+                      ✓
+                    </ProjectText>
+                  </View>
+                  <ProjectText
+                    style={styles.planningCyclesStatusLabel}
+                    weight="semibold"
+                  >
+                    В норме
+                  </ProjectText>
+                </View>
+              </View>
+
+              <View style={styles.planningCyclesRowDivider} />
+
+              <View style={styles.planningCyclesRow}>
+                <View style={styles.planningCyclesMetricCopy}>
+                  <ProjectText style={styles.planningCyclesMetricLabel}>
+                    Колебания длины цикла
+                  </ProjectText>
+                  <ProjectText
+                    style={styles.planningCyclesMetricValueSmall}
+                    weight="semibold"
+                  >
+                    Пока нет данных
+                  </ProjectText>
+                </View>
+                <View style={styles.planningCyclesStatus}>
+                  <View style={styles.planningCyclesStatusPending}>
+                    <ProjectText
+                      style={styles.planningCyclesStatusPendingGlyph}
+                      weight="semibold"
+                    >
+                      i
+                    </ProjectText>
+                  </View>
+                  <ProjectText
+                    style={styles.planningCyclesStatusPendingLabel}
+                    weight="semibold"
+                  >
+                    Наблюдаем
+                  </ProjectText>
+                </View>
+              </View>
+            </View>
+
+          </View>
+
+          <View
+            pointerEvents="none"
+            style={[
+              styles.planningMetricsDivider,
+              styles.planningCyclesDivider,
+            ]}
+          />
+
+          <View style={styles.planningCardsRow}>
+            <ImportantMascotCard />
+            <FeatureCard title={'Подбор\nпитания в 1-м\nтриместре'} />
+            <FeatureCard title={'7 Важных\nобследований\nи анализов'} />
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+export function PlanningTodayScreenCatalogPreview() {
+  const insets = useSafeAreaInsets();
+  const { addJournalEntry } = useHealthStore();
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [symptomsDate, setSymptomsDate] = useState<Date | null>(null);
+  const [intimacyVisible, setIntimacyVisible] = useState(false);
+  const headerTop = getHeaderTop(insets.top, 1) + 1;
+
+  const saveJournalEntries = async (entries: JournalFlowEntry[]) => {
+    const targetDate = symptomsDate ?? new Date();
+    const occurredAt = new Date(
+      targetDate.getFullYear(),
+      targetDate.getMonth(),
+      targetDate.getDate(),
+      12,
+    ).getTime();
+
+    for (const entry of entries) {
+      await addJournalEntry({ occurredAt, ...entry });
+    }
+  };
+
+  return (
+    <FontReadyContext.Provider value>
+      <PlanningMonitoringScreen
+        headerTop={headerTop}
+        onCalendarPress={() => setCalendarVisible(true)}
+        onChartsPress={() => undefined}
+        onIntimacyPress={() => setIntimacyVisible(true)}
+        onSymptomsPress={() => setSymptomsDate(new Date())}
+      />
+      <CalendarPageModal
+        visible={calendarVisible}
+        onClose={() => setCalendarVisible(false)}
+        onAddSymptoms={(date) => {
+          setCalendarVisible(false);
+          setSymptomsDate(date);
+        }}
+      />
+      <JournalFlowModal
+        visible={symptomsDate !== null}
+        targetDate={symptomsDate ?? new Date()}
+        initialCategory="symptoms"
+        onClose={() => setSymptomsDate(null)}
+        onComplete={async (entries) => {
+          await saveJournalEntries(entries);
+          setSymptomsDate(null);
+        }}
+      />
+      <PlanningIntimacyModal
+        visible={intimacyVisible}
+        onClose={() => setIntimacyVisible(false)}
+        onSave={async (labels) => {
+          await addJournalEntry({
+            occurredAt: Date.now(),
+            kind: 'activity',
+            label: 'Близость и желание',
+            textValue: labels.join(', '),
+          });
+        }}
+      />
+    </FontReadyContext.Provider>
+  );
+}
+
+export function TodayScreenCatalogPreview() {
+  const insets = useSafeAreaInsets();
+  const headerTop = getHeaderTop(insets.top, 1) + 1;
+
+  return (
+    <FontReadyContext.Provider value>
+      <MonitoringScreen
+        headerTop={headerTop}
+        onCalendarPress={() => undefined}
+        onChartsPress={() => undefined}
+        onJournalPress={() => undefined}
+      />
+    </FontReadyContext.Provider>
+  );
+}
+
 export default function App() {
-  const { addJournalEntry, journalEntries } = useHealthStore();
+  const { addJournalEntry, journalEntries, labResults, profile, scanResults } =
+    useHealthStore();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [calendarVisible, setCalendarVisible] = useState(false);
+  const [chartsVisible, setChartsVisible] = useState(false);
+  const [planningIntimacyVisible, setPlanningIntimacyVisible] = useState(false);
   const [journalFlowDate, setJournalFlowDate] = useState<Date | null>(null);
   const [journalFlowCategory, setJournalFlowCategory] =
     useState<JournalFlowCategory>('cycle');
@@ -845,7 +1692,7 @@ export default function App() {
       : {},
   );
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
-  const headerTop = Math.max(16, insets.top / scale + 8);
+  const headerTop = getHeaderTop(insets.top, scale) + 1;
   const symptomDateKeys = useMemo(
     () =>
       new Set(
@@ -895,7 +1742,9 @@ export default function App() {
 
   return (
     <FontReadyContext.Provider value={fontsLoaded && !fontError}>
-      <View style={styles.root}>
+      <View
+        style={[styles.root, Platform.OS === 'android' && styles.androidRoot]}
+      >
         <StatusBar style="dark" hidden={false} />
         <View
           style={{
@@ -903,12 +1752,27 @@ export default function App() {
             height: DESIGN_HEIGHT * scale,
           }}
         >
-          <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
-            <MonitoringScreen
-              headerTop={headerTop}
-              onCalendarPress={() => setCalendarVisible(true)}
-              onJournalPress={() => openJournalFlow(new Date(), 'cycle')}
-            />
+          <View
+            style={[styles.scaledCanvas, { transform: [{ scale }] }]}
+          >
+            {profile?.goal === 'planning' ? (
+              <PlanningMonitoringScreen
+                headerTop={headerTop}
+                onCalendarPress={() => setCalendarVisible(true)}
+                onChartsPress={() => setChartsVisible(true)}
+                onIntimacyPress={() => setPlanningIntimacyVisible(true)}
+                onSymptomsPress={() =>
+                  openJournalFlow(new Date(), 'symptoms')
+                }
+              />
+            ) : (
+              <MonitoringScreen
+                headerTop={headerTop}
+                onCalendarPress={() => setCalendarVisible(true)}
+                onChartsPress={() => setChartsVisible(true)}
+                onJournalPress={() => openJournalFlow(new Date(), 'cycle')}
+              />
+            )}
           </View>
         </View>
         <CalendarPageModal
@@ -924,6 +1788,26 @@ export default function App() {
           onClose={() => setJournalFlowDate(null)}
           onComplete={saveJournalFlow}
         />
+        <PlanningIntimacyModal
+          visible={planningIntimacyVisible}
+          onClose={() => setPlanningIntimacyVisible(false)}
+          onSave={async (labels) => {
+            await addJournalEntry({
+              occurredAt: Date.now(),
+              kind: 'activity',
+              label: 'Близость и желание',
+              textValue: labels.join(', '),
+            });
+          }}
+        />
+        <HealthInsightsPage
+          visible={chartsVisible}
+          onClose={() => setChartsVisible(false)}
+          profile={profile}
+          journalEntries={journalEntries}
+          labResults={labResults}
+          scanResults={scanResults}
+        />
       </View>
     </FontReadyContext.Provider>
   );
@@ -935,6 +1819,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FDECE5',
+  },
+  androidRoot: {
+    justifyContent: 'flex-start',
   },
   scaledCanvas: {
     width: DESIGN_WIDTH,
@@ -982,6 +1869,9 @@ const styles = StyleSheet.create({
   },
   topCircle: {
     width: 48,
+    minWidth: 48,
+    flexBasis: 48,
+    flexShrink: 0,
     height: 48,
     borderRadius: 24,
     alignItems: 'center',
@@ -1006,14 +1896,14 @@ const styles = StyleSheet.create({
   },
   weekBubbleFallbackShadow: {
     shadowColor: '#260208',
-    shadowOffset: { width: 0, height: 7 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.22,
     shadowRadius: 13,
     elevation: 8,
   },
   weekBubbleSelected: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 7 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.14,
     shadowRadius: 12,
     elevation: 8,
@@ -1094,7 +1984,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.24,
   },
   weekTextSelected: {
-    color: '#D31471',
+    color: '#EA4087',
   },
   contentShape: {
     position: 'absolute',
@@ -1124,6 +2014,47 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     overflow: 'hidden',
   },
+  importantCard: {
+    position: 'relative',
+    width: 118,
+    height: 128,
+    overflow: 'visible',
+  },
+  importantCardSurface: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 30,
+    backgroundColor: '#ECA4C8',
+  },
+  importantCardHitArea: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 4,
+    borderRadius: 30,
+  },
+  importantMascotLayer: {
+    position: 'absolute',
+    zIndex: 2,
+    left: -5,
+    top: 23,
+    width: 84,
+    height: 88,
+  },
+  importantMascot: {
+    width: '100%',
+    height: '100%',
+  },
+  importantCardLabel: {
+    position: 'absolute',
+    zIndex: 3,
+    right: -33,
+    top: 48,
+    width: 114,
+    color: '#FDECE5',
+    fontSize: 24,
+    lineHeight: 26,
+    letterSpacing: -0.5,
+    textAlign: 'center',
+    transform: [{ rotate: '-90deg' }],
+  },
   featureCardContent: {
     width: 118,
     height: 128,
@@ -1132,10 +2063,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   featureCardAccent: {
-    backgroundColor: '#d31471',
+    backgroundColor: '#EA4087',
   },
   featureCardSoft: {
-    backgroundColor: '#f2a8cb',
+    backgroundColor: '#FDECE5',
   },
   attentionValue: {
     alignSelf: 'flex-start',
@@ -1149,7 +2080,7 @@ const styles = StyleSheet.create({
     width: 27,
     height: 27,
     borderRadius: 13.5,
-    backgroundColor: '#d31471',
+    backgroundColor: '#ECA4C8',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1157,9 +2088,9 @@ const styles = StyleSheet.create({
     width: '100%',
     color: '#171717',
     fontFamily: FONT_SF_REGULAR,
-    fontSize: 14.2,
-    lineHeight: 17,
-    letterSpacing: -0.284,
+    fontSize: 13.5,
+    lineHeight: 16.5,
+    letterSpacing: -0.27,
   },
   featureTitleLight: {
     color: '#ffffff',
@@ -1199,12 +2130,461 @@ const styles = StyleSheet.create({
   },
   dashboardScrollContent: {
     width: DESIGN_WIDTH,
-    height: 974,
+    height: 970,
   },
   dashboardScrollCanvas: {
     width: DESIGN_WIDTH,
     height: 551,
     marginTop: 423,
+  },
+  planningCanvas: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+    overflow: 'hidden',
+    borderRadius: 40,
+    backgroundColor: '#FFF1EF',
+  },
+  planningBackground: {
+    ...StyleSheet.absoluteFillObject,
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+  },
+  planningHeaderFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 132,
+    zIndex: 9,
+  },
+  planningForecast: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    top: 212,
+    alignItems: 'center',
+  },
+  planningCycleDay: {
+    color: '#7B6470',
+    fontSize: 15,
+    lineHeight: 20,
+    letterSpacing: -0.15,
+  },
+  planningProbability: {
+    marginTop: 4,
+    color: '#EA4087',
+    fontSize: 34,
+    lineHeight: 38,
+    letterSpacing: -0.9,
+    textAlign: 'center',
+  },
+  planningProbabilityCaption: {
+    marginTop: -2,
+    color: '#171717',
+    fontSize: 24,
+    lineHeight: 29,
+    letterSpacing: -0.48,
+  },
+  planningForecastMeta: {
+    marginTop: 16,
+    alignItems: 'center',
+    gap: 3,
+  },
+  planningForecastMetaText: {
+    color: '#5D5055',
+    fontSize: 14,
+    lineHeight: 18,
+    letterSpacing: -0.14,
+  },
+  planningActions: {
+    position: 'absolute',
+    zIndex: 4,
+    left: 20,
+    right: 20,
+    top: 68,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  planningActionItem: {
+    width: 108,
+    alignItems: 'center',
+  },
+  planningActionCircle: {
+    width: 72,
+    minWidth: 72,
+    maxWidth: 72,
+    flexBasis: 72,
+    flexGrow: 0,
+    flexShrink: 0,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#7A183F',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 7,
+  },
+  planningActionPrimaryFill: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 36,
+    backgroundColor: '#EA4087',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.82)',
+  },
+  planningActionIcon: {
+    zIndex: 1,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planningCycleIconOrientation: {
+    transform: [{ scaleY: -1 }],
+  },
+  planningActionLabel: {
+    minHeight: 38,
+    marginTop: 9,
+    color: '#30262A',
+    fontSize: 14,
+    lineHeight: 17,
+    letterSpacing: -0.16,
+    textAlign: 'center',
+  },
+  planningActionPressed: {
+    opacity: 0.74,
+    transform: [{ scale: 0.98 }],
+  },
+  planningLowerScroll: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 3,
+  },
+  planningLowerScrollContent: {
+    width: DESIGN_WIDTH,
+    height: 1402,
+  },
+  planningLowerCanvas: {
+    width: DESIGN_WIDTH,
+    height: 982,
+    marginTop: 420,
+  },
+  planningContentShape: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+  },
+  planningContentExtension: {
+    position: 'absolute',
+    left: 0,
+    top: 180,
+    width: DESIGN_WIDTH,
+    height: 802,
+    backgroundColor: '#FFFFFF',
+  },
+  planningJournalArea: {
+    position: 'absolute',
+    left: 16,
+    top: 212,
+    width: 370,
+    height: 58,
+  },
+  planningCheckupsArea: {
+    position: 'absolute',
+    left: 16,
+    top: 286,
+    width: 370,
+    height: 58,
+  },
+  planningMetricsDivider: {
+    position: 'absolute',
+    left: 16,
+    top: 360,
+    width: 370,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#EDEDED',
+  },
+  planningMetricsTopDivider: {
+    top: 178,
+  },
+  planningCyclesContent: {
+    position: 'absolute',
+    left: 16,
+    top: 390,
+    width: 370,
+  },
+  planningCyclesTitle: {
+    color: '#171717',
+    fontSize: 24,
+    lineHeight: 29,
+    letterSpacing: -0.48,
+  },
+  planningCyclesStatsCard: {
+    marginTop: 16,
+    overflow: 'hidden',
+    borderRadius: 30,
+    backgroundColor: '#FFF8FB',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(234,64,135,0.15)',
+  },
+  planningCyclesRow: {
+    minHeight: 82,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  planningCyclesRowDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 18,
+    backgroundColor: 'rgba(68,48,56,0.1)',
+  },
+  planningCyclesMetricCopy: {
+    minWidth: 0,
+    flex: 1,
+    gap: 4,
+  },
+  planningCyclesMetricLabel: {
+    color: '#766B70',
+    fontSize: 14,
+    lineHeight: 17,
+    letterSpacing: -0.1,
+  },
+  planningCyclesMetricValue: {
+    color: '#211B1E',
+    fontSize: 21,
+    lineHeight: 24,
+    letterSpacing: -0.32,
+  },
+  planningCyclesMetricValueSmall: {
+    color: '#211B1E',
+    fontSize: 17,
+    lineHeight: 21,
+    letterSpacing: -0.2,
+  },
+  planningCyclesStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  planningCyclesStatusGood: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    backgroundColor: '#31B76A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planningCyclesStatusGoodGlyph: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    lineHeight: 18,
+  },
+  planningCyclesStatusPending: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    backgroundColor: '#F7D6E4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planningCyclesStatusPendingGlyph: {
+    color: '#C32E6E',
+    fontSize: 15,
+    lineHeight: 18,
+  },
+  planningCyclesStatusLabel: {
+    color: '#267B4B',
+    fontSize: 12,
+    lineHeight: 15,
+    letterSpacing: 0.18,
+    textTransform: 'uppercase',
+  },
+  planningCyclesStatusPendingLabel: {
+    color: '#A72A60',
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.1,
+    textTransform: 'uppercase',
+  },
+  planningCyclesDivider: {
+    top: 704,
+  },
+  planningCardsRow: {
+    position: 'absolute',
+    left: 16,
+    top: 724,
+    width: 386,
+    height: 128,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  planningModalRoot: {
+    flex: 1,
+  },
+  planningModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(43,31,36,0.24)',
+  },
+  planningModalSheet: {
+    width: '100%',
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    backgroundColor: colors.surface.raised,
+    ...shadows.floating,
+  },
+  planningModalPageScroll: {
+    flex: 1,
+  },
+  planningModalPageContent: {
+    flexGrow: 1,
+  },
+  planningModalDismissArea: {
+    flex: 1,
+    minHeight: 174,
+  },
+  planningModalHandle: {
+    width: 38,
+    height: 5,
+    marginBottom: 16,
+    borderRadius: 3,
+    backgroundColor: '#DED9DB',
+    alignSelf: 'center',
+  },
+  planningModalContent: {
+    width: '100%',
+    paddingTop: 6,
+    gap: 24,
+  },
+  planningOptionSection: {
+    width: '100%',
+    gap: 10,
+  },
+  planningOptionSectionHeader: {
+    paddingHorizontal: 2,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  planningOptionList: {
+    width: '100%',
+    gap: 8,
+  },
+  planningOption: {
+    position: 'relative',
+    width: '100%',
+    height: 54,
+    overflow: 'hidden',
+    borderRadius: 18,
+    backgroundColor: '#F7F3F4',
+    borderWidth: 1,
+    borderColor: 'rgba(58,42,48,0.06)',
+  },
+  planningOptionContent: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  planningOptionSelected: {
+    backgroundColor: '#FFF7FA',
+    borderColor: '#F2A8CB',
+  },
+  planningOptionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F5E8ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planningOptionIconSelected: {
+    backgroundColor: '#EA4087',
+  },
+  planningOptionGlyph: {
+    color: '#EA4087',
+    fontSize: 17,
+    lineHeight: 20,
+  },
+  planningOptionGlyphSelected: {
+    color: '#FFFFFF',
+  },
+  planningOptionLabel: {
+    minWidth: 0,
+    flex: 1,
+  },
+  planningOptionRadio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#C9C2C5',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planningOptionRadioSelected: {
+    borderColor: '#EA4087',
+  },
+  planningOptionRadioDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#EA4087',
+  },
+  planningModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  planningModalActionsFixed: {
+    position: 'absolute',
+    zIndex: 6,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 14,
+    paddingHorizontal: 20,
+    backgroundColor: colors.surface.raised,
+    shadowColor: '#2B131B',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  planningModalActionSlot: {
+    flex: 1,
+    height: 48,
+  },
+  planningModalActionContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planningModalCancel: {
+    position: 'relative',
+    height: 48,
+    overflow: 'hidden',
+    borderRadius: 24,
+    backgroundColor: '#F5F1F2',
+  },
+  planningModalSave: {
+    position: 'relative',
+    height: 48,
+    overflow: 'hidden',
+    borderRadius: 24,
+    backgroundColor: '#EA4087',
+  },
+  planningModalSaveDisabled: {
+    opacity: 0.38,
   },
   pressed: {
     opacity: 0.72,
@@ -1214,6 +2594,7 @@ const styles = StyleSheet.create({
   },
   nativeGlassContent: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1222,8 +2603,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  androidGlassControlContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidGlassMaterialFill: {
+    flex: 1,
+    alignSelf: 'stretch',
+  },
   glassFallbackPressed: {
-    transform: [{ scale: 1.035 }],
+    opacity: Platform.OS === 'android' ? 0.94 : 1,
+    transform: [{ scale: Platform.OS === 'android' ? 0.98 : 1.035 }],
+  },
+  fallbackGlassHost: {
+    position: 'relative',
   },
   androidMaterialControl: {
     overflow: 'hidden',
@@ -1246,7 +2640,7 @@ const styles = StyleSheet.create({
   },
   glassControlShadow: {
     shadowColor: '#260208',
-    shadowOffset: { width: 0, height: 7 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.24,
     shadowRadius: 14,
     elevation: 9,

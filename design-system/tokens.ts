@@ -10,7 +10,7 @@ export const fonts = {
 
 export const colors = {
   brand: {
-    primary: '#D31471',
+    primary: '#EA4087',
     primarySoft: '#EA4087',
     burgundy: '#823537',
     success: '#1FBB74',
@@ -139,21 +139,88 @@ export const shadows = {
   },
   floating: {
     shadowColor: '#260208',
-    shadowOffset: { width: 0, height: 7 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 14,
     elevation: 8,
   },
   card: {
     shadowColor: '#3A171C',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.08,
     shadowRadius: 18,
     elevation: 3,
   },
 } satisfies Record<string, ViewStyle>;
 
+export const androidMaterials = {
+  light: {
+    backgroundColor: 'rgba(255,250,252,0.72)',
+    borderColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+  },
+  strong: {
+    backgroundColor: 'rgba(255,252,253,0.84)',
+    borderColor: 'rgba(255,255,255,0.96)',
+    borderWidth: 1,
+  },
+  dark: {
+    backgroundColor: 'rgba(31,24,27,0.78)',
+    borderColor: 'rgba(255,255,255,0.24)',
+    borderWidth: 1,
+  },
+  pressedLight: {
+    backgroundColor: 'rgba(234,64,135,0.07)',
+    opacity: 0.94,
+  },
+  pressedDark: {
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    opacity: 0.94,
+  },
+} satisfies Record<string, ViewStyle>;
+
+export const androidShadows = {
+  control: {
+    boxShadow: '0 0 10px rgba(58, 23, 28, 0.12)',
+    shadowColor: '#3A171C',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 0,
+  },
+  floating: {
+    boxShadow: '0 0 22px rgba(58, 23, 28, 0.14)',
+    shadowColor: '#3A171C',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.14,
+    shadowRadius: 22,
+    elevation: 0,
+  },
+} satisfies Record<string, ViewStyle>;
+
+export const androidTabBarBaseStyle = {
+  position: 'absolute',
+  left: 14,
+  right: 14,
+  bottom: 0,
+  overflow: 'hidden',
+  backgroundColor: 'transparent',
+  borderTopWidth: 0,
+  borderRadius: 32,
+  ...androidShadows.floating,
+  paddingTop: 5,
+  paddingHorizontal: 8,
+} satisfies ViewStyle;
+
 export const motion = {
   pressedScale: 1.035,
   pressedOpacity: 0.72,
 } as const;
+
+/**
+ * Keeps header controls at the same physical distance from the safe area.
+ * Screens rendered inside a scaled design canvas pass their canvas scale.
+ */
+export function getHeaderTop(insetTop: number, scale = 1) {
+  return Math.max(16, insetTop + 8) / scale;
+}

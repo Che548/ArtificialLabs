@@ -12,7 +12,7 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          primary: '#D31471',
+          primary: '#EA4087',
           soft: '#EA4087',
           burgundy: '#823537',
           success: '#1FBB74',

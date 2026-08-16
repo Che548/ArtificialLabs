@@ -2120,7 +2120,7 @@ function AnalysisReferenceCardDetails({
         </View>
         <View style={styles.exactValidityTrack}>
           <LinearGradient
-            colors={['#F6C9DE', '#D31471']}
+            colors={['#F6C9DE', '#EA4087']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.exactValidityFill}
@@ -4103,7 +4103,7 @@ const styles = StyleSheet.create({
   tabRegistrationActive: {
     backgroundColor: colors.surface.raised,
     shadowColor: '#251119',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 2,
@@ -5143,7 +5143,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: colors.brand.primary,
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 5 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
     elevation: 3,
@@ -6202,7 +6202,7 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.28,
     shadowRadius: 22,
     elevation: 4,
@@ -6491,7 +6491,7 @@ const styles = StyleSheet.create({
     height: 38,
     backgroundColor: colors.brand.primary,
     shadowColor: colors.brand.primary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.18,
     shadowRadius: 8,
     elevation: 2,
@@ -6588,7 +6588,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: colors.brand.burgundy,
     shadowColor: colors.brand.burgundy,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.16,
     shadowRadius: 8,
     elevation: 2,

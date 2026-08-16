@@ -33,7 +33,17 @@ import SuggestionNutritionIcon from '../assets/figma/chat/suggestion-nutrition.s
 import VoiceIcon from '../assets/figma/chat/voice.svg';
 import { AppHeader } from './app-header';
 import { AppText, SegmentedSwitcher } from './components';
-import { colors, fonts, motion, radii, shadows, spacing } from './tokens';
+import { FallbackGlassBackdrop } from './glass-fallback';
+import {
+  androidMaterials,
+  androidShadows,
+  colors,
+  fonts,
+  motion,
+  radii,
+  shadows,
+  spacing,
+} from './tokens';
 
 const mascotImage = require('../assets/figma/chat/mascot.png');
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
@@ -52,13 +62,17 @@ const suggestionIcons = {
 
 function ChatComposerGlass({
   children,
+  forceFallback = false,
+  radius = 999,
   style,
   tintColor = 'rgba(255,255,255,0.20)',
 }: PropsWithChildren<{
+  forceFallback?: boolean;
+  radius?: number;
   style: StyleProp<ViewStyle>;
   tintColor?: string;
 }>) {
-  if (hasNativeLiquidGlass) {
+  if (hasNativeLiquidGlass && !forceFallback) {
     return (
       <GlassView
         glassEffectStyle="regular"
@@ -72,29 +86,44 @@ function ChatComposerGlass({
     );
   }
 
-  return (
-    <View style={[style, styles.composerGlassFallback]}>
-      {Platform.OS === 'android' ? (
-        <View style={[StyleSheet.absoluteFill, styles.composerAndroidSurface]} />
-      ) : (
+  if (Platform.OS === 'android') {
+    return (
+      <View
+        style={[
+          style,
+          styles.composerGlassFallback,
+          styles.composerGlassAndroid,
+        ]}
+      >
         <BlurView
-          tint="systemUltraThinMaterialLight"
-          intensity={58}
+          tint="light"
+          intensity={38}
+          experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFillObject}
         />
-      )}
-      <View style={styles.composerGlassWash} />
-      <LinearGradient
-        pointerEvents="none"
-        colors={[
-          'rgba(255,255,255,0.58)',
-          'rgba(255,255,255,0.12)',
-          'rgba(255,255,255,0.28)',
-        ]}
-        locations={[0, 0.48, 1]}
-        start={{ x: 0.04, y: 0 }}
-        end={{ x: 0.96, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[
+            'rgba(255,255,255,0.90)',
+            'rgba(255,244,249,0.62)',
+          ]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View pointerEvents="none" style={styles.composerGlassAndroidWash} />
+        {children}
+      </View>
+    );
+  }
+
+  return (
+    <View style={[style, styles.composerGlassFallback]}>
+      <FallbackGlassBackdrop
+        radius={radius}
+        intensity={58}
+        tint="systemUltraThinMaterialLight"
+        washColor={tintColor}
       />
       {children}
     </View>
@@ -191,17 +220,215 @@ export function ChatHeader({
 export type ChatHistoryItem = {
   id: string;
   title: string;
+  pinned?: boolean;
 };
+
+type ChatPopupMenuAction = {
+  id: string;
+  label: string;
+  symbol: SFSymbol;
+  destructive?: boolean;
+  onPress?: () => void;
+};
+
+function ChatPopupMenu({
+  visible,
+  actions,
+  origin = 'bottomLeft',
+  shadowless = false,
+  style,
+}: {
+  visible: boolean;
+  actions: ChatPopupMenuAction[];
+  origin?: 'bottomLeft' | 'topRight';
+  shadowless?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const menuProgress = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  const [menuRendered, setMenuRendered] = useState(visible);
+
+  useEffect(() => {
+    if (visible) {
+      setMenuRendered(true);
+      menuProgress.setValue(0);
+    } else if (!menuRendered) {
+      return undefined;
+    }
+
+    const animation = visible
+      ? Animated.spring(menuProgress, {
+          toValue: 1,
+          damping: 24,
+          stiffness: 360,
+          mass: 0.52,
+          overshootClamping: false,
+          restDisplacementThreshold: 0.001,
+          restSpeedThreshold: 0.001,
+          useNativeDriver: true,
+        })
+      : Animated.timing(menuProgress, {
+          toValue: 0,
+          duration: 125,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        });
+
+    animation.start(({ finished }) => {
+      if (finished && !visible) setMenuRendered(false);
+    });
+    return () => animation.stop();
+  }, [menuProgress, menuRendered, visible]);
+
+  if (!menuRendered) return null;
+
+  const opensFromTopRight = origin === 'topRight';
+
+  return (
+    <Animated.View
+      pointerEvents={visible ? 'auto' : 'none'}
+      style={[
+        styles.attachmentMenuWrap,
+        shadowless && styles.popupMenuShadowless,
+        style,
+        {
+          transformOrigin: opensFromTopRight ? '100% 0%' : undefined,
+          transform: [
+            {
+              translateX: menuProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [opensFromTopRight ? -34 : -20, 0],
+              }),
+            },
+            {
+              translateY: menuProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [opensFromTopRight ? -26 : 20, 0],
+              }),
+            },
+            {
+              scale: menuProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.84, 1],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <ChatComposerGlass
+        forceFallback={shadowless}
+        radius={40}
+        tintColor="rgba(255,255,255,0.42)"
+        style={[
+          styles.attachmentMenuGlass,
+          shadowless && styles.popupMenuShadowless,
+        ]}
+      >
+        <View />
+      </ChatComposerGlass>
+
+      <View style={styles.attachmentMenuContent}>
+        {actions.map((action) => (
+          <View key={action.id} style={styles.attachmentMenuRowSlot}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={action.label}
+              onPress={action.onPress}
+              style={({ pressed }) => [
+                styles.attachmentMenuItem,
+                pressed && styles.attachmentMenuItemPressed,
+              ]}
+            >
+              <View style={styles.attachmentMenuIcon}>
+                <SymbolView
+                  name={action.symbol}
+                  size={20}
+                  tintColor={
+                    action.destructive ? colors.state.error : colors.text.primary
+                  }
+                  weight="medium"
+                  fallback={
+                    <Text style={styles.attachmentFallbackIcon}>●</Text>
+                  }
+                />
+              </View>
+              <Text
+                style={[
+                  styles.attachmentMenuLabel,
+                  action.destructive && styles.popupMenuLabelDestructive,
+                ]}
+              >
+                {action.label}
+              </Text>
+            </Pressable>
+          </View>
+        ))}
+      </View>
+    </Animated.View>
+  );
+}
+
+function ChatHistoryActionMenu({
+  visible,
+  pinned,
+  onRename,
+  onDelete,
+  onPin,
+}: {
+  visible: boolean;
+  pinned?: boolean;
+  onRename?: () => void;
+  onDelete?: () => void;
+  onPin?: () => void;
+}) {
+  const actions: ChatPopupMenuAction[] = [
+    {
+      id: 'rename',
+      label: 'Переименовать',
+      symbol: 'pencil',
+      onPress: onRename,
+    },
+    {
+      id: 'pin',
+      label: pinned ? 'Открепить' : 'Закрепить',
+      symbol: pinned ? 'pin.slash' : 'pin',
+      onPress: onPin,
+    },
+    {
+      id: 'delete',
+      label: 'Удалить',
+      symbol: 'trash',
+      destructive: true,
+      onPress: onDelete,
+    },
+  ];
+
+  return (
+    <ChatPopupMenu
+      actions={actions}
+      origin="topRight"
+      shadowless
+      style={styles.historyActionMenuWrap}
+      visible={visible}
+    />
+  );
+}
 
 export function ChatHistoryPanel({
   items,
   onSelect,
+  onRename,
+  onDelete,
+  onPin,
   selectedId,
   topInset = 0,
   width,
 }: {
   items: ChatHistoryItem[];
   onSelect?: (item: ChatHistoryItem) => void;
+  onRename?: (item: ChatHistoryItem) => void;
+  onDelete?: (item: ChatHistoryItem) => void;
+  onPin?: (item: ChatHistoryItem) => void;
   selectedId?: string;
   topInset?: number;
   width: number;
@@ -217,6 +444,7 @@ export function ChatHistoryPanel({
   const displayedSelectionIndex = useRef(selectedIndex);
   const selectionTransitionVersion = useRef(0);
   const [reduceSelectionMotion, setReduceSelectionMotion] = useState(false);
+  const [actionMenuId, setActionMenuId] = useState<string | null>(null);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceSelectionMotion);
@@ -287,7 +515,14 @@ export function ChatHistoryPanel({
       accessibilityLabel="Недавние чаты"
       style={[styles.historyPanel, { width, paddingTop: topInset + 32 }]}
     >
-      <Text style={styles.historyBrand}>сфера.</Text>
+      <Text
+        style={[
+          styles.historyBrand,
+          Platform.OS === 'android' && styles.historyBrandAndroid,
+        ]}
+      >
+        сфера.
+      </Text>
 
       <AppText weight="semibold" style={styles.historyTitle}>
         Недавнее
@@ -318,11 +553,14 @@ export function ChatHistoryPanel({
         />
         {items.map((item, index) => {
           const selected = item.id === selectedId;
+          const menuVisible = item.id === actionMenuId;
           return (
             <View
               key={item.id}
               style={[
                 styles.historyItem,
+                selected && styles.historyItemSelected,
+                menuVisible && styles.historyItemMenuOpen,
                 {
                   width: Math.max(width - 52, 0),
                   marginBottom: index === items.length - 1 ? 0 : 4,
@@ -334,7 +572,10 @@ export function ChatHistoryPanel({
                 accessibilityLabel={`Открыть чат: ${item.title}`}
                 accessibilityState={{ selected }}
                 onPress={() => onSelect?.(item)}
-                style={styles.historyItemPressable}
+                style={[
+                  styles.historyItemPressable,
+                  selected && styles.historyItemPressableSelected,
+                ]}
               >
                 <AppText
                   numberOfLines={1}
@@ -346,6 +587,48 @@ export function ChatHistoryPanel({
                   {item.title}
                 </AppText>
               </Pressable>
+              {selected ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Действия с чатом: ${item.title}`}
+                  accessibilityState={{ expanded: menuVisible }}
+                  hitSlop={6}
+                  onPress={() => {
+                    setActionMenuId((current) =>
+                      current === item.id ? null : item.id,
+                    );
+                  }}
+                  style={({ pressed }) => [
+                    styles.historyMoreButton,
+                    pressed && styles.historyMoreButtonPressed,
+                  ]}
+                >
+                  <SymbolView
+                    name="ellipsis"
+                    size={19}
+                    tintColor={colors.text.primary}
+                    weight="semibold"
+                    fallback={<Text style={styles.historyMoreFallback}>•••</Text>}
+                  />
+                </Pressable>
+              ) : null}
+
+              <ChatHistoryActionMenu
+                visible={menuVisible}
+                pinned={item.pinned}
+                onRename={() => {
+                  setActionMenuId(null);
+                  onRename?.(item);
+                }}
+                onDelete={() => {
+                  setActionMenuId(null);
+                  onDelete?.(item);
+                }}
+                onPin={() => {
+                  setActionMenuId(null);
+                  onPin?.(item);
+                }}
+              />
             </View>
           );
         })}
@@ -379,7 +662,14 @@ export function ChatEmptyState({ compact = false }: { compact?: boolean }) {
         style={[styles.mascot, compact && styles.mascotCompact]}
       />
       <View style={styles.brand}>
-        <Text style={styles.brandTitle}>сферка.</Text>
+        <Text
+          style={[
+            styles.brandTitle,
+            Platform.OS === 'android' && styles.brandTitleAndroid,
+          ]}
+        >
+          сферка.
+        </Text>
         <AppText
           role="heading"
           color={colors.brand.primarySoft}
@@ -440,151 +730,13 @@ export function ChatAttachmentMenu({
   onImage?: () => void;
   onFile?: () => void;
 }) {
-  const menuProgress = useRef(new Animated.Value(visible ? 1 : 0)).current;
-  const [menuRendered, setMenuRendered] = useState(visible);
+  const actions: ChatPopupMenuAction[] = [
+    { id: 'camera', label: 'Камера', symbol: 'camera.fill', onPress: onCamera },
+    { id: 'image', label: 'Фото', symbol: 'photo', onPress: onImage },
+    { id: 'file', label: 'Файлы', symbol: 'paperclip', onPress: onFile },
+  ];
 
-  useEffect(() => {
-    if (visible) {
-      setMenuRendered(true);
-      menuProgress.setValue(0);
-    } else if (!menuRendered) {
-      return undefined;
-    }
-
-    const animation = visible
-      ? Animated.spring(menuProgress, {
-          toValue: 1,
-          damping: 24,
-          stiffness: 360,
-          mass: 0.52,
-          overshootClamping: false,
-          restDisplacementThreshold: 0.001,
-          restSpeedThreshold: 0.001,
-          useNativeDriver: true,
-        })
-      : Animated.timing(menuProgress, {
-          toValue: 0,
-          duration: 125,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        });
-
-    animation.start(({ finished }) => {
-      if (finished && !visible) setMenuRendered(false);
-    });
-    return () => animation.stop();
-  }, [menuProgress, visible]);
-
-  if (!menuRendered) return null;
-
-  return (
-    <Animated.View
-      pointerEvents={visible ? 'auto' : 'none'}
-      style={[
-        styles.attachmentMenuWrap,
-        {
-          transform: [
-            {
-              translateX: menuProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [-20, 0],
-              }),
-            },
-            {
-              translateY: menuProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [20, 0],
-              }),
-            },
-            {
-              scale: menuProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.84, 1],
-              }),
-            },
-          ],
-        },
-      ]}
-    >
-      <ChatComposerGlass
-        tintColor="rgba(255,255,255,0.42)"
-        style={styles.attachmentMenuGlass}
-      >
-        <View />
-      </ChatComposerGlass>
-
-      <View style={styles.attachmentMenuContent}>
-        <View style={styles.attachmentMenuRowSlot}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Открыть камеру"
-            onPress={onCamera}
-            style={({ pressed }) => [
-              styles.attachmentMenuItem,
-              pressed && styles.attachmentMenuItemPressed,
-            ]}
-          >
-            <View style={styles.attachmentMenuIcon}>
-              <SymbolView
-                name="camera.fill"
-                size={20}
-                tintColor={colors.text.primary}
-                weight="medium"
-                fallback={<Text style={styles.attachmentFallbackIcon}>●</Text>}
-              />
-            </View>
-            <Text style={styles.attachmentMenuLabel}>Камера</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.attachmentMenuRowSlot}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Выбрать фото"
-            onPress={onImage}
-            style={({ pressed }) => [
-              styles.attachmentMenuItem,
-              pressed && styles.attachmentMenuItemPressed,
-            ]}
-          >
-            <View style={styles.attachmentMenuIcon}>
-              <SymbolView
-                name="photo"
-                size={20}
-                tintColor={colors.text.primary}
-                weight="medium"
-                fallback={<Text style={styles.attachmentFallbackIcon}>▣</Text>}
-              />
-            </View>
-            <Text style={styles.attachmentMenuLabel}>Фото</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.attachmentMenuRowSlot}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Выбрать файлы"
-            onPress={onFile}
-            style={({ pressed }) => [
-              styles.attachmentMenuItem,
-              pressed && styles.attachmentMenuItemPressed,
-            ]}
-          >
-            <View style={styles.attachmentMenuIcon}>
-              <SymbolView
-                name="paperclip"
-                size={20}
-                tintColor={colors.text.primary}
-                weight="medium"
-                fallback={<Text style={styles.attachmentFallbackIcon}>▤</Text>}
-              />
-            </View>
-            <Text style={styles.attachmentMenuLabel}>Файлы</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Animated.View>
-  );
+  return <ChatPopupMenu actions={actions} visible={visible} />;
 }
 
 export type ChatSendButtonVariant =
@@ -760,7 +912,7 @@ export function ChatComposer({
     <View style={styles.composerRow}>
       <ChatGlassAddButton onPress={onAdd} />
 
-      <ChatComposerGlass style={styles.composer}>
+      <ChatComposerGlass radius={23} style={styles.composer}>
         <TextInput
           accessibilityLabel="Сообщение для Сферки"
           value={value}
@@ -1853,6 +2005,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.68,
     textAlign: 'center',
   },
+  brandTitleAndroid: {
+    width: 288,
+  },
   brandTagline: {
     width: 288,
     fontSize: 21.5,
@@ -1961,11 +2116,15 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
-    elevation: 2,
+    ...(Platform.OS === 'android'
+      ? androidShadows.control
+      : {
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.18,
+          shadowRadius: 4,
+          elevation: 2,
+        }),
   },
   composer: {
     flex: 1,
@@ -1975,21 +2134,32 @@ const styles = StyleSheet.create({
     paddingRight: 6,
     paddingVertical: 5.5,
     borderRadius: 23,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
-    elevation: 2,
+    ...(Platform.OS === 'android'
+      ? androidShadows.control
+      : {
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.18,
+          shadowRadius: 4,
+          elevation: 2,
+        }),
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: spacing.xs,
   },
   composerGlassFallback: {
-    overflow: 'hidden',
+    overflow: 'visible',
     backgroundColor: 'rgba(255,255,255,0.20)',
   },
-  composerAndroidSurface: {
-    backgroundColor: 'rgba(255,255,255,0.76)',
+  composerGlassAndroid: {
+    ...androidMaterials.light,
+    overflow: 'hidden',
+  },
+  composerGlassAndroidWash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.88)',
   },
   composerGlassWash: {
     ...StyleSheet.absoluteFillObject,
@@ -2119,7 +2289,7 @@ const styles = StyleSheet.create({
   sendVariant8: {
     backgroundColor: colors.surface.raised,
     shadowColor: colors.brand.burgundy,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.22,
     shadowRadius: 7,
     elevation: 3,
@@ -2209,6 +2379,9 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     letterSpacing: -0.6,
   },
+  historyBrandAndroid: {
+    width: 180,
+  },
   historyTitle: {
     marginTop: 42,
     fontSize: 17,
@@ -2231,26 +2404,73 @@ const styles = StyleSheet.create({
     top: 18,
     height: 44,
     borderRadius: 18,
-    backgroundColor: 'rgba(35,30,32,0.09)',
+    backgroundColor: 'rgba(35,30,32,0.06)',
   },
   historyItem: {
+    position: 'relative',
     width: '100%',
     alignSelf: 'stretch',
     minHeight: 44,
     borderRadius: 18,
-    overflow: 'hidden',
+    overflow: 'visible',
+    zIndex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  historyItemMenuOpen: {
+    zIndex: 20,
+  },
+  historyItemSelected: {
+    paddingRight: 16,
   },
   historyItemPressable: {
     flex: 1,
+    height: 44,
     minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: 12,
     borderRadius: 18,
   },
+  historyItemPressableSelected: {
+    paddingRight: 0,
+  },
   historyItemText: {
     fontSize: 15.5,
     lineHeight: 20,
     letterSpacing: -0.22,
+  },
+  historyMoreButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyMoreButtonPressed: {
+    backgroundColor: 'rgba(33,33,35,0.07)',
+  },
+  historyMoreFallback: {
+    color: colors.text.primary,
+    fontFamily: fonts.sfSemibold,
+    fontSize: 16,
+    lineHeight: 18,
+    letterSpacing: 1.2,
+  },
+  historyActionMenuWrap: {
+    position: 'absolute',
+    right: 0,
+    top: 48,
+    zIndex: 30,
+  },
+  popupMenuShadowless: {
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  popupMenuLabelDestructive: {
+    color: colors.state.error,
   },
   thinkingPendingCopy: {
     flexDirection: 'row',
