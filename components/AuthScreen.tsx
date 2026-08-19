@@ -34,6 +34,7 @@ const designWidth = 402;
 const designHeight = 874;
 const devLoginEnabled = __DEV__;
 const e2eMode = process.env.EXPO_PUBLIC_E2E_MODE === '1';
+const e2eEmail = process.env.EXPO_PUBLIC_E2E_EMAIL;
 
 function normalizePhone(value: string) {
   return value.replace(/[^\d+]/g, '').slice(0, 16);
@@ -147,7 +148,9 @@ export function AuthScreen({
   const window = useWindowDimensions();
   const [flow, setFlow] = useState<AuthFlow>('signUp');
   const [channel, setChannel] = useState<AuthChannel>('email');
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState(
+    e2eMode ? (e2eEmail ?? '') : '',
+  );
   const [password, setPassword] = useState('');
   const [personalDataConsent, setPersonalDataConsent] = useState(false);
   const [agreementAccepted, setAgreementAccepted] = useState(false);

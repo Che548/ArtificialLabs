@@ -21,11 +21,14 @@ admin-authenticated mutation in a `finally` cleanup.
 Copy `.env.example` to `.env.local` and keep the admin key untracked. Install
 Playwright Chromium once with `npx playwright install chromium`. Native runs
 also require Maestro, installed development builds, a booted iPhone simulator,
-and a booted Android emulator.
+and a booted Android emulator. The runner also requires `openssl`. It forwards
+the real Convex deployment through loopback so simulator traffic is independent
+of VPN DNS: Android uses `adb reverse`, while iOS uses a one-day localhost TLS
+certificate added to the selected Simulator trust store. Its private key is
+created in a temporary `chmod 600` directory and removed during cleanup.
 
 The native runner exits with status `75` when the test environment is blocked,
-for example when the iOS Simulator cannot resolve the Convex endpoint through
-the active VPN, Android System UI is unresponsive, or the Maestro Android
+for example when Android System UI is unresponsive or the Maestro Android
 driver dies. These are reported separately from application failures. Android
 field input is sent through `adb` because Maestro's API 36 `inputText` driver
 can time out; Maestro still owns all element selection, taps, and assertions.

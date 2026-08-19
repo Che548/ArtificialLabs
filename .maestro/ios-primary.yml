@@ -11,7 +11,7 @@ appId: com.anonymous.privateexpo
     timeout: 120000
 - tapOn:
     id: 'e2e-auth-identifier'
-- inputText: ${E2E_EMAIL}
+- assertVisible: ${E2E_EMAIL}
 - tapOn:
     id: 'e2e-auth-password'
 - inputText: ${E2E_PASSWORD}
@@ -30,6 +30,7 @@ appId: com.anonymous.privateexpo
 - tapOn:
     id: 'e2e-onboarding-name'
 - inputText: 'E2E iOS'
+- pressKey: Enter
 - tapOn:
     id: 'e2e-onboarding-next'
 - assertVisible: 'Когда началась последняя менструация?'
@@ -39,9 +40,6 @@ appId: com.anonymous.privateexpo
 - tapOn:
     id: 'e2e-onboarding-next'
 - assertVisible: 'Что может влиять на цикл?'
-- tapOn:
-    id: 'e2e-onboarding-next'
-- assertVisible: 'Готово'
 - tapOn:
     id: 'e2e-onboarding-next'
 - assertVisible: 'Сегодня'

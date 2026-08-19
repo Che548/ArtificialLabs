@@ -11,6 +11,9 @@ fi
 ios_device="${E2E_IOS_DEVICE:-730B98A0-FC3B-45CA-AF3A-9896CEEC16AA}"
 android_device="${E2E_ANDROID_DEVICE:-emulator-5554}"
 metro_port="${E2E_METRO_PORT:-8082}"
+convex_proxy_port="${E2E_CONVEX_PROXY_PORT:-3320}"
+convex_site_proxy_port="${E2E_CONVEX_SITE_PROXY_PORT:-3321}"
+convex_ios_proxy_port="${E2E_CONVEX_IOS_PROXY_PORT:-3340}"
 run_id="${E2E_RUN_ID:-$(uuidgen | tr '[:upper:]' '[:lower:]')}"
 account_tag="${run_id//-/}"
 account_tag="${account_tag:0:12}"
@@ -60,7 +63,9 @@ android_maestro_blocked() {
 }
 
 metro_pid=""
+convex_proxy_pid=""
 android_launch_pid=""
+e2e_cert_dir=""
 cleanup() {
   if [[ -n "$android_launch_pid" ]]; then
     kill "$android_launch_pid" 2>/dev/null || true
@@ -68,11 +73,51 @@ cleanup() {
   if [[ -n "$metro_pid" ]]; then
     kill "$metro_pid" 2>/dev/null || true
   fi
+  if [[ -n "$convex_proxy_pid" ]]; then
+    kill "$convex_proxy_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$e2e_cert_dir" && -d "$e2e_cert_dir" ]]; then
+    if [[ -f "$e2e_cert_dir/localhost.key" ]]; then
+      unlink "$e2e_cert_dir/localhost.key"
+    fi
+    if [[ -f "$e2e_cert_dir/localhost.crt" ]]; then
+      unlink "$e2e_cert_dir/localhost.crt"
+    fi
+    rmdir "$e2e_cert_dir" 2>/dev/null || true
+  fi
   node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts cleanup || true
 }
 trap cleanup EXIT
 
+e2e_cert_dir="$(mktemp -d "${TMPDIR:-/tmp}/artificiallabs-e2e-cert.XXXXXX")"
+openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+  -subj "/CN=ArtificialLabs Local E2E" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+  -keyout "$e2e_cert_dir/localhost.key" \
+  -out "$e2e_cert_dir/localhost.crt" >/dev/null 2>&1
+chmod 600 "$e2e_cert_dir/localhost.key"
+xcrun simctl keychain "$ios_device" add-root-cert "$e2e_cert_dir/localhost.crt"
+
+E2E_CONVEX_TLS_CERT="$e2e_cert_dir/localhost.crt" \
+E2E_CONVEX_TLS_KEY="$e2e_cert_dir/localhost.key" \
+node --env-file-if-exists=.env.local --import tsx scripts/convex-e2e-proxy.ts \
+  >"$E2E_REPORT_DIR/convex-proxy.log" 2>&1 &
+convex_proxy_pid="$!"
+for _ in {1..30}; do
+  if curl -fsS "http://127.0.0.1:${convex_proxy_port}/__e2e_proxy_health" >/dev/null 2>&1 && \
+    curl -fsS "http://127.0.0.1:${convex_site_proxy_port}/__e2e_proxy_health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+curl -fsS "http://127.0.0.1:${convex_proxy_port}/version" >/dev/null
+curl --cacert "$e2e_cert_dir/localhost.crt" -fsS \
+  "https://localhost:${convex_ios_proxy_port}/version" >/dev/null
+
+EXPO_PUBLIC_E2E_IOS_CONVEX_URL="https://localhost:${convex_ios_proxy_port}" \
+EXPO_PUBLIC_E2E_ANDROID_CONVEX_URL="http://localhost:${convex_proxy_port}" \
 EXPO_PUBLIC_E2E_MODE=1 \
+EXPO_PUBLIC_E2E_EMAIL="$E2E_EMAIL" \
 CI=1 npx expo start --dev-client --localhost --clear --port "$metro_port" \
   --scheme private-expo \
   >"$E2E_REPORT_DIR/metro.log" 2>&1 &
@@ -98,6 +143,8 @@ else
 fi
 if [[ "$android_ready" -eq 1 ]]; then
   adb -s "$android_device" reverse "tcp:${metro_port}" "tcp:${metro_port}"
+  adb -s "$android_device" reverse "tcp:${convex_proxy_port}" "tcp:${convex_proxy_port}"
+  adb -s "$android_device" reverse "tcp:${convex_site_proxy_port}" "tcp:${convex_site_proxy_port}"
   adb -s "$android_device" shell pm path com.anonymous.privateexpo >/dev/null
 fi
 
@@ -133,7 +180,6 @@ fi
 
 if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
   if ! maestro --device "$android_device" test .maestro/android-auth-ready.yml || \
-    ! android_type "e2e-auth-identifier" "$E2E_EMAIL" || \
     ! android_type "e2e-auth-password" "$E2E_PASSWORD" || \
     ! maestro --device "$android_device" test .maestro/android-sign-in-submit.yml || \
     ! maestro --device "$android_device" test .maestro/android-onboarding-name.yml || \
