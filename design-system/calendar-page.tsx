@@ -83,6 +83,7 @@ type CalendarPageModalProps = {
   initialDate?: Date;
   onAddSymptoms?: (date: Date) => void;
   symptomDateKeys?: ReadonlySet<string>;
+  allowPeriodMarking?: boolean;
 };
 
 type CalendarPageVariant = 'backup' | 'continuous';
@@ -1140,6 +1141,7 @@ function CalendarPageModalBase({
   initialDate = DEFAULT_DATE,
   onAddSymptoms,
   symptomDateKeys,
+  allowPeriodMarking = true,
   variant,
 }: CalendarPageBaseProps) {
   const { width, height } = useWindowDimensions();
@@ -1498,6 +1500,7 @@ function CalendarPageModalBase({
   };
 
   const enterPeriodMarkingMode = () => {
+    if (!allowPeriodMarking) return;
     setSelectedDate(null);
     setDayDetailsVisible(false);
     setPeriodDraftDateKeys(new Set(periodDateKeys));
@@ -2153,7 +2156,7 @@ function CalendarPageModalBase({
                     </CalendarGlassControl>
                   </Animated.View>
 
-                  {!dayDetailsVisible ? (
+                  {!dayDetailsVisible && allowPeriodMarking ? (
                     <View
                       style={[
                         styles.periodEntryButtonWrap,

@@ -2,16 +2,28 @@ appId: com.anonymous.privateexpo
 ---
 - back
 - tapOn:
-    id: "e2e-onboarding-submit"
-- assertVisible: "Сегодня"
-- tapOn: "Профиль"
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Когда началась последняя менструация?'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Расскажите о цикле'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Что может влиять на цикл?'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Готово'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Сегодня'
+- tapOn: 'Профиль'
 - scrollUntilVisible:
     element:
-      text: "Разрешения и данные"
+      text: 'Разрешения и данные'
     direction: DOWN
-- tapOn: "Разрешения и данные"
+- tapOn: 'Разрешения и данные'
 - tapOn:
-    id: "e2e-cloud-sync-toggle"
-- tapOn: "Синхронизировать сейчас"
-- assertNotVisible: "Произошла ошибка"
-- assertVisible: "Синхронизировать сейчас"
+    id: 'e2e-cloud-sync-toggle'
+- tapOn: 'Синхронизировать сейчас'
+- assertNotVisible: 'Произошла ошибка'
+- assertVisible: 'Синхронизировать сейчас'

@@ -1,0 +1,7 @@
+appId: com.anonymous.privateexpo
+---
+- tapOn:
+    id: 'e2e-onboarding-next'
+- extendedWaitUntil:
+    visible: 'Немного о вас'
+    timeout: 30000

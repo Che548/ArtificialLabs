@@ -136,8 +136,8 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
     ! android_type "e2e-auth-identifier" "$E2E_EMAIL" || \
     ! android_type "e2e-auth-password" "$E2E_PASSWORD" || \
     ! maestro --device "$android_device" test .maestro/android-sign-in-submit.yml || \
+    ! maestro --device "$android_device" test .maestro/android-onboarding-name.yml || \
     ! android_type "e2e-onboarding-name" "E2EAndroid" || \
-    ! android_type "e2e-onboarding-date" "2026-07-01" || \
     ! maestro --device "$android_device" test .maestro/android-onboarding-sync.yml; then
     if android_maestro_blocked; then
       record_environment_blocked "Android Maestro driver failed"

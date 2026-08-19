@@ -33,6 +33,18 @@ type OnboardingGoal = 'cycle' | 'planning' | 'pregnancy';
 type PregnancyDateKind = 'lastPeriod' | 'dueDate' | 'unknown';
 type FirstStepVariant = 1 | 2 | 3 | 4 | 5;
 
+export type OnboardingFlowResult = {
+  displayName: string;
+  goal: OnboardingGoal;
+  birthDate: number;
+  pregnancyStartAt?: number;
+  lastPeriodStartAt?: number;
+  cycleLengthDays?: number;
+  postpartum?: boolean;
+  postContraception?: boolean;
+  medicalConditions: string[];
+};
+
 const goals: ReadonlyArray<{
   value: OnboardingGoal;
   title: string;
@@ -90,6 +102,7 @@ function OnboardingShell({
   children,
   contentTop = 480,
   nextLabel,
+  nextDisabled = false,
   onBack,
   onNext,
   step,
@@ -98,6 +111,7 @@ function OnboardingShell({
   children: ReactNode;
   contentTop?: number;
   nextLabel: string;
+  nextDisabled?: boolean;
   onBack: () => void;
   onNext: () => void;
   step: number;
@@ -191,7 +205,14 @@ function OnboardingShell({
               {backLabel}
             </AppText>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onNext} style={styles.primaryAction}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: nextDisabled }}
+            disabled={nextDisabled}
+            onPress={onNext}
+            style={[styles.primaryAction, nextDisabled && styles.primaryActionDisabled]}
+            testID="e2e-onboarding-next"
+          >
             <AppText role="body" weight="semibold" color="#FFFFFF">
               {nextLabel}
             </AppText>
@@ -785,12 +806,18 @@ function DiseasePickerModal({
   );
 }
 
-export function OnboardingPreviewFlow({ onClose }: { onClose: () => void }) {
+export function OnboardingPreviewFlow({
+  onClose,
+  onComplete,
+}: {
+  onClose: () => void;
+  onComplete?: (result: OnboardingFlowResult) => Promise<void> | void;
+}) {
   const [step, setStep] = useState(1);
   const [goal, setGoal] = useState<OnboardingGoal>('planning');
   const [birthYear, setBirthYear] = useState(1996);
   const [name, setName] = useState('');
-  const [date, setDate] = useState(new Date(2026, 7, 1));
+  const [date, setDate] = useState(new Date());
   const [cycleLength, setCycleLength] = useState(28);
   const [periodLength, setPeriodLength] = useState(5);
   const [dateUnknown, setDateUnknown] = useState(false);
@@ -803,6 +830,8 @@ export function OnboardingPreviewFlow({ onClose }: { onClose: () => void }) {
   const [diseaseModalVisible, setDiseaseModalVisible] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string>();
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const contentTranslateX = useRef(new Animated.Value(0)).current;
 
@@ -894,6 +923,50 @@ export function OnboardingPreviewFlow({ onClose }: { onClose: () => void }) {
     setDiseaseModalVisible(false);
   };
 
+  const complete = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmissionError(undefined);
+
+    const selectedDate = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      12,
+    ).getTime();
+    const dueDateOffset = 280 * 24 * 60 * 60 * 1000;
+    const medicalConditions = [...selectedDiseases];
+    if (customDisease.trim()) medicalConditions.push(customDisease.trim());
+
+    try {
+      await onComplete?.({
+        displayName: name.trim() || 'Пользователь',
+        goal,
+        birthDate: new Date(birthYear, 0, 1, 12).getTime(),
+        pregnancyStartAt:
+          goal === 'pregnancy' && pregnancyDateKind !== 'unknown'
+            ? pregnancyDateKind === 'dueDate'
+              ? selectedDate - dueDateOffset
+              : selectedDate
+            : undefined,
+        lastPeriodStartAt:
+          goal !== 'pregnancy' && !dateUnknown ? selectedDate : undefined,
+        cycleLengthDays:
+          goal !== 'pregnancy' && !cycleUnknown ? cycleLength : undefined,
+        postpartum: factors.has('Послеродовой период') || undefined,
+        postContraception:
+          factors.has('Недавно отменила гормональную контрацепцию') || undefined,
+        medicalConditions,
+      });
+      transitionContent(() => setCompleted(true), 1);
+    } catch (cause) {
+      console.error('Onboarding failed', cause);
+      setSubmissionError('Не удалось сохранить данные. Попробуйте ещё раз.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (completed) {
     return (
       <OnboardingShell
@@ -929,8 +1002,12 @@ export function OnboardingPreviewFlow({ onClose }: { onClose: () => void }) {
       backLabel="Назад"
       contentTop={step === 1 ? 500 : 480}
       nextLabel={step === 5 ? 'Начать' : 'Далее'}
+      nextDisabled={submitting}
       onBack={step === 1 ? onClose : () => transitionContent(() => setStep(step - 1), -1)}
-      onNext={() => transitionContent(() => (step < 5 ? setStep(step + 1) : setCompleted(true)), 1)}
+      onNext={() => {
+        if (step < 5) transitionContent(() => setStep(step + 1), 1);
+        else void complete();
+      }}
       step={step}
     >
       <Animated.View
@@ -964,7 +1041,7 @@ export function OnboardingPreviewFlow({ onClose }: { onClose: () => void }) {
             <NumberWheel editable label="Год рождения" min={1940} max={2010} suffix="год" value={birthYear} onChange={setBirthYear} />
             <View style={styles.fieldBlock}>
               <AppText role="label" weight="medium">Как к вам обращаться?</AppText>
-              <TextInput value={name} onChangeText={setName} placeholder="Имя — необязательно" placeholderTextColor="#9A9495" style={styles.field} />
+              <TextInput testID="e2e-onboarding-name" value={name} onChangeText={setName} placeholder="Имя — необязательно" placeholderTextColor="#9A9495" style={styles.field} />
             </View>
           </>
         ) : null}
@@ -1058,6 +1135,11 @@ export function OnboardingPreviewFlow({ onClose }: { onClose: () => void }) {
                 );
               })}
             </View>
+            {submissionError ? (
+              <AppText role="caption" color={colors.state.error} style={styles.submissionError}>
+                {submissionError}
+              </AppText>
+            ) : null}
           </>
         ) : null}
       </Animated.View>
@@ -1160,6 +1242,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.brand.primary,
   },
+  primaryActionDisabled: { opacity: 0.55 },
+  submissionError: { textAlign: 'center', marginTop: 4 },
   title: { fontSize: 24, lineHeight: 27, letterSpacing: -0.45 },
   description: { fontSize: 14, lineHeight: 18 },
   variantHeader: { gap: 10 },

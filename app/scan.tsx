@@ -13,6 +13,7 @@ import {
   Animated,
   Easing,
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -59,7 +60,8 @@ const IOS_PAGE_DURATION = 280;
 const IOS_PAGE_EXIT_DURATION = 220;
 const IOS_PAGE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
-
+const RAPIDBIO_INFO_URL = 'https://rapidbio.ru/';
+const RAPIDBIO_STORE_URL = 'https://rapidbio-tests.ru/';
 
 type GlassControlProps = {
   accessibilityLabel: string;
@@ -193,12 +195,7 @@ function GlassControl({
 
   if (Platform.OS === 'android') {
     return (
-      <View
-        style={[
-          style,
-          androidMaterials.light,
-        ]}
-      >
+      <View style={[style, androidMaterials.light]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
@@ -527,6 +524,14 @@ export default function ScanScreen() {
     Alert.alert(title, 'Раздел будет подключён к соответствующему сценарию.');
   };
 
+  const openExternalUrl = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch (cause) {
+      console.error('Opening Rapid Bio link failed', cause);
+    }
+  };
+
   const animatePage = (
     progress: Animated.Value,
     toValue: 0 | 1,
@@ -693,12 +698,12 @@ export default function ScanScreen() {
             >
               <ActionButton
                 label="Инфо"
-                onPress={() => showPlaceholder('Инфо')}
+                onPress={() => void openExternalUrl(RAPIDBIO_INFO_URL)}
                 icon={<InfoIcon width={19} height={19} />}
               />
               <ActionButton
                 label="Купить"
-                onPress={() => showPlaceholder('Купить')}
+                onPress={() => void openExternalUrl(RAPIDBIO_STORE_URL)}
                 icon={<BuyIcon width={19} height={19} />}
               />
               <ActionButton

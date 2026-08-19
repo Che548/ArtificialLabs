@@ -1,51 +1,63 @@
 appId: com.anonymous.privateexpo
 ---
 - tapOn:
-    text: "Open"
+    text: 'Open'
     optional: true
 - tapOn:
-    text: "Wait"
+    text: 'Wait'
     optional: true
 - runFlow:
     when:
-      visible: "Continue"
+      visible: 'Continue'
     commands:
-      - tapOn: "Continue"
+      - tapOn: 'Continue'
       - back
 - extendedWaitUntil:
-    visible: "сфера."
+    visible: 'сфера.'
     timeout: 120000
 - tapOn:
-    id: "e2e-auth-identifier"
+    id: 'e2e-auth-identifier'
 - inputText: ${E2E_EMAIL}
 - tapOn:
-    id: "e2e-auth-password"
+    id: 'e2e-auth-password'
 - inputText: ${E2E_PASSWORD}
 - back
 - tapOn:
-    id: "e2e-auth-switch-flow"
+    id: 'e2e-auth-switch-flow'
 - tapOn:
-    id: "e2e-auth-submit"
-- assertVisible: "Настроим мониторинг"
+    id: 'e2e-auth-submit'
+- assertVisible:
+    id: 'e2e-onboarding-next'
 - tapOn:
-    id: "e2e-onboarding-name"
-- inputText: "E2E Android"
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Немного о вас'
+- tapOn:
+    id: 'e2e-onboarding-name'
+- inputText: 'E2E Android'
 - back
 - tapOn:
-    id: "e2e-onboarding-date"
-- inputText: "2026-07-01"
-- back
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Когда началась последняя менструация?'
 - tapOn:
-    id: "e2e-onboarding-submit"
-- assertVisible: "Сегодня"
-- tapOn: "Профиль"
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Расскажите о цикле'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Что может влиять на цикл?'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Готово'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Сегодня'
+- tapOn: 'Профиль'
 - scrollUntilVisible:
     element:
-      text: "Разрешения и данные"
+      text: 'Разрешения и данные'
     direction: DOWN
-- tapOn: "Разрешения и данные"
+- tapOn: 'Разрешения и данные'
 - tapOn:
-    id: "e2e-cloud-sync-toggle"
-- tapOn: "Синхронизировать сейчас"
-- assertNotVisible: "Произошла ошибка"
-- assertVisible: "Синхронизировать сейчас"
+    id: 'e2e-cloud-sync-toggle'
+- tapOn: 'Синхронизировать сейчас'
+- assertNotVisible: 'Произошла ошибка'
+- assertVisible: 'Синхронизировать сейчас'

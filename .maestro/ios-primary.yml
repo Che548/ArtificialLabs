@@ -1,46 +1,57 @@
 appId: com.anonymous.privateexpo
 ---
 - tapOn:
-    text: "Continue"
+    text: 'Continue'
     optional: true
 - tapOn:
-    text: "Close"
+    text: 'Close'
     optional: true
 - extendedWaitUntil:
-    visible: "сфера."
+    visible: 'сфера.'
     timeout: 120000
 - tapOn:
-    id: "e2e-auth-identifier"
+    id: 'e2e-auth-identifier'
 - inputText: ${E2E_EMAIL}
 - tapOn:
-    id: "e2e-auth-password"
+    id: 'e2e-auth-password'
 - inputText: ${E2E_PASSWORD}
-- tapOn: "сфера."
+- tapOn: 'сфера.'
 - tapOn:
-    id: "e2e-auth-consent-personal"
+    id: 'e2e-auth-consent-personal'
 - tapOn:
-    id: "e2e-auth-consent-agreement"
+    id: 'e2e-auth-consent-agreement'
 - tapOn:
-    id: "e2e-auth-submit"
-- assertVisible: "Настроим мониторинг"
+    id: 'e2e-auth-submit'
+- assertVisible:
+    id: 'e2e-onboarding-next'
 - tapOn:
-    id: "e2e-onboarding-name"
-- inputText: "E2E iOS"
-- tapOn: "Настроим мониторинг"
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Немного о вас'
 - tapOn:
-    id: "e2e-onboarding-date"
-- inputText: "2026-07-01"
-- tapOn: "Настроим мониторинг"
+    id: 'e2e-onboarding-name'
+- inputText: 'E2E iOS'
 - tapOn:
-    id: "e2e-onboarding-submit"
-- assertVisible: "Сегодня"
-- tapOn: "Профиль"
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Когда началась последняя менструация?'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Расскажите о цикле'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Что может влиять на цикл?'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Готово'
+- tapOn:
+    id: 'e2e-onboarding-next'
+- assertVisible: 'Сегодня'
+- tapOn: 'Профиль'
 - scrollUntilVisible:
     element:
-      text: "Разрешения и данные"
+      text: 'Разрешения и данные'
     direction: DOWN
-- tapOn: "Разрешения и данные"
+- tapOn: 'Разрешения и данные'
 - tapOn:
-    id: "e2e-cloud-sync-toggle"
-- tapOn: "Синхронизировать сейчас"
-- assertNotVisible: "Произошла ошибка"
+    id: 'e2e-cloud-sync-toggle'
+- tapOn: 'Синхронизировать сейчас'
+- assertNotVisible: 'Произошла ошибка'

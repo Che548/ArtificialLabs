@@ -10,6 +10,7 @@ import {
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
 import {
   createContext,
   useContext,
@@ -512,11 +513,13 @@ function MonitoringScreen({
   onCalendarPress,
   onChartsPress,
   onJournalPress,
+  onCheckupsPress,
 }: {
   headerTop: number;
   onCalendarPress: () => void;
   onChartsPress: () => void;
   onJournalPress: () => void;
+  onCheckupsPress: () => void;
 }) {
   const { profile, journalEntries, labResults, scanResults } = useHealthStore();
   const initialWeek =
@@ -892,6 +895,7 @@ function MonitoringScreen({
               rightCaption="Всего 6"
               actionLabel={completedCheckups >= 6 ? 'Готово' : 'Пройти'}
               actionVariant="outline"
+              onPress={onCheckupsPress}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
             />
           </View>
@@ -1247,12 +1251,14 @@ function PlanningMonitoringScreen({
   onChartsPress,
   onIntimacyPress,
   onSymptomsPress,
+  onCheckupsPress,
 }: {
   headerTop: number;
   onCalendarPress: () => void;
   onChartsPress: () => void;
   onIntimacyPress: () => void;
   onSymptomsPress: () => void;
+  onCheckupsPress: () => void;
 }) {
   const { journalEntries, labResults, profile, scanResults } = useHealthStore();
   const today = new Date();
@@ -1462,6 +1468,7 @@ function PlanningMonitoringScreen({
               rightCaption="Всего 6"
               actionLabel={completedCheckups >= 6 ? 'Готово' : 'Пройти'}
               actionVariant="outline"
+              onPress={onCheckupsPress}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
             />
           </View>
@@ -1620,6 +1627,7 @@ export function PlanningTodayScreenCatalogPreview() {
         onChartsPress={() => undefined}
         onIntimacyPress={() => setIntimacyVisible(true)}
         onSymptomsPress={() => setSymptomsDate(new Date())}
+        onCheckupsPress={() => undefined}
       />
       <CalendarPageModal
         visible={calendarVisible}
@@ -1666,12 +1674,14 @@ export function TodayScreenCatalogPreview() {
         onCalendarPress={() => undefined}
         onChartsPress={() => undefined}
         onJournalPress={() => undefined}
+        onCheckupsPress={() => undefined}
       />
     </FontReadyContext.Provider>
   );
 }
 
 export default function App() {
+  const router = useRouter();
   const { addJournalEntry, journalEntries, labResults, profile, scanResults } =
     useHealthStore();
   const { width, height } = useWindowDimensions();
@@ -1764,13 +1774,20 @@ export default function App() {
                 onSymptomsPress={() =>
                   openJournalFlow(new Date(), 'symptoms')
                 }
+                onCheckupsPress={() => router.push('/analyses')}
               />
             ) : (
               <MonitoringScreen
                 headerTop={headerTop}
                 onCalendarPress={() => setCalendarVisible(true)}
                 onChartsPress={() => setChartsVisible(true)}
-                onJournalPress={() => openJournalFlow(new Date(), 'cycle')}
+                onJournalPress={() =>
+                  openJournalFlow(
+                    new Date(),
+                    profile?.goal === 'pregnancy' ? 'symptoms' : 'cycle',
+                  )
+                }
+                onCheckupsPress={() => router.push('/analyses')}
               />
             )}
           </View>
@@ -1780,6 +1797,7 @@ export default function App() {
           onClose={() => setCalendarVisible(false)}
           onAddSymptoms={(date) => openJournalFlow(date, 'symptoms')}
           symptomDateKeys={symptomDateKeys}
+          allowPeriodMarking={profile?.goal !== 'pregnancy'}
         />
         <JournalFlowModal
           visible={journalFlowDate !== null}

@@ -44,25 +44,6 @@ import { useHealthStore } from '../lib/health-store';
 import { persistChatAttachment } from '../lib/local-files';
 import type { ChatAttachment } from '../lib/health-types';
 
-const suggestions: ChatSuggestion[] = [
-  {
-    id: 'nutrition',
-    title: 'Риски в рационе питания на 4 неделе беременности',
-    icon: 'nutrition',
-  },
-  {
-    id: 'clinic',
-    title: 'Как выбрать клинику для обследований во время беременности',
-    icon: 'clinic',
-  },
-  {
-    id: 'analyses',
-    title:
-      'Какие анализы обязательно следует сдавать при подготовке к беременности',
-    icon: 'analyses',
-  },
-];
-
 const hasNativeLiquidGlass =
   Platform.OS === 'ios' && isLiquidGlassAvailable();
 
@@ -106,7 +87,12 @@ export default function ChatScreen() {
   const {
     chatConversations,
     chatMessages,
+    journalEntries,
+    labResults,
+    markReminderRead,
+    profile,
     readOnly,
+    reminders,
     saveChatMessage,
     saveConversation,
   } = useHealthStore();
@@ -154,6 +140,64 @@ export default function ChatScreen() {
         })),
     [chatConversations],
   );
+  const activeReminders = useMemo(
+    () =>
+      reminders
+        .filter((reminder) => !reminder.deletedAt && !reminder.readAt)
+        .sort((left, right) => left.dueAt - right.dueAt)
+        .slice(0, 2),
+    [reminders],
+  );
+  const suggestions = useMemo<ChatSuggestion[]>(() => {
+    const today = new Date();
+    const hasTodayJournal = journalEntries.some((entry) => {
+      if (entry.deletedAt) return false;
+      const date = new Date(entry.occurredAt);
+      return (
+        date.getFullYear() === today.getFullYear() &&
+        date.getMonth() === today.getMonth() &&
+        date.getDate() === today.getDate()
+      );
+    });
+    const contextual: ChatSuggestion[] = [];
+
+    if (!hasTodayJournal) {
+      contextual.push({
+        id: 'journal-today',
+        title: 'Что важно отметить в дневнике сегодня?',
+        icon: 'nutrition',
+      });
+    }
+    if (labResults.filter((item) => !item.deletedAt).length === 0) {
+      contextual.push({
+        id: 'analyses-context',
+        title:
+          profile?.goal === 'pregnancy'
+            ? 'Какие анализы важны на моём сроке беременности?'
+            : 'Какие анализы важны при подготовке к беременности?',
+        icon: 'analyses',
+      });
+    }
+    contextual.push({
+      id: 'goal-context',
+      title:
+        profile?.goal === 'pregnancy'
+          ? 'Как подготовиться к следующему визиту к врачу?'
+          : profile?.goal === 'cycle'
+            ? 'Какие изменения цикла стоит обсудить с врачом?'
+            : 'Как определить фертильное окно точнее?',
+      icon: 'clinic',
+    });
+
+    return [
+      ...activeReminders.map((reminder) => ({
+        id: `reminder:${reminder.localId}`,
+        title: `${reminder.title}: ${reminder.body}`,
+        icon: reminder.type === 'checkup' ? ('analyses' as const) : ('clinic' as const),
+      })),
+      ...contextual,
+    ].slice(0, 3);
+  }, [activeReminders, journalEntries, labResults, profile?.goal]);
 
   useEffect(() => {
     setRecentChats((current) =>
@@ -791,7 +835,13 @@ export default function ChatScreen() {
         >
           <ChatSuggestionList
             suggestions={suggestions}
-            onSelect={(suggestion) => setDraft(suggestion.title)}
+            onSelect={(suggestion) => {
+              const reminder = activeReminders.find(
+                (item) => suggestion.id === `reminder:${item.localId}`,
+              );
+              if (reminder) void markReminderRead(reminder);
+              setDraft(suggestion.title);
+            }}
           />
           <Animated.View
             pointerEvents="none"

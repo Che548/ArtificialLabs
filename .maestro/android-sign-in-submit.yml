@@ -2,9 +2,10 @@ appId: com.anonymous.privateexpo
 ---
 - back
 - tapOn:
-    id: "e2e-auth-switch-flow"
+    id: 'e2e-auth-switch-flow'
 - tapOn:
-    id: "e2e-auth-submit"
+    id: 'e2e-auth-submit'
 - extendedWaitUntil:
-    visible: "Настроим мониторинг"
+    visible:
+      id: 'e2e-onboarding-next'
     timeout: 120000

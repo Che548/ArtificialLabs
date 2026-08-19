@@ -33,6 +33,7 @@ import {
 } from '../design-system';
 import { useHealthStore } from '../lib/health-store';
 import { persistLabDocument } from '../lib/local-files';
+import { calculateCompletionScore } from '../lib/product-insights';
 
 const bloodTubesImage = require('../assets/analyses/blood-tubes.png');
 const ultrasoundImage = require('../assets/analyses/ultrasound.png');
@@ -267,8 +268,13 @@ export default function AnalysesScreen() {
 
   const visiblePlans =
     activeTab === 'upcoming'
-      ? plannedAnalyses
+      ? plannedAnalyses.filter((item) => item.tab === 'upcoming')
       : plannedAnalyses.filter((item) => item.tab === 'current');
+  const currentPlans = plannedAnalyses.filter((item) => item.tab === 'current');
+  const attentionScore = calculateCompletionScore(
+    currentPlans.map((item) => item.id),
+    new Set(attachedResultsByPlan.keys()),
+  );
   const selectedSavedResult = selectedAnalysis
     ? attachedResultsByPlan.get(selectedAnalysis.id)
     : undefined;
@@ -292,16 +298,16 @@ export default function AnalysesScreen() {
         <View style={styles.heroWrap}>
           <AnalysisAttentionHero
             mascot={mascotHandsImage}
-            score={72}
+            score={attentionScore}
             onPress={() => setActiveTab('current')}
           />
         </View>
 
         <AnalysisDeadlineSummary
-          currentCount={
-            plannedAnalyses.filter((item) => item.tab === 'current').length
+          currentCount={currentPlans.length}
+          upcomingCount={
+            plannedAnalyses.filter((item) => item.tab === 'upcoming').length
           }
-          upcomingCount={plannedAnalyses.length}
           onCurrent={() => setActiveTab('current')}
           onUpcoming={() => setActiveTab('upcoming')}
           style={styles.summaryWrap}
