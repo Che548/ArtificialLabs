@@ -1,0 +1,12 @@
+appId: com.anonymous.privateexpo
+---
+- back
+- tapOn:
+    id: "e2e-auth-consent-personal"
+- tapOn:
+    id: "e2e-auth-consent-agreement"
+- tapOn:
+    id: "e2e-auth-submit"
+- extendedWaitUntil:
+    visible: "Настроим мониторинг"
+    timeout: 120000

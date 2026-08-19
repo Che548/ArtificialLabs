@@ -23,6 +23,13 @@ Playwright Chromium once with `npx playwright install chromium`. Native runs
 also require Maestro, installed development builds, a booted iPhone simulator,
 and a booted Android emulator.
 
+The native runner exits with status `75` when the test environment is blocked,
+for example when the iOS Simulator cannot resolve the Convex endpoint through
+the active VPN, Android System UI is unresponsive, or the Maestro Android
+driver dies. These are reported separately from application failures. Android
+field input is sent through `adb` because Maestro's API 36 `inputText` driver
+can time out; Maestro still owns all element selection, taps, and assertions.
+
 ```sh
 npm run e2e:backend
 npm run e2e:web

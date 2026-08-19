@@ -1,0 +1,17 @@
+appId: com.anonymous.privateexpo
+---
+- back
+- tapOn:
+    id: "e2e-onboarding-submit"
+- assertVisible: "Сегодня"
+- tapOn: "Профиль"
+- scrollUntilVisible:
+    element:
+      text: "Разрешения и данные"
+    direction: DOWN
+- tapOn: "Разрешения и данные"
+- tapOn:
+    id: "e2e-cloud-sync-toggle"
+- tapOn: "Синхронизировать сейчас"
+- assertNotVisible: "Произошла ошибка"
+- assertVisible: "Синхронизировать сейчас"

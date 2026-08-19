@@ -4,5 +4,11 @@ appId: com.anonymous.privateexpo
     text: "Open"
     optional: true
 - tapOn:
+    text: "Continue"
+    optional: true
+- tapOn:
     text: "Close"
     optional: true
+- extendedWaitUntil:
+    visible: "сфера."
+    timeout: 120000

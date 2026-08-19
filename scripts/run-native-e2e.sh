@@ -12,8 +12,10 @@ ios_device="${E2E_IOS_DEVICE:-730B98A0-FC3B-45CA-AF3A-9896CEEC16AA}"
 android_device="${E2E_ANDROID_DEVICE:-emulator-5554}"
 metro_port="${E2E_METRO_PORT:-8082}"
 run_id="${E2E_RUN_ID:-$(uuidgen | tr '[:upper:]' '[:lower:]')}"
-export E2E_EMAIL="${E2E_EMAIL:-artificiallabs-e2e+${run_id}-native@example.test}"
-password_id="${run_id//-/}"
+account_tag="${run_id//-/}"
+account_tag="${account_tag:0:12}"
+export E2E_EMAIL="${E2E_EMAIL:-artificiallabs-e2e+${account_tag}-native@example.test}"
+password_id="$account_tag"
 export E2E_PASSWORD="${E2E_PASSWORD:-E2e${password_id}Aa1}"
 export E2E_REPORT_DIR="${E2E_REPORT_DIR:-output/e2e}"
 
@@ -32,6 +34,29 @@ record_failure() {
 record_environment_blocked() {
   echo "E2E environment blocked: $1" >&2
   environment_blocked=1
+}
+
+android_type() {
+  local field_id="$1"
+  local value="$2"
+  maestro --device "$android_device" test .maestro/focus-field.yml \
+    --env E2E_FIELD_ID="$field_id"
+  adb -s "$android_device" shell input text "$value" >/dev/null
+}
+
+ios_network_blocked() {
+  local metro_log="$E2E_REPORT_DIR/metro.log"
+  [[ -f "$metro_log" ]] &&
+    grep -q "WebSocket closed with code 1006" "$metro_log" &&
+    grep -Eq "kCFErrorDomainCFNetwork error 2|server (can.t|cannot) be found" "$metro_log"
+}
+
+android_maestro_blocked() {
+  local maestro_root="${MAESTRO_DEBUG_ROOT:-$HOME/.maestro/tests}"
+  [[ -d "$maestro_root" ]] &&
+    find "$maestro_root" -type f -name maestro.log -mmin -10 -print0 2>/dev/null |
+      xargs -0 grep -Eq \
+        "Device server died|Android driver did not start up|AndroidDriverTimeoutException|DEADLINE_EXCEEDED"
 }
 
 metro_pid=""
@@ -93,6 +118,8 @@ sleep 20
 if maestro --device "$ios_device" test .maestro/ios-primary.yml \
   --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
   ios_primary_ok=1
+elif ios_network_blocked; then
+  record_environment_blocked "iOS Simulator cannot resolve or reach the Convex endpoint"
 else
   record_failure "iOS primary flow"
 fi
@@ -105,9 +132,17 @@ if [[ "$ios_primary_ok" -eq 1 ]]; then
 fi
 
 if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
-  if ! maestro --device "$android_device" test .maestro/android-secondary.yml \
-    --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
-    if node --import tsx tests/e2e/android-preflight.ts "$android_device"; then
+  if ! maestro --device "$android_device" test .maestro/android-auth-ready.yml || \
+    ! android_type "e2e-auth-identifier" "$E2E_EMAIL" || \
+    ! android_type "e2e-auth-password" "$E2E_PASSWORD" || \
+    ! maestro --device "$android_device" test .maestro/android-sign-in-submit.yml || \
+    ! android_type "e2e-onboarding-name" "E2EAndroid" || \
+    ! android_type "e2e-onboarding-date" "2026-07-01" || \
+    ! maestro --device "$android_device" test .maestro/android-onboarding-sync.yml; then
+    if android_maestro_blocked; then
+      record_environment_blocked "Android Maestro driver failed"
+      android_ready=0
+    elif node --import tsx tests/e2e/android-preflight.ts "$android_device"; then
       record_failure "Android secondary flow"
     else
       preflight_status="$?"

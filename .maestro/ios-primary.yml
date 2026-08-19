@@ -4,7 +4,7 @@ appId: com.anonymous.privateexpo
     text: "Continue"
     optional: true
 - tapOn:
-    point: "90%,48%"
+    text: "Close"
     optional: true
 - extendedWaitUntil:
     visible: "сфера."
