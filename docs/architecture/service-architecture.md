@@ -4,35 +4,32 @@
 но заменяет **серверную** SQLite текущего self-hosted Convex на PostgreSQL.
 S3-compatible storage используется самим Convex для модулей, snapshot/import,
 экспортов и поисковых индексов; медицинские исходники в S3 не загружаются.
+Исходный код, CI/CD, registry и build artifacts размещаются в self-hosted
+GitLab. Web-клиент в целевую схему не входит.
 
 ```mermaid
 flowchart LR
-  subgraph CLIENTS[Клиенты]
-    direction TB
-    subgraph NATIVE[Expo native · iOS / Android]
-      UI[Expo Router screens\nпрофиль · журнал · анализы · скан · чат]
-      PROVIDERS[React providers\nAuthSession · HealthStore · Connectivity\nNotificationManager]
-      LOCAL[(SQLCipher SQLite\nsettings · records · outbox)]
-      SECURE[Expo SecureStore\nDB key · auth session]
-      FILES[Device document storage\nscan photos · documents · attachments]
-      CV[StripCV native module\non-device recognition]
-      LOCAL_PUSH[expo-notifications\nlocal schedules]
+  subgraph NATIVE[Expo native clients · iOS / Android]
+    UI[Expo Router screens\nпрофиль · журнал · анализы · скан · чат]
+    PROVIDERS[React providers\nAuthSession · HealthStore · Connectivity\nNotificationManager]
+    LOCAL[(SQLCipher SQLite\nsettings · records · outbox)]
+    SECURE[Expo SecureStore\nDB key · auth session]
+    FILES[Device document storage\nscan photos · documents · attachments]
+    CV[StripCV native module\non-device recognition]
+    LOCAL_PUSH[expo-notifications\nlocal schedules]
 
-      UI --> PROVIDERS
-      PROVIDERS -->|local write first| LOCAL
-      PROVIDERS --> SECURE
-      UI --> CV
-      CV -->|structured result| PROVIDERS
-      CV -->|source image| FILES
-      PROVIDERS --> FILES
-      PROVIDERS --> LOCAL_PUSH
-    end
-
-    WEB[Expo Web + nginx\nread-only demo]
+    UI --> PROVIDERS
+    PROVIDERS -->|local write first| LOCAL
+    PROVIDERS --> SECURE
+    UI --> CV
+    CV -->|structured result| PROVIDERS
+    CV -->|source image| FILES
+    PROVIDERS --> FILES
+    PROVIDERS --> LOCAL_PUSH
   end
 
   subgraph EDGE[Public edge]
-    TLS[frp-easy + TLS\nbackend · site · dashboard · web]
+    TLS[frp-easy + TLS\nbackend · site · dashboard]
   end
 
   subgraph CONVEX[Self-hosted Convex]
@@ -66,14 +63,20 @@ flowchart LR
     FCM[FCM]
   end
 
-  subgraph DELIVERY[Delivery]
-    CI[GitHub Actions\nverify · Convex deploy · image build]
-    GHCR[GHCR\nweb runtime image]
-    WATCH[Watchtower on junk]
+  subgraph DELIVERY[Self-hosted GitLab delivery plane]
+    GITLAB[GitLab instance\nsource control · merge requests]
+    PIPELINE[GitLab CI pipelines\nverify · E2E · Convex deploy]
+    RUNNER[Self-hosted GitLab Runner\nisolated protected jobs]
+    REGISTRY[GitLab Container Registry\npinned infrastructure images]
+    ARTIFACTS[Protected CI artifacts\nsigned APK / IPA]
+
+    GITLAB --> PIPELINE
+    PIPELINE --> RUNNER
+    RUNNER --> REGISTRY
+    RUNNER --> ARTIFACTS
   end
 
   PROVIDERS -->|Auth + opt-in sync\nstructured data only| TLS
-  WEB -->|read-only requests| TLS
   TLS --> API
   TLS --> HTTP
   TLS --> DASH
@@ -89,10 +92,9 @@ flowchart LR
   APNS --> NATIVE
   FCM --> NATIVE
 
-  CI -->|protected admin key| CONVEX
-  CI --> GHCR
-  GHCR --> WATCH
-  WATCH --> WEB
+  RUNNER -->|protected admin key| CONVEX
+  REGISTRY -->|pinned backend / dashboard images| CONVEX
+  ARTIFACTS -.->|install test or release build| NATIVE
 
   classDef client fill:#fff3f8,stroke:#d93d82,color:#4a2134,stroke-width:1.5px;
   classDef local fill:#fff9e8,stroke:#c79022,color:#4b3b16,stroke-width:1.5px;
@@ -101,12 +103,12 @@ flowchart LR
   classDef external fill:#f3efff,stroke:#7658b8,color:#302454,stroke-width:1.5px;
   classDef delivery fill:#f2f3f5,stroke:#69707a,color:#25282d,stroke-width:1.5px;
 
-  class UI,PROVIDERS,CV,LOCAL_PUSH,WEB client;
+  class UI,PROVIDERS,CV,LOCAL_PUSH client;
   class LOCAL,SECURE,FILES local;
   class TLS,API,HTTP,AUTH,DOMAIN,CHAT,NOTIFY,CRON,DASH backend;
   class PG,S3 data;
   class YANDEX,EXPO_PUSH,APNS,FCM external;
-  class CI,GHCR,WATCH delivery;
+  class GITLAB,PIPELINE,RUNNER,REGISTRY,ARTIFACTS delivery;
 ```
 
 ## Основные взаимодействия
@@ -124,8 +126,10 @@ flowchart LR
 6. Локальные уведомления не требуют сервера. Remote push проходит через
    Convex component → Expo Push Service → APNs/FCM и работает только при наличии
    EAS project ID и provider credentials.
-7. Web-клиент остаётся read-only. GitHub Actions публикует Convex-функции и
-   минимальный nginx image, который забирает Watchtower на `junk`.
+7. Self-hosted GitLab хранит репозиторий и запускает pipelines на собственном
+   GitLab Runner. Protected job публикует Convex-функции, registry хранит
+   закреплённые infrastructure images, а подписанные APK/IPA остаются
+   защищёнными CI artifacts.
 
 ## Текущий и целевой storage
 
