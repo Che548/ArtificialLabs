@@ -44,6 +44,7 @@ android_ready=0
 environment_blocked=0
 ios_primary_ok=0
 cloud_snapshot_ok=0
+android_airplane_changed=0
 
 record_failure() {
   echo "E2E failure: $1" >&2
@@ -82,7 +83,7 @@ android_maestro_blocked() {
   [[ -d "$maestro_root" ]] &&
     find "$maestro_root" -type f -name maestro.log -mmin -10 -print0 2>/dev/null |
       xargs -0 grep -Eq \
-        "Device server died|Android driver did not start up|AndroidDriverTimeoutException|DEADLINE_EXCEEDED"
+        "Device server died|Android driver did not start up|AndroidDriverTimeoutException|AndroidInstrumentationSetupFailure|Maestro instrumentation could not be initialized|DEADLINE_EXCEEDED"
 }
 
 metro_pid=""
@@ -90,6 +91,10 @@ convex_proxy_pid=""
 android_launch_pid=""
 e2e_cert_dir=""
 cleanup() {
+  if [[ "$android_airplane_changed" -eq 1 ]]; then
+    adb -s "$android_device" shell cmd connectivity airplane-mode disable \
+      >/dev/null 2>&1 || true
+  fi
   if [[ -n "$ios_scan_fixture_path" && -f "$ios_scan_fixture_path" ]]; then
     unlink "$ios_scan_fixture_path"
   fi
@@ -316,18 +321,53 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
       fi
     fi
   else
+    if [[ "$android_device" == emulator-* ]]; then
+      if adb -s "$android_device" shell cmd connectivity airplane-mode enable \
+        >/dev/null 2>&1; then
+        android_airplane_changed=1
+        if ! maestro --device "$android_device" test .maestro/offline-mode.yml \
+          --env E2E_OFFLINE_SCREENSHOT="android-offline-local-save"; then
+          record_failure "Android offline local-first flow"
+        else
+          copy_maestro_screenshot offline-mode android-offline-local-save \
+            "$E2E_REPORT_DIR/android-offline-local-save.png"
+        fi
+        adb -s "$android_device" shell cmd connectivity airplane-mode disable \
+          >/dev/null 2>&1 || true
+        android_airplane_changed=0
+        if ! maestro --device "$android_device" test .maestro/reconnect-mode.yml \
+          --env E2E_RECONNECTED_SCREENSHOT="android-reconnected-sync"; then
+          record_failure "Android reconnect and retry flow"
+        else
+          copy_maestro_screenshot reconnect-mode android-reconnected-sync \
+            "$E2E_REPORT_DIR/android-reconnected-sync.png"
+        fi
+      else
+        record_environment_blocked "Android AVD airplane-mode control"
+      fi
+    fi
     if ! maestro --device "$android_device" test .maestro/product-surface.yml \
       --env E2E_PRODUCT_SCREENSHOT="android-product-surface"; then
-      record_failure "Android product surface flow"
+      if android_maestro_blocked; then
+        record_environment_blocked "Android Maestro driver during product flow"
+        android_ready=0
+      else
+        record_failure "Android product surface flow"
+      fi
     else
       copy_maestro_screenshot product-surface android-product-surface \
         "$E2E_REPORT_DIR/android-product-surface.png"
     fi
-    if [[ -n "$scan_fixture_source" ]] && ! maestro --device "$android_device" test .maestro/scan-fixture.yml \
+    if [[ "$android_ready" -eq 1 && -n "$scan_fixture_source" ]] && ! maestro --device "$android_device" test .maestro/scan-fixture.yml \
       --env E2E_SCAN_RESULT_SCREENSHOT="android-scan-result" \
       --env E2E_SCAN_SAVED_SCREENSHOT="android-scan-saved"; then
-      record_failure "Android real-photo scan flow"
-    elif [[ -n "$scan_fixture_source" ]]; then
+      if android_maestro_blocked; then
+        record_environment_blocked "Android Maestro driver during scan flow"
+        android_ready=0
+      else
+        record_failure "Android real-photo scan flow"
+      fi
+    elif [[ "$android_ready" -eq 1 && -n "$scan_fixture_source" ]]; then
       copy_maestro_screenshot scan-fixture android-scan-result "$E2E_REPORT_DIR/android-scan-result.png"
       copy_maestro_screenshot scan-fixture android-scan-saved "$E2E_REPORT_DIR/android-scan-saved.png"
     fi
@@ -338,7 +378,7 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
   fi
   expected_scan_count=0
   [[ -n "$scan_fixture_source" ]] && expected_scan_count=2
-  if [[ "$android_ready" -eq 1 ]] && ! E2E_EXPECT_PRODUCT_DATA=1 E2E_EXPECT_SCAN_COUNT="$expected_scan_count" \
+  if [[ "$android_ready" -eq 1 ]] && ! E2E_EXPECT_PRODUCT_DATA=1 E2E_EXPECT_OFFLINE_RECORD=1 E2E_EXPECT_SCAN_COUNT="$expected_scan_count" \
     node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts snapshot; then
     record_failure "Android cloud snapshot"
   fi

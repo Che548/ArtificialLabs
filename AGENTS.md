@@ -67,6 +67,11 @@ separate feature explicitly requires it.
   diagnostic result.
 - Cloud synchronization is an explicit per-device opt-in. Authentication alone
   must not start medical snapshot reads or outbox writes.
+- Offline and temporary server failures must never reject a completed local
+  write. Keep the SQLCipher outbox pending, show a non-blocking connection
+  status, retry transient transport failures with bounded backoff, and trigger
+  an immediate single-flight sync when connectivity returns. Do not retry Auth
+  or validation errors as transport failures.
 - Email verification, password reset, OCR, AI chat, push notifications, and
   the admin panel are deferred milestones. Do not imply they are operational.
 

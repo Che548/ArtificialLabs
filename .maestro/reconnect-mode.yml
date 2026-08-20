@@ -1,0 +1,18 @@
+appId: com.anonymous.privateexpo
+---
+- extendedWaitUntil:
+    notVisible: 'Нет подключения'
+    timeout: 30000
+- tapOn: 'Вернуться в профиль'
+- scrollUntilVisible:
+    element:
+      text: 'Разрешения и данные'
+    direction: DOWN
+    centerElement: true
+- tapOn: 'Разрешения и данные'
+- extendedWaitUntil:
+    visible: 'Синхронизировать сейчас'
+    timeout: 120000
+- tapOn: 'Синхронизировать сейчас'
+- assertNotVisible: 'Произошла ошибка'
+- takeScreenshot: ${E2E_RECONNECTED_SCREENSHOT}

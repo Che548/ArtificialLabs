@@ -20,6 +20,17 @@
       ]
     },
     {
+      "id": "offline-local-save-reconnect",
+      "platforms": ["android", "backend"],
+      "evidence": [
+        "offline-mode.yml",
+        "reconnect-mode.yml",
+        "service-errors.test.ts",
+        "cloud-sync.test.ts",
+        "native-account.ts"
+      ]
+    },
+    {
       "id": "today-monitoring",
       "platforms": ["ios", "android"],
       "evidence": ["product-surface.yml"]

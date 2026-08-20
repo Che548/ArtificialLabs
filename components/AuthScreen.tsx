@@ -19,6 +19,8 @@ import {
 } from 'react-native';
 
 import { SegmentedSwitcher } from '../design-system/components';
+import { useConnectivity } from '../lib/connectivity';
+import { classifyServiceIssue } from '../lib/service-errors';
 
 type AuthChannel = 'email' | 'phone';
 type AuthFlow = 'signIn' | 'signUp';
@@ -145,12 +147,11 @@ export function AuthScreen({
   preview?: boolean;
 }) {
   const { signIn } = useAuthActions();
+  const { isOffline } = useConnectivity();
   const window = useWindowDimensions();
   const [flow, setFlow] = useState<AuthFlow>('signUp');
   const [channel, setChannel] = useState<AuthChannel>('email');
-  const [identifier, setIdentifier] = useState(
-    e2eMode ? (e2eEmail ?? '') : '',
-  );
+  const [identifier, setIdentifier] = useState(e2eMode ? (e2eEmail ?? '') : '');
   const [password, setPassword] = useState('');
   const [personalDataConsent, setPersonalDataConsent] = useState(false);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
@@ -167,6 +168,12 @@ export function AuthScreen({
     validIdentifier &&
     validPassword &&
     (flow === 'signIn' || (personalDataConsent && agreementAccepted));
+  const submitDisabled = !canSubmit || submitting || (!preview && isOffline);
+  const visibleError =
+    error ??
+    (!preview && isOffline
+      ? 'Нет интернета. Подключитесь к сети, чтобы войти или зарегистрироваться.'
+      : undefined);
   const canvasScale = embedded
     ? 1
     : Math.min(window.width / designWidth, window.height / designHeight);
@@ -184,6 +191,13 @@ export function AuthScreen({
 
   const submit = async () => {
     if (!canSubmit || submitting) {
+      return;
+    }
+
+    if (isOffline && !preview) {
+      setError(
+        'Нет интернета. Подключитесь к сети, чтобы войти или зарегистрироваться.',
+      );
       return;
     }
 
@@ -213,10 +227,13 @@ export function AuthScreen({
       onAuthenticated?.();
     } catch (cause) {
       console.error('Authentication failed', cause);
+      const issue = classifyServiceIssue(cause, isOffline);
       setError(
-        flow === 'signIn'
-          ? 'Не удалось войти. Проверьте email и пароль.'
-          : 'Не удалось создать аккаунт. Возможно, email уже используется.',
+        issue.retryable
+          ? issue.message
+          : flow === 'signIn'
+            ? 'Не удалось войти. Проверьте email и пароль.'
+            : 'Не удалось создать аккаунт. Возможно, email уже используется.',
       );
     } finally {
       setSubmitting(false);
@@ -394,7 +411,7 @@ export function AuthScreen({
                   </View>
                 ) : null}
 
-                {error ? (
+                {visibleError ? (
                   <Text
                     accessibilityRole="alert"
                     style={[
@@ -402,19 +419,19 @@ export function AuthScreen({
                       flow === 'signIn' && styles.errorTextSignIn,
                     ]}
                   >
-                    {error}
+                    {visibleError}
                   </Text>
                 ) : null}
 
                 <Pressable
                   testID="e2e-auth-submit"
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: !canSubmit || submitting }}
-                  disabled={!canSubmit || submitting}
+                  accessibilityState={{ disabled: submitDisabled }}
+                  disabled={submitDisabled}
                   onPress={() => void submit()}
                   style={[
                     styles.primaryButton,
-                    !canSubmit && styles.primaryButtonDisabled,
+                    submitDisabled && styles.primaryButtonDisabled,
                   ]}
                 >
                   {submitting ? (
@@ -423,7 +440,7 @@ export function AuthScreen({
                     <Text
                       style={[
                         styles.primaryButtonLabel,
-                        !canSubmit && styles.primaryButtonLabelDisabled,
+                        submitDisabled && styles.primaryButtonLabelDisabled,
                       ]}
                     >
                       {flow === 'signUp' ? 'Далее' : 'Войти'}

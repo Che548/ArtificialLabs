@@ -74,6 +74,7 @@ import {
   parseImportPayload,
 } from '../lib/data-transfer';
 import { persistLabDocument } from '../lib/local-files';
+import type { ServiceIssue } from '../lib/service-errors';
 import type {
   AllergyRisk,
   HealthDocument,
@@ -199,6 +200,7 @@ export default function ProfileScreen() {
     programs,
     readOnly,
     requestAccountDeletion,
+    serviceIssue,
     saveAllergyRisk,
     saveDocument,
     saveMedicalCondition,
@@ -488,6 +490,7 @@ export default function ProfileScreen() {
                 setResultNotifications,
                 signOut: () => void signOut(),
                 requestAccountDeletion,
+                serviceIssue,
                 syncMessage,
                 syncNow: () => void synchronize(),
                 syncDisabled:
@@ -874,6 +877,7 @@ function renderProfileSectionDirect({
   readOnly,
   resultNotifications,
   requestAccountDeletion,
+  serviceIssue,
   saveAllergyRisk,
   saveDocumentFromPicker,
   saveMedicalCondition,
@@ -915,7 +919,8 @@ function renderProfileSectionDirect({
   programs: MonitoringProgram[];
   readOnly: boolean;
   resultNotifications: boolean;
-  requestAccountDeletion: () => Promise<void>;
+  requestAccountDeletion: () => Promise<boolean>;
+  serviceIssue?: ServiceIssue;
   saveAllergyRisk: (
     input: Omit<AllergyRisk, 'localId' | 'updatedAt'> & { localId?: string },
   ) => Promise<void>;
@@ -1243,10 +1248,17 @@ function renderProfileSectionDirect({
             label={
               syncStatus === 'syncing'
                 ? 'Синхронизация…'
-                : 'Синхронизировать сейчас'
+                : syncStatus === 'offline'
+                  ? 'Ожидает подключения'
+                  : 'Синхронизировать сейчас'
             }
-            subtitle={syncStatus === 'error' ? 'Произошла ошибка' : syncMessage}
-            disabled={syncDisabled || syncStatus === 'syncing' || readOnly}
+            subtitle={serviceIssue?.message ?? syncMessage}
+            disabled={
+              syncDisabled ||
+              syncStatus === 'syncing' ||
+              syncStatus === 'offline' ||
+              readOnly
+            }
             onPress={syncNow}
           />
         </>
@@ -1334,19 +1346,15 @@ function renderProfileSectionDirect({
                   {
                     text: 'Удалить',
                     style: 'destructive',
-                    onPress: () =>
-                      void requestAccountDeletion().catch((error) => {
-                        console.error('Account deletion request failed', error);
-                        Alert.alert(
-                          'Не удалось удалить аккаунт',
-                          'Проверьте подключение и попробуйте ещё раз.',
-                        );
-                      }),
+                    onPress: () => void requestAccountDeletion(),
                   },
                 ],
               )
             }
           />
+          {serviceIssue ? (
+            <ProfileEmptyMessage title={serviceIssue.message} />
+          ) : null}
         </>
       );
   }

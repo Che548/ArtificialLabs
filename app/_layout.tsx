@@ -24,6 +24,7 @@ import '../global.css';
 import { AppGate } from '../components/AppGate';
 import { AuthScreen } from '../components/AuthScreen';
 import { convex } from '../lib/convex';
+import { ConnectivityBanner, ConnectivityProvider } from '../lib/connectivity';
 import { HealthStoreProvider } from '../lib/health-store';
 import { authTokenStorage } from '../lib/secure-storage';
 import {
@@ -175,7 +176,13 @@ function AndroidTabIcon({
   return <TabIcon width={24} height={24} />;
 }
 
-function AndroidTabLabel({ focused, label }: { focused: boolean; label: string }) {
+function AndroidTabLabel({
+  focused,
+  label,
+}: {
+  focused: boolean;
+  label: string;
+}) {
   const progress = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
   useEffect(() => {
@@ -480,11 +487,7 @@ function NativeApp() {
   }
 
   if (!isAuthenticated) {
-    return (
-      <AuthScreen
-        onDevLogin={() => setDevMode(true)}
-      />
-    );
+    return <AuthScreen onDevLogin={() => setDevMode(true)} />;
   }
 
   return (
@@ -510,14 +513,17 @@ export default function TabLayout() {
   if (!fontsLoaded) return <LoadingAuth />;
 
   return (
-    <ConvexAuthProvider
-      client={convex}
-      storage={webDemo ? undefined : authTokenStorage}
-      shouldHandleCode={false}
-    >
-      <StatusBar style="dark" hidden={false} />
-      {webDemo ? <WebDemo /> : <NativeApp />}
-    </ConvexAuthProvider>
+    <ConnectivityProvider>
+      <ConvexAuthProvider
+        client={convex}
+        storage={webDemo ? undefined : authTokenStorage}
+        shouldHandleCode={false}
+      >
+        <StatusBar style="dark" hidden={false} />
+        {webDemo ? <WebDemo /> : <NativeApp />}
+        <ConnectivityBanner />
+      </ConvexAuthProvider>
+    </ConnectivityProvider>
   );
 }
 

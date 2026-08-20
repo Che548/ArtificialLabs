@@ -1,0 +1,23 @@
+appId: com.anonymous.privateexpo
+---
+- extendedWaitUntil:
+    visible: 'Нет подключения'
+    timeout: 30000
+- assertVisible: 'Ожидает подключения'
+- tapOn: 'Вернуться в профиль'
+- scrollUntilVisible:
+    element:
+      text: 'Медицинская история'
+    direction: UP
+    centerElement: true
+- tapOn: 'Медицинская история'
+- tapOn:
+    id: 'e2e-medical-primary'
+- inputText: 'E2E offline condition'
+- tapOn:
+    id: 'e2e-medical-secondary'
+- inputText: 'Saved without network'
+- pressKey: Enter
+- tapOn: 'Сохранить'
+- assertVisible: '.*E2E offline condition.*'
+- takeScreenshot: ${E2E_OFFLINE_SCREENSHOT}

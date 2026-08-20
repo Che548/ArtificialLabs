@@ -15,6 +15,7 @@ const reportDir = process.env.E2E_REPORT_DIR ?? 'output/e2e';
 const snapshotTimeoutMs = Number(process.env.E2E_SNAPSHOT_TIMEOUT_MS ?? 30_000);
 const expectedScanCount = Number(process.env.E2E_EXPECT_SCAN_COUNT ?? 0);
 const expectProductData = process.env.E2E_EXPECT_PRODUCT_DATA === '1';
+const expectOfflineRecord = process.env.E2E_EXPECT_OFFLINE_RECORD === '1';
 
 if (!backendUrl) throw new Error('CONVEX_SELF_HOSTED_URL is required');
 if (!email || !password)
@@ -72,6 +73,14 @@ async function snapshot() {
           health.chatConversations.length >= 1 &&
             health.chatMessages.length >= 1,
           'Chat history missing',
+        );
+      }
+      if (expectOfflineRecord) {
+        assert(
+          health.medicalConditions.some(
+            (condition) => condition.title === 'E2E offline condition',
+          ),
+          'Offline local record did not reach Convex after reconnect',
         );
       }
       break;
