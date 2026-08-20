@@ -160,7 +160,7 @@ async function main() {
 
   await step('push component is owner-scoped and safe without a token', async () => {
     const status = await alice.query(api.notifications.status, {});
-    assert.equal(status, null);
+    assert.deepEqual(status, { hasToken: false, paused: false });
     assert.deepEqual(await alice.mutation(api.notifications.sendTest, { tone: 'cute' }), { queued: false });
     await assert.rejects(
       alice.mutation(api.notifications.registerToken, { pushToken: 'not-a-token' }),
