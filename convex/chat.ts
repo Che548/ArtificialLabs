@@ -9,7 +9,7 @@ import {
   type AiChatGenerateResult,
   isAiChatFeatureEnabled,
 } from './aiChatConfig';
-import { requireOwnedProfile, requireUserId } from './lib/access';
+import { requireActiveAccount } from './lib/access';
 
 const generationRole = v.union(v.literal('user'), v.literal('assistant'));
 
@@ -31,8 +31,7 @@ export const generate = action({
 export const status = query({
   args: {},
   handler: async (ctx) => {
-    await requireOwnedProfile(ctx);
-    const userId = await requireUserId(ctx);
+    const userId = await requireActiveAccount(ctx);
     const consent = await ctx.db
       .query('aiChatConsents')
       .withIndex('by_user', (q) => q.eq('userId', userId))
@@ -56,12 +55,11 @@ export const status = query({
 export const acceptConsent = mutation({
   args: { policyVersion: v.string() },
   handler: async (ctx, args) => {
-    await requireOwnedProfile(ctx);
+    const userId = await requireActiveAccount(ctx);
     if (args.policyVersion !== AI_CHAT_CONSENT_POLICY_VERSION) {
       throw new Error('INVALID_POLICY_VERSION');
     }
 
-    const userId = await requireUserId(ctx);
     const existing = await ctx.db
       .query('aiChatConsents')
       .withIndex('by_user', (q) => q.eq('userId', userId))
@@ -87,8 +85,7 @@ export const acceptConsent = mutation({
 export const revokeConsent = mutation({
   args: {},
   handler: async (ctx) => {
-    await requireOwnedProfile(ctx);
-    const userId = await requireUserId(ctx);
+    const userId = await requireActiveAccount(ctx);
     const existing = await ctx.db
       .query('aiChatConsents')
       .withIndex('by_user', (q) => q.eq('userId', userId))
@@ -119,14 +116,6 @@ export const generationAccess = internalQuery({
         ok: false as const,
         reason: 'ACCOUNT_PENDING_DELETION' as const,
       };
-    }
-
-    const profile = await ctx.db
-      .query('profiles')
-      .withIndex('by_user', (q) => q.eq('userId', args.userId))
-      .unique();
-    if (!profile) {
-      return { ok: false as const, reason: 'PROFILE_REQUIRED' as const };
     }
 
     const consent = await ctx.db

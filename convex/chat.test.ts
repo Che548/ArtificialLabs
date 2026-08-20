@@ -100,7 +100,7 @@ describe.sequential('AI chat consent and generation boundary', () => {
     ).resolves.toEqual({ ok: false, code: 'CONSENT_REQUIRED' });
   });
 
-  test('rejects an authenticated account without an active profile', async () => {
+  test('keeps AI chat independent of the opt-in medical cloud profile', async () => {
     process.env.AI_CHAT_ENABLED = 'true';
     const t = setup();
     const email = 'missing-profile@example.test';
@@ -110,10 +110,15 @@ describe.sequential('AI chat consent and generation boundary', () => {
       email,
     });
 
+    await expect(client.query(api.chat.status, {})).resolves.toMatchObject({
+      enabled: true,
+      consentAccepted: false,
+    });
+    await acceptConsent(client);
     await expect(
       client.action(api.chat.generate, generationArgs('missing_profile')),
-    ).rejects.toThrow('PROFILE_REQUIRED');
-    expect(providerMock).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ ok: true, reply: 'Тестовый ответ' });
+    expect(providerMock).toHaveBeenCalledTimes(1);
   });
 
   test('enforces consent before feature state and validates transcript roles and size', async () => {
