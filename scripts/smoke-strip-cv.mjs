@@ -41,7 +41,7 @@ const result = runCli({
 assert.equal(result.status, 0, result.stderr);
 const analysis = JSON.parse(result.stdout);
 assert.equal(analysis.schema_version, '1.0');
-assert.equal(analysis.algorithm_version, '0.3.1');
+assert.equal(analysis.algorithm_version, '0.4.1');
 assert.equal(analysis.status, 'invalid');
 
 const oversized = runCli({
