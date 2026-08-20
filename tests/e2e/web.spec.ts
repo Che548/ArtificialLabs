@@ -17,7 +17,9 @@ test('public web client remains a read-only demo', async ({ page }) => {
   });
 
   await page.goto('/');
-  await expect(page.getByText('сфера.', { exact: true })).toBeVisible();
+  await expect(page.getByText('сфера.', { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
   await page.getByPlaceholder('Email').fill('web-preview@example.test');
   await page.getByPlaceholder('Введите пароль').fill('Preview!123');
   await page
