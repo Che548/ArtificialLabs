@@ -79,7 +79,7 @@ export function planHealthNotifications({
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(20, 0, 0, 0);
-    add('journalDaily', tomorrow, 'journal-daily-preview');
+    add('journalDaily', tomorrow, 'journal-daily');
   }
 
   return planned.sort((a, b) => a.at.getTime() - b.at.getTime()).slice(0, 48);

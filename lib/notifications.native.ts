@@ -96,11 +96,19 @@ export async function reconcileHealthNotifications({
           },
           sound: 'default',
         },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: notification.at,
-          channelId: Platform.OS === 'android' ? CHANNEL_ID : undefined,
-        },
+        trigger:
+          notification.sourceId === 'journal-daily'
+            ? {
+                type: Notifications.SchedulableTriggerInputTypes.DAILY,
+                hour: 20,
+                minute: 0,
+                channelId: Platform.OS === 'android' ? CHANNEL_ID : undefined,
+              }
+            : {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: notification.at,
+                channelId: Platform.OS === 'android' ? CHANNEL_ID : undefined,
+              },
       }),
     ),
   );
