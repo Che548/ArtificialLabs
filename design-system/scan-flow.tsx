@@ -2209,10 +2209,14 @@ export function ScanResultScreen({
           label={resultActionLabel}
           onPress={handleResultAction}
         />
-        {canConfirm ? (
+        {canConfirm || needsRetake ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Результат определен неверно?"
+            accessibilityLabel={
+              canConfirm
+                ? 'Результат определен неверно?'
+                : 'Ввести результат вручную'
+            }
             disabled={isCompleting}
             onPress={onCorrection}
             style={({ pressed }) => [
@@ -2227,7 +2231,9 @@ export function ScanResultScreen({
               color={colors.brand.primary}
               style={styles.resultSecondaryButtonLabel}
             >
-              Результат определен неверно?
+              {canConfirm
+                ? 'Результат определен неверно?'
+                : 'Ввести результат вручную'}
             </AppText>
           </Pressable>
         ) : null}
@@ -2603,7 +2609,12 @@ export function ScanFlowOverlay({
         imageUri: capturedImageUri,
         result: correctedResult ?? detectedResult,
         type,
-        resultSource: analysisResult ? 'stripcv' : 'manual',
+        resultSource:
+          correctedResult !== undefined
+            ? 'manual'
+            : analysisResult
+              ? 'stripcv'
+              : 'manual',
         algorithmVersion: analysisResult?.algorithm_version ?? 'manual-v1',
         analysisStatus: analysisResult?.status,
         qualityFlags: analysisResult?.reason_codes ?? [],

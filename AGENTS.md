@@ -39,6 +39,11 @@ separate feature explicitly requires it.
   with guarded disposable accounts and always performs exact admin cleanup.
 - `npm run e2e:web` checks the deployed read-only demo with Playwright.
 - `npm run e2e:native` runs the iOS/Android Maestro cross-device flow.
+- Set `E2E_SCAN_FIXTURE_SOURCE` to a local image path to exercise the same
+  native StripCV pipeline on both simulators. The runner copies the fixture
+  into each app sandbox with restrictive permissions and removes the temporary
+  copies during cleanup. Never commit medical fixtures or publish them as CI
+  artifacts.
 - Live E2E credentials and artifacts belong only in ignored `output/e2e/` and
   `.maestro/runtime/`; never commit tokens, generated passwords, or admin keys.
 - `.github/workflows/e2e-live.yml` must remain `workflow_dispatch`-only. Never

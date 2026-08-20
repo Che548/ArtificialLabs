@@ -13,9 +13,11 @@ const email = process.env.E2E_EMAIL;
 const password = process.env.E2E_PASSWORD;
 const reportDir = process.env.E2E_REPORT_DIR ?? 'output/e2e';
 const snapshotTimeoutMs = Number(process.env.E2E_SNAPSHOT_TIMEOUT_MS ?? 30_000);
+const expectedScanCount = Number(process.env.E2E_EXPECT_SCAN_COUNT ?? 0);
 
 if (!backendUrl) throw new Error('CONVEX_SELF_HOSTED_URL is required');
-if (!email || !password) throw new Error('E2E_EMAIL and E2E_PASSWORD are required');
+if (!email || !password)
+  throw new Error('E2E_EMAIL and E2E_PASSWORD are required');
 
 async function userClient() {
   const client = new ConvexHttpClient(backendUrl!);
@@ -31,16 +33,30 @@ async function userClient() {
 async function snapshot() {
   const client = await userClient();
   const deadline = Date.now() + snapshotTimeoutMs;
-  let viewer: Awaited<ReturnType<typeof client.query<typeof api.profile.viewer>>>;
-  let health: Awaited<ReturnType<typeof client.query<typeof api.health.snapshot>>>;
+  let viewer: Awaited<
+    ReturnType<typeof client.query<typeof api.profile.viewer>>
+  >;
+  let health: Awaited<
+    ReturnType<typeof client.query<typeof api.health.snapshot>>
+  >;
   let lastError: unknown;
   for (;;) {
     try {
       viewer = await client.query(api.profile.viewer, {});
-      assert(viewer.profile?.onboardingCompleted, 'Cloud profile is incomplete');
+      assert(
+        viewer.profile?.onboardingCompleted,
+        'Cloud profile is incomplete',
+      );
       health = await client.query(api.health.snapshot, {});
-      assert(health.programs.length >= 1, 'No monitoring program reached Convex');
+      assert(
+        health.programs.length >= 1,
+        'No monitoring program reached Convex',
+      );
       assert(health.reminders.length >= 1, 'No reminder reached Convex');
+      assert(
+        health.scanResults.length >= expectedScanCount,
+        `Expected at least ${expectedScanCount} scan result(s) in Convex`,
+      );
       break;
     } catch (error) {
       lastError = error;
@@ -70,6 +86,16 @@ async function snapshot() {
             ])
             .filter((entry) => entry[1] !== undefined),
         ),
+        scans: health.scanResults.map((scan) => ({
+          localId: scan.localId,
+          resultSource: scan.resultSource,
+          algorithmVersion: scan.algorithmVersion,
+          analysisStatus: scan.analysisStatus,
+          confidence: scan.confidence,
+          qualityFlags: scan.qualityFlags,
+          confirmedByUser: scan.confirmedByUser,
+          hasLocalImage: scan.hasLocalImage,
+        })),
       },
       null,
       2,

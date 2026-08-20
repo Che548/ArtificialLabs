@@ -62,6 +62,14 @@ const IOS_PAGE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const RAPIDBIO_INFO_URL = 'https://rapidbio.ru/';
 const RAPIDBIO_STORE_URL = 'https://rapidbio-tests.ru/';
+const e2eScanFixtureUri =
+  __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
+    ? Platform.OS === 'ios'
+      ? process.env.EXPO_PUBLIC_E2E_SCAN_FIXTURE_IOS_URI
+      : Platform.OS === 'android'
+        ? process.env.EXPO_PUBLIC_E2E_SCAN_FIXTURE_ANDROID_URI
+        : undefined
+    : undefined;
 
 type GlassControlProps = {
   accessibilityLabel: string;
@@ -665,6 +673,29 @@ export default function ScanScreen() {
                   </Text>
                 )}
               </Pressable>
+
+              {e2eScanFixtureUri ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Запустить тестовый снимок"
+                  onPress={() => {
+                    setHasSeenScanBriefing(true);
+                    setSelectedScanImageUri(e2eScanFixtureUri);
+                    setScanFlowVisible(true);
+                  }}
+                  style={styles.e2eFixtureButton}
+                  testID="e2e-scan-fixture"
+                >
+                  <Text
+                    style={[
+                      styles.galleryButtonLabel,
+                      { fontFamily: sfRegular },
+                    ]}
+                  >
+                    Тестовый снимок
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
 
             <View style={styles.scanContentPanel}>
@@ -1200,6 +1231,13 @@ const styles = StyleSheet.create({
   },
   galleryButtonLabelPressed: {
     opacity: 0.55,
+  },
+  e2eFixtureButton: {
+    position: 'absolute',
+    top: 286,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   scanContentPanel: {
     position: 'absolute',

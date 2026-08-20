@@ -1,0 +1,30 @@
+appId: com.anonymous.privateexpo
+---
+- tapOn: 'Скан'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-scan-fixture'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-scan-fixture'
+- extendedWaitUntil:
+    visible: 'Требуется переснять|Тестовый результат|Результат готов'
+    timeout: 120000
+- takeScreenshot: ${E2E_SCAN_RESULT_SCREENSHOT}
+- runFlow:
+    when:
+      visible: 'Ввести результат вручную'
+    commands:
+      - tapOn: 'Ввести результат вручную'
+- runFlow:
+    when:
+      visible: 'Результат определен неверно?'
+    commands:
+      - tapOn: 'Результат определен неверно?'
+- assertVisible: 'Что вы видите на тесте?'
+- tapOn: 'Вижу две линии'
+- tapOn: 'Сохранить интерпретацию'
+- extendedWaitUntil:
+    visible: 'Мгновенный анализ тестов на овуляцию или беременность'
+    timeout: 30000
+- takeScreenshot: ${E2E_SCAN_SAVED_SCREENSHOT}
