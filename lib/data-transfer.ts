@@ -33,7 +33,9 @@ function portableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(portableValue);
   if (!value || typeof value !== 'object') return value;
   const portable: Record<string, unknown> = {};
-  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+  for (const [key, nested] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
     if (
       key === 'localImageUri' ||
       key === 'localDocumentUri' ||
@@ -123,12 +125,80 @@ function assertPortableRecord(value: unknown) {
   const record = value as Record<string, unknown>;
   if (typeof record.localId !== 'string' || !record.localId)
     throw new Error('INVALID_LOCAL_ID');
-  if (typeof record.updatedAt !== 'number' || !Number.isFinite(record.updatedAt))
+  if (
+    typeof record.updatedAt !== 'number' ||
+    !Number.isFinite(record.updatedAt)
+  )
     throw new Error('INVALID_UPDATED_AT');
   const serialized = JSON.stringify(record);
   if (/local(Image|Document|File)?Uri/i.test(serialized))
     throw new Error('LOCAL_URI_NOT_IMPORTABLE');
   return record;
+}
+
+const journalKinds = new Set([
+  'cycle',
+  'mood',
+  'energy',
+  'symptom',
+  'nutrition',
+  'activity',
+  'measurement',
+  'note',
+]);
+
+function normalizeImportedRecord(entity: HealthEntityName, value: unknown) {
+  const record = assertPortableRecord(value);
+  if (entity !== 'journalEntries') return record;
+
+  const legacySymptoms = Array.isArray(record.symptoms)
+    ? record.symptoms.filter(
+        (symptom): symptom is string =>
+          typeof symptom === 'string' && Boolean(symptom.trim()),
+      )
+    : [];
+  const occurredAt =
+    typeof record.occurredAt === 'number'
+      ? record.occurredAt
+      : record.entryDate;
+  const kind =
+    typeof record.kind === 'string'
+      ? record.kind
+      : legacySymptoms.length
+        ? 'symptom'
+        : 'note';
+  const legacyNotes =
+    typeof record.notes === 'string' && record.notes.trim()
+      ? record.notes.trim()
+      : undefined;
+  const label =
+    typeof record.label === 'string' && record.label.trim()
+      ? record.label.trim()
+      : legacySymptoms.join(', ') || legacyNotes || 'Импортированная запись';
+  const source = record.source ?? 'manual';
+
+  if (typeof occurredAt !== 'number' || !Number.isFinite(occurredAt))
+    throw new Error('INVALID_JOURNAL_OCCURRED_AT');
+  if (typeof kind !== 'string' || !journalKinds.has(kind))
+    throw new Error('INVALID_JOURNAL_KIND');
+  if (typeof source !== 'string' || !['manual', 'scan', 'lab'].includes(source))
+    throw new Error('INVALID_JOURNAL_SOURCE');
+
+  const {
+    entryDate: _entryDate,
+    symptoms: _symptoms,
+    notes: _notes,
+    ...current
+  } = record;
+  return {
+    ...current,
+    occurredAt,
+    kind,
+    label,
+    source,
+    textValue:
+      typeof record.textValue === 'string' ? record.textValue : legacyNotes,
+  };
 }
 
 export function parseImportPayload(text: string): ImportPreview {
@@ -150,14 +220,14 @@ export function parseImportPayload(text: string): ImportPreview {
       const raw = (archive.entities as Record<string, unknown>)[entity];
       if (raw === undefined) continue;
       if (!Array.isArray(raw)) throw new Error(`INVALID_${entity}`);
-      const rows = raw.map(assertPortableRecord) as never;
+      const rows = raw.map((row) =>
+        normalizeImportedRecord(entity, row),
+      ) as never;
       records[entity] = rows;
       counts[entity] = raw.length;
       total += raw.length;
     }
-    const profile = archive.profile
-      ? (archive.profile as LocalProfile)
-      : null;
+    const profile = archive.profile ? (archive.profile as LocalProfile) : null;
     if (profile) {
       if (
         typeof profile.displayName !== 'string' ||
@@ -184,7 +254,7 @@ export function parseImportPayload(text: string): ImportPreview {
     const entity = entityValue as HealthEntityName;
     const updatedAt = Number(updatedAtValue);
     const deletedAt = deletedAtValue ? Number(deletedAtValue) : undefined;
-    const record = assertPortableRecord({
+    const record = normalizeImportedRecord(entity, {
       ...JSON.parse(payload),
       localId,
       updatedAt,

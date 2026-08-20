@@ -31,7 +31,11 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 output/e2e/
+output/pdf/
+output/playwright/
 .maestro/runtime/
+.playwright-cli/
+/tmp/
 
 # macOS
 .DS_Store

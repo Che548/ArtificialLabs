@@ -14,6 +14,7 @@ const password = process.env.E2E_PASSWORD;
 const reportDir = process.env.E2E_REPORT_DIR ?? 'output/e2e';
 const snapshotTimeoutMs = Number(process.env.E2E_SNAPSHOT_TIMEOUT_MS ?? 30_000);
 const expectedScanCount = Number(process.env.E2E_EXPECT_SCAN_COUNT ?? 0);
+const expectProductData = process.env.E2E_EXPECT_PRODUCT_DATA === '1';
 
 if (!backendUrl) throw new Error('CONVEX_SELF_HOSTED_URL is required');
 if (!email || !password)
@@ -57,6 +58,22 @@ async function snapshot() {
         health.scanResults.length >= expectedScanCount,
         `Expected at least ${expectedScanCount} scan result(s) in Convex`,
       );
+      if (expectProductData) {
+        assert(health.journalEntries.length >= 1, 'Journal data missing');
+        assert(health.labResults.length >= 1, 'Lab result metadata missing');
+        assert(
+          health.medicalConditions.length >= 1,
+          'Medical condition missing',
+        );
+        assert(health.medications.length >= 1, 'Medication missing');
+        assert(health.allergyRisks.length >= 1, 'Allergy risk missing');
+        assert(health.documents.length >= 1, 'Document metadata missing');
+        assert(
+          health.chatConversations.length >= 1 &&
+            health.chatMessages.length >= 1,
+          'Chat history missing',
+        );
+      }
       break;
     } catch (error) {
       lastError = error;

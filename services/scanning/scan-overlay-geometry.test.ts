@@ -77,3 +77,17 @@ test('compensates for cover cropping when mapping source-image boxes', () => {
   assert.deepEqual(geometry.strip?.[0], { x: -432, y: 0 });
   assert.deepEqual(geometry.strip?.[1], { x: 591, y: 0 });
 });
+
+test('keeps the full strip visible when mapping a contained result image', () => {
+  const geometry = getScanOverlayGeometry(
+    result,
+    configuration,
+    { width: 1024, height: 160 },
+    { width: 160, height: 160 },
+    'contain',
+  );
+
+  assert.deepEqual(geometry.strip?.[0], { x: 0, y: 67.5 });
+  assert.equal(geometry.strip?.[1].x, 159.84375);
+  assert.equal(geometry.strip?.[2].y, 92.34375);
+});

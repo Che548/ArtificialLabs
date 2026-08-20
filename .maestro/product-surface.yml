@@ -1,0 +1,176 @@
+appId: com.anonymous.privateexpo
+---
+# The auth flows finish inside Profile > Permissions.
+- tapOn:
+    text: 'Вернуться в профиль'
+- tapOn: 'Сегодня'
+- tapOn:
+    text: 'Открыть мониторинг'
+- extendedWaitUntil:
+    visible:
+      text: 'Закрыть графики'
+    timeout: 30000
+- tapOn:
+    text: 'Закрыть графики'
+- waitForAnimationToEnd
+- tapOn:
+    text: 'Открыть календарь'
+- extendedWaitUntil:
+    visible:
+      text: 'Закрыть календарь'
+    timeout: 30000
+- tapOn:
+    text: 'Закрыть календарь'
+- waitForAnimationToEnd
+- tapOn: 'Анализы'
+- tapOn: 'Ближайшие'
+- assertVisible: 'Гистероскопия'
+- tapOn: 'Текущие'
+- tapOn:
+    text: 'Посмотреть ↗'
+    index: 0
+- scrollUntilVisible:
+    element:
+      text: 'Прикрепить файл результата'
+    direction: DOWN
+- swipe:
+    start: '50%,75%'
+    end: '50%,35%'
+    duration: 500
+- tapOn:
+    text: 'Прикрепить файл результата'
+- tapOn:
+    id: 'e2e-analysis-save'
+- tapOn: 'Сдано'
+- assertVisible: 'Исследования крови'
+- tapOn:
+    text: 'Открыть графики анализов'
+- extendedWaitUntil:
+    visible:
+      text: 'Закрыть графики'
+    timeout: 30000
+- tapOn:
+    text: 'Закрыть графики'
+- waitForAnimationToEnd
+
+- tapOn: 'Сферка'
+- tapOn: 'Как определить фертильное окно точнее?'
+- tapOn:
+    text: 'Отправить сообщение'
+- extendedWaitUntil:
+    visible: 'Как определить фертильное окно точнее?'
+    timeout: 30000
+- tapOn:
+    text: 'История чатов'
+- assertVisible: 'Открыть чат: Как определить фертильное окно точнее?'
+- tapOn:
+    text: 'Закрыть историю чатов'
+- waitForAnimationToEnd
+- tapOn:
+    text: 'Вернуться к началу чата'
+- waitForAnimationToEnd
+
+- tapOn: 'Профиль'
+- scrollUntilVisible:
+    element:
+      text: 'Медицинская история'
+    direction: UP
+- tapOn: 'Медицинская история'
+- tapOn:
+    id: 'e2e-medical-primary'
+- inputText: 'E2E condition'
+- tapOn:
+    id: 'e2e-medical-secondary'
+- inputText: 'Local first condition'
+- pressKey: Enter
+- tapOn: 'Сохранить'
+- assertVisible: '.*E2E condition.*'
+- tapOn:
+    text: 'Вернуться в профиль'
+
+- tapOn: 'Препараты'
+- tapOn:
+    id: 'e2e-medical-primary'
+- inputText: 'E2E medication'
+- tapOn:
+    id: 'e2e-medical-secondary'
+- inputText: '10 mg'
+- pressKey: Enter
+- tapOn: 'Сохранить'
+- assertVisible: '.*E2E medication.*'
+- tapOn:
+    text: 'Вернуться в профиль'
+
+- tapOn: 'Аллергии и риски'
+- tapOn:
+    id: 'e2e-medical-primary'
+- inputText: 'E2E allergen'
+- tapOn:
+    id: 'e2e-medical-secondary'
+- inputText: 'E2E reaction'
+- pressKey: Enter
+- tapOn: 'Сохранить'
+- assertVisible: '.*E2E allergen.*'
+- tapOn:
+    text: 'Вернуться в профиль'
+
+- tapOn: 'Программы'
+- assertVisible: 'Подключённые программы'
+- tapOn:
+    text: 'Вернуться в профиль'
+- tapOn: 'Документы'
+- tapOn: 'Добавить документ'
+- extendedWaitUntil:
+    visible: 'e2e-medical-document.jpg'
+    timeout: 30000
+- tapOn:
+    text: 'Вернуться в профиль'
+
+- scrollUntilVisible:
+    element:
+      text: 'Настройки уведомлений'
+    direction: DOWN
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn: 'Настройки уведомлений'
+- tapOn: 'Разрешить уведомления'
+- tapOn: 'Результаты и анализы'
+- tapOn:
+    text: 'Вернуться в профиль'
+
+- scrollUntilVisible:
+    element:
+      text: 'Импорт данных'
+    direction: DOWN
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn: 'Импорт данных'
+- tapOn: 'Выбрать файл'
+- assertVisible: 'Проверено записей: 1'
+- tapOn: 'Импортировать 1 записей'
+- assertVisible: 'Импортировано записей: 1'
+- tapOn:
+    text: 'Вернуться в профиль'
+
+- scrollUntilVisible:
+    element:
+      text: 'Экспорт данных'
+    direction: DOWN
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn: 'Экспорт данных'
+- tapOn: 'Подготовить экспорт'
+- assertVisible: 'Файл подготовлен для экспорта.'
+- tapOn:
+    text: 'Вернуться в профиль'
+- scrollUntilVisible:
+    element:
+      text: 'Разрешения и данные'
+    direction: DOWN
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn: 'Разрешения и данные'
+- tapOn: 'Синхронизировать сейчас'
+- assertNotVisible: 'Произошла ошибка'
+- tapOn: 'Вернуться в профиль'
+- takeScreenshot: ${E2E_PRODUCT_SCREENSHOT}

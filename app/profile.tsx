@@ -87,6 +87,26 @@ import type {
 } from '../lib/health-types';
 import DesignSystemScreen from './design-system';
 
+const e2eDocumentFixtureUri =
+  __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
+    ? Platform.OS === 'ios'
+      ? (process.env.EXPO_PUBLIC_E2E_DOCUMENT_FIXTURE_IOS_URI ??
+        process.env.EXPO_PUBLIC_E2E_SCAN_FIXTURE_IOS_URI)
+      : Platform.OS === 'android'
+        ? (process.env.EXPO_PUBLIC_E2E_DOCUMENT_FIXTURE_ANDROID_URI ??
+          process.env.EXPO_PUBLIC_E2E_SCAN_FIXTURE_ANDROID_URI)
+        : undefined
+    : undefined;
+
+const e2eImportFixtureUri =
+  __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
+    ? Platform.OS === 'ios'
+      ? process.env.EXPO_PUBLIC_E2E_IMPORT_FIXTURE_IOS_URI
+      : Platform.OS === 'android'
+        ? process.env.EXPO_PUBLIC_E2E_IMPORT_FIXTURE_ANDROID_URI
+        : undefined
+    : undefined;
+
 type ProfileSection =
   | 'account'
   | 'personal'
@@ -283,12 +303,23 @@ export default function ProfileScreen() {
 
   const addDocumentFromPicker = async () => {
     if (readOnly) return;
-    const picked = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: true,
-      multiple: false,
-      type: '*/*',
-    });
-    const asset = picked.canceled ? undefined : picked.assets[0];
+    const picked = e2eDocumentFixtureUri
+      ? undefined
+      : await DocumentPicker.getDocumentAsync({
+          copyToCacheDirectory: true,
+          multiple: false,
+          type: '*/*',
+        });
+    const asset = e2eDocumentFixtureUri
+      ? {
+          uri: e2eDocumentFixtureUri,
+          name: 'e2e-medical-document.jpg',
+          mimeType: 'image/jpeg',
+          size: undefined,
+        }
+      : picked?.canceled
+        ? undefined
+        : picked?.assets[0];
     if (!asset) return;
     const localFileUri = await persistLabDocument(asset.uri);
     await saveDocument({
@@ -367,7 +398,10 @@ export default function ProfileScreen() {
               medicalConditions.filter((item) => !item.deletedAt).length
             }
             documentCount={documentCount}
-            medicationCount={medications.filter((item) => !item.deletedAt).length}
+            medicationCount={
+              medications.filter((item) => !item.deletedAt).length
+            }
+            programCount={programs.filter((item) => !item.deletedAt).length}
             onOpen={openSection}
           />
         </ScrollView>
@@ -496,12 +530,14 @@ function ProfileOverview({
   conditionCount,
   documentCount,
   medicationCount,
+  programCount,
   onOpen,
 }: {
   allergyCount: number;
   conditionCount: number;
   documentCount: number;
   medicationCount: number;
+  programCount: number;
   onOpen: (section: ProfileSection) => void;
 }) {
   return (
@@ -545,6 +581,15 @@ function ProfileOverview({
           label="Аллергии и риски"
           value={allergyCount ? String(allergyCount) : 'Не заполнено'}
           onPress={() => onOpen('allergies')}
+        />
+        <ProfileSettingsRow
+          icon="heart.text.square.fill"
+          fallback="П"
+          iconBackground={profileTones.health.tile}
+          iconColor={profileTones.health.glyph}
+          label="Программы"
+          value={programCount ? String(programCount) : 'Нет программ'}
+          onPress={() => onOpen('programs')}
         />
         <ProfileSettingsRow
           icon="doc.text.fill"
@@ -876,7 +921,9 @@ function renderProfileSectionDirect({
   ) => Promise<void>;
   saveDocumentFromPicker: () => Promise<void>;
   saveMedicalCondition: (
-    input: Omit<MedicalCondition, 'localId' | 'updatedAt'> & { localId?: string },
+    input: Omit<MedicalCondition, 'localId' | 'updatedAt'> & {
+      localId?: string;
+    },
   ) => Promise<void>;
   saveMedication: (
     input: Omit<Medication, 'localId' | 'updatedAt'> & { localId?: string },
@@ -888,7 +935,9 @@ function renderProfileSectionDirect({
     journalNotifications?: boolean;
     resultNotifications?: boolean;
   }) => Promise<void>;
-  saveProfile: (input: Partial<Omit<LocalProfile, 'updatedAt'>>) => Promise<void>;
+  saveProfile: (
+    input: Partial<Omit<LocalProfile, 'updatedAt'>>,
+  ) => Promise<void>;
   section: ProfileSection;
   setCloudSyncEnabled: (enabled: boolean) => Promise<void>;
   setAnalyticsEnabled: (value: boolean) => void;
@@ -925,7 +974,9 @@ function renderProfileSectionDirect({
               defaultValue={profile?.phone}
               placeholder="Добавить"
               disabled={readOnly}
-              onSubmit={(phone) => void saveProfile({ phone: phone || undefined })}
+              onSubmit={(phone) =>
+                void saveProfile({ phone: phone || undefined })
+              }
               isLast
             />
           </ProfileSettingsGroup>
@@ -993,7 +1044,6 @@ function renderProfileSectionDirect({
               }}
             />
           </ProfileSettingsGroup>
-
         </>
       );
 
@@ -1181,7 +1231,11 @@ function renderProfileSectionDirect({
           <ProfileActionRow
             secondary
             icon="gearshape.fill"
-            label={Platform.OS === 'ios' ? 'Разрешения iPhone' : 'Разрешения устройства'}
+            label={
+              Platform.OS === 'ios'
+                ? 'Разрешения iPhone'
+                : 'Разрешения устройства'
+            }
             onPress={openSystemSettings}
           />
           <ProfileActionRow
@@ -1276,7 +1330,7 @@ function renderProfileSectionDirect({
                 'Удалить аккаунт?',
                 'Данные можно будет восстановить в течение 30 дней.',
                 [
-                { text: 'Отмена', style: 'cancel' },
+                  { text: 'Отмена', style: 'cancel' },
                   {
                     text: 'Удалить',
                     style: 'destructive',
@@ -1463,6 +1517,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
         </AppText>
         <TextInput
           editable={!props.readOnly}
+          testID="e2e-medical-primary"
           value={primary}
           onChangeText={setPrimary}
           placeholder={primaryLabel}
@@ -1471,6 +1526,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
         />
         <TextInput
           editable={!props.readOnly}
+          testID="e2e-medical-secondary"
           value={secondary}
           onChangeText={setSecondary}
           placeholder={secondaryLabel}
@@ -1511,7 +1567,8 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
   const store = useHealthStore();
   const [format, setFormat] = useState<'json' | 'csv'>('json');
   const [category, setCategory] = useState<HealthEntityName>('journalEntries');
-  const [preview, setPreview] = useState<ReturnType<typeof parseImportPayload>>();
+  const [preview, setPreview] =
+    useState<ReturnType<typeof parseImportPayload>>();
   const [message, setMessage] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -1533,12 +1590,18 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
 
   const pickImport = async () => {
     setMessage(undefined);
-    const picked = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: true,
-      multiple: false,
-      type: ['application/json', 'text/csv', 'text/comma-separated-values'],
-    });
-    const asset = picked.canceled ? undefined : picked.assets[0];
+    const picked = e2eImportFixtureUri
+      ? undefined
+      : await DocumentPicker.getDocumentAsync({
+          copyToCacheDirectory: true,
+          multiple: false,
+          type: ['application/json', 'text/csv', 'text/comma-separated-values'],
+        });
+    const asset = e2eImportFixtureUri
+      ? { uri: e2eImportFixtureUri }
+      : picked?.canceled
+        ? undefined
+        : picked?.assets[0];
     if (!asset) return;
     try {
       const parsed = parseImportPayload(await readAsStringAsync(asset.uri));
@@ -1577,6 +1640,10 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
       const extension = format === 'json' ? 'json' : 'csv';
       const uri = `${cacheDirectory}artificiallabs-export-${Date.now()}.${extension}`;
       await writeAsStringAsync(uri, content);
+      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1') {
+        setMessage('Файл подготовлен для экспорта.');
+        return;
+      }
       if (!(await Sharing.isAvailableAsync())) {
         setMessage(`Файл подготовлен: ${uri}`);
         return;

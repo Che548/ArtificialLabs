@@ -36,7 +36,20 @@ async function main() {
   } else if (boot.stdout.trim() !== '1') {
     await finish('environment-blocked', 'AVD has not completed booting', 75);
   } else {
-    const hierarchy = adb(['exec-out', 'uiautomator', 'dump', '/dev/tty']);
+    let hierarchy = adb(
+      ['exec-out', 'uiautomator', 'dump', '/dev/tty'],
+      20_000,
+    );
+    if (
+      hierarchy.error &&
+      'code' in hierarchy.error &&
+      hierarchy.error.code === 'ETIMEDOUT'
+    ) {
+      hierarchy = adb(
+        ['exec-out', 'uiautomator', 'dump', '/dev/tty'],
+        20_000,
+      );
+    }
     const output = `${hierarchy.stdout}\n${hierarchy.stderr}`;
     if (hierarchy.error && 'code' in hierarchy.error && hierarchy.error.code === 'ETIMEDOUT') {
       await finish('environment-blocked', 'Android UI automation timed out', 75);

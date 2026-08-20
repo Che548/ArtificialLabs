@@ -7,6 +7,23 @@ appId: com.anonymous.privateexpo
 - tapOn:
     text: 'Close'
     optional: true
-- assertVisible: "Аккаунт ожидает удаления"
-- tapOn: "Восстановить аккаунт"
-- assertVisible: "Сегодня"
+- runFlow:
+    when:
+      visible: 'сфера.'
+    commands:
+      - tapOn:
+          id: 'e2e-auth-identifier'
+      - assertVisible: ${E2E_EMAIL}
+      - tapOn:
+          id: 'e2e-auth-password'
+      - inputText: ${E2E_PASSWORD}
+      - back
+      - tapOn:
+          id: 'e2e-auth-switch-flow'
+      - tapOn:
+          id: 'e2e-auth-submit'
+- extendedWaitUntil:
+    visible: 'Аккаунт ожидает удаления'
+    timeout: 120000
+- tapOn: 'Восстановить аккаунт'
+- assertVisible: 'Сегодня'

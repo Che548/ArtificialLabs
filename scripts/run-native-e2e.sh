@@ -29,8 +29,13 @@ fi
 ios_scan_fixture_uri=""
 ios_scan_fixture_path=""
 android_scan_fixture_uri=""
+ios_import_fixture_uri=""
+ios_import_fixture_path=""
+android_import_fixture_uri=""
+import_fixture_source=""
 if [[ -n "$scan_fixture_source" ]]; then
   android_scan_fixture_uri="file:///data/user/0/com.anonymous.privateexpo/files/e2e/scan.jpg"
+  android_import_fixture_uri="file:///data/user/0/com.anonymous.privateexpo/files/e2e/import.json"
 fi
 
 mkdir -p "$E2E_REPORT_DIR"
@@ -51,11 +56,12 @@ record_environment_blocked() {
 }
 
 copy_maestro_screenshot() {
-  local label="$1"
-  local destination="$2"
+  local flow="$1"
+  local label="$2"
+  local destination="$3"
   local source
   source="$(find "${MAESTRO_DEBUG_ROOT:-$HOME/.maestro/tests}" -type f \
-    -path "*/scan-fixture/takeScreenshot/${label}.png" -mmin -10 \
+    -path "*/${flow}/takeScreenshot/${label}.png" -mmin -20 \
     -print 2>/dev/null | tail -1)"
   if [[ -n "$source" ]]; then
     install -m 600 "$source" "$destination"
@@ -87,9 +93,12 @@ cleanup() {
   if [[ -n "$ios_scan_fixture_path" && -f "$ios_scan_fixture_path" ]]; then
     unlink "$ios_scan_fixture_path"
   fi
+  if [[ -n "$ios_import_fixture_path" && -f "$ios_import_fixture_path" ]]; then
+    unlink "$ios_import_fixture_path"
+  fi
   if [[ -n "$android_scan_fixture_uri" ]]; then
     adb -s "$android_device" shell run-as com.anonymous.privateexpo \
-      rm -f files/e2e/scan.jpg 2>/dev/null || true
+      rm -f files/e2e/scan.jpg files/e2e/import.json 2>/dev/null || true
   fi
   if [[ -n "$android_launch_pid" ]]; then
     kill "$android_launch_pid" 2>/dev/null || true
@@ -109,6 +118,9 @@ cleanup() {
     fi
     rmdir "$e2e_cert_dir" 2>/dev/null || true
   fi
+  if [[ -n "$import_fixture_source" && -f "$import_fixture_source" ]]; then
+    unlink "$import_fixture_source"
+  fi
   node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts cleanup || true
 }
 trap cleanup EXIT
@@ -120,6 +132,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
   -keyout "$e2e_cert_dir/localhost.key" \
   -out "$e2e_cert_dir/localhost.crt" >/dev/null 2>&1
 chmod 600 "$e2e_cert_dir/localhost.key"
+xcrun simctl keychain "$ios_device" reset
 xcrun simctl keychain "$ios_device" add-root-cert "$e2e_cert_dir/localhost.crt"
 
 E2E_CONVEX_TLS_CERT="$e2e_cert_dir/localhost.crt" \
@@ -139,17 +152,27 @@ curl --cacert "$e2e_cert_dir/localhost.crt" -fsS \
   "https://localhost:${convex_ios_proxy_port}/version" >/dev/null
 
 if [[ -n "$scan_fixture_source" ]]; then
+  import_fixture_source="$(mktemp "${TMPDIR:-/tmp}/artificiallabs-e2e-import.XXXXXX")"
+  node -e 'const fs=require("node:fs");const now=Date.now();fs.writeFileSync(process.argv[1],JSON.stringify({schema:"artificiallabs-health-archive",version:1,exportedAt:now,profile:null,entities:{journalEntries:[{localId:`e2e-import-${now}`,entryDate:now,symptoms:["E2E импорт"],notes:"Проверка JSON import",updatedAt:now}]}}))' "$import_fixture_source"
+  chmod 600 "$import_fixture_source"
   maestro --device "$ios_device" test .maestro/reset.yml
   ios_data_container="$(xcrun simctl get_app_container "$ios_device" com.anonymous.privateexpo data)"
   ios_scan_fixture_path="$ios_data_container/Documents/e2e-scan.jpg"
+  ios_import_fixture_path="$ios_data_container/Documents/e2e-import.json"
   install -m 600 "$scan_fixture_source" "$ios_scan_fixture_path"
+  install -m 600 "$import_fixture_source" "$ios_import_fixture_path"
   ios_scan_fixture_uri="file://${ios_scan_fixture_path}"
+  ios_import_fixture_uri="file://${ios_import_fixture_path}"
 fi
 
 EXPO_PUBLIC_E2E_IOS_CONVEX_URL="https://localhost:${convex_ios_proxy_port}" \
 EXPO_PUBLIC_E2E_ANDROID_CONVEX_URL="http://localhost:${convex_proxy_port}" \
 EXPO_PUBLIC_E2E_SCAN_FIXTURE_IOS_URI="$ios_scan_fixture_uri" \
 EXPO_PUBLIC_E2E_SCAN_FIXTURE_ANDROID_URI="$android_scan_fixture_uri" \
+EXPO_PUBLIC_E2E_DOCUMENT_FIXTURE_IOS_URI="$ios_scan_fixture_uri" \
+EXPO_PUBLIC_E2E_DOCUMENT_FIXTURE_ANDROID_URI="$android_scan_fixture_uri" \
+EXPO_PUBLIC_E2E_IMPORT_FIXTURE_IOS_URI="$ios_import_fixture_uri" \
+EXPO_PUBLIC_E2E_IMPORT_FIXTURE_ANDROID_URI="$android_import_fixture_uri" \
 EXPO_PUBLIC_E2E_MODE=1 \
 EXPO_PUBLIC_E2E_EMAIL="$E2E_EMAIL" \
 CI=1 npx expo start --dev-client --localhost --clear --port "$metro_port" \
@@ -187,6 +210,10 @@ if [[ "$android_ready" -eq 1 ]]; then
     adb -s "$android_device" shell run-as com.anonymous.privateexpo cp \
       /data/local/tmp/artificiallabs-e2e-scan.jpg files/e2e/scan.jpg
     adb -s "$android_device" shell rm -f /data/local/tmp/artificiallabs-e2e-scan.jpg
+    adb -s "$android_device" push "$import_fixture_source" /data/local/tmp/artificiallabs-e2e-import.json >/dev/null
+    adb -s "$android_device" shell run-as com.anonymous.privateexpo cp \
+      /data/local/tmp/artificiallabs-e2e-import.json files/e2e/import.json
+    adb -s "$android_device" shell rm -f /data/local/tmp/artificiallabs-e2e-import.json
   fi
 fi
 
@@ -224,19 +251,26 @@ else
   record_failure "iOS primary flow"
 fi
 if [[ "$ios_primary_ok" -eq 1 ]]; then
+  if ! maestro --device "$ios_device" test .maestro/product-surface.yml \
+    --env E2E_PRODUCT_SCREENSHOT="ios-product-surface"; then
+    record_failure "iOS product surface flow"
+  else
+    copy_maestro_screenshot product-surface ios-product-surface \
+      "$E2E_REPORT_DIR/ios-product-surface.png"
+  fi
   if [[ -n "$scan_fixture_source" ]]; then
     if ! maestro --device "$ios_device" test .maestro/scan-fixture.yml \
       --env E2E_SCAN_RESULT_SCREENSHOT="ios-scan-result" \
       --env E2E_SCAN_SAVED_SCREENSHOT="ios-scan-saved"; then
       record_failure "iOS real-photo scan flow"
     else
-      copy_maestro_screenshot ios-scan-result "$E2E_REPORT_DIR/ios-scan-result.png"
-      copy_maestro_screenshot ios-scan-saved "$E2E_REPORT_DIR/ios-scan-saved.png"
+      copy_maestro_screenshot scan-fixture ios-scan-result "$E2E_REPORT_DIR/ios-scan-result.png"
+      copy_maestro_screenshot scan-fixture ios-scan-saved "$E2E_REPORT_DIR/ios-scan-saved.png"
     fi
   fi
   expected_scan_count=0
   [[ -n "$scan_fixture_source" ]] && expected_scan_count=1
-  if E2E_EXPECT_SCAN_COUNT="$expected_scan_count" \
+  if E2E_EXPECT_PRODUCT_DATA=1 E2E_EXPECT_SCAN_COUNT="$expected_scan_count" \
     node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts snapshot; then
     cloud_snapshot_ok=1
   else
@@ -245,6 +279,26 @@ if [[ "$ios_primary_ok" -eq 1 ]]; then
 fi
 
 if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
+  if [[ -n "$scan_fixture_source" ]]; then
+    adb -s "$android_device" shell run-as com.anonymous.privateexpo mkdir -p files/e2e
+    adb -s "$android_device" push "$scan_fixture_source" \
+      /data/local/tmp/artificiallabs-e2e-scan.jpg >/dev/null
+    adb -s "$android_device" shell run-as com.anonymous.privateexpo cp \
+      /data/local/tmp/artificiallabs-e2e-scan.jpg files/e2e/scan.jpg
+    adb -s "$android_device" shell rm -f /data/local/tmp/artificiallabs-e2e-scan.jpg
+    adb -s "$android_device" push "$import_fixture_source" \
+      /data/local/tmp/artificiallabs-e2e-import.json >/dev/null
+    adb -s "$android_device" shell run-as com.anonymous.privateexpo cp \
+      /data/local/tmp/artificiallabs-e2e-import.json files/e2e/import.json
+    adb -s "$android_device" shell rm -f /data/local/tmp/artificiallabs-e2e-import.json
+  fi
+  adb -s "$android_device" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+  adb -s "$android_device" shell wm dismiss-keyguard >/dev/null 2>&1 || true
+  adb -s "$android_device" shell am force-stop com.anonymous.privateexpo
+  adb -s "$android_device" shell am start -W -a android.intent.action.VIEW \
+    -d "$android_dev_url" com.anonymous.privateexpo \
+    >"$E2E_REPORT_DIR/android-launch-secondary.log" 2>&1
+  sleep 5
   if ! maestro --device "$android_device" test .maestro/android-secondary.yml \
     --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
     if android_maestro_blocked; then
@@ -262,13 +316,20 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
       fi
     fi
   else
+    if ! maestro --device "$android_device" test .maestro/product-surface.yml \
+      --env E2E_PRODUCT_SCREENSHOT="android-product-surface"; then
+      record_failure "Android product surface flow"
+    else
+      copy_maestro_screenshot product-surface android-product-surface \
+        "$E2E_REPORT_DIR/android-product-surface.png"
+    fi
     if [[ -n "$scan_fixture_source" ]] && ! maestro --device "$android_device" test .maestro/scan-fixture.yml \
       --env E2E_SCAN_RESULT_SCREENSHOT="android-scan-result" \
       --env E2E_SCAN_SAVED_SCREENSHOT="android-scan-saved"; then
       record_failure "Android real-photo scan flow"
     elif [[ -n "$scan_fixture_source" ]]; then
-      copy_maestro_screenshot android-scan-result "$E2E_REPORT_DIR/android-scan-result.png"
-      copy_maestro_screenshot android-scan-saved "$E2E_REPORT_DIR/android-scan-saved.png"
+      copy_maestro_screenshot scan-fixture android-scan-result "$E2E_REPORT_DIR/android-scan-result.png"
+      copy_maestro_screenshot scan-fixture android-scan-saved "$E2E_REPORT_DIR/android-scan-saved.png"
     fi
     if ! adb -s "$android_device" exec-out screencap -p \
       >"$E2E_REPORT_DIR/android-live-sync.png"; then
@@ -277,7 +338,7 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
   fi
   expected_scan_count=0
   [[ -n "$scan_fixture_source" ]] && expected_scan_count=2
-  if [[ "$android_ready" -eq 1 ]] && ! E2E_EXPECT_SCAN_COUNT="$expected_scan_count" \
+  if [[ "$android_ready" -eq 1 ]] && ! E2E_EXPECT_PRODUCT_DATA=1 E2E_EXPECT_SCAN_COUNT="$expected_scan_count" \
     node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts snapshot; then
     record_failure "Android cloud snapshot"
   fi
@@ -296,7 +357,8 @@ if [[ "$cloud_snapshot_ok" -eq 1 ]]; then
 fi
 
 if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
-  if ! maestro --device "$android_device" test .maestro/android-restore.yml; then
+  if ! maestro --device "$android_device" test .maestro/android-restore.yml \
+    --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
     if node --import tsx tests/e2e/android-preflight.ts "$android_device"; then
       record_failure "Android account restore flow"
     else

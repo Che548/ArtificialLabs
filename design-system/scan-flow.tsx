@@ -704,12 +704,7 @@ function BriefingScreen({
         top={headerTop}
       />
 
-      <View
-        style={[
-          styles.briefingContent,
-          { paddingTop: headerTop + 64 },
-        ]}
-      >
+      <View style={[styles.briefingContent, { paddingTop: headerTop + 64 }]}>
         <View style={styles.briefingHero}>
           <AppText role="title" weight="semibold" style={styles.centerText}>
             Перед сканированием
@@ -768,7 +763,7 @@ function BriefingScreen({
               ]}
             >
               <AppText role="label" weight="medium">
-                ‹  Назад
+                ‹ Назад
               </AppText>
             </Pressable>
           </View>
@@ -1891,6 +1886,7 @@ function ResultPreview({
           configuration,
           imageSize,
           viewSize,
+          'contain',
         )
       : null;
 
@@ -1913,7 +1909,7 @@ function ResultPreview({
             const { width, height } = event.nativeEvent.source;
             setImageSize({ width, height });
           }}
-          resizeMode="cover"
+          resizeMode="contain"
           source={{ uri: imageUri }}
           style={styles.resultCapturedImage}
         />
@@ -3320,6 +3316,7 @@ const styles = StyleSheet.create({
   resultCapturedImage: {
     width: '100%',
     height: '100%',
+    backgroundColor: '#F7F1ED',
   },
   resultImageUnavailable: {
     ...StyleSheet.absoluteFillObject,

@@ -21,6 +21,7 @@ type ImageSize = {
 };
 
 type ViewSize = ImageSize;
+type ResizeMode = 'cover' | 'contain';
 
 const isFinitePoint = (point: readonly number[]): boolean =>
   point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1]);
@@ -29,6 +30,7 @@ const sourcePointToView = (
   point: readonly number[],
   imageSize: ImageSize,
   viewSize: ViewSize,
+  resizeMode: ResizeMode,
 ): OverlayPoint | null => {
   if (
     !isFinitePoint(point) ||
@@ -40,12 +42,16 @@ const sourcePointToView = (
     return null;
   }
 
-  // This mirrors Image resizeMode="cover": the image is centered after
-  // scaling until the shorter view dimension is filled.
-  const scale = Math.max(
-    viewSize.width / imageSize.width,
-    viewSize.height / imageSize.height,
-  );
+  const scale =
+    resizeMode === 'contain'
+      ? Math.min(
+          viewSize.width / imageSize.width,
+          viewSize.height / imageSize.height,
+        )
+      : Math.max(
+          viewSize.width / imageSize.width,
+          viewSize.height / imageSize.height,
+        );
   const renderedWidth = imageSize.width * scale;
   const renderedHeight = imageSize.height * scale;
   return {
@@ -58,12 +64,13 @@ const mapSourcePolygon = (
   points: readonly (readonly number[])[],
   imageSize: ImageSize,
   viewSize: ViewSize,
+  resizeMode: ResizeMode,
 ): OverlayPoint[] | null => {
   if (points.length < 2) {
     return null;
   }
   const mapped = points.map((point) =>
-    sourcePointToView(point, imageSize, viewSize),
+    sourcePointToView(point, imageSize, viewSize, resizeMode),
   );
   return mapped.every((point): point is OverlayPoint => point !== null)
     ? mapped
@@ -141,6 +148,7 @@ const mapCanonicalPolygon = (
   points: readonly OverlayPoint[],
   imageSize: ImageSize,
   viewSize: ViewSize,
+  resizeMode: ResizeMode,
 ): OverlayPoint[] | null => {
   const sourcePoints = points.map((point) => canonicalToSource(result, point));
   if (!sourcePoints.every((point): point is OverlayPoint => point !== null)) {
@@ -150,6 +158,7 @@ const mapCanonicalPolygon = (
     sourcePoints.map((point) => [point.x, point.y]),
     imageSize,
     viewSize,
+    resizeMode,
   );
 };
 
@@ -205,13 +214,20 @@ export function getScanOverlayGeometry(
   configuration: ActiveCvConfiguration,
   imageSize: ImageSize,
   viewSize: ViewSize,
+  resizeMode: ResizeMode = 'cover',
 ): ScanOverlayGeometry {
-  const strip = mapSourcePolygon(result.geometry.corners, imageSize, viewSize);
+  const strip = mapSourcePolygon(
+    result.geometry.corners,
+    imageSize,
+    viewSize,
+    resizeMode,
+  );
   const calibrationTile = result.geometry.calibration_tile.detected
     ? mapSourcePolygon(
         result.geometry.calibration_tile.corners,
         imageSize,
         viewSize,
+        resizeMode,
       )
     : null;
   const controlWindow = mapCanonicalPolygon(
@@ -219,12 +235,14 @@ export function getScanOverlayGeometry(
     canonicalWindow(configuration, configuration.assayProfile.control_window),
     imageSize,
     viewSize,
+    resizeMode,
   );
   const testWindow = mapCanonicalPolygon(
     result,
     canonicalWindow(configuration, configuration.assayProfile.test_window),
     imageSize,
     viewSize,
+    resizeMode,
   );
   const controlPeak = result.peaks.control.detected
     ? mapCanonicalPolygon(
@@ -232,6 +250,7 @@ export function getScanOverlayGeometry(
         canonicalPeak(configuration, result.peaks.control.position),
         imageSize,
         viewSize,
+        resizeMode,
       )
     : null;
   const testPeak = result.peaks.test.detected
@@ -240,6 +259,7 @@ export function getScanOverlayGeometry(
         canonicalPeak(configuration, result.peaks.test.position),
         imageSize,
         viewSize,
+        resizeMode,
       )
     : null;
 

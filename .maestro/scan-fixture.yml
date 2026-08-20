@@ -1,5 +1,20 @@
 appId: com.anonymous.privateexpo
 ---
+- runFlow:
+    when:
+      visible: 'Закрыть историю чатов'
+    commands:
+      - tapOn: 'Закрыть историю чатов'
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: 'Вернуться к началу чата'
+    commands:
+      - tapOn: 'Вернуться к началу чата'
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: 'Скан'
+    timeout: 30000
 - tapOn: 'Скан'
 - extendedWaitUntil:
     visible:

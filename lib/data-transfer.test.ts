@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createEntityCsv, createJsonArchive, parseImportPayload } from './data-transfer';
+import {
+  createEntityCsv,
+  createJsonArchive,
+  parseImportPayload,
+} from './data-transfer';
 import { createEmptySnapshot } from './health-types';
 
 test('JSON archive strips all device-only URIs', () => {
@@ -43,5 +47,53 @@ test('CSV round trip preserves quoted content and stable ids', () => {
 });
 
 test('unsupported JSON is rejected', () => {
-  assert.throws(() => parseImportPayload('{"version":99}'), /UNSUPPORTED_ARCHIVE/);
+  assert.throws(
+    () => parseImportPayload('{"version":99}'),
+    /UNSUPPORTED_ARCHIVE/,
+  );
+});
+
+test('legacy journal import is normalized before it reaches the outbox', () => {
+  const preview = parseImportPayload(
+    JSON.stringify({
+      schema: 'artificiallabs-health-archive',
+      version: 1,
+      entities: {
+        journalEntries: [
+          {
+            localId: 'legacy_journal_1',
+            entryDate: 10,
+            symptoms: ['Головная боль'],
+            notes: 'После сна',
+            updatedAt: 11,
+          },
+        ],
+      },
+    }),
+  );
+  assert.deepEqual(preview.records.journalEntries?.[0], {
+    localId: 'legacy_journal_1',
+    occurredAt: 10,
+    kind: 'symptom',
+    label: 'Головная боль',
+    source: 'manual',
+    textValue: 'После сна',
+    updatedAt: 11,
+  });
+});
+
+test('journal import rejects records without a usable date', () => {
+  assert.throws(
+    () =>
+      parseImportPayload(
+        JSON.stringify({
+          schema: 'artificiallabs-health-archive',
+          version: 1,
+          entities: {
+            journalEntries: [{ localId: 'broken_journal', updatedAt: 11 }],
+          },
+        }),
+      ),
+    /INVALID_JOURNAL_OCCURRED_AT/,
+  );
 });

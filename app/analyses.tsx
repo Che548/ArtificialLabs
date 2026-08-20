@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -39,6 +40,17 @@ const bloodTubesImage = require('../assets/analyses/blood-tubes.png');
 const ultrasoundImage = require('../assets/analyses/ultrasound.png');
 const hysteroscopeImage = require('../assets/analyses/hysteroscope.png');
 const mascotHandsImage = require('../assets/analyses/mascot-hands-reference.png');
+
+const e2eDocumentFixtureUri =
+  __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
+    ? Platform.OS === 'ios'
+      ? (process.env.EXPO_PUBLIC_E2E_DOCUMENT_FIXTURE_IOS_URI ??
+        process.env.EXPO_PUBLIC_E2E_SCAN_FIXTURE_IOS_URI)
+      : Platform.OS === 'android'
+        ? (process.env.EXPO_PUBLIC_E2E_DOCUMENT_FIXTURE_ANDROID_URI ??
+          process.env.EXPO_PUBLIC_E2E_SCAN_FIXTURE_ANDROID_URI)
+        : undefined
+    : undefined;
 
 type PlannedAnalysis = Omit<AnalysisPlanCardProps, 'onView'> & {
   clinic: string;
@@ -181,6 +193,15 @@ export default function AnalysesScreen() {
     setAttachmentError(undefined);
 
     try {
+      if (e2eDocumentFixtureUri) {
+        setPendingAttachment({
+          kind,
+          name: 'e2e-lab-result.jpg',
+          uri: e2eDocumentFixtureUri,
+        });
+        return;
+      }
+
       if (kind === 'photo') {
         const permission =
           await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -753,6 +774,7 @@ export default function AnalysesScreen() {
                 >
                   <Pressable
                     accessibilityRole="button"
+                    testID="e2e-analysis-save"
                     accessibilityLabel={
                       pendingAttachment ? 'Сохранить результат' : 'Готово'
                     }

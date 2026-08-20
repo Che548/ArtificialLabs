@@ -1,0 +1,130 @@
+{
+  "definition": "Every currently implemented, in-scope product capability has executable evidence; deferred roadmap items and development-only catalog screens are not product capabilities.",
+  "capabilities": [
+    {
+      "id": "auth-onboarding",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": [
+        "ios-primary.yml",
+        "android-secondary.yml",
+        "backend.live.ts"
+      ]
+    },
+    {
+      "id": "cloud-opt-in-sync",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": [
+        "ios-primary.yml",
+        "android-secondary.yml",
+        "native-account.ts"
+      ]
+    },
+    {
+      "id": "today-monitoring",
+      "platforms": ["ios", "android"],
+      "evidence": ["product-surface.yml"]
+    },
+    {
+      "id": "calendar",
+      "platforms": ["ios", "android"],
+      "evidence": ["product-surface.yml"]
+    },
+    {
+      "id": "journal-import",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": [
+        "product-surface.yml",
+        "data-transfer.test.ts",
+        "native-account.ts"
+      ]
+    },
+    {
+      "id": "analyses-tabs-charts",
+      "platforms": ["ios", "android"],
+      "evidence": ["product-surface.yml"]
+    },
+    {
+      "id": "lab-result-local-file-cloud-metadata",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": ["product-surface.yml", "native-account.ts"]
+    },
+    {
+      "id": "chat-demo-history",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": ["product-surface.yml", "native-account.ts"]
+    },
+    {
+      "id": "medical-history-crud",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": ["product-surface.yml", "native-account.ts"]
+    },
+    {
+      "id": "medication-crud",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": ["product-surface.yml", "native-account.ts"]
+    },
+    {
+      "id": "allergy-crud",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": ["product-surface.yml", "native-account.ts"]
+    },
+    {
+      "id": "programs",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": ["product-surface.yml", "native-account.ts"]
+    },
+    {
+      "id": "documents-local-file-cloud-metadata",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": ["product-surface.yml", "native-account.ts"]
+    },
+    {
+      "id": "json-import-dedup",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": [
+        "product-surface.yml",
+        "data-transfer.test.ts",
+        "native-account.ts"
+      ]
+    },
+    {
+      "id": "json-csv-export-no-uri",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": [
+        "product-surface.yml",
+        "data-transfer.test.ts",
+        "native-account.ts"
+      ]
+    },
+    {
+      "id": "scan-full-strip-correction-history",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": ["scan-fixture.yml", "native-account.ts"]
+    },
+    {
+      "id": "ownership-conflicts-tombstones",
+      "platforms": ["backend"],
+      "evidence": ["health.test.ts", "backend.live.ts"]
+    },
+    {
+      "id": "account-delete-restore",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": ["ios-delete.yml", "android-restore.yml", "native-account.ts"]
+    },
+    {
+      "id": "web-read-only-demo",
+      "platforms": ["web"],
+      "evidence": ["web.spec.ts"]
+    }
+  ],
+  "deferred": [
+    "real-ai",
+    "push-notifications",
+    "sms-auth",
+    "ocr",
+    "healthkit-health-connect",
+    "admin-panel",
+    "physical-camera-optics-automation"
+  ],
+  "excluded": ["development-ui-kit", "saved-design-previews"]
+}

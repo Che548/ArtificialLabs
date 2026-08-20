@@ -79,6 +79,7 @@
     "e2e:backend": "node --env-file-if-exists=.env.local --import tsx tests/e2e/backend.live.ts",
     "e2e:web": "playwright test tests/e2e/web.spec.ts",
     "e2e:native": "./scripts/run-native-e2e.sh",
+    "e2e:coverage": "tsx scripts/validate-e2e-coverage.ts",
     "e2e:all": "npm run e2e:backend && npm run e2e:web && npm run e2e:native",
     "e2e:cleanup": "node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts cleanup",
     "verify": "npm run check:expo && npm run typecheck && npm run doctor && npm run build:web"
