@@ -201,13 +201,11 @@ function GlassControl({
           accessibilityLabel={accessibilityLabel}
           onPress={onPress}
           style={({ pressed }) => [
-            StyleSheet.absoluteFillObject,
+            styles.androidGlassPressTarget,
             pressed && styles.fallbackPressed,
           ]}
         >
-          <View pointerEvents="none" style={styles.androidGlassControlContent}>
-            {children}
-          </View>
+          {children}
         </Pressable>
       </View>
     );
@@ -520,10 +518,6 @@ export default function ScanScreen() {
     }
   };
 
-  const showPlaceholder = (title: string) => {
-    Alert.alert(title, 'Раздел будет подключён к соответствующему сценарию.');
-  };
-
   const openExternalUrl = async (url: string) => {
     try {
       await Linking.openURL(url);
@@ -607,7 +601,7 @@ export default function ScanScreen() {
             <AppHeader
               style={[styles.header, { top: headerTop }]}
               onHistory={() => setHistoryVisible(true)}
-              onDate={() => showPlaceholder('Выбор даты')}
+              onDate={() => setCalendarVisible(true)}
               onCalendar={() => setCalendarVisible(true)}
             />
 
@@ -623,6 +617,7 @@ export default function ScanScreen() {
 
               <View style={styles.scanButton}>
                 <Pressable
+                  accessible
                   accessibilityRole="button"
                   accessibilityLabel="Начать сканирование"
                   onPress={() => setScanFlowVisible(true)}
@@ -636,6 +631,8 @@ export default function ScanScreen() {
                     >
                       <ScanIcon width={20} height={20} />
                       <Text
+                        accessible={false}
+                        importantForAccessibility="no"
                         style={[
                           styles.scanButtonLabel,
                           { fontFamily: sfRegular },
@@ -1085,7 +1082,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   androidGlassControlContent: {
-    flex: 1,
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidGlassPressTarget: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },

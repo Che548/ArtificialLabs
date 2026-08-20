@@ -285,6 +285,8 @@ function ChatPopupMenu({
 
   return (
     <Animated.View
+      accessibilityViewIsModal={visible}
+      importantForAccessibility={visible ? 'yes' : 'no-hide-descendants'}
       pointerEvents={visible ? 'auto' : 'none'}
       style={[
         styles.attachmentMenuWrap,
@@ -331,8 +333,12 @@ function ChatPopupMenu({
         {actions.map((action) => (
           <View key={action.id} style={styles.attachmentMenuRowSlot}>
             <Pressable
+              accessible
               accessibilityRole="button"
               accessibilityLabel={action.label}
+              focusable
+              importantForAccessibility="yes"
+              testID={`chat-popup-${action.id}`}
               onPress={action.onPress}
               style={({ pressed }) => [
                 styles.attachmentMenuItem,
@@ -353,6 +359,8 @@ function ChatPopupMenu({
                 />
               </View>
               <Text
+                accessible={false}
+                importantForAccessibility="no"
                 style={[
                   styles.attachmentMenuLabel,
                   action.destructive && styles.popupMenuLabelDestructive,
@@ -1037,12 +1045,20 @@ export function ChatMessageBubble({
   isThinking = false,
   reduceMotion = false,
   variant = 1,
+  onCopy,
+  onEdit,
+  onShare,
+  onReport,
 }: {
   children: ReactNode;
   assistant?: boolean;
   isThinking?: boolean;
   reduceMotion?: boolean;
   variant?: ChatMessageVariant;
+  onCopy?: () => void;
+  onEdit?: () => void;
+  onShare?: () => void;
+  onReport?: () => void;
 }) {
   const config = chatMessageVariantConfigs[variant];
   const responseProgress = useRef(
@@ -1060,11 +1076,13 @@ export function ChatMessageBubble({
         ][index],
         symbol,
         customIcon: config.customIcons ? customActionIcons[index] : undefined,
+        onPress: [onCopy, onShare, onReport][index],
       }))
     : config.userActions.map((symbol, index) => ({
         label: ['Копировать сообщение', 'Редактировать сообщение'][index],
         symbol,
         customIcon: config.customIcons ? customActionIcons[index] : undefined,
+        onPress: [onCopy, onEdit][index],
       }));
 
   useEffect(() => {
@@ -1197,6 +1215,7 @@ export function ChatMessageBubble({
             key={action.label}
             accessibilityRole="button"
             accessibilityLabel={action.label}
+            onPress={action.onPress}
             style={styles.messageAction}
           >
             {action.customIcon ? (

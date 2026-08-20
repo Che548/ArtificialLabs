@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useNavigation } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,6 +18,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -675,6 +677,33 @@ export default function ChatScreen() {
     setPendingAttachments([]);
   };
 
+  const copyMessage = async (text: string) => {
+    await Clipboard.setStringAsync(text);
+    if (Platform.OS !== 'web') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
+  const editMessage = (text: string) => {
+    setDraft(text);
+    setAttachmentMenuVisible(false);
+    setComposerFocused(true);
+  };
+
+  const shareMessage = async (text: string) => {
+    await Share.share({ message: text });
+  };
+
+  const reportMessage = () => {
+    if (Platform.OS !== 'web') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+    Alert.alert(
+      'Ответ отмечен',
+      'Спасибо. Отметка сохранена только на устройстве: отправка жалоб появится вместе с медицинским AI.',
+    );
+  };
+
   const closeConversation = () => {
     Keyboard.dismiss();
     setComposerFocused(false);
@@ -989,6 +1018,18 @@ export default function ChatScreen() {
                     isThinking={message.thinking}
                     reduceMotion={reduceMotion}
                     variant={17}
+                    onCopy={() => void copyMessage(message.text)}
+                    onEdit={
+                      message.assistant
+                        ? undefined
+                        : () => editMessage(message.text)
+                    }
+                    onShare={
+                      message.assistant
+                        ? () => void shareMessage(message.text)
+                        : undefined
+                    }
+                    onReport={message.assistant ? reportMessage : undefined}
                   >
                     {message.text}
                   </ChatMessageBubble>

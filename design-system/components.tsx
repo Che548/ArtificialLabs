@@ -945,13 +945,11 @@ export function GlassControl({
           accessibilityLabel={accessibilityLabel}
           onPress={onPress}
           style={({ pressed }) => [
-            StyleSheet.absoluteFillObject,
+            styles.androidGlassPressTarget,
             pressed && styles.androidGlassPressed,
           ]}
         >
-          <View pointerEvents="none" style={styles.androidGlassControlContent}>
-            {children}
-          </View>
+          {children}
         </Pressable>
       </View>
     );
@@ -4121,7 +4119,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   androidGlassControlContent: {
-    flex: 1,
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidGlassPressTarget: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },

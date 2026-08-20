@@ -1408,12 +1408,13 @@ export function JournalFlowModal({
                   tintColor={colors.surface.headerGlassWash}
                   washColor={colors.surface.headerGlassWash}
                 >
-                  <BackIcon
-                    width={25}
-                    height={25}
-                    color={colors.brand.primary}
-                    style={styles.backIcon}
-                  />
+                  <View style={styles.backIcon}>
+                    <BackIcon
+                      width={25}
+                      height={25}
+                      color={colors.brand.primary}
+                    />
+                  </View>
                 </GlassControl>
 
                 <GlassControl

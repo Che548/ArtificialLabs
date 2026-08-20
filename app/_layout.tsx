@@ -2,7 +2,6 @@ import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useConvexAuth } from 'convex/react';
 import { useFonts } from 'expo-font';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs as RouterTabs } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
@@ -391,12 +390,6 @@ function AndroidTabs() {
 function AndroidTabBarMaterial() {
   return (
     <View pointerEvents="none" style={styles.androidTabBarMaterial}>
-      <BlurView
-        tint="light"
-        intensity={42}
-        experimentalBlurMethod="dimezisBlurView"
-        style={StyleSheet.absoluteFillObject}
-      />
       <LinearGradient
         colors={[
           'rgba(255,255,255,0.92)',

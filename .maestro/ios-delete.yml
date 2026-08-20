@@ -13,6 +13,6 @@ appId: com.anonymous.privateexpo
       text: "Удаление аккаунта"
     direction: DOWN
 - tapOn: "Удаление аккаунта"
-- tapOn: "Запланировать удаление аккаунта"
+- tapOn: "Удалить аккаунт и все данные"
 - tapOn: "Подтвердить удаление через 30 дней"
 - assertVisible: "Аккаунт ожидает удаления"

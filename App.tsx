@@ -33,7 +33,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Rect } from 'react-native-svg';
 import type {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -217,7 +216,6 @@ function LiquidGlassSurface({
 
 type LiquidGlassPressableProps = LiquidGlassSurfaceProps & {
   accessibilityLabel: string;
-  androidShape?: 'circle' | 'pill';
   controlStyle: StyleProp<ViewStyle>;
   onPress?: () => void;
   headerElevation?: boolean;
@@ -225,7 +223,6 @@ type LiquidGlassPressableProps = LiquidGlassSurfaceProps & {
 
 function LiquidGlassPressable({
   accessibilityLabel,
-  androidShape = 'circle',
   children,
   controlStyle,
   onPress,
@@ -265,56 +262,25 @@ function LiquidGlassPressable({
   }
 
   if (Platform.OS === 'android') {
+    const androidMaterial =
+      highlight === 'dark' ? androidMaterials.dark : androidMaterials.light;
+
     return (
       <View
         style={[
           controlStyle,
+          styles.androidMaterialControl,
+          androidMaterial,
+          headerElevation ? androidShadows.control : undefined,
           { borderRadius: radius },
         ]}
       >
-        <Svg
-          pointerEvents="none"
-          width="100%"
-          height="100%"
-          style={StyleSheet.absoluteFillObject}
-        >
-          {androidShape === 'circle' ? (
-            <Circle
-              cx="50%"
-              cy="50%"
-              r="48.5%"
-              fill={
-                highlight === 'dark'
-                  ? 'rgba(31,24,27,0.82)'
-                  : 'rgba(255,250,252,0.82)'
-              }
-              stroke={
-                highlight === 'dark'
-                  ? 'rgba(255,255,255,0.24)'
-                  : 'rgba(255,255,255,0.94)'
-              }
-              strokeWidth={1}
-            />
-          ) : (
-            <Rect
-              x="0.5%"
-              y="1%"
-              width="99%"
-              height="98%"
-              rx={24}
-              ry={24}
-              fill="rgba(255,250,252,0.82)"
-              stroke="rgba(255,255,255,0.94)"
-              strokeWidth={1}
-            />
-          )}
-        </Svg>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
           onPress={onPress}
           style={({ pressed }) => [
-            StyleSheet.absoluteFillObject,
+            styles.androidGlassPressTarget,
             pressed && styles.glassFallbackPressed,
           ]}
         >
@@ -657,9 +623,9 @@ function MonitoringScreen({
 
         <LiquidGlassPressable
           accessibilityLabel="Выбрать дату"
-          androidShape="pill"
           controlStyle={styles.datePill}
           headerElevation
+          onPress={onCalendarPress}
           tintColor={colors.surface.headerGlassWash}
           washColor={colors.surface.headerGlassWash}
         >
@@ -957,6 +923,8 @@ function PlanningQuickAction({
         {content}
       </LiquidGlassPressable>
       <ProjectText
+        accessible={false}
+        importantForAccessibility="no"
         numberOfLines={2}
         style={styles.planningActionLabel}
         weight="semibold"
@@ -1350,9 +1318,9 @@ function PlanningMonitoringScreen({
         </LiquidGlassPressable>
         <LiquidGlassPressable
           accessibilityLabel="Выбрать дату"
-          androidShape="pill"
           controlStyle={styles.datePill}
           headerElevation
+          onPress={onCalendarPress}
           tintColor={colors.surface.headerGlassWash}
           washColor={colors.surface.headerGlassWash}
         >
@@ -2623,6 +2591,12 @@ const styles = StyleSheet.create({
   },
   androidGlassControlContent: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidGlassPressTarget: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
