@@ -26,6 +26,7 @@ import { AuthScreen } from '../components/AuthScreen';
 import { convex } from '../lib/convex';
 import { ConnectivityBanner, ConnectivityProvider } from '../lib/connectivity';
 import { HealthStoreProvider } from '../lib/health-store';
+import { NotificationManagerProvider } from '../lib/notification-manager';
 import { authTokenStorage } from '../lib/secure-storage';
 import {
   androidMaterials,
@@ -440,19 +441,21 @@ function WebDemo() {
 
   return (
     <HealthStoreProvider mode="demo">
-      <AppGate allowEmptyProfile>
-        <View className="flex-1">
-          <Tabs />
-          <View
-            pointerEvents="none"
-            className="absolute left-3 right-3 top-3 z-50 items-center rounded-full bg-ink/90 px-4 py-2"
-          >
-            <Text className="font-sf-medium text-[12px] text-white">
-              Web demo · медицинские данные не сохраняются
-            </Text>
+      <NotificationManagerProvider>
+        <AppGate allowEmptyProfile>
+          <View className="flex-1">
+            <Tabs />
+            <View
+              pointerEvents="none"
+              className="absolute left-3 right-3 top-3 z-50 items-center rounded-full bg-ink/90 px-4 py-2"
+            >
+              <Text className="font-sf-medium text-[12px] text-white">
+                Web demo · медицинские данные не сохраняются
+              </Text>
+            </View>
           </View>
-        </View>
-      </AppGate>
+        </AppGate>
+      </NotificationManagerProvider>
     </HealthStoreProvider>
   );
 }
@@ -475,9 +478,11 @@ function NativeApp() {
   if (devMode) {
     return (
       <HealthStoreProvider mode="local">
-        <AppGate allowEmptyProfile>
-          <Tabs />
-        </AppGate>
+        <NotificationManagerProvider>
+          <AppGate allowEmptyProfile>
+            <Tabs />
+          </AppGate>
+        </NotificationManagerProvider>
       </HealthStoreProvider>
     );
   }
@@ -492,9 +497,11 @@ function NativeApp() {
 
   return (
     <HealthStoreProvider>
-      <AppGate>
-        <Tabs />
-      </AppGate>
+      <NotificationManagerProvider>
+        <AppGate>
+          <Tabs />
+        </AppGate>
+      </NotificationManagerProvider>
     </HealthStoreProvider>
   );
 }

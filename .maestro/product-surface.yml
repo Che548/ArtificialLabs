@@ -134,6 +134,14 @@ appId: com.anonymous.privateexpo
 - waitForAnimationToEnd
 - tapOn: 'Настройки уведомлений'
 - tapOn: 'Разрешить уведомления'
+- tapOn:
+    text: 'Allow|Разрешить'
+    optional: true
+- tapOn: 'Милый'
+- tapOn: 'Отправить тестовое уведомление'
+- extendedWaitUntil:
+    visible: 'Тестовое уведомление появится через пару секунд.'
+    timeout: 10000
 - tapOn: 'Результаты и анализы'
 - tapOn:
     text: 'Вернуться в профиль'

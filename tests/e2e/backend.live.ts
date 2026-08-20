@@ -85,7 +85,7 @@ function fullBatch(now: number) {
     documents: [{ localId: `${runId}-document`, title: 'E2E документ', category: 'medical' as const, documentDate: now, hasLocalFile: true, mimeType: 'application/pdf', size: 128, updatedAt: now }],
     chatConversations: [{ localId: `${runId}-conversation`, title: 'E2E чат', createdAt: now, lastMessageAt: now, updatedAt: now }],
     chatMessages: [{ localId: `${runId}-message`, conversationLocalId: `${runId}-conversation`, role: 'assistant' as const, source: 'demo' as const, text: 'E2E demo response', sentAt: now, attachments: [{ localId: `${runId}-attachment`, kind: 'document' as const, name: 'fixture.pdf', mimeType: 'application/pdf', size: 128, availableLocally: false }], updatedAt: now }],
-    preferences: [{ localId: 'preferences' as const, notificationsEnabled: false, journalNotifications: false, resultNotifications: false, anonymousAnalytics: false, medicalRecommendations: false, language: 'ru' as const, region: 'RU', updatedAt: now }],
+    preferences: [{ localId: 'preferences' as const, notificationsEnabled: false, journalNotifications: false, resultNotifications: false, notificationTone: 'formal' as const, anonymousAnalytics: false, medicalRecommendations: false, language: 'ru' as const, region: 'RU', updatedAt: now }],
   };
 }
 
@@ -156,6 +156,16 @@ async function main() {
     const snapshot = await alice.query(api.health.snapshot, {});
     assert.equal(snapshot.medications.length, 1);
     assert.equal(snapshot.chatMessages.length, 1);
+  });
+
+  await step('push component is owner-scoped and safe without a token', async () => {
+    const status = await alice.query(api.notifications.status, {});
+    assert.equal(status, null);
+    assert.deepEqual(await alice.mutation(api.notifications.sendTest, { tone: 'cute' }), { queued: false });
+    await assert.rejects(
+      alice.mutation(api.notifications.registerToken, { pushToken: 'not-a-token' }),
+      /INVALID_EXPO_PUSH_TOKEN/,
+    );
   });
 
   await step('updatedAt conflict and tombstone converge', async () => {

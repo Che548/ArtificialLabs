@@ -70,6 +70,7 @@ import {
 } from '../design-system';
 import { api } from '../convex/_generated/api';
 import { useHealthStore } from '../lib/health-store';
+import { useNotificationManager } from '../lib/notification-manager';
 import {
   createEntityCsv,
   createJsonArchive,
@@ -190,6 +191,7 @@ export default function ProfileScreen() {
   const { isAuthenticated } = useConvexAuth();
   const aiChatStatus = useQuery(api.chat.status, isAuthenticated ? {} : 'skip');
   const revokeAiChatConsent = useMutation(api.chat.revokeConsent);
+  const notificationManager = useNotificationManager();
   const {
     accountDeletion,
     allergyRisks,
@@ -221,9 +223,12 @@ export default function ProfileScreen() {
   const [activeSection, setActiveSection] = useState<ProfileSection | null>(
     null,
   );
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [journalNotifications, setJournalNotifications] = useState(true);
   const [resultNotifications, setResultNotifications] = useState(true);
+  const [notificationTone, setNotificationTone] = useState<'formal' | 'cute'>(
+    'formal',
+  );
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
   const [medicalRecommendations, setMedicalRecommendations] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string>();
@@ -250,6 +255,7 @@ export default function ProfileScreen() {
     setNotificationsEnabled(stored.notificationsEnabled);
     setJournalNotifications(stored.journalNotifications);
     setResultNotifications(stored.resultNotifications);
+    setNotificationTone(stored.notificationTone ?? 'formal');
     setAnalyticsEnabled(stored.anonymousAnalytics);
     setMedicalRecommendations(stored.medicalRecommendations);
   }, [preferences]);
@@ -499,6 +505,9 @@ export default function ProfileScreen() {
                 medicalRecommendations,
                 journalNotifications,
                 notificationsEnabled,
+                notificationBusy: notificationManager.busy,
+                notificationMessage: notificationManager.message,
+                notificationTone,
                 openSystemSettings: () => void Linking.openSettings(),
                 profile,
                 programs: visiblePrograms,
@@ -516,8 +525,11 @@ export default function ProfileScreen() {
                 setJournalNotifications,
                 setMedicalRecommendations,
                 setNotificationsEnabled,
+                setNotificationPermission: notificationManager.setEnabled,
+                setNotificationTone,
                 setProgramStatus,
                 setResultNotifications,
+                sendTestNotification: notificationManager.sendTest,
                 signOut: () => void signOut(),
                 requestAccountDeletion,
                 serviceIssue,
@@ -903,6 +915,9 @@ function renderProfileSectionDirect({
   medications,
   medicalRecommendations,
   notificationsEnabled,
+  notificationBusy,
+  notificationMessage,
+  notificationTone,
   openSystemSettings,
   profile,
   programs,
@@ -923,8 +938,11 @@ function renderProfileSectionDirect({
   setJournalNotifications,
   setMedicalRecommendations,
   setNotificationsEnabled,
+  setNotificationPermission,
+  setNotificationTone,
   setProgramStatus,
   setResultNotifications,
+  sendTestNotification,
   signOut,
   syncMessage,
   syncNow,
@@ -948,6 +966,9 @@ function renderProfileSectionDirect({
   medications: Medication[];
   medicalRecommendations: boolean;
   notificationsEnabled: boolean;
+  notificationBusy: boolean;
+  notificationMessage?: string;
+  notificationTone: 'formal' | 'cute';
   openSystemSettings: () => void;
   profile: LocalProfile | null;
   programs: MonitoringProgram[];
@@ -974,6 +995,7 @@ function renderProfileSectionDirect({
     notificationsEnabled?: boolean;
     journalNotifications?: boolean;
     resultNotifications?: boolean;
+    notificationTone?: 'formal' | 'cute';
   }) => Promise<void>;
   saveProfile: (
     input: Partial<Omit<LocalProfile, 'updatedAt'>>,
@@ -984,11 +1006,16 @@ function renderProfileSectionDirect({
   setJournalNotifications: (value: boolean) => void;
   setMedicalRecommendations: (value: boolean) => void;
   setNotificationsEnabled: (value: boolean) => void;
+  setNotificationPermission: (
+    enabled: boolean,
+  ) => Promise<'enabled' | 'local-only' | 'denied' | 'disabled'>;
+  setNotificationTone: (value: 'formal' | 'cute') => void;
   setProgramStatus: (
     program: MonitoringProgram,
     status: MonitoringProgram['status'],
   ) => Promise<void>;
   setResultNotifications: (value: boolean) => void;
+  sendTestNotification: (tone: 'formal' | 'cute') => Promise<boolean>;
   signOut: () => void;
   syncMessage?: string;
   syncNow: () => void;
@@ -1342,10 +1369,16 @@ function renderProfileSectionDirect({
             <ProfileToggleRow
               label="Разрешить уведомления"
               value={notificationsEnabled}
-              onChange={(value) => {
-                setNotificationsEnabled(value);
-                void savePreferences({ notificationsEnabled: value });
-              }}
+              disabled={notificationBusy || readOnly}
+              testID="notification-master-toggle"
+              onChange={(value) =>
+                void (async () => {
+                  const result = await setNotificationPermission(value);
+                  setNotificationsEnabled(
+                    result === 'enabled' || result === 'local-only',
+                  );
+                })()
+              }
             />
             <ProfileToggleRow
               label="Системные"
@@ -1367,10 +1400,41 @@ function renderProfileSectionDirect({
               isLast
             />
           </ProfileSettingsGroup>
+          <ProfileSettingsGroup title="Стиль уведомлений">
+            <View style={{ padding: spacing.md }}>
+              <ProfileChoiceControl
+                accessibilityLabel="Стиль уведомлений"
+                defaultValue="formal"
+                value={notificationTone}
+                options={[
+                  { label: 'Формальный', value: 'formal' },
+                  { label: 'Милый', value: 'cute' },
+                ]}
+                onChange={(value) => {
+                  setNotificationTone(value);
+                  void savePreferences({ notificationTone: value });
+                }}
+              />
+            </View>
+          </ProfileSettingsGroup>
+          <ProfileActionRow
+            secondary
+            icon="bell.badge.fill"
+            label="Отправить тестовое уведомление"
+            disabled={notificationBusy || !notificationsEnabled}
+            onPress={() => void sendTestNotification(notificationTone)}
+          />
+          {notificationMessage ? (
+            <ProfileEmptyMessage title={notificationMessage} />
+          ) : null}
           <ProfileActionRow
             secondary
             icon="gearshape.fill"
-            label="Открыть настройки iPhone"
+            label={
+              Platform.OS === 'ios'
+                ? 'Открыть настройки iPhone'
+                : 'Открыть настройки устройства'
+            }
             onPress={openSystemSettings}
           />
         </>

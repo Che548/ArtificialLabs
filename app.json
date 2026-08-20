@@ -40,6 +40,13 @@
         }
       ],
       "expo-router",
+      [
+        "expo-notifications",
+        {
+          "color": "#EA4087",
+          "defaultChannel": "health-reminders"
+        }
+      ],
       "expo-web-browser",
       [
         "expo-image-picker",

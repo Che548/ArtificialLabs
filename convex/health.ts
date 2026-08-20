@@ -183,6 +183,7 @@ const preferences = v.object({
   notificationsEnabled: v.boolean(),
   journalNotifications: v.boolean(),
   resultNotifications: v.boolean(),
+  notificationTone: v.optional(v.union(v.literal('formal'), v.literal('cute'))),
   anonymousAnalytics: v.boolean(),
   medicalRecommendations: v.boolean(),
   language: v.literal('ru'),

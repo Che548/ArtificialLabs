@@ -29,9 +29,13 @@ key, or production data. Run `npx convex dev --once --env-file .env.local` to
 push functions and regenerate `convex/_generated`, or `npx convex codegen` when
 only local bindings need regeneration. Finish changes with `npm run verify`.
 
-Push notifications are intentionally out of scope for the initial integration.
-Do not install or configure `@convex-dev/expo-push-notifications` until a
-separate feature explicitly requires it.
+Notifications use `expo-notifications` for on-device scheduling and
+`@convex-dev/expo-push-notifications` for remote delivery. The 40 approved
+events and their formal/cute copy live in `shared/notification-copy.ts`.
+Local notifications work in native development builds. Remote push requires an
+EAS `projectId` plus valid APNs/FCM credentials; when they are absent the app
+must remain local-only and explain that state instead of failing. Never commit
+push tokens or provider credentials. Web does not request notification access.
 
 ## E2E testing
 

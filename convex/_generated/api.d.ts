@@ -18,6 +18,7 @@ import type * as crons from "../crons.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as lib_access from "../lib/access.js";
+import type * as notifications from "../notifications.js";
 import type * as profile from "../profile.js";
 import type * as seed from "../seed.js";
 import type * as testing from "../testing.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   health: typeof health;
   http: typeof http;
   "lib/access": typeof lib_access;
+  notifications: typeof notifications;
   profile: typeof profile;
   seed: typeof seed;
   testing: typeof testing;
@@ -72,4 +74,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+  pushNotifications: import("@convex-dev/expo-push-notifications/_generated/component.js").ComponentApi<"pushNotifications">;
 };

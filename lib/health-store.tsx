@@ -586,9 +586,10 @@ export function HealthStoreProvider({
       const current = snapshot.preferences.find((item) => !item.deletedAt);
       await writeRecord('preferences', {
         localId: 'preferences',
-        notificationsEnabled: true,
+        notificationsEnabled: false,
         journalNotifications: true,
         resultNotifications: true,
+        notificationTone: 'formal',
         anonymousAnalytics: false,
         medicalRecommendations: false,
         language: 'ru',

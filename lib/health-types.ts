@@ -186,6 +186,7 @@ export type AppPreferences = {
   notificationsEnabled: boolean;
   journalNotifications: boolean;
   resultNotifications: boolean;
+  notificationTone: 'formal' | 'cute';
   anonymousAnalytics: boolean;
   medicalRecommendations: boolean;
   language: 'ru';

@@ -123,6 +123,15 @@
       "evidence": ["ios-delete.yml", "android-restore.yml", "native-account.ts"]
     },
     {
+      "id": "local-and-remote-notifications",
+      "platforms": ["ios", "android", "backend"],
+      "evidence": [
+        "product-surface.yml",
+        "notification-schedule.test.ts",
+        "backend.live.ts"
+      ]
+    },
+    {
       "id": "web-read-only-demo",
       "platforms": ["web"],
       "evidence": ["web.spec.ts"]
@@ -130,7 +139,6 @@
   ],
   "deferred": [
     "real-ai",
-    "push-notifications",
     "sms-auth",
     "ocr",
     "healthkit-health-connect",
