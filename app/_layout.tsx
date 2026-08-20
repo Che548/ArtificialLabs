@@ -520,17 +520,17 @@ export default function TabLayout() {
   if (!fontsLoaded) return <LoadingAuth />;
 
   return (
-    <ConnectivityProvider>
-      <ConvexAuthProvider
-        client={convex}
-        storage={webDemo ? undefined : authTokenStorage}
-        shouldHandleCode={false}
-      >
+    <ConvexAuthProvider
+      client={convex}
+      storage={webDemo ? undefined : authTokenStorage}
+      shouldHandleCode={false}
+    >
+      <ConnectivityProvider>
         <StatusBar style="dark" hidden={false} />
         {webDemo ? <WebDemo /> : <NativeApp />}
         <ConnectivityBanner />
-      </ConvexAuthProvider>
-    </ConnectivityProvider>
+      </ConnectivityProvider>
+    </ConvexAuthProvider>
   );
 }
 

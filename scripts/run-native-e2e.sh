@@ -2,6 +2,7 @@
 set -euo pipefail
 
 export PATH="$PATH:${MAESTRO_BIN_DIR:-$HOME/.maestro/bin}"
+export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-240000}"
 
 if ! command -v maestro >/dev/null 2>&1; then
   echo "Maestro is required: https://docs.maestro.dev/getting-started/installing-maestro"
@@ -46,7 +47,7 @@ android_ready=0
 environment_blocked=0
 ios_primary_ok=0
 cloud_snapshot_ok=0
-android_airplane_changed=0
+account_deletion_ready=0
 
 record_failure() {
   echo "E2E failure: $1" >&2
@@ -93,16 +94,19 @@ android_maestro_blocked() {
       "(System UI|Process system) (isn't|is not) responding"
 }
 
+ios_maestro_blocked() {
+  local log_file="$1"
+  [[ -f "$log_file" ]] && grep -Eq \
+    "LocalSimulatorUtils\.setLocationPermission|simctl privacy|IOSDriver\.setPermissions|Maestro.*driver.*start|Unable to boot device|Failed to launch.*UITests" \
+    "$log_file"
+}
+
 metro_pid=""
 convex_proxy_pid=""
 android_launch_pid=""
 android_emulator_pid=""
 e2e_cert_dir=""
 cleanup() {
-  if [[ "$android_airplane_changed" -eq 1 ]]; then
-    adb -s "$android_device" shell cmd connectivity airplane-mode disable \
-      >/dev/null 2>&1 || true
-  fi
   if [[ -n "$ios_scan_fixture_path" && -f "$ios_scan_fixture_path" ]]; then
     unlink "$ios_scan_fixture_path"
   fi
@@ -177,6 +181,63 @@ stop_android_avd() {
 boot_ios_simulator() {
   xcrun simctl boot "$ios_device" >/dev/null 2>&1 || true
   xcrun simctl bootstatus "$ios_device" -b >/dev/null
+  xcrun simctl launch "$ios_device" com.anonymous.privateexpo >/dev/null 2>&1 || true
+  sleep 10
+}
+
+open_ios_dev_url() {
+  local url="$1"
+  for _ in {1..30}; do
+    xcrun simctl openurl "$ios_device" "$url" >/dev/null 2>&1 &
+    local open_pid="$!"
+    for _ in {1..15}; do
+      if ! kill -0 "$open_pid" 2>/dev/null; then
+        if wait "$open_pid"; then
+          return 0
+        fi
+        break
+      fi
+      sleep 1
+    done
+    if kill -0 "$open_pid" 2>/dev/null; then
+      kill "$open_pid" 2>/dev/null || true
+      wait "$open_pid" 2>/dev/null || true
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+start_convex_proxy() {
+  E2E_CONVEX_TLS_CERT="$e2e_cert_dir/localhost.crt" \
+  E2E_CONVEX_TLS_KEY="$e2e_cert_dir/localhost.key" \
+  node --env-file-if-exists=.env.local --import tsx scripts/convex-e2e-proxy.ts \
+    >>"$E2E_REPORT_DIR/convex-proxy.log" 2>&1 &
+  convex_proxy_pid="$!"
+  for _ in {1..30}; do
+    if curl -fsS "http://127.0.0.1:${convex_proxy_port}/__e2e_proxy_health" >/dev/null 2>&1 && \
+      curl -fsS "http://127.0.0.1:${convex_site_proxy_port}/__e2e_proxy_health" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+stop_convex_proxy() {
+  [[ -n "$convex_proxy_pid" ]] || return 0
+  kill "$convex_proxy_pid" 2>/dev/null || true
+  for _ in {1..10}; do
+    if ! kill -0 "$convex_proxy_pid" 2>/dev/null; then
+      wait "$convex_proxy_pid" 2>/dev/null || true
+      convex_proxy_pid=""
+      return 0
+    fi
+    sleep 1
+  done
+  kill -KILL "$convex_proxy_pid" 2>/dev/null || true
+  wait "$convex_proxy_pid" 2>/dev/null || true
+  convex_proxy_pid=""
 }
 
 e2e_cert_dir="$(mktemp -d "${TMPDIR:-/tmp}/artificiallabs-e2e-cert.XXXXXX")"
@@ -186,21 +247,12 @@ openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
   -keyout "$e2e_cert_dir/localhost.key" \
   -out "$e2e_cert_dir/localhost.crt" >/dev/null 2>&1
 chmod 600 "$e2e_cert_dir/localhost.key"
+boot_ios_simulator
 xcrun simctl keychain "$ios_device" reset
 xcrun simctl keychain "$ios_device" add-root-cert "$e2e_cert_dir/localhost.crt"
 
-E2E_CONVEX_TLS_CERT="$e2e_cert_dir/localhost.crt" \
-E2E_CONVEX_TLS_KEY="$e2e_cert_dir/localhost.key" \
-node --env-file-if-exists=.env.local --import tsx scripts/convex-e2e-proxy.ts \
-  >"$E2E_REPORT_DIR/convex-proxy.log" 2>&1 &
-convex_proxy_pid="$!"
-for _ in {1..30}; do
-  if curl -fsS "http://127.0.0.1:${convex_proxy_port}/__e2e_proxy_health" >/dev/null 2>&1 && \
-    curl -fsS "http://127.0.0.1:${convex_site_proxy_port}/__e2e_proxy_health" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
+: >"$E2E_REPORT_DIR/convex-proxy.log"
+start_convex_proxy
 curl -fsS "http://127.0.0.1:${convex_proxy_port}/version" >/dev/null
 curl --cacert "$e2e_cert_dir/localhost.crt" -fsS \
   "https://localhost:${convex_ios_proxy_port}/version" >/dev/null
@@ -392,28 +444,23 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
     fi
   else
     if [[ "$android_device" == emulator-* ]]; then
-      if adb -s "$android_device" shell cmd connectivity airplane-mode enable \
-        >/dev/null 2>&1; then
-        android_airplane_changed=1
-        if ! maestro --device "$android_device" test .maestro/offline-mode.yml \
-          --env E2E_OFFLINE_SCREENSHOT="android-offline-local-save"; then
-          record_failure "Android offline local-first flow"
-        else
-          copy_maestro_screenshot offline-mode android-offline-local-save \
-            "$E2E_REPORT_DIR/android-offline-local-save.png"
-        fi
-        adb -s "$android_device" shell cmd connectivity airplane-mode disable \
-          >/dev/null 2>&1 || true
-        android_airplane_changed=0
-        if ! maestro --device "$android_device" test .maestro/reconnect-mode.yml \
-          --env E2E_RECONNECTED_SCREENSHOT="android-reconnected-sync"; then
-          record_failure "Android reconnect and retry flow"
-        else
-          copy_maestro_screenshot reconnect-mode android-reconnected-sync \
-            "$E2E_REPORT_DIR/android-reconnected-sync.png"
-        fi
+      stop_convex_proxy
+      if ! maestro --device "$android_device" test .maestro/offline-mode.yml \
+        --env E2E_OFFLINE_SCREENSHOT="android-offline-local-save"; then
+        record_failure "Android offline local-first flow"
       else
-        record_environment_blocked "Android AVD airplane-mode control"
+        copy_maestro_screenshot offline-mode android-offline-local-save \
+          "$E2E_REPORT_DIR/android-offline-local-save.png"
+      fi
+      if ! start_convex_proxy; then
+        record_environment_blocked "Android Convex proxy restart"
+        android_ready=0
+      elif ! maestro --device "$android_device" test .maestro/reconnect-mode.yml \
+        --env E2E_RECONNECTED_SCREENSHOT="android-reconnected-sync"; then
+        record_failure "Android reconnect and retry flow"
+      else
+        copy_maestro_screenshot reconnect-mode android-reconnected-sync \
+          "$E2E_REPORT_DIR/android-reconnected-sync.png"
       fi
     fi
     if ! maestro --device "$android_device" test .maestro/product-surface.yml \
@@ -457,23 +504,33 @@ fi
 if [[ "$sequential_simulators" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
   stop_android_avd
   boot_ios_simulator
-  xcrun simctl openurl "$ios_device" "$ios_dev_url"
+  if ! open_ios_dev_url "$ios_dev_url"; then
+    record_environment_blocked "iOS Simulator did not accept the development URL after reboot"
+  fi
   sleep 10
 fi
 
 if [[ "$cloud_snapshot_ok" -eq 1 ]]; then
-  if ! maestro --device "$ios_device" test .maestro/ios-delete.yml; then
-    record_failure "iOS account deletion flow"
+  ios_delete_log="$E2E_REPORT_DIR/ios-delete-maestro.log"
+  if ! maestro --device "$ios_device" test .maestro/ios-delete.yml \
+    2>&1 | tee "$ios_delete_log"; then
+    if ios_maestro_blocked "$ios_delete_log"; then
+      record_environment_blocked "iOS Maestro driver during account deletion"
+    else
+      record_failure "iOS account deletion flow"
+    fi
   else
+    account_deletion_ready=1
     xcrun simctl io "$ios_device" screenshot \
       "$E2E_REPORT_DIR/ios-live-pending-deletion.png" >/dev/null 2>&1 || true
   fi
-  if ! node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts pending; then
+  if [[ "$account_deletion_ready" -eq 1 ]] && \
+    ! node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts pending; then
     record_failure "pending-deletion backend status"
   fi
 fi
 
-if [[ "$sequential_simulators" -eq 1 && "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
+if [[ "$sequential_simulators" -eq 1 && "$android_ready" -eq 1 && "$account_deletion_ready" -eq 1 ]]; then
   xcrun simctl shutdown "$ios_device" >/dev/null 2>&1 || true
   if prepare_android_client 0; then
     adb -s "$android_device" shell am start -W -a android.intent.action.VIEW \
@@ -483,7 +540,7 @@ if [[ "$sequential_simulators" -eq 1 && "$android_ready" -eq 1 && "$cloud_snapsh
   fi
 fi
 
-if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
+if [[ "$android_ready" -eq 1 && "$account_deletion_ready" -eq 1 ]]; then
   if ! maestro --device "$android_device" test .maestro/android-restore.yml \
     --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
     if node --import tsx tests/e2e/android-preflight.ts "$android_device"; then

@@ -1,3 +1,4 @@
+import { useConvexConnectionState } from 'convex/react';
 import { useNetworkState } from 'expo-network';
 import { createContext, useContext, useMemo } from 'react';
 import type { PropsWithChildren } from 'react';
@@ -16,6 +17,7 @@ const ConnectivityContext = createContext<ConnectivityValue>({
 
 export function ConnectivityProvider({ children }: PropsWithChildren) {
   const network = useNetworkState();
+  const convexConnection = useConvexConnectionState();
   const value = useMemo<ConnectivityValue>(() => {
     const isKnown =
       typeof network.isConnected === 'boolean' ||
@@ -23,9 +25,19 @@ export function ConnectivityProvider({ children }: PropsWithChildren) {
     return {
       isKnown,
       isOffline:
-        network.isConnected === false || network.isInternetReachable === false,
+        network.isConnected === false ||
+        network.isInternetReachable === false ||
+        (convexConnection.hasEverConnected &&
+          !convexConnection.isWebSocketConnected &&
+          convexConnection.connectionRetries > 0),
     };
-  }, [network.isConnected, network.isInternetReachable]);
+  }, [
+    convexConnection.connectionRetries,
+    convexConnection.hasEverConnected,
+    convexConnection.isWebSocketConnected,
+    network.isConnected,
+    network.isInternetReachable,
+  ]);
 
   return (
     <ConnectivityContext.Provider value={value}>
