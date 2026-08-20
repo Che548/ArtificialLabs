@@ -37,6 +37,9 @@ appId: com.anonymous.privateexpo
 - back
 - tapOn:
     id: 'e2e-onboarding-next'
+- tapOn:
+    text: 'Не помню дату'
+- assertVisible: 'Дата не указана'
 - assertVisible: 'Когда началась последняя менструация?'
 - tapOn:
     id: 'e2e-onboarding-next'

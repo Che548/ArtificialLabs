@@ -1,4 +1,4 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
@@ -821,6 +821,16 @@ export function OnboardingPreviewFlow({
   const [cycleLength, setCycleLength] = useState(28);
   const [periodLength, setPeriodLength] = useState(5);
   const [dateUnknown, setDateUnknown] = useState(false);
+  const openAndroidDatePicker = () => {
+    DateTimePickerAndroid.open({
+      value: date,
+      mode: 'date',
+      display: 'default',
+      onChange: (event, nextDate) => {
+        if (event.type === 'set' && nextDate) setDate(nextDate);
+      },
+    });
+  };
   const [cycleUnknown, setCycleUnknown] = useState(false);
   const [periodUnknown, setPeriodUnknown] = useState(false);
   const [pregnancyDateKind, setPregnancyDateKind] = useState<PregnancyDateKind>('lastPeriod');
@@ -1070,14 +1080,29 @@ export function OnboardingPreviewFlow({
                     </Pressable>
                   ) : (
                     <View style={styles.datePickerSurface}>
-                      <DateTimePicker
-                        value={date}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'compact' : 'default'}
-                        onChange={(_, next) => next && setDate(next)}
-                        accentColor={colors.brand.primary}
-                        style={styles.datePickerControl}
-                      />
+                      {Platform.OS === 'android' ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Выбрать дату начала"
+                          onPress={openAndroidDatePicker}
+                          style={styles.androidDateButton}
+                          testID="e2e-onboarding-date"
+                        >
+                          <SymbolView name="calendar" tintColor={colors.brand.primary} size={18} type="monochrome" />
+                          <AppText role="label" weight="semibold" color={colors.brand.primary}>
+                            {date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </AppText>
+                        </Pressable>
+                      ) : (
+                        <DateTimePicker
+                          value={date}
+                          mode="date"
+                          display="compact"
+                          onChange={(_, next) => next && setDate(next)}
+                          accentColor={colors.brand.primary}
+                          style={styles.datePickerControl}
+                        />
+                      )}
                     </View>
                   )}
                 </View>
@@ -1343,6 +1368,19 @@ const styles = StyleSheet.create({
   datePickerControl: {
     alignSelf: 'center',
     transform: [{ translateX: Platform.OS === 'ios' ? -4 : 0 }],
+  },
+  androidDateButton: {
+    minHeight: 48,
+    paddingHorizontal: 18,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FCEAF2',
+    borderWidth: 1,
+    borderColor: '#F1D8E3',
+    elevation: 1,
   },
   dateRestoreAction: {
     minWidth: 142,

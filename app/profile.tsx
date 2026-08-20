@@ -17,6 +17,7 @@ import {
   Easing,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -1180,7 +1181,7 @@ function renderProfileSectionDirect({
           <ProfileActionRow
             secondary
             icon="gearshape.fill"
-            label="Разрешения iPhone"
+            label={Platform.OS === 'ios' ? 'Разрешения iPhone' : 'Разрешения устройства'}
             onPress={openSystemSettings}
           />
           <ProfileActionRow

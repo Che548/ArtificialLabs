@@ -39,14 +39,6 @@ record_environment_blocked() {
   environment_blocked=1
 }
 
-android_type() {
-  local field_id="$1"
-  local value="$2"
-  maestro --device "$android_device" test .maestro/focus-field.yml \
-    --env E2E_FIELD_ID="$field_id"
-  adb -s "$android_device" shell input text "$value" >/dev/null
-}
-
 ios_network_blocked() {
   local metro_log="$E2E_REPORT_DIR/metro.log"
   [[ -f "$metro_log" ]] &&
@@ -161,10 +153,17 @@ fi
 sleep 10
 maestro --device "$ios_device" test .maestro/open-dev-client.yml
 sleep 20
+# A completed Maestro system-dialog flow can leave the simulator on the Home
+# Screen even though the development bundle finished loading. Foreground the
+# exact E2E URL again before the application flow so the first assertion
+# observes the app rather than SpringBoard.
+xcrun simctl openurl "$ios_device" "$ios_dev_url"
 
 if maestro --device "$ios_device" test .maestro/ios-primary.yml \
   --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
   ios_primary_ok=1
+  xcrun simctl io "$ios_device" screenshot \
+    "$E2E_REPORT_DIR/ios-live-sync.png" >/dev/null 2>&1 || true
 elif ios_network_blocked; then
   record_environment_blocked "iOS Simulator cannot resolve or reach the Convex endpoint"
 else
@@ -179,12 +178,8 @@ if [[ "$ios_primary_ok" -eq 1 ]]; then
 fi
 
 if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
-  if ! maestro --device "$android_device" test .maestro/android-auth-ready.yml || \
-    ! android_type "e2e-auth-password" "$E2E_PASSWORD" || \
-    ! maestro --device "$android_device" test .maestro/android-sign-in-submit.yml || \
-    ! maestro --device "$android_device" test .maestro/android-onboarding-name.yml || \
-    ! android_type "e2e-onboarding-name" "E2EAndroid" || \
-    ! maestro --device "$android_device" test .maestro/android-onboarding-sync.yml; then
+  if ! maestro --device "$android_device" test .maestro/android-secondary.yml \
+    --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
     if android_maestro_blocked; then
       record_environment_blocked "Android Maestro driver failed"
       android_ready=0
@@ -199,6 +194,11 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
         record_failure "Android secondary flow"
       fi
     fi
+  else
+    if ! adb -s "$android_device" exec-out screencap -p \
+      >"$E2E_REPORT_DIR/android-live-sync.png"; then
+      unlink "$E2E_REPORT_DIR/android-live-sync.png" 2>/dev/null || true
+    fi
   fi
   if [[ "$android_ready" -eq 1 ]] && ! node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts snapshot; then
     record_failure "Android cloud snapshot"
@@ -208,6 +208,9 @@ fi
 if [[ "$cloud_snapshot_ok" -eq 1 ]]; then
   if ! maestro --device "$ios_device" test .maestro/ios-delete.yml; then
     record_failure "iOS account deletion flow"
+  else
+    xcrun simctl io "$ios_device" screenshot \
+      "$E2E_REPORT_DIR/ios-live-pending-deletion.png" >/dev/null 2>&1 || true
   fi
   if ! node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts pending; then
     record_failure "pending-deletion backend status"
@@ -226,6 +229,11 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
       else
         record_failure "Android account restore flow"
       fi
+    fi
+  else
+    if ! adb -s "$android_device" exec-out screencap -p \
+      >"$E2E_REPORT_DIR/android-live-restored.png"; then
+      unlink "$E2E_REPORT_DIR/android-live-restored.png" 2>/dev/null || true
     fi
   fi
   if [[ "$android_ready" -eq 1 ]] && ! node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts active; then
