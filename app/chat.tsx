@@ -181,6 +181,7 @@ export default function ChatScreen() {
   const {
     chatConversations,
     chatMessages,
+    cloudProfileReady,
     deleteChatConversation,
     journalEntries,
     labResults,
@@ -196,7 +197,10 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const aiEligible = Platform.OS !== 'web' && isAuthenticated && !readOnly;
-  const chatStatus = useQuery(api.chat.status, aiEligible ? {} : 'skip');
+  const chatStatus = useQuery(
+    api.chat.status,
+    aiEligible && cloudProfileReady ? {} : 'skip',
+  );
   const generateChat = useAction(api.chat.generate);
   const acceptAiConsent = useMutation(api.chat.acceptConsent);
   const [draft, setDraft] = useState('');
@@ -242,11 +246,13 @@ export default function ChatScreen() {
         ? 'Проверяем доступность ИИ-чата…'
         : !isAuthenticated || readOnly
           ? 'Войдите в аккаунт, чтобы получать ответы Сферки.'
-          : !chatStatus
-            ? 'Проверяем доступность ИИ-чата…'
-            : !chatStatus.enabled
-              ? 'ИИ-чат пока выключен администратором.'
-              : undefined;
+          : !cloudProfileReady
+            ? 'ИИ-чат станет доступен после включения облачной синхронизации.'
+            : !chatStatus
+              ? 'Проверяем доступность ИИ-чата…'
+              : !chatStatus.enabled
+                ? 'ИИ-чат пока выключен администратором.'
+                : undefined;
   const persistedRecentChats = useMemo<ChatHistoryItem[]>(
     () =>
       chatConversations

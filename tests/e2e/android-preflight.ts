@@ -53,8 +53,10 @@ async function main() {
     const output = `${hierarchy.stdout}\n${hierarchy.stderr}`;
     if (hierarchy.error && 'code' in hierarchy.error && hierarchy.error.code === 'ETIMEDOUT') {
       await finish('environment-blocked', 'Android UI automation timed out', 75);
-    } else if (/System UI (isn't|is not) responding/i.test(output)) {
-      await finish('environment-blocked', "System UI isn't responding", 75);
+    } else if (
+      /(?:System UI|Process system) (?:isn't|is not) responding/i.test(output)
+    ) {
+      await finish('environment-blocked', 'Android system process ANR', 75);
     } else {
       await finish('ready', 'boot and System UI checks passed', 0);
     }

@@ -12,6 +12,11 @@ appId: com.anonymous.privateexpo
     commands:
       - tapOn: 'Вернуться к началу чата'
       - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: 'Согласиться и отправить'
+    commands:
+      - tapOn: 'Отмена'
 - extendedWaitUntil:
     visible: 'Скан'
     timeout: 30000

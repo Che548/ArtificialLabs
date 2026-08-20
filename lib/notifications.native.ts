@@ -127,7 +127,9 @@ export async function scheduleTestNotification(tone: NotificationTone) {
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: 2,
+      // Give native E2E enough time to verify scheduling and clear the pending
+      // notification before its banner can intercept the next Maestro tap.
+      seconds: process.env.EXPO_PUBLIC_E2E_MODE === '1' ? 15 : 2,
       channelId: Platform.OS === 'android' ? CHANNEL_ID : undefined,
     },
   });

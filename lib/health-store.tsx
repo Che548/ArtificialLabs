@@ -95,6 +95,7 @@ type HealthStoreValue = HealthSnapshot & {
   syncStatus: SyncStatus;
   serviceIssue?: ServiceIssue;
   cloudSyncEnabled: boolean;
+  cloudProfileReady: boolean;
   viewerEmail?: string;
   accountDeletion: AccountDeletion;
   completeOnboarding: (input: OnboardingInput) => Promise<void>;
@@ -748,6 +749,7 @@ export function HealthStoreProvider({
       syncStatus,
       serviceIssue,
       cloudSyncEnabled,
+      cloudProfileReady: Boolean(remoteProfile),
       viewerEmail: viewer?.email,
       accountDeletion,
       completeOnboarding,
@@ -792,6 +794,7 @@ export function HealthStoreProvider({
       syncStatus,
       serviceIssue,
       cloudSyncEnabled,
+      remoteProfile,
       viewer?.email,
       accountDeletion,
       completeOnboarding,

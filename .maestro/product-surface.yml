@@ -57,9 +57,14 @@ appId: com.anonymous.privateexpo
 - tapOn: 'Как определить фертильное окно точнее?'
 - tapOn:
     text: 'Отправить сообщение'
+- runFlow:
+    when:
+      visible: 'Согласиться и отправить'
+    commands:
+      - tapOn: 'Согласиться и отправить'
 - extendedWaitUntil:
     visible: 'Как определить фертильное окно точнее?'
-    timeout: 30000
+    timeout: 60000
 - tapOn:
     text: 'История чатов'
 - assertVisible: 'Открыть чат: Как определить фертильное окно точнее?'
@@ -133,9 +138,10 @@ appId: com.anonymous.privateexpo
     centerElement: true
 - waitForAnimationToEnd
 - tapOn: 'Настройки уведомлений'
-- tapOn: 'Разрешить уведомления'
 - tapOn:
-    text: 'Allow|Разрешить'
+    id: notification-master-toggle
+- tapOn:
+    text: 'Allow.*|Разрешить.*'
     optional: true
 - tapOn: 'Милый'
 - tapOn: 'Отправить тестовое уведомление'
@@ -143,6 +149,8 @@ appId: com.anonymous.privateexpo
     visible: 'Тестовое уведомление появится через пару секунд.'
     timeout: 10000
 - tapOn: 'Результаты и анализы'
+- tapOn:
+    id: notification-master-toggle
 - tapOn:
     text: 'Вернуться в профиль'
 

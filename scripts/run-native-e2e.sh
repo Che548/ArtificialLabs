@@ -10,6 +10,8 @@ fi
 
 ios_device="${E2E_IOS_DEVICE:-730B98A0-FC3B-45CA-AF3A-9896CEEC16AA}"
 android_device="${E2E_ANDROID_DEVICE:-emulator-5554}"
+android_avd="${E2E_ANDROID_AVD:-ArtificialLabs_API_36}"
+sequential_simulators="${E2E_SEQUENTIAL_SIMULATORS:-0}"
 metro_port="${E2E_METRO_PORT:-8082}"
 convex_proxy_port="${E2E_CONVEX_PROXY_PORT:-3320}"
 convex_site_proxy_port="${E2E_CONVEX_SITE_PROXY_PORT:-3321}"
@@ -80,15 +82,21 @@ ios_network_blocked() {
 
 android_maestro_blocked() {
   local maestro_root="${MAESTRO_DEBUG_ROOT:-$HOME/.maestro/tests}"
-  [[ -d "$maestro_root" ]] &&
-    find "$maestro_root" -type f -name maestro.log -mmin -10 -print0 2>/dev/null |
-      xargs -0 grep -Eq \
-        "Device server died|Android driver did not start up|AndroidDriverTimeoutException|AndroidInstrumentationSetupFailure|Maestro instrumentation could not be initialized|DEADLINE_EXCEEDED"
+  [[ -d "$maestro_root" ]] || return 1
+  if find "$maestro_root" -type f -name maestro.log -mmin -10 -print0 2>/dev/null |
+    xargs -0 grep -Eq \
+      "Device server died|Android driver did not start up|AndroidDriverTimeoutException|AndroidInstrumentationSetupFailure|Maestro instrumentation could not be initialized|DEADLINE_EXCEEDED"; then
+    return 0
+  fi
+  find "$maestro_root" -type f -path "*/screen-hierarchy/*.json" -mmin -10 -print0 2>/dev/null |
+    xargs -0 grep -Eqi \
+      "(System UI|Process system) (isn't|is not) responding"
 }
 
 metro_pid=""
 convex_proxy_pid=""
 android_launch_pid=""
+android_emulator_pid=""
 e2e_cert_dir=""
 cleanup() {
   if [[ "$android_airplane_changed" -eq 1 ]]; then
@@ -107,6 +115,10 @@ cleanup() {
   fi
   if [[ -n "$android_launch_pid" ]]; then
     kill "$android_launch_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$android_emulator_pid" ]]; then
+    adb -s "$android_device" emu kill >/dev/null 2>&1 || true
+    kill "$android_emulator_pid" 2>/dev/null || true
   fi
   if [[ -n "$metro_pid" ]]; then
     kill "$metro_pid" 2>/dev/null || true
@@ -129,6 +141,43 @@ cleanup() {
   node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts cleanup || true
 }
 trap cleanup EXIT
+
+start_android_avd() {
+  if adb -s "$android_device" get-state >/dev/null 2>&1; then
+    return 0
+  fi
+  local emulator_bin
+  emulator_bin="${ANDROID_HOME:-$HOME/Library/Android/sdk}/emulator/emulator"
+  if [[ ! -x "$emulator_bin" ]]; then
+    emulator_bin="$(command -v emulator || true)"
+  fi
+  if [[ -z "$emulator_bin" ]]; then
+    return 1
+  fi
+  "$emulator_bin" -avd "$android_avd" -no-snapshot-load -no-boot-anim \
+    >"$E2E_REPORT_DIR/android-emulator.log" 2>&1 &
+  android_emulator_pid="$!"
+  for _ in {1..180}; do
+    if [[ "$(adb -s "$android_device" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+stop_android_avd() {
+  adb -s "$android_device" emu kill >/dev/null 2>&1 || true
+  if [[ -n "$android_emulator_pid" ]]; then
+    wait "$android_emulator_pid" 2>/dev/null || true
+    android_emulator_pid=""
+  fi
+}
+
+boot_ios_simulator() {
+  xcrun simctl boot "$ios_device" >/dev/null 2>&1 || true
+  xcrun simctl bootstatus "$ios_device" -b >/dev/null
+}
 
 e2e_cert_dir="$(mktemp -d "${TMPDIR:-/tmp}/artificiallabs-e2e-cert.XXXXXX")"
 openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
@@ -193,23 +242,33 @@ done
 
 curl -fsS "http://127.0.0.1:${metro_port}/status" | grep -q "packager-status:running"
 xcrun simctl get_app_container "$ios_device" com.anonymous.privateexpo app >/dev/null
-if node --import tsx tests/e2e/android-preflight.ts "$android_device"; then
-  android_ready=1
-else
-  preflight_status="$?"
-  if [[ "$preflight_status" -eq 75 ]]; then
-    record_environment_blocked "Android AVD preflight"
-  else
-    record_failure "Android AVD preflight"
+
+prepare_android_client() {
+  local clear_data="${1:-0}"
+  android_ready=0
+  if ! start_android_avd; then
+    record_environment_blocked "Android AVD startup"
+    return 1
   fi
-fi
-if [[ "$android_ready" -eq 1 ]]; then
+  if node --import tsx tests/e2e/android-preflight.ts "$android_device"; then
+    android_ready=1
+  else
+    local preflight_status="$?"
+    if [[ "$preflight_status" -eq 75 ]]; then
+      record_environment_blocked "Android AVD preflight"
+    else
+      record_failure "Android AVD preflight"
+    fi
+    return 1
+  fi
   adb -s "$android_device" reverse "tcp:${metro_port}" "tcp:${metro_port}"
   adb -s "$android_device" reverse "tcp:${convex_proxy_port}" "tcp:${convex_proxy_port}"
   adb -s "$android_device" reverse "tcp:${convex_site_proxy_port}" "tcp:${convex_site_proxy_port}"
   adb -s "$android_device" shell pm path com.anonymous.privateexpo >/dev/null
-  if [[ -n "$scan_fixture_source" ]]; then
+  if [[ "$clear_data" -eq 1 ]]; then
     adb -s "$android_device" shell pm clear com.anonymous.privateexpo >/dev/null
+  fi
+  if [[ -n "$scan_fixture_source" ]]; then
     adb -s "$android_device" push "$scan_fixture_source" /data/local/tmp/artificiallabs-e2e-scan.jpg >/dev/null
     adb -s "$android_device" shell run-as com.anonymous.privateexpo mkdir -p files/e2e
     adb -s "$android_device" shell run-as com.anonymous.privateexpo cp \
@@ -220,6 +279,10 @@ if [[ "$android_ready" -eq 1 ]]; then
       /data/local/tmp/artificiallabs-e2e-import.json files/e2e/import.json
     adb -s "$android_device" shell rm -f /data/local/tmp/artificiallabs-e2e-import.json
   fi
+}
+
+if [[ "$sequential_simulators" -ne 1 ]]; then
+  prepare_android_client 1 || true
 fi
 
 ios_dev_url="private-expo://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A${metro_port}"
@@ -229,9 +292,6 @@ if [[ -z "$scan_fixture_source" ]]; then
 fi
 xcrun simctl openurl "$ios_device" "$ios_dev_url"
 if [[ "$android_ready" -eq 1 ]]; then
-  if [[ -z "$scan_fixture_source" ]]; then
-    adb -s "$android_device" shell pm clear com.anonymous.privateexpo >/dev/null
-  fi
   adb -s "$android_device" shell am start -a android.intent.action.VIEW -d "$android_dev_url" com.anonymous.privateexpo \
     >"$E2E_REPORT_DIR/android-launch.log" 2>&1 &
   android_launch_pid="$!"
@@ -280,6 +340,16 @@ if [[ "$ios_primary_ok" -eq 1 ]]; then
     cloud_snapshot_ok=1
   else
     record_failure "iOS cloud snapshot"
+  fi
+fi
+
+if [[ "$sequential_simulators" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
+  xcrun simctl shutdown "$ios_device" >/dev/null 2>&1 || true
+  if prepare_android_client 1; then
+    adb -s "$android_device" shell am start -W -a android.intent.action.VIEW \
+      -d "$android_dev_url" com.anonymous.privateexpo \
+      >"$E2E_REPORT_DIR/android-launch-sequential.log" 2>&1 || true
+    sleep 15
   fi
 fi
 
@@ -384,6 +454,13 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
   fi
 fi
 
+if [[ "$sequential_simulators" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
+  stop_android_avd
+  boot_ios_simulator
+  xcrun simctl openurl "$ios_device" "$ios_dev_url"
+  sleep 10
+fi
+
 if [[ "$cloud_snapshot_ok" -eq 1 ]]; then
   if ! maestro --device "$ios_device" test .maestro/ios-delete.yml; then
     record_failure "iOS account deletion flow"
@@ -393,6 +470,16 @@ if [[ "$cloud_snapshot_ok" -eq 1 ]]; then
   fi
   if ! node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts pending; then
     record_failure "pending-deletion backend status"
+  fi
+fi
+
+if [[ "$sequential_simulators" -eq 1 && "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
+  xcrun simctl shutdown "$ios_device" >/dev/null 2>&1 || true
+  if prepare_android_client 0; then
+    adb -s "$android_device" shell am start -W -a android.intent.action.VIEW \
+      -d "$android_dev_url" com.anonymous.privateexpo \
+      >"$E2E_REPORT_DIR/android-launch-restore.log" 2>&1 || true
+    sleep 10
   fi
 fi
 

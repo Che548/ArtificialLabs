@@ -189,13 +189,13 @@ export default function ProfileScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const { signOut } = useAuthActions();
   const { isAuthenticated } = useConvexAuth();
-  const aiChatStatus = useQuery(api.chat.status, isAuthenticated ? {} : 'skip');
   const revokeAiChatConsent = useMutation(api.chat.revokeConsent);
   const notificationManager = useNotificationManager();
   const {
     accountDeletion,
     allergyRisks,
     cloudSyncEnabled,
+    cloudProfileReady,
     clearAllLocalData,
     deleteRecord,
     documents,
@@ -220,6 +220,10 @@ export default function ProfileScreen() {
     updateProfile,
     viewerEmail,
   } = useHealthStore();
+  const aiChatStatus = useQuery(
+    api.chat.status,
+    isAuthenticated && cloudProfileReady ? {} : 'skip',
+  );
   const [activeSection, setActiveSection] = useState<ProfileSection | null>(
     null,
   );
