@@ -1,6 +1,12 @@
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
+import Markdown, {
+  MarkdownIt,
+  type MarkdownStyles,
+  type RenderFunction,
+  type RenderRules,
+} from 'react-native-markdown-renderer';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
@@ -10,6 +16,7 @@ import {
   Animated,
   Easing,
   Image,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -33,6 +40,7 @@ import SuggestionNutritionIcon from '../assets/figma/chat/suggestion-nutrition.s
 import VoiceIcon from '../assets/figma/chat/voice.svg';
 import { AppHeader } from './app-header';
 import { AppText, SegmentedSwitcher } from './components';
+import { isAllowedChatMarkdownLink } from '../lib/safe-markdown';
 import { FallbackGlassBackdrop } from './glass-fallback';
 import {
   androidMaterials,
@@ -47,6 +55,39 @@ import {
 
 const mascotImage = require('../assets/figma/chat/mascot.png');
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+const safeMarkdown = MarkdownIt({
+  typographer: true,
+  html: false,
+  linkify: false,
+});
+const renderSafeMarkdownLink: RenderFunction = (
+  node,
+  children,
+  _parents,
+  markdownStyles,
+  ...args
+) => {
+  if (!isAllowedChatMarkdownLink(node.attributes.href)) {
+    return <Text key={node.key}>{children}</Text>;
+  }
+  const onLinkPress = args[0] as ((url: string) => boolean | void) | undefined;
+  return (
+    <Text
+      key={node.key}
+      style={markdownStyles.link as never}
+      onPress={() => onLinkPress?.(node.attributes.href)}
+    >
+      {children}
+    </Text>
+  );
+};
+const safeMarkdownRules: RenderRules = {
+  image: () => null,
+  html_block: () => null,
+  html_inline: () => null,
+  link: renderSafeMarkdownLink,
+  blocklink: renderSafeMarkdownLink,
+};
 
 export type ChatSuggestion = {
   id: string;
@@ -103,10 +144,7 @@ function ChatComposerGlass({
         />
         <LinearGradient
           pointerEvents="none"
-          colors={[
-            'rgba(255,255,255,0.90)',
-            'rgba(255,244,249,0.62)',
-          ]}
+          colors={['rgba(255,255,255,0.90)', 'rgba(255,244,249,0.62)']}
           start={{ x: 0.1, y: 0 }}
           end={{ x: 0.9, y: 1 }}
           style={StyleSheet.absoluteFillObject}
@@ -132,9 +170,19 @@ function ChatComposerGlass({
 
 export type ChatHeaderMode = 'chat' | 'assistant';
 
-const chatHeaderModes: Array<{ value: ChatHeaderMode; label: string }> = [
+const chatHeaderModes: Array<{
+  value: ChatHeaderMode;
+  label: string;
+  badge?: string;
+  disabled?: boolean;
+}> = [
   { value: 'chat', label: 'Чат' },
-  { value: 'assistant', label: 'Ассистент' },
+  {
+    value: 'assistant',
+    label: 'Ассистент',
+    badge: 'Скоро',
+    disabled: true,
+  },
 ];
 
 export function ChatModeSwitcher({
@@ -350,7 +398,9 @@ function ChatPopupMenu({
                   name={action.symbol}
                   size={20}
                   tintColor={
-                    action.destructive ? colors.state.error : colors.text.primary
+                    action.destructive
+                      ? colors.state.error
+                      : colors.text.primary
                   }
                   weight="medium"
                   fallback={
@@ -445,9 +495,7 @@ export function ChatHistoryPanel({
     0,
     items.findIndex((item) => item.id === selectedId),
   );
-  const selectionPosition = useRef(
-    new Animated.Value(selectedIndex),
-  ).current;
+  const selectionPosition = useRef(new Animated.Value(selectedIndex)).current;
   const selectionOpacity = useRef(new Animated.Value(1)).current;
   const displayedSelectionIndex = useRef(selectedIndex);
   const selectionTransitionVersion = useRef(0);
@@ -538,10 +586,7 @@ export function ChatHistoryPanel({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        style={[
-          styles.historyScroll,
-          { width: Math.max(width - 40, 0) },
-        ]}
+        style={[styles.historyScroll, { width: Math.max(width - 40, 0) }]}
         contentContainerStyle={styles.historyList}
       >
         <Animated.View
@@ -616,7 +661,9 @@ export function ChatHistoryPanel({
                     size={19}
                     tintColor={colors.text.primary}
                     weight="semibold"
-                    fallback={<Text style={styles.historyMoreFallback}>•••</Text>}
+                    fallback={
+                      <Text style={styles.historyMoreFallback}>•••</Text>
+                    }
                   />
                 </Pressable>
               ) : null}
@@ -747,17 +794,7 @@ export function ChatAttachmentMenu({
   return <ChatPopupMenu actions={actions} visible={visible} />;
 }
 
-export type ChatSendButtonVariant =
-  | 1
-  | 2
-  | 3
-  | 4
-  | 5
-  | 6
-  | 7
-  | 8
-  | 9
-  | 10;
+export type ChatSendButtonVariant = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 const chatSendButtonVariants: Array<{
   variant: ChatSendButtonVariant;
@@ -882,6 +919,7 @@ export function ChatSendButtonVariantsCatalog() {
 
 export function ChatComposer({
   value,
+  disabled = false,
   onChangeText,
   onSubmit,
   onAdd,
@@ -890,6 +928,7 @@ export function ChatComposer({
   onBlur,
 }: {
   value: string;
+  disabled?: boolean;
   onChangeText: (value: string) => void;
   onSubmit?: () => void;
   onAdd?: () => void;
@@ -897,12 +936,14 @@ export function ChatComposer({
   onFocus?: () => void;
   onBlur?: () => void;
 }) {
-  const [canSubmit, setCanSubmit] = useState(() => value.trim().length > 0);
+  const [canSubmit, setCanSubmit] = useState(
+    () => !disabled && value.trim().length > 0,
+  );
   const actionProgress = useRef(new Animated.Value(canSubmit ? 1 : 0)).current;
 
   useEffect(() => {
-    setCanSubmit(value.trim().length > 0);
-  }, [value]);
+    setCanSubmit(!disabled && value.trim().length > 0);
+  }, [disabled, value]);
 
   useEffect(() => {
     const animation = Animated.timing(actionProgress, {
@@ -923,9 +964,11 @@ export function ChatComposer({
       <ChatComposerGlass radius={23} style={styles.composer}>
         <TextInput
           accessibilityLabel="Сообщение для Сферки"
+          accessibilityState={{ disabled }}
           value={value}
+          editable={!disabled}
           onChangeText={(nextValue) => {
-            setCanSubmit(nextValue.trim().length > 0);
+            setCanSubmit(!disabled && nextValue.trim().length > 0);
             onChangeText(nextValue);
           }}
           placeholder="Спросить Сферку"
@@ -947,7 +990,11 @@ export function ChatComposer({
             canSubmit ? 'Отправить сообщение' : 'Голосовой ввод'
           }
           onPress={canSubmit ? onSubmit : onVoice}
-          style={styles.actionButton}
+          disabled={disabled}
+          style={[
+            styles.actionButton,
+            disabled && styles.composerActionDisabled,
+          ]}
         >
           <ChatComposerGlass
             tintColor="rgba(255,255,255,0.34)"
@@ -1023,10 +1070,7 @@ export function ChatComposer({
               weight="semibold"
               fallback={
                 <Text
-                  style={[
-                    styles.sendFallback,
-                    { color: colors.text.inverse },
-                  ]}
+                  style={[styles.sendFallback, { color: colors.text.inverse }]}
                 >
                   ↑
                 </Text>
@@ -1042,48 +1086,121 @@ export function ChatComposer({
 export function ChatMessageBubble({
   children,
   assistant = false,
+  errorText,
   isThinking = false,
+  markdown = false,
+  onCopy,
+  onRetry,
+  onShare,
   reduceMotion = false,
   variant = 1,
-  onCopy,
-  onEdit,
-  onShare,
-  onReport,
 }: {
   children: ReactNode;
   assistant?: boolean;
+  errorText?: string;
   isThinking?: boolean;
+  markdown?: boolean;
+  onCopy?: () => void;
+  onRetry?: () => void;
+  onShare?: () => void;
   reduceMotion?: boolean;
   variant?: ChatMessageVariant;
-  onCopy?: () => void;
-  onEdit?: () => void;
-  onShare?: () => void;
-  onReport?: () => void;
 }) {
   const config = chatMessageVariantConfigs[variant];
   const responseProgress = useRef(
     new Animated.Value(isThinking ? 0 : 1),
   ).current;
-  const customActionIcons = assistant
-    ? (['copy', 'export', 'report'] as const)
-    : (['copy', 'edit'] as const);
-  const actions = assistant
-    ? config.assistantActions.map((symbol, index) => ({
-        label: [
-          'Копировать ответ',
-          'Поделиться ответом',
-          'Пожаловаться на ответ',
-        ][index],
-        symbol,
-        customIcon: config.customIcons ? customActionIcons[index] : undefined,
-        onPress: [onCopy, onShare, onReport][index],
-      }))
-    : config.userActions.map((symbol, index) => ({
-        label: ['Копировать сообщение', 'Редактировать сообщение'][index],
-        symbol,
-        customIcon: config.customIcons ? customActionIcons[index] : undefined,
-        onPress: [onCopy, onEdit][index],
-      }));
+  const actions = [
+    onCopy
+      ? {
+          label: assistant ? 'Копировать ответ' : 'Копировать сообщение',
+          symbol: assistant
+            ? config.assistantActions[0]
+            : config.userActions[0],
+          customIcon: config.customIcons ? ('copy' as const) : undefined,
+          onPress: onCopy,
+        }
+      : undefined,
+    assistant && onShare
+      ? {
+          label: 'Поделиться ответом',
+          symbol: config.assistantActions[1],
+          customIcon: config.customIcons ? ('export' as const) : undefined,
+          onPress: onShare,
+        }
+      : undefined,
+  ].filter((action) => action !== undefined);
+  const markdownStyles: Partial<MarkdownStyles> = {
+    body: {
+      color: colors.text.primary,
+      fontFamily: fonts.sfRegular,
+      fontSize: config.messageFontSize,
+      lineHeight: config.messageLineHeight,
+      letterSpacing: config.messageLetterSpacing,
+    },
+    text: {
+      color: colors.text.primary,
+      fontFamily: fonts.sfRegular,
+      fontSize: config.messageFontSize,
+      lineHeight: config.messageLineHeight,
+      letterSpacing: config.messageLetterSpacing,
+    },
+    paragraph: { marginTop: 0, marginBottom: 10 },
+    heading1: {
+      fontFamily: fonts.sfSemibold,
+      fontSize: config.messageFontSize + 6,
+      lineHeight: config.messageLineHeight + 7,
+      marginTop: 10,
+      marginBottom: 8,
+    },
+    heading2: {
+      fontFamily: fonts.sfSemibold,
+      fontSize: config.messageFontSize + 4,
+      lineHeight: config.messageLineHeight + 5,
+      marginTop: 8,
+      marginBottom: 7,
+    },
+    heading3: {
+      fontFamily: fonts.sfSemibold,
+      fontSize: config.messageFontSize + 2,
+      lineHeight: config.messageLineHeight + 3,
+      marginTop: 7,
+      marginBottom: 6,
+    },
+    strong: { fontFamily: fonts.sfSemibold },
+    em: { fontStyle: 'italic' },
+    link: { color: colors.brand.primary, textDecorationLine: 'underline' },
+    blockquote: {
+      borderLeftColor: colors.brand.primarySoft,
+      borderLeftWidth: 3,
+      paddingLeft: 12,
+      marginVertical: 8,
+    },
+    codeInline: {
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      backgroundColor: '#F3F0F1',
+      borderRadius: 4,
+      paddingHorizontal: 4,
+    },
+    codeBlock: {
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      fontSize: Math.max(13, config.messageFontSize - 2),
+      lineHeight: config.messageLineHeight,
+      backgroundColor: '#F3F0F1',
+      borderRadius: 10,
+      padding: 12,
+    },
+    fence: {
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      fontSize: Math.max(13, config.messageFontSize - 2),
+      lineHeight: config.messageLineHeight,
+      backgroundColor: '#F3F0F1',
+      borderRadius: 10,
+      padding: 12,
+    },
+    list: { marginVertical: 6 },
+    listItem: { marginVertical: 2 },
+  };
 
   useEffect(() => {
     if (isThinking) {
@@ -1148,10 +1265,7 @@ export function ChatMessageBubble({
       {assistant ? (
         <View style={[styles.thinkingRow, { gap: config.thinkingGap }]}>
           {config.customIcons ? (
-            <CustomMessageIcon
-              kind="brain"
-              size={config.thinkingIconSize}
-            />
+            <CustomMessageIcon kind="brain" size={config.thinkingIconSize} />
           ) : (
             <SymbolView
               name={config.thinkingSymbol}
@@ -1171,7 +1285,7 @@ export function ChatMessageBubble({
               },
             ]}
           >
-            2 секунды размышления
+            Ответ Сферки
           </AppText>
         </View>
       ) : null}
@@ -1190,51 +1304,87 @@ export function ChatMessageBubble({
               ]
         }
       >
-        <AppText
+        {errorText ? (
+          <View style={styles.messageErrorBox}>
+            <AppText style={styles.messageErrorText}>{errorText}</AppText>
+            {onRetry ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Повторить отправку"
+                onPress={onRetry}
+                style={styles.messageRetryButton}
+              >
+                <AppText weight="semibold" style={styles.messageRetryText}>
+                  Повторить
+                </AppText>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : markdown && typeof children === 'string' ? (
+          <Markdown
+            allowedImageHandlers={[]}
+            defaultImageHandler={null}
+            markdownit={safeMarkdown}
+            rules={safeMarkdownRules}
+            style={markdownStyles}
+            onLinkPress={(url) => {
+              if (isAllowedChatMarkdownLink(url)) void Linking.openURL(url);
+              return false;
+            }}
+          >
+            {children}
+          </Markdown>
+        ) : (
+          <AppText
+            style={[
+              styles.messageText,
+              {
+                fontSize: config.messageFontSize,
+                lineHeight: config.messageLineHeight,
+                letterSpacing: config.messageLetterSpacing,
+              },
+            ]}
+          >
+            {children}
+          </AppText>
+        )}
+      </View>
+
+      {actions.length > 0 && !errorText ? (
+        <View
           style={[
-            styles.messageText,
+            assistant ? styles.assistantActions : styles.userActions,
             {
-              fontSize: config.messageFontSize,
-              lineHeight: config.messageLineHeight,
-              letterSpacing: config.messageLetterSpacing,
+              gap: assistant ? config.assistantActionGap : config.userActionGap,
             },
           ]}
         >
-          {children}
-        </AppText>
-      </View>
-
-      <View
-        style={[
-          assistant ? styles.assistantActions : styles.userActions,
-          { gap: assistant ? config.assistantActionGap : config.userActionGap },
-        ]}
-      >
-        {actions.map((action) => (
-          <Pressable
-            key={action.label}
-            accessibilityRole="button"
-            accessibilityLabel={action.label}
-            onPress={action.onPress}
-            style={styles.messageAction}
-          >
-            {action.customIcon ? (
-              <CustomMessageIcon
-                kind={action.customIcon}
-                size={config.actionIconSize}
-              />
-            ) : (
-              <SymbolView
-                name={action.symbol}
-                size={config.actionIconSize}
-                tintColor={colors.text.primary}
-                weight="regular"
-                fallback={<Text style={styles.messageFallbackIcon}>□</Text>}
-              />
-            )}
-          </Pressable>
-        ))}
-      </View>
+          {actions.map((action) => (
+            <Pressable
+              key={action.label}
+              accessibilityRole="button"
+              accessibilityLabel={action.label}
+              onPress={action.onPress}
+              style={styles.messageAction}
+            >
+              {action.customIcon ? (
+                <CustomMessageIcon
+                  kind={action.customIcon}
+                  size={config.actionIconSize}
+                />
+              ) : (
+                <SymbolView
+                  name={action.symbol}
+                  size={config.actionIconSize}
+                  tintColor={colors.text.primary}
+                  weight="regular"
+                  fallback={<Text style={styles.messageFallbackIcon}>□</Text>}
+                />
+              )}
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </Animated.View>
   );
 }
@@ -1487,7 +1637,10 @@ const chatMessageVariantConfigs: Record<
   4: {
     label: 'Плотная системная',
     thinkingSymbol: 'waveform.path.ecg',
-    userActions: ['rectangle.portrait.on.rectangle.portrait', 'square.and.pencil'],
+    userActions: [
+      'rectangle.portrait.on.rectangle.portrait',
+      'square.and.pencil',
+    ],
     assistantActions: [
       'rectangle.portrait.on.rectangle.portrait',
       'arrowshape.turn.up.right',
@@ -1786,11 +1939,7 @@ const chatMessageVariantConfigs: Record<
     customIcons: true,
     thinkingSymbol: 'waveform.path.ecg',
     userActions: ['doc.on.clipboard', 'square.and.pencil'],
-    assistantActions: [
-      'doc.on.clipboard',
-      'square.and.arrow.up',
-      'flag.fill',
-    ],
+    assistantActions: ['doc.on.clipboard', 'square.and.arrow.up', 'flag.fill'],
     messageFontSize: 16,
     messageLineHeight: 21,
     messageLetterSpacing: -0.24,
@@ -2362,6 +2511,32 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     letterSpacing: -0.34,
   },
+  messageErrorBox: {
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#FFF2F2',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(130,53,55,0.24)',
+  },
+  messageErrorText: {
+    color: colors.text.primary,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  messageRetryButton: {
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    backgroundColor: colors.surface.raised,
+  },
+  messageRetryText: {
+    color: colors.brand.burgundy,
+    fontSize: 14,
+    lineHeight: 17,
+  },
   userActions: {
     paddingRight: 2,
     flexDirection: 'row',
@@ -2378,6 +2553,9 @@ const styles = StyleSheet.create({
     height: 30,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  composerActionDisabled: {
+    opacity: 0.46,
   },
   messageFallbackIcon: {
     color: colors.text.primary,

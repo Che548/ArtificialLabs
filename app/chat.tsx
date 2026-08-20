@@ -1,11 +1,10 @@
+import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useNavigation } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
-import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
@@ -14,6 +13,7 @@ import {
   Easing,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -26,7 +26,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-  ChatAttachmentMenu,
+  AppText,
   ChatComposer,
   ChatEmptyState,
   ChatHeader,
@@ -40,21 +40,41 @@ import {
   getHeaderTop,
   type ChatSuggestion,
   sizes,
-  spacing,
 } from '../design-system';
+import { api } from '../convex/_generated/api';
+import {
+  buildChatTranscript,
+  findUnansweredUserMessage,
+} from '../lib/chat-context';
+import {
+  chatGenerationErrorText,
+  type ChatGenerationState,
+  transitionChatGeneration,
+} from '../lib/chat-generation-state';
 import { useHealthStore } from '../lib/health-store';
-import { persistChatAttachment } from '../lib/local-files';
-import type { ChatAttachment } from '../lib/health-types';
+import type { ChatMessage } from '../lib/health-types';
 
-const hasNativeLiquidGlass =
-  Platform.OS === 'ios' && isLiquidGlassAvailable();
+const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
-type DemoMessage = {
+type ScreenMessage = {
   id: string;
   text: string;
   assistant: boolean;
-  thinking?: boolean;
+  conversationLocalId: string;
+  state: 'thinking' | 'complete' | 'error';
+  retryUserMessageId?: string;
 };
+
+type ActiveGeneration = {
+  assistantMessageId: string;
+  conversationLocalId: string;
+  userMessageId: string;
+};
+
+type PendingConsentRequest =
+  { kind: 'new'; text: string } | { kind: 'retry'; userMessage: ChatMessage };
+
+const PRIVACY_POLICY_URL = 'https://brainwaves.engineering/docs#document-2';
 
 function ConversationOverlay({
   children,
@@ -85,10 +105,83 @@ function ConversationOverlay({
   );
 }
 
+function AiChatConsentSheet({
+  accepting,
+  onAccept,
+  onCancel,
+  visible,
+}: {
+  accepting: boolean;
+  onAccept: () => void;
+  onCancel: () => void;
+  visible: boolean;
+}) {
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={visible}
+      statusBarTranslucent
+      onRequestClose={onCancel}
+    >
+      <View style={styles.consentBackdrop}>
+        <View accessibilityViewIsModal style={styles.consentSheet}>
+          <AppText role="heading" weight="semibold" style={styles.consentTitle}>
+            Передача текста в Yandex AI Studio
+          </AppText>
+          <AppText style={styles.consentBody}>
+            Для ответа Сферка отправит ваше сообщение и до 20 последних
+            сообщений этого чата через наш сервер в Yandex AI Studio.
+            Структурированные данные профиля, анализы и файлы автоматически не
+            передаются — отправляется только видимый текст чата. Логирование
+            запросов у Yandex отключено. История хранится зашифрованно на
+            устройстве и синхронизируется только при включённой облачной
+            синхронизации.
+          </AppText>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Открыть политику конфиденциальности"
+            onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+          >
+            <AppText weight="medium" style={styles.consentLink}>
+              Политика конфиденциальности
+            </AppText>
+          </Pressable>
+          <View style={styles.consentActions}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={accepting}
+              onPress={onCancel}
+              style={styles.consentCancelButton}
+            >
+              <AppText weight="medium">Отмена</AppText>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: accepting }}
+              disabled={accepting}
+              onPress={onAccept}
+              style={[
+                styles.consentAcceptButton,
+                accepting && styles.consentButtonDisabled,
+              ]}
+            >
+              <AppText weight="semibold" color={colors.text.inverse}>
+                {accepting ? 'Сохраняем…' : 'Согласиться и отправить'}
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function ChatScreen() {
   const {
     chatConversations,
     chatMessages,
+    deleteChatConversation,
     journalEntries,
     labResults,
     markReminderRead,
@@ -98,18 +191,19 @@ export default function ChatScreen() {
     saveChatMessage,
     saveConversation,
   } = useHealthStore();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
+  const aiEligible = Platform.OS !== 'web' && isAuthenticated && !readOnly;
+  const chatStatus = useQuery(api.chat.status, aiEligible ? {} : 'skip');
+  const generateChat = useAction(api.chat.generate);
+  const acceptAiConsent = useMutation(api.chat.acceptConsent);
   const [draft, setDraft] = useState('');
-  const [messages, setMessages] = useState<DemoMessage[]>([]);
+  const [messages, setMessages] = useState<ScreenMessage[]>([]);
   const [conversationId, setConversationId] = useState<string>();
-  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>(
-    [],
-  );
   const [composerFocused, setComposerFocused] = useState(false);
-  const [headerMode, setHeaderMode] = useState<ChatHeaderMode>('chat');
-  const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
+  const headerMode: ChatHeaderMode = 'chat';
   const [conversationVisible, setConversationVisible] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRendered, setHistoryRendered] = useState(false);
@@ -117,6 +211,12 @@ export default function ChatScreen() {
   const [recentChats, setRecentChats] = useState<ChatHistoryItem[]>([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState('');
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [generationState, setGenerationState] =
+    useState<ChatGenerationState>('idle');
+  const [consentVisible, setConsentVisible] = useState(false);
+  const [consentAccepting, setConsentAccepting] = useState(false);
+  const [pendingConsentRequest, setPendingConsentRequest] =
+    useState<PendingConsentRequest>();
   const compactHeight = window.height < 760;
   const composerBottom =
     Platform.OS === 'android'
@@ -130,7 +230,23 @@ export default function ChatScreen() {
   const conversationProgress = useRef(new Animated.Value(0)).current;
   const historyProgress = useRef(new Animated.Value(0)).current;
   const conversationScrollRef = useRef<ScrollView>(null);
-  const responseTimers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const generationInFlight = useRef(false);
+  const activeGeneration = useRef<ActiveGeneration | undefined>(undefined);
+  const knownUserMessages = useRef(new Map<string, ChatMessage>());
+  const chatMessagesRef = useRef(chatMessages);
+  const aiReady = aiEligible && chatStatus?.enabled === true;
+  const availabilityNotice =
+    Platform.OS === 'web'
+      ? 'ИИ-чат доступен в приложении для iOS и Android после входа.'
+      : authLoading
+        ? 'Проверяем доступность ИИ-чата…'
+        : !isAuthenticated || readOnly
+          ? 'Войдите в аккаунт, чтобы получать ответы Сферки.'
+          : !chatStatus
+            ? 'Проверяем доступность ИИ-чата…'
+            : !chatStatus.enabled
+              ? 'ИИ-чат пока выключен администратором.'
+              : undefined;
   const persistedRecentChats = useMemo<ChatHistoryItem[]>(
     () =>
       chatConversations
@@ -142,6 +258,10 @@ export default function ChatScreen() {
         })),
     [chatConversations],
   );
+
+  useEffect(() => {
+    chatMessagesRef.current = chatMessages;
+  }, [chatMessages]);
   const activeReminders = useMemo(
     () =>
       reminders
@@ -195,7 +315,10 @@ export default function ChatScreen() {
       ...activeReminders.map((reminder) => ({
         id: `reminder:${reminder.localId}`,
         title: `${reminder.title}: ${reminder.body}`,
-        icon: reminder.type === 'checkup' ? ('analyses' as const) : ('clinic' as const),
+        icon:
+          reminder.type === 'checkup'
+            ? ('analyses' as const)
+            : ('clinic' as const),
       })),
       ...contextual,
     ].slice(0, 3);
@@ -218,14 +341,6 @@ export default function ChatScreen() {
     );
     return () => subscription.remove();
   }, []);
-
-  useEffect(
-    () => () => {
-      responseTimers.current.forEach(clearTimeout);
-      responseTimers.current = [];
-    },
-    [],
-  );
 
   useEffect(() => {
     if (!conversationVisible) return undefined;
@@ -294,7 +409,6 @@ export default function ChatScreen() {
   }, [suggestionsProgress, suggestionsVisible]);
 
   const dismissComposer = () => {
-    setAttachmentMenuVisible(false);
     if (!composerFocused) return;
 
     Keyboard.dismiss();
@@ -304,7 +418,6 @@ export default function ChatScreen() {
   const openHistory = () => {
     Keyboard.dismiss();
     setComposerFocused(false);
-    setAttachmentMenuVisible(false);
     setHistoryRendered(true);
     setHistoryOpen(true);
     historyProgress.stopAnimation();
@@ -353,47 +466,56 @@ export default function ChatScreen() {
   };
 
   const openRecentChat = (item: ChatHistoryItem) => {
+    const persistedMessages = chatMessagesRef.current
+      .filter(
+        (message) =>
+          !message.deletedAt && message.conversationLocalId === item.id,
+      )
+      .sort((left, right) => left.sentAt - right.sentAt);
+    const restoredMessages: ScreenMessage[] = persistedMessages.map(
+      (message) => ({
+        id: message.localId,
+        text: message.text,
+        assistant: message.role === 'assistant',
+        conversationLocalId: item.id,
+        state: 'complete',
+      }),
+    );
+    const running = activeGeneration.current;
+    if (
+      running?.conversationLocalId === item.id &&
+      !restoredMessages.some(
+        (message) => message.id === running.assistantMessageId,
+      )
+    ) {
+      restoredMessages.push({
+        id: running.assistantMessageId,
+        text: '',
+        assistant: true,
+        conversationLocalId: item.id,
+        state: 'thinking',
+        retryUserMessageId: running.userMessageId,
+      });
+    } else {
+      const unanswered = findUnansweredUserMessage(persistedMessages, item.id);
+      if (unanswered) {
+        knownUserMessages.current.set(unanswered.localId, unanswered);
+        restoredMessages.push({
+          id: `retry_${unanswered.localId}`,
+          text: chatGenerationErrorText(),
+          assistant: true,
+          conversationLocalId: item.id,
+          state: 'error',
+          retryUserMessageId: unanswered.localId,
+        });
+      }
+    }
+
     setSelectedHistoryId(item.id);
     setConversationId(item.id);
-    setMessages(
-      chatMessages
-        .filter(
-          (message) =>
-            !message.deletedAt && message.conversationLocalId === item.id,
-        )
-        .sort((left, right) => left.sentAt - right.sentAt)
-        .map((message) => ({
-          id: message.localId,
-          text: message.text,
-          assistant: message.role === 'assistant',
-        })),
-    );
+    setMessages(restoredMessages);
     setConversationVisible(true);
     closeHistory();
-  };
-
-  const rememberAttachment = async (input: {
-    uri: string;
-    kind: ChatAttachment['kind'];
-    name?: string | null;
-    mimeType?: string | null;
-    size?: number;
-  }) => {
-    if (readOnly) return;
-    const localUri = await persistChatAttachment(input.uri);
-    setPendingAttachments((current) => [
-      ...current,
-      {
-        localId: `attachment_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        kind: input.kind,
-        name: input.name || (input.kind === 'image' ? 'Изображение' : 'Документ'),
-        mimeType: input.mimeType ?? undefined,
-        size: input.size,
-        localUri,
-        availableLocally: true,
-      },
-    ]);
-    closeHistory(() => setConversationVisible(true));
   };
 
   const renameRecentChat = (item: ChatHistoryItem) => {
@@ -440,41 +562,44 @@ export default function ChatScreen() {
   };
 
   const deleteRecentChat = (item: ChatHistoryItem) => {
-    Alert.alert(
-      'Удалить чат?',
-      `«${item.title}» будет удалён из истории.`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Удалить',
-          style: 'destructive',
-          onPress: () => {
-            const conversation = chatConversations.find(
-              (candidate) => candidate.localId === item.id,
-            );
-            if (conversation) {
-              void saveConversation({
-                ...conversation,
-                deletedAt: Date.now(),
-              }).catch((error) => {
-                console.error('Deleting chat failed', error);
-                Alert.alert(
-                  'Не удалось удалить чат',
-                  'Проверьте подключение и попробуйте ещё раз.',
-                );
-              });
-            }
-            setRecentChats((current) => {
-              const nextChats = current.filter((chat) => chat.id !== item.id);
-              if (selectedHistoryId === item.id) {
-                setSelectedHistoryId(nextChats[0]?.id ?? '');
-              }
-              return nextChats;
+    if (
+      activeGeneration.current?.conversationLocalId === item.id ||
+      (generationInFlight.current && conversationId === item.id)
+    ) {
+      Alert.alert(
+        'Сферка ещё отвечает',
+        'Дождитесь ответа, прежде чем удалять этот чат.',
+      );
+      return;
+    }
+    Alert.alert('Удалить чат?', `«${item.title}» будет удалён из истории.`, [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: () => {
+          const conversation = chatConversations.find(
+            (candidate) => candidate.localId === item.id,
+          );
+          if (conversation) {
+            void deleteChatConversation(conversation).catch((error) => {
+              console.error('Deleting chat failed', error);
+              Alert.alert(
+                'Не удалось удалить чат',
+                'Проверьте подключение и попробуйте ещё раз.',
+              );
             });
-          },
+          }
+          setRecentChats((current) => {
+            const nextChats = current.filter((chat) => chat.id !== item.id);
+            if (selectedHistoryId === item.id) {
+              setSelectedHistoryId(nextChats[0]?.id ?? '');
+            }
+            return nextChats;
+          });
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const togglePinnedRecentChat = (item: ChatHistoryItem) => {
@@ -490,227 +615,316 @@ export default function ChatScreen() {
     });
   };
 
-  const openCamera = async () => {
-    setAttachmentMenuVisible(false);
-    void Haptics.selectionAsync();
+  const markGenerationError = (
+    currentGeneration: ActiveGeneration,
+    code?: string,
+    retryAfterMs?: number,
+  ) => {
+    setGenerationState((current) => transitionChatGeneration(current, 'fail'));
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === currentGeneration.assistantMessageId
+          ? {
+              ...message,
+              text: chatGenerationErrorText(code, retryAfterMs),
+              state: 'error',
+              retryUserMessageId: currentGeneration.userMessageId,
+            }
+          : message,
+      ),
+    );
+  };
 
+  const requestAssistant = async (
+    userMessage: ChatMessage,
+    currentGeneration: ActiveGeneration,
+  ) => {
     try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          'Нужен доступ к камере',
-          'Разрешите Private использовать камеру, чтобы сделать фотографию.',
+      const result = await generateChat({
+        requestId: `chat_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+        messages: buildChatTranscript(
+          [...chatMessagesRef.current, userMessage],
+          currentGeneration.conversationLocalId,
+          userMessage,
+        ),
+      });
+
+      if (!result.ok) {
+        markGenerationError(
+          currentGeneration,
+          result.code,
+          'retryAfterMs' in result ? result.retryAfterMs : undefined,
         );
         return;
       }
 
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: false,
-        mediaTypes: ['images'],
-        quality: 0.9,
+      const sentAt = Date.now();
+      const assistantMessage: ChatMessage = {
+        localId: currentGeneration.assistantMessageId,
+        conversationLocalId: currentGeneration.conversationLocalId,
+        role: 'assistant',
+        source: 'model',
+        text: result.reply,
+        sentAt,
+        attachments: [],
+        generation: {
+          provider: result.provider,
+          model: result.model,
+          responseId: result.responseId,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          totalTokens: result.totalTokens,
+          durationMs: result.durationMs,
+          truncated: result.truncated,
+        },
+        updatedAt: sentAt,
+      };
+      await saveChatMessage({
+        localId: assistantMessage.localId,
+        conversationLocalId: assistantMessage.conversationLocalId,
+        role: assistantMessage.role,
+        source: assistantMessage.source,
+        text: assistantMessage.text,
+        sentAt: assistantMessage.sentAt,
+        attachments: assistantMessage.attachments,
+        generation: assistantMessage.generation,
       });
-      const asset = result.canceled ? undefined : result.assets[0];
-      if (asset)
-        await rememberAttachment({
-          uri: asset.uri,
-          kind: 'image',
-          name: asset.fileName,
-          mimeType: asset.mimeType,
-          size: asset.fileSize,
-        });
-    } catch (error) {
-      console.error('Opening chat camera failed', error);
-      Alert.alert(
-        'Не удалось открыть камеру',
-        'Попробуйте ещё раз или выберите изображение из галереи.',
-      );
-    }
-  };
-
-  const openImageLibrary = async () => {
-    setAttachmentMenuVisible(false);
-    void Haptics.selectionAsync();
-
-    try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          'Нужен доступ к Фото',
-          'Разрешите Private выбирать изображения из медиатеки.',
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: false,
-        mediaTypes: ['images'],
-        quality: 0.9,
-      });
-      const asset = result.canceled ? undefined : result.assets[0];
-      if (asset)
-        await rememberAttachment({
-          uri: asset.uri,
-          kind: 'image',
-          name: asset.fileName,
-          mimeType: asset.mimeType,
-          size: asset.fileSize,
-        });
-    } catch (error) {
-      console.error('Opening chat image library failed', error);
-      Alert.alert(
-        'Не удалось открыть Фото',
-        'Попробуйте выбрать изображение ещё раз.',
-      );
-    }
-  };
-
-  const openFilePicker = async () => {
-    setAttachmentMenuVisible(false);
-    void Haptics.selectionAsync();
-
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        copyToCacheDirectory: true,
-        multiple: false,
-        type: '*/*',
-      });
-      const asset = result.canceled ? undefined : result.assets[0];
-      if (asset)
-        await rememberAttachment({
-          uri: asset.uri,
-          kind: 'document',
-          name: asset.name,
-          mimeType: asset.mimeType,
-          size: asset.size,
-        });
-    } catch (error) {
-      console.error('Opening chat document picker failed', error);
-      Alert.alert(
-        'Не удалось открыть Файлы',
-        'Попробуйте выбрать файл ещё раз.',
-      );
-    }
-  };
-
-  const send = async () => {
-    const text = draft.trim();
-    if ((!text && !pendingAttachments.length) || readOnly) return;
-
-    const messageTimestamp = Date.now();
-    const assistantMessageId = `${messageTimestamp}-assistant`;
-    const userMessageId = `${messageTimestamp}-user`;
-    let activeConversationId = conversationId;
-    if (!activeConversationId) {
-      activeConversationId = await saveConversation({
-        title: text || pendingAttachments[0]?.name || 'Новый чат',
-        createdAt: messageTimestamp,
-        lastMessageAt: messageTimestamp,
-      });
-      setConversationId(activeConversationId);
-      setSelectedHistoryId(activeConversationId);
-    } else {
-      const existing = chatConversations.find(
-        (conversation) => conversation.localId === activeConversationId,
-      );
-      if (existing)
-        await saveConversation({
-          ...existing,
-          lastMessageAt: messageTimestamp,
-        });
-    }
-
-    await saveChatMessage({
-      localId: userMessageId,
-      conversationLocalId: activeConversationId,
-      role: 'user',
-      source: 'user',
-      text: text || 'Вложение',
-      sentAt: messageTimestamp,
-      attachments: pendingAttachments,
-    });
-
-    setMessages((current) => [
-      ...current,
-      { id: userMessageId, text: text || 'Вложение', assistant: false },
-      {
-        id: assistantMessageId,
-        text: '',
-        assistant: true,
-        thinking: true,
-      },
-    ]);
-
-    const responseTimer = setTimeout(() => {
-      const demoText =
-        'Я получила ваш вопрос. Сейчас это демонстрация интерфейса: медицинский AI и обработка персональных данных пока не подключены.';
+      chatMessagesRef.current = [
+        ...chatMessagesRef.current.filter(
+          (message) => message.localId !== assistantMessage.localId,
+        ),
+        assistantMessage,
+      ];
       setMessages((current) =>
         current.map((message) =>
-          message.id === assistantMessageId
-            ? {
-                ...message,
-                text: demoText,
-                thinking: false,
-              }
+          message.id === currentGeneration.assistantMessageId
+            ? { ...message, text: result.reply, state: 'complete' }
             : message,
         ),
       );
-      responseTimers.current = responseTimers.current.filter(
-        (timer) => timer !== responseTimer,
+      setGenerationState((current) =>
+        transitionChatGeneration(current, 'succeed'),
       );
-      void saveChatMessage({
-        localId: assistantMessageId,
-        conversationLocalId: activeConversationId,
-        role: 'assistant',
-        source: 'demo',
-        text: demoText,
-        sentAt: Date.now(),
-        attachments: [],
-      });
-    }, 2000);
-    responseTimers.current.push(responseTimer);
-    Keyboard.dismiss();
-    setComposerFocused(false);
-    setAttachmentMenuVisible(false);
-    setConversationVisible(true);
-    setDraft('');
-    setPendingAttachments([]);
-  };
-
-  const copyMessage = async (text: string) => {
-    await Clipboard.setStringAsync(text);
-    if (Platform.OS !== 'web') {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('AI chat generation failed', error);
+      markGenerationError(currentGeneration);
     }
   };
 
-  const editMessage = (text: string) => {
-    setDraft(text);
-    setAttachmentMenuVisible(false);
-    setComposerFocused(true);
+  const startNewMessage = (text: string) => {
+    if (generationInFlight.current) return;
+    generationInFlight.current = true;
+    setGenerationState((current) => transitionChatGeneration(current, 'start'));
+
+    void (async () => {
+      let currentGeneration: ActiveGeneration | undefined;
+      try {
+        const messageTimestamp = Date.now();
+        const nonce = Math.random().toString(36).slice(2, 9);
+        const userMessageId = `message_${messageTimestamp}_${nonce}_user`;
+        const assistantMessageId = `message_${messageTimestamp}_${nonce}_assistant`;
+        let activeConversationId = conversationId;
+        if (!activeConversationId) {
+          activeConversationId = await saveConversation({
+            title: text.slice(0, 80),
+            createdAt: messageTimestamp,
+            lastMessageAt: messageTimestamp,
+          });
+          setConversationId(activeConversationId);
+          setSelectedHistoryId(activeConversationId);
+        } else {
+          const existing = chatConversations.find(
+            (conversation) => conversation.localId === activeConversationId,
+          );
+          if (existing) {
+            await saveConversation({
+              ...existing,
+              lastMessageAt: messageTimestamp,
+            });
+          }
+        }
+
+        const userMessage: ChatMessage = {
+          localId: userMessageId,
+          conversationLocalId: activeConversationId,
+          role: 'user',
+          source: 'user',
+          text,
+          sentAt: messageTimestamp,
+          attachments: [],
+          updatedAt: messageTimestamp,
+        };
+        await saveChatMessage({
+          localId: userMessage.localId,
+          conversationLocalId: userMessage.conversationLocalId,
+          role: userMessage.role,
+          source: userMessage.source,
+          text: userMessage.text,
+          sentAt: userMessage.sentAt,
+          attachments: [],
+        });
+        chatMessagesRef.current = [
+          ...chatMessagesRef.current.filter(
+            (message) => message.localId !== userMessage.localId,
+          ),
+          userMessage,
+        ];
+        knownUserMessages.current.set(userMessage.localId, userMessage);
+        currentGeneration = {
+          assistantMessageId,
+          conversationLocalId: activeConversationId,
+          userMessageId,
+        };
+        activeGeneration.current = currentGeneration;
+        setMessages((current) => [
+          ...current,
+          {
+            id: userMessageId,
+            text,
+            assistant: false,
+            conversationLocalId: activeConversationId,
+            state: 'complete',
+          },
+          {
+            id: assistantMessageId,
+            text: '',
+            assistant: true,
+            conversationLocalId: activeConversationId,
+            state: 'thinking',
+            retryUserMessageId: userMessageId,
+          },
+        ]);
+        Keyboard.dismiss();
+        setComposerFocused(false);
+        setConversationVisible(true);
+        setDraft('');
+        await requestAssistant(userMessage, currentGeneration);
+      } catch (error) {
+        console.error('Saving chat message failed', error);
+        setGenerationState((current) =>
+          transitionChatGeneration(current, 'fail'),
+        );
+        if (currentGeneration) markGenerationError(currentGeneration);
+        else {
+          Alert.alert(
+            'Не удалось сохранить сообщение',
+            'Освободите место на устройстве и попробуйте ещё раз.',
+          );
+        }
+      } finally {
+        generationInFlight.current = false;
+        activeGeneration.current = undefined;
+      }
+    })();
   };
 
-  const shareMessage = async (text: string) => {
-    await Share.share({ message: text });
+  const startRetry = (userMessage: ChatMessage) => {
+    if (generationInFlight.current) return;
+    generationInFlight.current = true;
+    setGenerationState((current) => transitionChatGeneration(current, 'start'));
+    const currentGeneration: ActiveGeneration = {
+      assistantMessageId: `message_${Date.now()}_${Math.random().toString(36).slice(2, 9)}_assistant`,
+      conversationLocalId: userMessage.conversationLocalId,
+      userMessageId: userMessage.localId,
+    };
+    activeGeneration.current = currentGeneration;
+    setMessages((current) => [
+      ...current.filter(
+        (message) => message.retryUserMessageId !== userMessage.localId,
+      ),
+      {
+        id: currentGeneration.assistantMessageId,
+        text: '',
+        assistant: true,
+        conversationLocalId: userMessage.conversationLocalId,
+        state: 'thinking',
+        retryUserMessageId: userMessage.localId,
+      },
+    ]);
+
+    void requestAssistant(userMessage, currentGeneration).finally(() => {
+      generationInFlight.current = false;
+      activeGeneration.current = undefined;
+    });
   };
 
-  const reportMessage = () => {
-    if (Platform.OS !== 'web') {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  const retryMessage = (userMessageId: string) => {
+    const userMessage =
+      knownUserMessages.current.get(userMessageId) ??
+      chatMessagesRef.current.find(
+        (message) =>
+          !message.deletedAt &&
+          message.localId === userMessageId &&
+          message.role === 'user',
+      );
+    if (!userMessage || generationInFlight.current) return;
+    knownUserMessages.current.set(userMessage.localId, userMessage);
+    if (!aiReady) {
+      Alert.alert(
+        'ИИ-чат недоступен',
+        availabilityNotice ?? 'Попробуйте позже.',
+      );
+      return;
     }
+    if (!chatStatus?.consentAccepted) {
+      setPendingConsentRequest({ kind: 'retry', userMessage });
+      setConsentVisible(true);
+      return;
+    }
+    startRetry(userMessage);
+  };
+
+  const send = () => {
+    const text = draft.trim();
+    if (!text || generationInFlight.current) return;
+    if (!aiReady) {
+      Alert.alert(
+        'ИИ-чат недоступен',
+        availabilityNotice ?? 'Попробуйте позже.',
+      );
+      return;
+    }
+    if (!chatStatus?.consentAccepted) {
+      setPendingConsentRequest({ kind: 'new', text });
+      setConsentVisible(true);
+      return;
+    }
+    startNewMessage(text);
+  };
+
+  const acceptConsentAndContinue = async () => {
+    const pending = pendingConsentRequest;
+    if (!pending || !chatStatus?.policyVersion || consentAccepting) return;
+    setConsentAccepting(true);
+    try {
+      await acceptAiConsent({ policyVersion: chatStatus.policyVersion });
+      setConsentVisible(false);
+      setPendingConsentRequest(undefined);
+      if (pending.kind === 'new') startNewMessage(pending.text);
+      else startRetry(pending.userMessage);
+    } catch (error) {
+      console.error('Accepting AI chat consent failed', error);
+      Alert.alert(
+        'Не удалось сохранить согласие',
+        'Проверьте подключение и попробуйте ещё раз.',
+      );
+    } finally {
+      setConsentAccepting(false);
+    }
+  };
+
+  const explainAttachments = () => {
+    void Haptics.selectionAsync();
     Alert.alert(
-      'Ответ отмечен',
-      'Спасибо. Отметка сохранена только на устройстве: отправка жалоб появится вместе с медицинским AI.',
+      'Файлы появятся в режиме «Ассистент»',
+      'Сейчас Сферка получает только видимый текст чата. Фото, документы, их названия и содержимое не отправляются.',
     );
   };
 
   const closeConversation = () => {
     Keyboard.dismiss();
     setComposerFocused(false);
-    setAttachmentMenuVisible(false);
     conversationProgress.stopAnimation();
-    responseTimers.current.forEach(clearTimeout);
-    responseTimers.current = [];
 
     if (reduceMotion) {
       conversationProgress.setValue(0);
@@ -792,7 +1006,6 @@ export default function ChatScreen() {
         >
           <ChatHeader
             activeMode={headerMode}
-            onModeChange={setHeaderMode}
             onHistory={openHistory}
             onCalendar={() =>
               Alert.alert(
@@ -804,114 +1017,111 @@ export default function ChatScreen() {
         </View>
 
         <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        onTouchStart={dismissComposer}
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: insets.top + 80,
-            paddingBottom: composerBottom + 152,
-          },
-        ]}
-      >
-        <View
-          style={[
-            styles.emptyStage,
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          onTouchStart={dismissComposer}
+          contentContainerStyle={[
+            styles.scrollContent,
             {
-              paddingTop: Math.max(135 - insets.top, 32),
+              paddingTop: insets.top + 80,
+              paddingBottom: composerBottom + 152,
             },
           ]}
         >
-          <ChatEmptyState compact={compactHeight} />
-        </View>
+          <View
+            style={[
+              styles.emptyStage,
+              {
+                paddingTop: Math.max(135 - insets.top, 32),
+              },
+            ]}
+          >
+            <ChatEmptyState compact={compactHeight} />
+          </View>
         </ScrollView>
 
         <View
-        pointerEvents="box-none"
-        style={[
-          styles.bottomDock,
-          {
-            bottom: composerBottom,
-          },
-        ]}
-      >
-        <View pointerEvents="box-none" style={styles.attachmentMenuAnchor}>
-          <ChatAttachmentMenu
-            visible={attachmentMenuVisible}
-            onCamera={openCamera}
-            onImage={openImageLibrary}
-            onFile={openFilePicker}
-          />
-        </View>
-
-        <Animated.View
-          pointerEvents={suggestionsVisible ? 'auto' : 'none'}
+          pointerEvents="box-none"
           style={[
-            styles.suggestionsMotion,
+            styles.bottomDock,
             {
-              height: suggestionsProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 100],
-              }),
-              opacity: suggestionsProgress.interpolate({
-                inputRange: [0, 0.28, 1],
-                outputRange: [0, 0, 1],
-              }),
+              bottom: composerBottom,
             },
           ]}
         >
-          <ChatSuggestionList
-            suggestions={suggestions}
-            onSelect={(suggestion) => {
-              const reminder = activeReminders.find(
-                (item) => suggestion.id === `reminder:${item.localId}`,
-              );
-              if (reminder) void markReminderRead(reminder);
-              setDraft(suggestion.title);
-            }}
-          />
           <Animated.View
-            pointerEvents="none"
+            pointerEvents={suggestionsVisible ? 'auto' : 'none'}
             style={[
-              styles.suggestionsGradientMask,
+              styles.suggestionsMotion,
               {
+                height: suggestionsProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 100],
+                }),
                 opacity: suggestionsProgress.interpolate({
-                  inputRange: [0, 0.16, 0.78, 1],
-                  outputRange: [0, 1, 1, 0],
+                  inputRange: [0, 0.28, 1],
+                  outputRange: [0, 0, 1],
                 }),
               },
             ]}
           >
-            <LinearGradient
-              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']}
-              locations={[0, 1]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
+            <ChatSuggestionList
+              suggestions={suggestions}
+              onSelect={(suggestion) => {
+                const reminder = activeReminders.find(
+                  (item) => suggestion.id === `reminder:${item.localId}`,
+                );
+                if (reminder) void markReminderRead(reminder);
+                setDraft(suggestion.title);
+              }}
             />
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.suggestionsGradientMask,
+                {
+                  opacity: suggestionsProgress.interpolate({
+                    inputRange: [0, 0.16, 0.78, 1],
+                    outputRange: [0, 1, 1, 0],
+                  }),
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']}
+                locations={[0, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+            </Animated.View>
           </Animated.View>
-        </Animated.View>
-        <ChatComposer
-          value={draft}
-          onChangeText={setDraft}
-          onSubmit={send}
-          onFocus={() => {
-            setAttachmentMenuVisible(false);
-            setComposerFocused(true);
-          }}
-          onBlur={() => setComposerFocused(false)}
-          onAdd={() => {
-            Keyboard.dismiss();
-            setComposerFocused(false);
-            void Haptics.selectionAsync();
-            setAttachmentMenuVisible((current) => !current);
-          }}
-          onVoice={() =>
-            Alert.alert('Голосовой ввод', 'Голосовой режим пока не подключён.')
-          }
-        />
+          {availabilityNotice ? (
+            <AppText role="caption" style={styles.availabilityNotice}>
+              {availabilityNotice}
+            </AppText>
+          ) : null}
+          <ChatComposer
+            disabled={!aiReady || generationState === 'thinking'}
+            value={draft}
+            onChangeText={setDraft}
+            onSubmit={send}
+            onFocus={() => {
+              setComposerFocused(true);
+            }}
+            onBlur={() => setComposerFocused(false)}
+            onAdd={explainAttachments}
+            onVoice={() =>
+              Alert.alert(
+                'Голосовой ввод',
+                'Голосовой режим пока не подключён.',
+              )
+            }
+          />
+          <AppText role="caption" style={styles.aiDisclaimer}>
+            ИИ может ошибаться. Важные решения проверяйте у специалиста.
+          </AppText>
         </View>
 
         {historyRendered ? (
@@ -955,184 +1165,191 @@ export default function ChatScreen() {
               historySurfaceMotionStyle,
             ]}
           >
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              StyleSheet.absoluteFillObject,
-              styles.conversationBackground,
-              { opacity: conversationProgress },
-            ]}
-          />
-
-          <View
-            style={[styles.headerWrap, { top: headerTop }]}
-          >
-            <ChatHeader
-              activeMode={headerMode}
-              conversation
-              conversationIconProgress={conversationProgress}
-              onModeChange={setHeaderMode}
-              onExitConversation={closeConversation}
-              onHistory={openHistory}
-            />
-          </View>
-
-          <Animated.View
-            style={[
-              styles.conversationContentMotion,
-              {
-                opacity: conversationProgress.interpolate({
-                  inputRange: [0, 0.28, 1],
-                  outputRange: [0, 0, 1],
-                }),
-                transform: [
-                  {
-                    translateX: conversationProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-12, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <ScrollView
-              ref={conversationScrollRef}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              onTouchStart={dismissComposer}
-              contentContainerStyle={[
-                styles.conversationScrollContent,
-                {
-                  paddingTop: insets.top + 102,
-                  paddingBottom: conversationComposerBottom + 92,
-                },
-              ]}
-            >
-              <View style={styles.messages}>
-                {messages.map((message) => (
-                  <ChatMessageBubble
-                    key={message.id}
-                    assistant={message.assistant}
-                    isThinking={message.thinking}
-                    reduceMotion={reduceMotion}
-                    variant={17}
-                    onCopy={() => void copyMessage(message.text)}
-                    onEdit={
-                      message.assistant
-                        ? undefined
-                        : () => editMessage(message.text)
-                    }
-                    onShare={
-                      message.assistant
-                        ? () => void shareMessage(message.text)
-                        : undefined
-                    }
-                    onReport={message.assistant ? reportMessage : undefined}
-                  >
-                    {message.text}
-                  </ChatMessageBubble>
-                ))}
-              </View>
-            </ScrollView>
-          </Animated.View>
-
-          <LinearGradient
-            pointerEvents="none"
-            colors={[
-              'rgba(255,255,255,1)',
-              'rgba(255,255,255,0.96)',
-              'rgba(255,255,255,0)',
-            ]}
-            locations={[0, 0.56, 1]}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={[
-              styles.conversationTopFade,
-              { height: insets.top + 150 },
-            ]}
-          />
-
-          {Platform.OS !== 'android' ? (
-            <LinearGradient
+            <Animated.View
               pointerEvents="none"
-              colors={[
-                'rgba(255,255,255,0)',
-                'rgba(255,255,255,0.72)',
-                'rgba(255,255,255,1)',
-              ]}
-              locations={[0, 0.5, 1]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
               style={[
-                styles.conversationBottomFade,
-                { height: conversationComposerBottom + 120 },
+                StyleSheet.absoluteFillObject,
+                styles.conversationBackground,
+                { opacity: conversationProgress },
               ]}
             />
-          ) : null}
 
-          <Animated.View
-            pointerEvents="box-none"
-            style={[
-              styles.bottomDock,
-              {
-                bottom: conversationComposerBottom,
-                transform: [
-                  {
-                    translateY: conversationProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-67, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <View pointerEvents="box-none" style={styles.attachmentMenuAnchor}>
-              <ChatAttachmentMenu
-                visible={attachmentMenuVisible}
-                onCamera={openCamera}
-                onImage={openImageLibrary}
-                onFile={openFilePicker}
+            <View style={[styles.headerWrap, { top: headerTop }]}>
+              <ChatHeader
+                activeMode={headerMode}
+                conversation
+                conversationIconProgress={conversationProgress}
+                onExitConversation={closeConversation}
+                onHistory={openHistory}
               />
             </View>
 
-            <ChatComposer
-              value={draft}
-              onChangeText={setDraft}
-              onSubmit={send}
-              onFocus={() => {
-                setAttachmentMenuVisible(false);
-                setComposerFocused(true);
-              }}
-              onBlur={() => setComposerFocused(false)}
-              onAdd={() => {
-                Keyboard.dismiss();
-                setComposerFocused(false);
-                void Haptics.selectionAsync();
-                setAttachmentMenuVisible((current) => !current);
-              }}
-              onVoice={() =>
-                Alert.alert(
-                  'Голосовой ввод',
-                  'Голосовой режим пока не подключён.',
-                )
-              }
+            <Animated.View
+              style={[
+                styles.conversationContentMotion,
+                {
+                  opacity: conversationProgress.interpolate({
+                    inputRange: [0, 0.28, 1],
+                    outputRange: [0, 0, 1],
+                  }),
+                  transform: [
+                    {
+                      translateX: conversationProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-12, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <ScrollView
+                ref={conversationScrollRef}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                onTouchStart={dismissComposer}
+                contentContainerStyle={[
+                  styles.conversationScrollContent,
+                  {
+                    paddingTop: insets.top + 102,
+                    paddingBottom: conversationComposerBottom + 92,
+                  },
+                ]}
+              >
+                <View style={styles.messages}>
+                  {messages.map((message) => (
+                    <ChatMessageBubble
+                      key={message.id}
+                      assistant={message.assistant}
+                      errorText={
+                        message.state === 'error' ? message.text : undefined
+                      }
+                      isThinking={message.state === 'thinking'}
+                      markdown={
+                        message.assistant && message.state === 'complete'
+                      }
+                      onCopy={
+                        message.state === 'complete'
+                          ? () => void Clipboard.setStringAsync(message.text)
+                          : undefined
+                      }
+                      onRetry={
+                        message.state === 'error' && message.retryUserMessageId
+                          ? () => retryMessage(message.retryUserMessageId!)
+                          : undefined
+                      }
+                      onShare={
+                        message.assistant && message.state === 'complete'
+                          ? () => void Share.share({ message: message.text })
+                          : undefined
+                      }
+                      reduceMotion={reduceMotion}
+                      variant={17}
+                    >
+                      {message.state === 'error' ? '' : message.text}
+                    </ChatMessageBubble>
+                  ))}
+                </View>
+              </ScrollView>
+            </Animated.View>
+
+            <LinearGradient
+              pointerEvents="none"
+              colors={[
+                'rgba(255,255,255,1)',
+                'rgba(255,255,255,0.96)',
+                'rgba(255,255,255,0)',
+              ]}
+              locations={[0, 0.56, 1]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={[styles.conversationTopFade, { height: insets.top + 150 }]}
             />
-          </Animated.View>
-          {historyRendered ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Закрыть историю чатов"
-              onPress={() => closeHistory()}
-              pointerEvents={historyOpen ? 'auto' : 'none'}
-              style={styles.historyDismissLayer}
-            />
-          ) : null}
+
+            {Platform.OS !== 'android' ? (
+              <LinearGradient
+                pointerEvents="none"
+                colors={[
+                  'rgba(255,255,255,0)',
+                  'rgba(255,255,255,0.72)',
+                  'rgba(255,255,255,1)',
+                ]}
+                locations={[0, 0.5, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={[
+                  styles.conversationBottomFade,
+                  { height: conversationComposerBottom + 120 },
+                ]}
+              />
+            ) : null}
+
+            <Animated.View
+              pointerEvents="box-none"
+              style={[
+                styles.bottomDock,
+                {
+                  bottom: conversationComposerBottom,
+                  transform: [
+                    {
+                      translateY: conversationProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-67, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              {availabilityNotice ? (
+                <AppText role="caption" style={styles.availabilityNotice}>
+                  {availabilityNotice}
+                </AppText>
+              ) : null}
+              <ChatComposer
+                disabled={!aiReady || generationState === 'thinking'}
+                value={draft}
+                onChangeText={setDraft}
+                onSubmit={send}
+                onFocus={() => {
+                  setComposerFocused(true);
+                }}
+                onBlur={() => setComposerFocused(false)}
+                onAdd={explainAttachments}
+                onVoice={() =>
+                  Alert.alert(
+                    'Голосовой ввод',
+                    'Голосовой режим пока не подключён.',
+                  )
+                }
+              />
+              <AppText role="caption" style={styles.aiDisclaimer}>
+                ИИ может ошибаться. Важные решения проверяйте у специалиста.
+              </AppText>
+            </Animated.View>
+            {historyRendered ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Закрыть историю чатов"
+                onPress={() => closeHistory()}
+                pointerEvents={historyOpen ? 'auto' : 'none'}
+                style={styles.historyDismissLayer}
+              />
+            ) : null}
           </Animated.View>
         </KeyboardAvoidingView>
       </ConversationOverlay>
+      <AiChatConsentSheet
+        accepting={consentAccepting}
+        visible={consentVisible}
+        onAccept={() => void acceptConsentAndContinue()}
+        onCancel={() => {
+          if (consentAccepting) return;
+          setConsentVisible(false);
+          setPendingConsentRequest(undefined);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -1195,17 +1412,71 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 30,
     alignItems: 'center',
-    gap: 20,
+    gap: 10,
   },
   suggestionsMotion: {
     width: '100%',
     overflow: 'hidden',
   },
-  attachmentMenuAnchor: {
-    position: 'absolute',
-    left: 0,
-    bottom: 58,
-    zIndex: 20,
+  availabilityNotice: {
+    width: '100%',
+    paddingHorizontal: 10,
+    color: colors.brand.burgundy,
+    textAlign: 'center',
+  },
+  aiDisclaimer: {
+    width: '100%',
+    paddingHorizontal: 10,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  consentBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 12,
+    backgroundColor: 'rgba(33,33,35,0.38)',
+  },
+  consentSheet: {
+    gap: 18,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 22,
+    borderRadius: 28,
+    backgroundColor: colors.surface.raised,
+  },
+  consentTitle: {
+    fontSize: 22,
+    lineHeight: 27,
+  },
+  consentBody: {
+    color: colors.text.secondary,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  consentLink: {
+    color: colors.brand.primary,
+    textDecorationLine: 'underline',
+  },
+  consentActions: {
+    gap: 10,
+  },
+  consentCancelButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: '#F0EEF0',
+  },
+  consentAcceptButton: {
+    minHeight: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    borderRadius: 25,
+    backgroundColor: colors.brand.burgundy,
+  },
+  consentButtonDisabled: {
+    opacity: 0.52,
   },
   suggestionsGradientMask: {
     position: 'absolute',

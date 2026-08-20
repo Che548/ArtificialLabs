@@ -8,29 +8,37 @@
  * @module
  */
 
-import type * as account from "../account.js";
-import type * as auth from "../auth.js";
-import type * as crons from "../crons.js";
-import type * as health from "../health.js";
-import type * as http from "../http.js";
-import type * as lib_access from "../lib/access.js";
-import type * as profile from "../profile.js";
-import type * as seed from "../seed.js";
-import type * as testing from "../testing.js";
+import type * as account from '../account.js';
+import type * as ai_yandexProvider from '../ai/yandexProvider.js';
+import type * as aiChatConfig from '../aiChatConfig.js';
+import type * as auth from '../auth.js';
+import type * as chat from '../chat.js';
+import type * as chatAction from '../chatAction.js';
+import type * as crons from '../crons.js';
+import type * as health from '../health.js';
+import type * as http from '../http.js';
+import type * as lib_access from '../lib/access.js';
+import type * as profile from '../profile.js';
+import type * as seed from '../seed.js';
+import type * as testing from '../testing.js';
 
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
-} from "convex/server";
+} from 'convex/server';
 
 declare const fullApi: ApiFromModules<{
   account: typeof account;
+  'ai/yandexProvider': typeof ai_yandexProvider;
+  aiChatConfig: typeof aiChatConfig;
   auth: typeof auth;
+  chat: typeof chat;
+  chatAction: typeof chatAction;
   crons: typeof crons;
   health: typeof health;
   http: typeof http;
-  "lib/access": typeof lib_access;
+  'lib/access': typeof lib_access;
   profile: typeof profile;
   seed: typeof seed;
   testing: typeof testing;
@@ -46,7 +54,7 @@ declare const fullApi: ApiFromModules<{
  */
 export declare const api: FilterApi<
   typeof fullApi,
-  FunctionReference<any, "public">
+  FunctionReference<any, 'public'>
 >;
 
 /**
@@ -59,7 +67,9 @@ export declare const api: FilterApi<
  */
 export declare const internal: FilterApi<
   typeof fullApi,
-  FunctionReference<any, "internal">
+  FunctionReference<any, 'internal'>
 >;
 
-export declare const components: {};
+export declare const components: {
+  rateLimiter: import('@convex-dev/rate-limiter/_generated/component.js').ComponentApi<'rateLimiter'>;
+};

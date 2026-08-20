@@ -117,9 +117,7 @@ export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
 
   const accounts = await ctx.db
     .query('authAccounts')
-    .withIndex('userIdAndProvider', (q) =>
-      q.eq('userId', userId as never),
-    )
+    .withIndex('userIdAndProvider', (q) => q.eq('userId', userId as never))
     .collect();
   for (const account of accounts) {
     const verificationCodes = await ctx.db
@@ -135,6 +133,11 @@ export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
     .withIndex('by_user', (q) => q.eq('userId', userId as never))
     .unique();
   if (state) await ctx.db.delete(state._id);
+  const aiChatConsent = await ctx.db
+    .query('aiChatConsents')
+    .withIndex('by_user', (q) => q.eq('userId', userId as never))
+    .unique();
+  if (aiChatConsent) await ctx.db.delete(aiChatConsent._id);
   await ctx.db.delete(userId as never);
 }
 

@@ -1,4 +1,5 @@
 import { useAuthActions } from '@convex-dev/auth/react';
+import { useConvexAuth, useMutation, useQuery } from 'convex/react';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   cacheDirectory,
@@ -67,6 +68,7 @@ import {
   sizes,
   spacing,
 } from '../design-system';
+import { api } from '../convex/_generated/api';
 import { useHealthStore } from '../lib/health-store';
 import {
   createEntityCsv,
@@ -185,6 +187,9 @@ export default function ProfileScreen() {
   const { panel } = useLocalSearchParams<{ panel?: string }>();
   const { width: windowWidth } = useWindowDimensions();
   const { signOut } = useAuthActions();
+  const { isAuthenticated } = useConvexAuth();
+  const aiChatStatus = useQuery(api.chat.status, isAuthenticated ? {} : 'skip');
+  const revokeAiChatConsent = useMutation(api.chat.revokeConsent);
   const {
     accountDeletion,
     allergyRisks,
@@ -297,6 +302,30 @@ export default function ProfileScreen() {
     } else {
       setSyncMessage('Не удалось синхронизировать данные');
     }
+  };
+
+  const confirmAiConsentRevocation = () => {
+    if (!aiChatStatus?.consentAccepted) return;
+    Alert.alert(
+      'Отозвать согласие?',
+      'Сферка перестанет отправлять текст чата в Yandex AI Studio. При следующей отправке согласие будет запрошено снова.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Отозвать',
+          style: 'destructive',
+          onPress: () => {
+            void revokeAiChatConsent({}).catch((error) => {
+              console.error('Revoking AI chat consent failed', error);
+              Alert.alert(
+                'Не удалось отозвать согласие',
+                'Проверьте подключение и попробуйте ещё раз.',
+              );
+            });
+          },
+        },
+      ],
+    );
   };
 
   const openSection = (section: ProfileSection) => {
@@ -455,6 +484,7 @@ export default function ProfileScreen() {
               onBack={closeSection}
             >
               {renderProfileSectionDirect({
+                aiConsentAccepted: aiChatStatus?.consentAccepted === true,
                 analyticsEnabled,
                 documentCount,
                 documents: visibleDocuments,
@@ -491,6 +521,7 @@ export default function ProfileScreen() {
                 signOut: () => void signOut(),
                 requestAccountDeletion,
                 serviceIssue,
+                revokeAiConsent: confirmAiConsentRevocation,
                 syncMessage,
                 syncNow: () => void synchronize(),
                 syncDisabled:
@@ -859,6 +890,7 @@ function ProfileDetailScreen({
 }
 
 function renderProfileSectionDirect({
+  aiConsentAccepted,
   analyticsEnabled,
   allergyRisks,
   cloudSyncEnabled,
@@ -878,6 +910,7 @@ function renderProfileSectionDirect({
   resultNotifications,
   requestAccountDeletion,
   serviceIssue,
+  revokeAiConsent,
   saveAllergyRisk,
   saveDocumentFromPicker,
   saveMedicalCondition,
@@ -899,6 +932,7 @@ function renderProfileSectionDirect({
   syncStatus,
   viewerEmail,
 }: {
+  aiConsentAccepted: boolean;
   analyticsEnabled: boolean;
   allergyRisks: AllergyRisk[];
   cloudSyncEnabled: boolean;
@@ -921,6 +955,7 @@ function renderProfileSectionDirect({
   resultNotifications: boolean;
   requestAccountDeletion: () => Promise<boolean>;
   serviceIssue?: ServiceIssue;
+  revokeAiConsent: () => void;
   saveAllergyRisk: (
     input: Omit<AllergyRisk, 'localId' | 'updatedAt'> & { localId?: string },
   ) => Promise<void>;
@@ -1233,6 +1268,18 @@ function renderProfileSectionDirect({
               isLast
             />
           </ProfileSettingsGroup>
+          <ProfileActionRow
+            secondary
+            icon="sparkles"
+            label={
+              aiConsentAccepted
+                ? 'Отозвать согласие для ИИ-чата'
+                : 'Согласие для ИИ-чата не дано'
+            }
+            subtitle="Передача только видимого текста чата"
+            disabled={!aiConsentAccepted}
+            onPress={revokeAiConsent}
+          />
           <ProfileActionRow
             secondary
             icon="gearshape.fill"

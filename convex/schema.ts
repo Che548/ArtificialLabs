@@ -42,6 +42,14 @@ export default defineSchema({
   })
     .index('by_user', ['userId'])
     .index('by_scheduled_deletion', ['scheduledDeletionAt']),
+  aiChatConsents: defineTable({
+    userId: v.id('users'),
+    provider: v.literal('yandex-ai-studio'),
+    policyVersion: v.string(),
+    acceptedAt: v.number(),
+    revokedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index('by_user', ['userId']),
   monitoringPrograms: defineTable({
     profileId: v.id('profiles'),
     ...syncState,
@@ -213,9 +221,21 @@ export default defineSchema({
     ...syncState,
     conversationLocalId: v.string(),
     role: v.union(v.literal('user'), v.literal('assistant')),
-    source: v.union(v.literal('user'), v.literal('demo')),
+    source: v.union(v.literal('user'), v.literal('demo'), v.literal('model')),
     text: v.string(),
     sentAt: v.number(),
+    generation: v.optional(
+      v.object({
+        provider: v.string(),
+        model: v.string(),
+        responseId: v.optional(v.string()),
+        inputTokens: v.optional(v.number()),
+        outputTokens: v.optional(v.number()),
+        totalTokens: v.optional(v.number()),
+        durationMs: v.number(),
+        truncated: v.boolean(),
+      }),
+    ),
     attachments: v.array(
       v.object({
         localId: v.string(),

@@ -21,10 +21,7 @@ const emptyBatch = () => ({
   preferences: [],
 });
 
-async function createUser(
-  t: ReturnType<typeof convexTest>,
-  email: string,
-) {
+async function createUser(t: ReturnType<typeof convexTest>, email: string) {
   const userId = await t.run((ctx) => ctx.db.insert('users', { email }));
   const client = t.withIdentity({ subject: `${userId}|test-session`, email });
   await client.mutation(api.profile.save, {
@@ -44,113 +41,139 @@ describe('health ownership and sync', () => {
 
     await alice.client.mutation(api.health.syncBatch, {
       ...emptyBatch(),
-      programs: [{
-        localId: 'program-1',
-        type: 'planning',
-        title: 'Подготовка',
-        status: 'active',
-        startedAt: 10,
-        updatedAt: 10,
-      }],
-      journalEntries: [{
-        localId: 'journal-1',
-        occurredAt: 10,
-        kind: 'note',
-        label: 'Запись',
-        source: 'manual',
-        updatedAt: 10,
-      }],
-      labResults: [{
-        localId: 'lab-1',
-        catalogKey: 'blood',
-        title: 'Анализ',
-        collectedAt: 10,
-        status: 'unreviewed',
-        analytes: [],
-        hasLocalSourceDocument: true,
-        updatedAt: 10,
-      }],
-      scanResults: [{
-        localId: 'scan-1',
-        testSystemKey: 'strip',
-        capturedAt: 10,
-        confirmedValue: 'negative',
-        resultSource: 'stripcv',
-        confidence: 0.9,
-        qualityFlags: [],
-        algorithmVersion: 'stripcv-0.3.1',
-        analysisStatus: 'valid',
-        confirmedByUser: true,
-        hasLocalImage: true,
-        updatedAt: 10,
-      }],
-      reminders: [{
-        localId: 'reminder-1',
-        type: 'journal',
-        title: 'Дневник',
-        body: 'Заполнить',
-        dueAt: 10,
-        updatedAt: 10,
-      }],
-      medicalConditions: [{
-        localId: 'condition-1',
-        title: 'Состояние',
-        status: 'active',
-        updatedAt: 10,
-      }],
-      medications: [{
-        localId: 'medication-1',
-        name: 'Препарат',
-        active: true,
-        updatedAt: 10,
-      }],
-      allergyRisks: [{
-        localId: 'allergy-1',
-        allergen: 'Аллерген',
-        severity: 'unknown',
-        updatedAt: 10,
-      }],
-      documents: [{
-        localId: 'document-1',
-        title: 'Заключение',
-        category: 'medical',
-        documentDate: 10,
-        hasLocalFile: true,
-        updatedAt: 10,
-      }],
-      chatConversations: [{
-        localId: 'conversation-1',
-        title: 'Чат',
-        createdAt: 10,
-        lastMessageAt: 10,
-        updatedAt: 10,
-      }],
-      chatMessages: [{
-        localId: 'message-1',
-        conversationLocalId: 'conversation-1',
-        role: 'assistant',
-        source: 'demo',
-        text: 'Демонстрационный ответ',
-        sentAt: 10,
-        attachments: [{
-          localId: 'attachment-1',
-          kind: 'document',
-          name: 'local.pdf',
-          availableLocally: true,
-        }],
-        updatedAt: 10,
-      }],
-      preferences: [{
-        localId: 'preferences',
-        notificationsEnabled: false,
-        journalNotifications: false,
-        resultNotifications: false,
-        anonymousAnalytics: false,
-        medicalRecommendations: false,
-        language: 'ru',
-        region: 'RU',
-        updatedAt: 10,
-      }],
+      programs: [
+        {
+          localId: 'program-1',
+          type: 'planning',
+          title: 'Подготовка',
+          status: 'active',
+          startedAt: 10,
+          updatedAt: 10,
+        },
+      ],
+      journalEntries: [
+        {
+          localId: 'journal-1',
+          occurredAt: 10,
+          kind: 'note',
+          label: 'Запись',
+          source: 'manual',
+          updatedAt: 10,
+        },
+      ],
+      labResults: [
+        {
+          localId: 'lab-1',
+          catalogKey: 'blood',
+          title: 'Анализ',
+          collectedAt: 10,
+          status: 'unreviewed',
+          analytes: [],
+          hasLocalSourceDocument: true,
+          updatedAt: 10,
+        },
+      ],
+      scanResults: [
+        {
+          localId: 'scan-1',
+          testSystemKey: 'strip',
+          capturedAt: 10,
+          confirmedValue: 'negative',
+          resultSource: 'stripcv',
+          confidence: 0.9,
+          qualityFlags: [],
+          algorithmVersion: 'stripcv-0.3.1',
+          analysisStatus: 'valid',
+          confirmedByUser: true,
+          hasLocalImage: true,
+          updatedAt: 10,
+        },
+      ],
+      reminders: [
+        {
+          localId: 'reminder-1',
+          type: 'journal',
+          title: 'Дневник',
+          body: 'Заполнить',
+          dueAt: 10,
+          updatedAt: 10,
+        },
+      ],
+      medicalConditions: [
+        {
+          localId: 'condition-1',
+          title: 'Состояние',
+          status: 'active',
+          updatedAt: 10,
+        },
+      ],
+      medications: [
+        {
+          localId: 'medication-1',
+          name: 'Препарат',
+          active: true,
+          updatedAt: 10,
+        },
+      ],
+      allergyRisks: [
+        {
+          localId: 'allergy-1',
+          allergen: 'Аллерген',
+          severity: 'unknown',
+          updatedAt: 10,
+        },
+      ],
+      documents: [
+        {
+          localId: 'document-1',
+          title: 'Заключение',
+          category: 'medical',
+          documentDate: 10,
+          hasLocalFile: true,
+          updatedAt: 10,
+        },
+      ],
+      chatConversations: [
+        {
+          localId: 'conversation-1',
+          title: 'Чат',
+          createdAt: 10,
+          lastMessageAt: 10,
+          updatedAt: 10,
+        },
+      ],
+      chatMessages: [
+        {
+          localId: 'message-1',
+          conversationLocalId: 'conversation-1',
+          role: 'assistant',
+          source: 'demo',
+          text: 'Демонстрационный ответ',
+          sentAt: 10,
+          attachments: [
+            {
+              localId: 'attachment-1',
+              kind: 'document',
+              name: 'local.pdf',
+              availableLocally: true,
+            },
+          ],
+          updatedAt: 10,
+        },
+      ],
+      preferences: [
+        {
+          localId: 'preferences',
+          notificationsEnabled: false,
+          journalNotifications: false,
+          resultNotifications: false,
+          anonymousAnalytics: false,
+          medicalRecommendations: false,
+          language: 'ru',
+          region: 'RU',
+          updatedAt: 10,
+        },
+      ],
     });
 
     const aliceSnapshot = await alice.client.query(api.health.snapshot, {});
@@ -192,6 +215,58 @@ describe('health ownership and sync', () => {
     expect(snapshot.medications[0]?.deletedAt).toBe(30);
   });
 
+  test('accepts both legacy demo messages and model generation metadata', async () => {
+    const t = convexTest(schema, modules);
+    const { client } = await createUser(t, 'chat-schema@example.test');
+    await client.mutation(api.health.syncBatch, {
+      ...emptyBatch(),
+      chatMessages: [
+        {
+          localId: 'legacy-demo',
+          conversationLocalId: 'conversation-1',
+          role: 'assistant',
+          source: 'demo',
+          text: 'Старый ответ',
+          sentAt: 1,
+          attachments: [],
+          updatedAt: 1,
+        },
+        {
+          localId: 'model-response',
+          conversationLocalId: 'conversation-1',
+          role: 'assistant',
+          source: 'model',
+          text: 'Новый ответ',
+          sentAt: 2,
+          generation: {
+            provider: 'yandex-ai-studio',
+            model: 'deepseek-v4-flash/latest',
+            responseId: 'response-1',
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+            durationMs: 30,
+            truncated: false,
+          },
+          attachments: [],
+          updatedAt: 2,
+        },
+      ],
+    });
+
+    const snapshot = await client.query(api.health.snapshot, {});
+    expect(snapshot.chatMessages).toHaveLength(2);
+    expect(
+      snapshot.chatMessages.find((message) => message.localId === 'legacy-demo')
+        ?.source,
+    ).toBe('demo');
+    expect(
+      snapshot.chatMessages.find(
+        (message) => message.localId === 'model-response',
+      )?.generation?.totalTokens,
+    ).toBe(15);
+  });
+
   test('does not let a stale device overwrite a newer profile', async () => {
     const t = convexTest(schema, modules);
     const { client } = await createUser(t, 'profile-conflict@example.test');
@@ -223,11 +298,16 @@ describe('health ownership and sync', () => {
     await expect(client.query(api.health.snapshot, {})).rejects.toThrow(
       'ACCOUNT_PENDING_DELETION',
     );
-    expect((await client.query(api.account.status, {})).pendingDeletion).toBe(true);
+    expect((await client.query(api.account.status, {})).pendingDeletion).toBe(
+      true,
+    );
 
     await client.mutation(api.account.restore, {});
     await expect(client.query(api.health.snapshot, {})).resolves.toBeDefined();
-    const requestedAgain = await client.mutation(api.account.requestDeletion, {});
+    const requestedAgain = await client.mutation(
+      api.account.requestDeletion,
+      {},
+    );
     await t.mutation(internal.account.purgeExpired, {
       now: requestedAgain.scheduledDeletionAt + 1,
     });
@@ -249,10 +329,7 @@ describe('health ownership and sync', () => {
 
   test('purges only explicitly named E2E accounts', async () => {
     const t = convexTest(schema, modules);
-    const e2e = await createUser(
-      t,
-      'artificiallabs-e2e+12345678@example.test',
-    );
+    const e2e = await createUser(t, 'artificiallabs-e2e+12345678@example.test');
     const ordinary = await createUser(t, 'ordinary@example.test');
 
     await expect(

@@ -3,6 +3,8 @@ import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 
 import type {
+  ChatConversation,
+  ChatMessage,
   HealthEntityMap,
   HealthEntityName,
   HealthSnapshot,
@@ -11,6 +13,7 @@ import type {
   ScanResult,
 } from './health-types';
 import { createEmptySnapshot } from './health-types';
+import { createChatTombstones } from './chat-deletion';
 
 const DATABASE_NAME = 'artificiallabs.db';
 const DATABASE_KEY_NAME = 'artificiallabs.database-key.v1';
@@ -122,7 +125,9 @@ export async function claimLocalDatabaseOwner(userId: string) {
   );
   if (row?.value === userId) return false;
   await withWriteTransaction(async (transaction) => {
-    await transaction.execAsync('DELETE FROM records; DELETE FROM outbox; DELETE FROM settings;');
+    await transaction.execAsync(
+      'DELETE FROM records; DELETE FROM outbox; DELETE FROM settings;',
+    );
     await transaction.runAsync(
       `INSERT INTO settings (key, value) VALUES ('ownerId', ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
@@ -263,6 +268,52 @@ export async function saveScanResultWithJournal(
   });
 }
 
+export async function tombstoneLocalChatConversation(
+  conversation: ChatConversation,
+  messages: ChatMessage[],
+  enqueue: boolean,
+) {
+  const tombstones = createChatTombstones(conversation, messages);
+  await withWriteTransaction(async (transaction) => {
+    await writeLocalRecord(
+      transaction,
+      'chatConversations',
+      tombstones.conversation,
+      enqueue,
+    );
+    for (const message of tombstones.messages) {
+      await writeLocalRecord(transaction, 'chatMessages', message, enqueue);
+    }
+  });
+}
+
+export async function enqueueLocalChatSnapshot(
+  conversations: ChatConversation[],
+  messages: ChatMessage[],
+) {
+  await withWriteTransaction(async (transaction) => {
+    for (const conversation of conversations) {
+      await writeLocalRecord(
+        transaction,
+        'chatConversations',
+        conversation,
+        true,
+      );
+    }
+    for (const message of messages) {
+      await writeLocalRecord(transaction, 'chatMessages', message, true);
+    }
+  });
+}
+
+export async function clearPendingChatOutbox() {
+  await withWriteTransaction(async (transaction) => {
+    await transaction.runAsync(
+      "DELETE FROM outbox WHERE entity IN ('chatConversations', 'chatMessages')",
+    );
+  });
+}
+
 export async function pendingOutbox() {
   const db = await database();
   const rows = await db.getAllAsync<OutboxRow>(
@@ -303,9 +354,7 @@ export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
               localItem &&
               'localDocumentUri' in localItem
             ? { ...portableItem, localDocumentUri: localItem.localDocumentUri }
-            : entity === 'documents' &&
-                localItem &&
-                'localFileUri' in localItem
+            : entity === 'documents' && localItem && 'localFileUri' in localItem
               ? { ...portableItem, localFileUri: localItem.localFileUri }
               : portableItem;
       if (entity === 'scanResults') {
@@ -322,7 +371,11 @@ export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
           confirmedByUser: portableScan.confirmedByUser ?? true,
         };
       }
-      if (entity === 'chatMessages' && localItem && 'attachments' in localItem) {
+      if (
+        entity === 'chatMessages' &&
+        localItem &&
+        'attachments' in localItem
+      ) {
         const localAttachments = new Map(
           localItem.attachments.map((attachment) => [
             attachment.localId,
@@ -332,7 +385,8 @@ export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
         merged = {
           ...merged,
           attachments: (
-            ((portableItem as Record<string, unknown>).attachments ?? []) as Array<{
+            ((portableItem as Record<string, unknown>).attachments ??
+              []) as Array<{
               localId: string;
               [key: string]: unknown;
             }>

@@ -47,6 +47,23 @@ test('public web client remains a read-only demo', async ({ page }) => {
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
   }
 
+  await page.getByText('Сферка', { exact: true }).first().click();
+  await expect(
+    page.getByText(
+      'ИИ-чат доступен в приложении для iOS и Android после входа.',
+    ),
+  ).toBeVisible();
+  await expect(page.getByLabel('Сообщение для Сферки')).not.toBeEditable();
+  await expect(
+    page.getByRole('tab', { name: 'Ассистент, Скоро' }),
+  ).toBeDisabled();
+  await expect(page.getByLabel('Добавить вложение')).toBeVisible();
+  await expect(
+    page.getByText(
+      'ИИ может ошибаться. Важные решения проверяйте у специалиста.',
+    ),
+  ).toBeVisible();
+
   for (const label of ['Сферка', 'Анализы', 'Сегодня', 'Скан', 'Профиль']) {
     await page.getByText(label, { exact: true }).first().click();
     await expect(

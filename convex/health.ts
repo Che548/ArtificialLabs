@@ -160,9 +160,21 @@ const chatMessage = v.object({
   ...common,
   conversationLocalId: v.string(),
   role: v.union(v.literal('user'), v.literal('assistant')),
-  source: v.union(v.literal('user'), v.literal('demo')),
+  source: v.union(v.literal('user'), v.literal('demo'), v.literal('model')),
   text: v.string(),
   sentAt: v.number(),
+  generation: v.optional(
+    v.object({
+      provider: v.string(),
+      model: v.string(),
+      responseId: v.optional(v.string()),
+      inputTokens: v.optional(v.number()),
+      outputTokens: v.optional(v.number()),
+      totalTokens: v.optional(v.number()),
+      durationMs: v.number(),
+      truncated: v.boolean(),
+    }),
+  ),
   attachments: v.array(attachment),
 });
 const preferences = v.object({
@@ -272,62 +284,61 @@ export const snapshot = query({
       chatConversations,
       chatMessages,
       preferences,
-    ] =
-      await Promise.all([
-        ctx.db
-          .query('monitoringPrograms')
-          .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
-          .collect(),
-        ctx.db
-          .query('journalEntries')
-          .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
-          .order('desc')
-          .take(200),
-        ctx.db
-          .query('labResults')
-          .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
-          .order('desc')
-          .take(100),
-        ctx.db
-          .query('scanResults')
-          .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
-          .order('desc')
-          .take(100),
-        ctx.db
-          .query('reminders')
-          .withIndex('by_profile_due', (q) => q.eq('profileId', profile._id))
-          .order('desc')
-          .take(100),
-        ctx.db
-          .query('medicalConditions')
-          .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
-          .collect(),
-        ctx.db
-          .query('medications')
-          .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
-          .collect(),
-        ctx.db
-          .query('allergyRisks')
-          .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
-          .collect(),
-        ctx.db
-          .query('documents')
-          .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
-          .collect(),
-        ctx.db
-          .query('chatConversations')
-          .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
-          .collect(),
-        ctx.db
-          .query('chatMessages')
-          .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
-          .order('desc')
-          .take(500),
-        ctx.db
-          .query('preferences')
-          .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
-          .collect(),
-      ]);
+    ] = await Promise.all([
+      ctx.db
+        .query('monitoringPrograms')
+        .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
+        .collect(),
+      ctx.db
+        .query('journalEntries')
+        .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
+        .order('desc')
+        .take(200),
+      ctx.db
+        .query('labResults')
+        .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
+        .order('desc')
+        .take(100),
+      ctx.db
+        .query('scanResults')
+        .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
+        .order('desc')
+        .take(100),
+      ctx.db
+        .query('reminders')
+        .withIndex('by_profile_due', (q) => q.eq('profileId', profile._id))
+        .order('desc')
+        .take(100),
+      ctx.db
+        .query('medicalConditions')
+        .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
+        .collect(),
+      ctx.db
+        .query('medications')
+        .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
+        .collect(),
+      ctx.db
+        .query('allergyRisks')
+        .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
+        .collect(),
+      ctx.db
+        .query('documents')
+        .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
+        .collect(),
+      ctx.db
+        .query('chatConversations')
+        .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
+        .collect(),
+      ctx.db
+        .query('chatMessages')
+        .withIndex('by_profile_time', (q) => q.eq('profileId', profile._id))
+        .order('desc')
+        .take(500),
+      ctx.db
+        .query('preferences')
+        .withIndex('by_profile', (q) => q.eq('profileId', profile._id))
+        .collect(),
+    ]);
     return {
       profile,
       programs,

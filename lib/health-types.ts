@@ -163,9 +163,19 @@ export type ChatMessage = {
   localId: string;
   conversationLocalId: string;
   role: 'user' | 'assistant';
-  source: 'user' | 'demo';
+  source: 'user' | 'demo' | 'model';
   text: string;
   sentAt: number;
+  generation?: {
+    provider: string;
+    model: string;
+    responseId?: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    durationMs: number;
+    truncated: boolean;
+  };
   attachments: ChatAttachment[];
   updatedAt: number;
   deletedAt?: number;

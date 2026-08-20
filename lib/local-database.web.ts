@@ -1,4 +1,6 @@
 import type {
+  ChatConversation,
+  ChatMessage,
   HealthEntityMap,
   HealthEntityName,
   HealthSnapshot,
@@ -7,6 +9,7 @@ import type {
   ScanResult,
 } from './health-types';
 import { createEmptySnapshot } from './health-types';
+import { createChatTombstones } from './chat-deletion';
 
 let snapshot: HealthSnapshot = {
   ...createEmptySnapshot(),
@@ -45,7 +48,10 @@ export async function loadLocalSetting<T>(key: string) {
 }
 export async function saveLocalSetting(key: string, value: unknown) {
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(`${LOCAL_SETTING_PREFIX}${key}`, JSON.stringify(value));
+    localStorage.setItem(
+      `${LOCAL_SETTING_PREFIX}${key}`,
+      JSON.stringify(value),
+    );
   }
   localSettings.set(key, value);
 }
@@ -58,6 +64,7 @@ export async function deleteLocalSetting(key: string) {
 export async function saveLocalRecord<K extends HealthEntityName>(
   entity: K,
   item: HealthEntityMap[K],
+  _enqueue = true,
 ) {
   snapshot = {
     ...snapshot,
@@ -85,6 +92,30 @@ export async function saveScanResultWithJournal(
     ],
   };
 }
+export async function tombstoneLocalChatConversation(
+  conversation: ChatConversation,
+  messages: ChatMessage[],
+  _enqueue: boolean,
+) {
+  const tombstones = createChatTombstones(conversation, messages);
+  const messageTombstones = new Map(
+    tombstones.messages.map((message) => [message.localId, message]),
+  );
+  snapshot = {
+    ...snapshot,
+    chatConversations: snapshot.chatConversations.map((item) =>
+      item.localId === conversation.localId ? tombstones.conversation : item,
+    ),
+    chatMessages: snapshot.chatMessages.map(
+      (item) => messageTombstones.get(item.localId) ?? item,
+    ),
+  };
+}
+export async function enqueueLocalChatSnapshot(
+  _conversations: ChatConversation[],
+  _messages: ChatMessage[],
+) {}
+export async function clearPendingChatOutbox() {}
 export async function pendingOutbox() {
   return [] as Array<{
     id: number;

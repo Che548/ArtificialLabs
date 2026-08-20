@@ -17,8 +17,10 @@ import type { ImportPreview } from './data-transfer';
 import {
   acknowledgeOutbox,
   claimLocalDatabaseOwner,
+  clearPendingChatOutbox,
   clearLocalHealthData,
   deleteLocalSetting,
+  enqueueLocalChatSnapshot,
   initializeLocalDatabase,
   loadLocalSetting,
   loadLocalSnapshot,
@@ -28,6 +30,7 @@ import {
   saveLocalRecord,
   saveLocalSetting,
   saveScanResultWithJournal,
+  tombstoneLocalChatConversation,
 } from './local-database';
 import type {
   AllergyRisk,
@@ -53,7 +56,10 @@ import type {
 } from './health-types';
 import { createEmptySnapshot, newLocalId } from './health-types';
 import { mayUseMedicalCloud } from './sync-policy';
-import { clearLocalHealthFiles } from './local-files';
+import {
+  clearLocalHealthFiles,
+  discardPersistedChatAttachment,
+} from './local-files';
 import {
   createSingleFlightRunner,
   synchronizeMedicalCloud,
@@ -110,6 +116,7 @@ type HealthStoreValue = HealthSnapshot & {
   saveDocument: (input: SavedInput<HealthDocument>) => Promise<void>;
   saveConversation: (input: SavedInput<ChatConversation>) => Promise<string>;
   saveChatMessage: (input: SavedInput<ChatMessage>) => Promise<void>;
+  deleteChatConversation: (conversation: ChatConversation) => Promise<void>;
   savePreferences: (
     input: Partial<Omit<AppPreferences, 'localId' | 'updatedAt'>>,
   ) => Promise<void>;
@@ -166,6 +173,8 @@ export function HealthStoreProvider({
     [authToken],
   );
   const offlineRef = useRef(isOffline);
+  const chatCloudPrepared = useRef(false);
+  const chatCloudPreparation = useRef<Promise<void> | undefined>(undefined);
   const saveRemoteProfile = useMutation(backendApi.profile.save);
   const syncRemoteBatch = useMutation(backendApi.health.syncBatch);
   const requestRemoteDeletion = useMutation(backendApi.account.requestDeletion);
@@ -209,6 +218,10 @@ export function HealthStoreProvider({
     const preference =
       await loadLocalSetting<CloudSyncPreference>(CLOUD_SYNC_SETTING);
     setCloudSyncEnabledState(preference?.enabled === true);
+    if (!preference?.enabled) {
+      chatCloudPrepared.current = false;
+      await clearPendingChatOutbox();
+    }
     const deadline = await loadLocalSetting<number>(DELETION_DEADLINE_SETTING);
     if (deadline && deadline <= Date.now()) {
       await clearLocalHealthData();
@@ -266,6 +279,28 @@ export function HealthStoreProvider({
     void mergeRemoteSnapshot(records as never).then(refresh);
   }, [canUseCloud, refresh, remoteSnapshot]);
 
+  const prepareChatCloud = useCallback(async () => {
+    if (chatCloudPrepared.current && !chatCloudPreparation.current) return;
+    if (!chatCloudPreparation.current) {
+      chatCloudPrepared.current = true;
+      const preparation = enqueueLocalChatSnapshot(
+        snapshot.chatConversations,
+        snapshot.chatMessages,
+      )
+        .catch((error) => {
+          chatCloudPrepared.current = false;
+          throw error;
+        })
+        .finally(() => {
+          if (chatCloudPreparation.current === preparation) {
+            chatCloudPreparation.current = undefined;
+          }
+        });
+      chatCloudPreparation.current = preparation;
+    }
+    await chatCloudPreparation.current;
+  }, [snapshot.chatConversations, snapshot.chatMessages]);
+
   const synchronize = useCallback(
     async (profile: LocalProfile, consentedAt?: number) => {
       if (offlineRef.current) {
@@ -308,6 +343,7 @@ export function HealthStoreProvider({
       const preference =
         await loadLocalSetting<CloudSyncPreference>(CLOUD_SYNC_SETTING);
       if (!preference?.enabled) return false;
+      await prepareChatCloud();
       return synchronize(snapshot.profile, preference.consentedAt);
     } catch (error) {
       console.error('Failed to read cloud sync consent', error);
@@ -315,11 +351,15 @@ export function HealthStoreProvider({
       setSyncStatus('error');
       return false;
     }
-  }, [canUseCloud, readOnly, snapshot.profile, synchronize]);
+  }, [canUseCloud, prepareChatCloud, readOnly, snapshot.profile, synchronize]);
+
+  useEffect(() => {
+    if (!canUseCloud) chatCloudPrepared.current = false;
+  }, [canUseCloud]);
 
   useEffect(() => {
     if (canUseCloud && snapshot.profile) void syncNow();
-  }, [canUseCloud, localRevision, snapshot.profile?.updatedAt]);
+  }, [canUseCloud, localRevision, snapshot.profile?.updatedAt, syncNow]);
 
   useEffect(() => {
     const reconnected = wasOffline.current && !isOffline;
@@ -492,12 +532,7 @@ export function HealthStoreProvider({
   const saveTyped = useCallback(
     async <
       K extends
-        | 'medicalConditions'
-        | 'medications'
-        | 'allergyRisks'
-        | 'documents'
-        | 'chatConversations'
-        | 'chatMessages',
+        'medicalConditions' | 'medications' | 'allergyRisks' | 'documents',
     >(
       entity: K,
       prefix: string,
@@ -512,6 +547,38 @@ export function HealthStoreProvider({
       return localId;
     },
     [writeRecord],
+  );
+
+  const saveConversation = useCallback(
+    async (input: SavedInput<ChatConversation>) => {
+      const localId = input.localId ?? newLocalId('conversation');
+      if (readOnly) return localId;
+      await saveLocalRecord(
+        'chatConversations',
+        { ...input, localId, updatedAt: Date.now() },
+        canUseCloud,
+      );
+      await refresh();
+      return localId;
+    },
+    [canUseCloud, readOnly, refresh],
+  );
+
+  const saveChatMessage = useCallback(
+    async (input: SavedInput<ChatMessage>) => {
+      if (readOnly) return;
+      await saveLocalRecord(
+        'chatMessages',
+        {
+          ...input,
+          localId: input.localId ?? newLocalId('message'),
+          updatedAt: Date.now(),
+        },
+        canUseCloud,
+      );
+      await refresh();
+    },
+    [canUseCloud, readOnly, refresh],
   );
 
   const savePreferences = useCallback(
@@ -545,6 +612,26 @@ export function HealthStoreProvider({
     [writeRecord],
   );
 
+  const deleteChatConversation = useCallback(
+    async (conversation: ChatConversation) => {
+      if (readOnly) return;
+      const messages = snapshot.chatMessages.filter(
+        (message) => message.conversationLocalId === conversation.localId,
+      );
+      await tombstoneLocalChatConversation(conversation, messages, canUseCloud);
+      const attachmentUris = messages.flatMap((message) =>
+        message.attachments.flatMap((attachment) =>
+          attachment.localUri ? [attachment.localUri] : [],
+        ),
+      );
+      await Promise.allSettled(
+        attachmentUris.map((uri) => discardPersistedChatAttachment(uri)),
+      );
+      await refresh();
+    },
+    [canUseCloud, readOnly, refresh, snapshot.chatMessages],
+  );
+
   const setCloudSyncEnabled = useCallback(
     async (enabled: boolean) => {
       if (readOnly) return;
@@ -557,11 +644,25 @@ export function HealthStoreProvider({
       setCloudSyncEnabledState(enabled);
       setSyncStatus('idle');
       setServiceIssue(undefined);
+      if (enabled) {
+        await prepareChatCloud();
+      } else {
+        chatCloudPrepared.current = false;
+        await clearPendingChatOutbox();
+      }
       if (enabled && snapshot.profile && remoteEnabled) {
         await synchronize(snapshot.profile, preference.consentedAt);
       }
     },
-    [readOnly, remoteEnabled, snapshot.profile, synchronize],
+    [
+      readOnly,
+      remoteEnabled,
+      prepareChatCloud,
+      snapshot.chatConversations,
+      snapshot.chatMessages,
+      snapshot.profile,
+      synchronize,
+    ],
   );
 
   const requestAccountDeletion = useCallback(async () => {
@@ -578,6 +679,8 @@ export function HealthStoreProvider({
       );
       setCloudSyncEnabledState(false);
       setServiceIssue(undefined);
+      chatCloudPrepared.current = false;
+      await clearPendingChatOutbox();
       return true;
     } catch (error) {
       setServiceIssue(classifyServiceIssue(error, offlineRef.current));
@@ -622,12 +725,18 @@ export function HealthStoreProvider({
       }
       for (const [entity, records] of Object.entries(preview.records)) {
         for (const record of records ?? []) {
-          await saveLocalRecord(entity as HealthEntityName, record as never);
+          const syncChatRecord =
+            entity === 'chatConversations' || entity === 'chatMessages';
+          await saveLocalRecord(
+            entity as HealthEntityName,
+            record as never,
+            syncChatRecord ? canUseCloud : true,
+          );
         }
       }
       await refresh();
     },
-    [readOnly, refresh, snapshot.profile?.updatedAt],
+    [canUseCloud, readOnly, refresh, snapshot.profile?.updatedAt],
   );
 
   const value = useMemo<HealthStoreValue>(
@@ -655,10 +764,9 @@ export function HealthStoreProvider({
         saveTyped('allergyRisks', 'allergy', input).then(() => undefined),
       saveDocument: (input) =>
         saveTyped('documents', 'document', input).then(() => undefined),
-      saveConversation: (input) =>
-        saveTyped('chatConversations', 'conversation', input),
-      saveChatMessage: (input) =>
-        saveTyped('chatMessages', 'message', input).then(() => undefined),
+      saveConversation,
+      saveChatMessage,
+      deleteChatConversation,
       savePreferences,
       deleteRecord,
       setProgramStatus: async (program, status) =>
@@ -691,7 +799,10 @@ export function HealthStoreProvider({
       addLabResult,
       addScanResult,
       saveTyped,
+      saveConversation,
+      saveChatMessage,
       savePreferences,
+      deleteChatConversation,
       deleteRecord,
       writeRecord,
       setCloudSyncEnabled,

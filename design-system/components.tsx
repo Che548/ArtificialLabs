@@ -89,6 +89,8 @@ export function EdgeFadeGradient({
 export type SegmentedSwitcherOption<T extends string> = {
   value: T;
   label: string;
+  badge?: string;
+  disabled?: boolean;
 };
 
 export function SegmentedSwitcher<T extends string>({
@@ -173,7 +175,10 @@ export function SegmentedSwitcher<T extends string>({
           <View key={option.value} style={styles.segmentedSwitcherOptionSlot}>
             <View
               pointerEvents="none"
-              style={styles.segmentedSwitcherLabelSlot}
+              style={[
+                styles.segmentedSwitcherLabelSlot,
+                option.disabled && styles.segmentedSwitcherOptionDisabled,
+              ]}
             >
               <AppText
                 numberOfLines={1}
@@ -189,11 +194,19 @@ export function SegmentedSwitcher<T extends string>({
               >
                 {option.label}
               </AppText>
+              {option.badge ? (
+                <AppText role="caption" style={styles.segmentedSwitcherBadge}>
+                  {option.badge}
+                </AppText>
+              ) : null}
             </View>
             <Pressable
-              accessibilityLabel={option.label}
+              accessibilityLabel={
+                option.badge ? `${option.label}, ${option.badge}` : option.label
+              }
               accessibilityRole="tab"
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected, disabled: option.disabled }}
+              disabled={option.disabled}
               onPress={() => onChange(option.value)}
               style={styles.segmentedSwitcherOption}
             />
@@ -874,12 +887,7 @@ export function LiquidGlassSurface({
                 end={{ x: 0.95, y: 1 }}
                 style={StyleSheet.absoluteFillObject}
               />
-              <View
-                style={[
-                  styles.fallbackStroke,
-                  { borderRadius: radius },
-                ]}
-              />
+              <View style={[styles.fallbackStroke, { borderRadius: radius }]} />
             </>
           ) : null}
           <View pointerEvents="none" style={styles.centerFill}>
@@ -4013,11 +4021,16 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 11,
   },
+  segmentedSwitcherOptionDisabled: {
+    opacity: 0.48,
+  },
   segmentedSwitcherLabelSlot: {
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 3,
   },
   segmentedSwitcherLabel: {
     fontSize: 12.5,
@@ -4032,6 +4045,16 @@ const styles = StyleSheet.create({
   segmentedSwitcherLabelInactive: {
     color: colors.text.secondary,
     fontFamily: fonts.sfRegular,
+  },
+  segmentedSwitcherBadge: {
+    overflow: 'hidden',
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+    borderRadius: 4,
+    color: colors.brand.burgundy,
+    backgroundColor: 'rgba(130,53,55,0.10)',
+    fontSize: 8,
+    lineHeight: 10,
   },
   glassSurface: {
     ...StyleSheet.absoluteFillObject,
