@@ -15,6 +15,7 @@ add_library(stripcv SHARED
   ${STRIPCV_ROOT}/src/calibration.cpp
   ${STRIPCV_ROOT}/src/c_api.cpp
   ${STRIPCV_ROOT}/src/locator.cpp
+  ${STRIPCV_ROOT}/src/transverse_width_scorer.cpp
   ${STRIPCV_ROOT}/src/types.cpp
 )
 
@@ -24,7 +25,7 @@ target_include_directories(
     ${STRIPCV_ROOT}/include
     ${STRIPCV_ROOT}/vendor
 )
-target_compile_definitions(stripcv PRIVATE STRIPCV_VERSION="0.3.1")
+target_compile_definitions(stripcv PRIVATE STRIPCV_VERSION="0.4.1")
 target_compile_options(stripcv PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(
   stripcv

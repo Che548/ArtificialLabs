@@ -3,20 +3,29 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <filesystem>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <stdexcept>
+#include <string>
 #include <tuple>
 #include <vector>
 
 #include <opencv2/imgproc.hpp>
+#ifdef STRIPCV_ENABLE_ONNX
+#include <onnxruntime_cxx_api.h>
+#endif
 #if CV_VERSION_MAJOR >= 5
 #include <opencv2/geometry/2d.hpp>
 #include <opencv2/geometry/3d.hpp>
 #else
 #include <opencv2/calib3d.hpp>
 #endif
+
+#include "transverse_width_scorer.hpp"
 
 namespace stripcv {
 namespace {
@@ -28,10 +37,26 @@ constexpr double kProposalMaxDimension = 1600.0;
 // unchanged.
 constexpr double kElongatedProposalMaxDimension = 1400.0;
 constexpr double kVeryElongatedProposalMaxDimension = 1450.0;
+constexpr double kMinimumBareContentScore = 0.50;
+constexpr double kCompetingBareScoreRatio = 0.90;
+constexpr double kMultipleBareScoreRatio = 0.84;
+constexpr double kDistinctBareQuadIou = 0.20;
+constexpr double kFrameEndpointAlternativePenalty = 0.08;
 
 double polygonArea(const Quad& quad) {
   std::vector<cv::Point2f> points(quad.begin(), quad.end());
   return std::abs(cv::contourArea(points));
+}
+
+double quadIou(const Quad& first, const Quad& second) {
+  std::vector<cv::Point2f> first_polygon(first.begin(), first.end());
+  std::vector<cv::Point2f> second_polygon(second.begin(), second.end());
+  std::vector<cv::Point2f> intersection;
+  const double intersection_area =
+      cv::intersectConvexConvex(first_polygon, second_polygon, intersection);
+  const double union_area =
+      polygonArea(first) + polygonArea(second) - intersection_area;
+  return union_area > 0.0 ? intersection_area / union_area : 0.0;
 }
 
 double edgeLength(const cv::Point2f& a, const cv::Point2f& b) {
@@ -145,6 +170,7 @@ struct RefinedQuad {
   double support_fraction = 0.0;
   double rmse_px = 0.0;
   double short_edge = 0.0;
+  std::string failure_stage = "not_started";
 };
 
 RefinedQuad refineQuadEdges(const cv::Mat& rgb, const Quad& initial,
@@ -152,6 +178,7 @@ RefinedQuad refineQuadEdges(const cv::Mat& rgb, const Quad& initial,
                             bool allow_weak_end_edges = false) {
   RefinedQuad result;
   if (!validConvexQuad(initial)) {
+    result.failure_stage = "initial_quad_invalid";
     return result;
   }
 
@@ -169,6 +196,7 @@ RefinedQuad refineQuadEdges(const cv::Mat& rgb, const Quad& initial,
              edgeLength(initial[3], initial[0]));
   result.short_edge = std::min(horizontal, vertical);
   if (result.short_edge < 8.0) {
+    result.failure_stage = "short_edge_too_small";
     return result;
   }
   const int band = std::clamp(
@@ -187,6 +215,7 @@ RefinedQuad refineQuadEdges(const cv::Mat& rgb, const Quad& initial,
     const cv::Point2f delta = end - start;
     const double length = cv::norm(delta);
     if (length < 8.0) {
+      result.failure_stage = "edge_length_too_small";
       return result;
     }
     const cv::Point2f inward(static_cast<float>(-delta.y / length),
@@ -253,6 +282,9 @@ RefinedQuad refineQuadEdges(const cv::Mat& rgb, const Quad& initial,
             delta.y / static_cast<float>(length), start.x, start.y);
         continue;
       }
+      result.failure_stage = edge == 0 || edge == 2
+                                 ? "long_rail_gradient_support"
+                                 : "short_end_gradient_support";
       return result;
     }
 
@@ -287,6 +319,9 @@ RefinedQuad refineQuadEdges(const cv::Mat& rgb, const Quad& initial,
             delta.y / static_cast<float>(length), start.x, start.y);
         continue;
       }
+      result.failure_stage = edge == 0 || edge == 2
+                                 ? "long_rail_inlier_span"
+                                 : "short_end_inlier_span";
       return result;
     }
     cv::fitLine(inliers, line, cv::DIST_HUBER, 0.0, 0.005, 0.005);
@@ -306,9 +341,11 @@ RefinedQuad refineQuadEdges(const cv::Mat& rgb, const Quad& initial,
       !intersectLines(result.lines[0], result.lines[1], result.corners[1]) ||
       !intersectLines(result.lines[1], result.lines[2], result.corners[2]) ||
       !intersectLines(result.lines[2], result.lines[3], result.corners[3])) {
+    result.failure_stage = "line_intersection";
     return result;
   }
   if (!validConvexQuad(result.corners)) {
+    result.failure_stage = "refined_quad_invalid";
     return result;
   }
   const double max_shift = std::max(12.0, result.short_edge * 0.35);
@@ -317,6 +354,7 @@ RefinedQuad refineQuadEdges(const cv::Mat& rgb, const Quad& initial,
         result.corners[index].x < -band || result.corners[index].y < -band ||
         result.corners[index].x > rgb.cols - 1 + band ||
         result.corners[index].y > rgb.rows - 1 + band) {
+      result.failure_stage = "corner_shift_or_bounds";
       return result;
     }
   }
@@ -329,6 +367,7 @@ RefinedQuad refineQuadEdges(const cv::Mat& rgb, const Quad& initial,
   result.rmse_px = error_count == 0 ? 0.0 : std::sqrt(squared_error / error_count);
   result.found = result.support_fraction >=
                  (allow_weak_end_edges ? 0.25 : 0.40);
+  result.failure_stage = result.found ? "accepted" : "final_support_fraction";
   return result;
 }
 
@@ -551,6 +590,283 @@ StripContentEvidence stripContentEvidence(const cv::Mat& rgb,
   return evidence;
 }
 
+bool sufficientStripContent(const StripContentEvidence& evidence,
+                            const AssayProfile& assay) {
+  if (evidence.score >= kMinimumBareContentScore) {
+    return true;
+  }
+  // A low-saturation assay dye can place a genuine handled paper strip just
+  // below the aggregate colour score even when the line sits in the expected
+  // result region. Allow only a narrow structural fallback: the candidate must
+  // retain a strong handle transition, visible backing rails, positioned dye,
+  // and nearly meet the ordinary score. Cassettes, plastic sticks, and blank
+  // paper do not receive a general threshold reduction.
+  return assay.id == "handled-paper-two-line-strip" &&
+         evidence.score >= 0.44 && evidence.positioned_pink >= 0.06 &&
+         evidence.border_layout >= 0.25 && evidence.handle_coverage >= 0.90;
+}
+
+struct TransverseBandComponent {
+  double normal_center = 0.0;
+  double normal_span = 0.0;
+};
+
+bool hasInternalLongRailLattice(const cv::Mat& rgb, const Quad& source) {
+  constexpr int kCanonicalWidth = 1024;
+  constexpr int kCanonicalHeight = 128;
+  const std::array<cv::Point2f, 4> destination = {
+      cv::Point2f(0.0F, 0.0F),
+      cv::Point2f(static_cast<float>(kCanonicalWidth - 1), 0.0F),
+      cv::Point2f(static_cast<float>(kCanonicalWidth - 1),
+                  static_cast<float>(kCanonicalHeight - 1)),
+      cv::Point2f(0.0F, static_cast<float>(kCanonicalHeight - 1))};
+  const cv::Mat transform =
+      cv::getPerspectiveTransform(source.data(), destination.data());
+  cv::Mat rectified;
+  cv::warpPerspective(rgb, rectified, transform,
+                      cv::Size(kCanonicalWidth, kCanonicalHeight),
+                      cv::INTER_AREA, cv::BORDER_REPLICATE);
+
+  cv::Mat gray;
+  cv::cvtColor(rectified, gray, cv::COLOR_RGB2GRAY);
+  cv::GaussianBlur(gray, gray, cv::Size(5, 3), 0.0);
+  cv::Mat cross_gradient;
+  cv::Sobel(gray, cross_gradient, CV_32F, 0, 1, 3, 1.0 / 8.0);
+  cross_gradient = cv::abs(cross_gradient);
+
+  // A crop containing several touching strips has long, repeated paper rails
+  // inside it. Text and transverse assay bands can be sharp too, but they do
+  // not persist down nearly half of the rectified long axis.
+  std::vector<double> coverage(kCanonicalHeight, 0.0);
+  constexpr int kColumnBegin = kCanonicalWidth / 20;
+  constexpr int kColumnEnd = kCanonicalWidth - kColumnBegin;
+  for (int row = 0; row < kCanonicalHeight; ++row) {
+    int supported = 0;
+    for (int column = kColumnBegin; column < kColumnEnd; ++column) {
+      supported += cross_gradient.at<float>(row, column) > 16.0F ? 1 : 0;
+    }
+    coverage[static_cast<size_t>(row)] = supported /
+        static_cast<double>(kColumnEnd - kColumnBegin);
+  }
+  int rail_groups = 0;
+  int last_peak = -10;
+  for (int row = 8; row < kCanonicalHeight - 8; ++row) {
+    if (coverage[static_cast<size_t>(row)] < 0.35 ||
+        coverage[static_cast<size_t>(row)] <
+            coverage[static_cast<size_t>(row - 1)] ||
+        coverage[static_cast<size_t>(row)] <=
+            coverage[static_cast<size_t>(row + 1)]) {
+      continue;
+    }
+    if (row - last_peak > 4) {
+      ++rail_groups;
+    }
+    last_peak = row;
+  }
+  return rail_groups >= 2;
+}
+
+bool hasExternalTransverseBandField(const cv::Mat& rgb,
+                                    const Quad& source) {
+  cv::Point2f axis =
+      (source[1] - source[0]) + (source[2] - source[3]);
+  const double axis_length = cv::norm(axis);
+  if (axis_length < 1.0) {
+    return false;
+  }
+  axis *= static_cast<float>(1.0 / axis_length);
+  const cv::Point2f normal(-axis.y, axis.x);
+  const double short_side = 0.5 *
+      (edgeLength(source[0], source[3]) +
+       edgeLength(source[1], source[2]));
+  if (short_side < 6.0) {
+    return false;
+  }
+
+  const std::array<cv::Point2f, 4> frame = {
+      cv::Point2f(0.0F, 0.0F),
+      cv::Point2f(static_cast<float>(rgb.cols - 1), 0.0F),
+      cv::Point2f(static_cast<float>(rgb.cols - 1),
+                  static_cast<float>(rgb.rows - 1)),
+      cv::Point2f(0.0F, static_cast<float>(rgb.rows - 1))};
+  double minimum_normal = std::numeric_limits<double>::infinity();
+  double maximum_normal = -std::numeric_limits<double>::infinity();
+  double minimum_axis = std::numeric_limits<double>::infinity();
+  double maximum_axis = -std::numeric_limits<double>::infinity();
+  for (const cv::Point2f& point : frame) {
+    minimum_normal = std::min(minimum_normal,
+                              static_cast<double>(point.dot(normal)));
+    maximum_normal = std::max(maximum_normal,
+                              static_cast<double>(point.dot(normal)));
+    minimum_axis = std::min(minimum_axis,
+                            static_cast<double>(point.dot(axis)));
+    maximum_axis = std::max(maximum_axis,
+                            static_cast<double>(point.dot(axis)));
+  }
+  const int aligned_width =
+      std::max(1, static_cast<int>(std::ceil(maximum_normal - minimum_normal)) +
+                      1);
+  const int aligned_height =
+      std::max(1, static_cast<int>(std::ceil(maximum_axis - minimum_axis)) +
+                      1);
+  if (static_cast<int64_t>(aligned_width) * aligned_height > 12000000) {
+    return false;
+  }
+
+  cv::Mat rgb_float;
+  rgb.convertTo(rgb_float, CV_32FC3);
+  std::vector<cv::Mat> channels;
+  cv::split(rgb_float, channels);
+  cv::Mat opponent = channels[0] - 0.5F * (channels[1] + channels[2]);
+  cv::Mat alignment(2, 3, CV_64F);
+  alignment.at<double>(0, 0) = normal.x;
+  alignment.at<double>(0, 1) = normal.y;
+  alignment.at<double>(0, 2) = -minimum_normal;
+  alignment.at<double>(1, 0) = axis.x;
+  alignment.at<double>(1, 1) = axis.y;
+  alignment.at<double>(1, 2) = -minimum_axis;
+  cv::Mat aligned;
+  cv::warpAffine(opponent, aligned, alignment,
+                 cv::Size(aligned_width, aligned_height), cv::INTER_LINEAR,
+                 cv::BORDER_CONSTANT, cv::Scalar(0.0));
+
+  const int transverse_kernel = std::clamp(
+      static_cast<int>(std::lround(0.28 * short_side)) | 1, 5, 31);
+  cv::Mat transverse;
+  cv::boxFilter(aligned, transverse, CV_32F,
+                cv::Size(transverse_kernel, 1));
+  const auto oddKernel = [](double sigma) {
+    return std::max(3, (static_cast<int>(std::ceil(6.0 * sigma)) | 1));
+  };
+  const double narrow_sigma = std::max(0.8, std::min(3.0, 0.035 * short_side));
+  const double broad_sigma = std::max(4.0, std::min(18.0, 0.22 * short_side));
+  cv::Mat narrow;
+  cv::Mat broad;
+  cv::GaussianBlur(transverse, narrow,
+                   cv::Size(1, oddKernel(narrow_sigma)), 0.0, narrow_sigma);
+  cv::GaussianBlur(transverse, broad,
+                   cv::Size(1, oddKernel(broad_sigma)), 0.0, broad_sigma);
+  cv::Mat line_response = narrow - broad;
+  cv::Mat line_mask;
+  cv::threshold(line_response, line_mask, 10.0, 255.0, cv::THRESH_BINARY);
+  line_mask.convertTo(line_mask, CV_8U);
+
+  cv::Mat labels;
+  cv::Mat stats;
+  cv::Mat centroids;
+  const int component_count = cv::connectedComponentsWithStats(
+      line_mask, labels, stats, centroids, 8, CV_32S);
+  double selected_minimum = std::numeric_limits<double>::infinity();
+  double selected_maximum = -std::numeric_limits<double>::infinity();
+  for (const cv::Point2f& point : source) {
+    const double value = point.dot(normal) - minimum_normal;
+    selected_minimum = std::min(selected_minimum, value);
+    selected_maximum = std::max(selected_maximum, value);
+  }
+  const double outside_margin = 0.18 * short_side;
+  const double minimum_width =
+      std::max(5.0, 0.006 * std::min(aligned_width, aligned_height));
+  const double maximum_height = std::max(8.0, 0.12 * short_side);
+  std::vector<TransverseBandComponent> external;
+  for (int component = 1; component < component_count; ++component) {
+    const double width = stats.at<int>(component, cv::CC_STAT_WIDTH);
+    const double height = stats.at<int>(component, cv::CC_STAT_HEIGHT);
+    const double area = stats.at<int>(component, cv::CC_STAT_AREA);
+    const double center = centroids.at<double>(component, 0);
+    if (width < minimum_width || height > maximum_height ||
+        width < 1.4 * height || area < 0.35 * width) {
+      continue;
+    }
+    if (center >= selected_minimum - outside_margin &&
+        center <= selected_maximum + outside_margin) {
+      continue;
+    }
+    external.push_back({center, width});
+  }
+  if (external.size() < 2) {
+    return false;
+  }
+  std::sort(external.begin(), external.end(),
+            [](const TransverseBandComponent& first,
+               const TransverseBandComponent& second) {
+              return first.normal_center < second.normal_center;
+            });
+  int distinct_columns = 0;
+  double cluster_center = 0.0;
+  double cluster_span = 0.0;
+  int cluster_size = 0;
+  for (const TransverseBandComponent& component : external) {
+    const bool joins = cluster_size > 0 &&
+        component.normal_center - cluster_center <=
+            0.55 * std::max(component.normal_span, cluster_span);
+    if (!joins) {
+      ++distinct_columns;
+      cluster_center = component.normal_center;
+      cluster_span = component.normal_span;
+      cluster_size = 1;
+    } else {
+      cluster_center =
+          (cluster_center * cluster_size + component.normal_center) /
+          (cluster_size + 1);
+      cluster_span = std::max(cluster_span, component.normal_span);
+      ++cluster_size;
+    }
+  }
+  // This is a global crowding veto, not another way to localize a second
+  // strip. Require at least three independent compact transverse components
+  // outside the selected quad. A valid JPEG-stressed capture can create two
+  // such fragments, while a repeated assay-band field supplies several even
+  // when adjacent columns merge into one long component. Ordinary two-strip
+  // scenes are already caught by the independently accepted-proposal check.
+  return external.size() >= 3 || distinct_columns >= 3;
+}
+
+bool hasMultiStripSceneEvidence(const cv::Mat& rgb, const Quad& source,
+                                const AssayProfile& assay) {
+  if (assay.id != "handled-paper-two-line-strip") {
+    return false;
+  }
+  return hasInternalLongRailLattice(rgb, source) ||
+         hasExternalTransverseBandField(rgb, source);
+}
+
+cv::Vec3d pixelChromaticity(const cv::Vec3b& pixel) {
+  const double sum = std::max(
+      1.0, static_cast<double>(pixel[0]) + pixel[1] + pixel[2]);
+  return cv::Vec3d(pixel[0] / sum, pixel[1] / sum, pixel[2] / sum);
+}
+
+cv::Vec3d robustImageChromaticity(const cv::Mat& rgb) {
+  std::array<std::vector<double>, 3> channels;
+  const int stride = std::max(2, std::min(rgb.cols, rgb.rows) / 180);
+  const size_t reserve = static_cast<size_t>(
+      ((rgb.rows + stride - 1) / stride) *
+      ((rgb.cols + stride - 1) / stride));
+  for (std::vector<double>& channel : channels) {
+    channel.reserve(reserve);
+  }
+  for (int row = 0; row < rgb.rows; row += stride) {
+    for (int column = 0; column < rgb.cols; column += stride) {
+      const cv::Vec3d value =
+          pixelChromaticity(rgb.at<cv::Vec3b>(row, column));
+      for (int channel = 0; channel < 3; ++channel) {
+        channels[static_cast<size_t>(channel)].push_back(value[channel]);
+      }
+    }
+  }
+  cv::Vec3d result(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0);
+  for (int channel = 0; channel < 3; ++channel) {
+    std::vector<double>& values = channels[static_cast<size_t>(channel)];
+    if (values.empty()) {
+      continue;
+    }
+    std::nth_element(values.begin(), values.begin() + values.size() / 2,
+                     values.end());
+    result[channel] = values[values.size() / 2];
+  }
+  return result;
+}
+
 cv::Point2f quadCenter(const Quad& quad) {
   return std::accumulate(quad.begin(), quad.end(), cv::Point2f(0.0F, 0.0F)) *
          0.25F;
@@ -599,12 +915,21 @@ std::vector<Quad> longEdgePairQuads(const cv::Mat& edges,
   cv::Mat chromatic_mask = cv::Mat::zeros(proposal_rgb.size(), CV_8U);
   std::vector<cv::Point2f> chromatic_points;
   chromatic_points.reserve(static_cast<size_t>(proposal_rgb.total() / 8));
+  const cv::Vec3d reference_chromaticity =
+      robustImageChromaticity(proposal_rgb);
+  const bool compensate_global_cast =
+      cv::norm(reference_chromaticity -
+               cv::Vec3d(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)) > 0.05;
   for (int row = 0; row < proposal_rgb.rows; ++row) {
     for (int column = 0; column < proposal_rgb.cols; ++column) {
       const cv::Vec3b pixel = proposal_rgb.at<cv::Vec3b>(row, column);
       const auto [minimum_channel, maximum_channel] =
           std::minmax_element(pixel.val, pixel.val + 3);
-      if (*maximum_channel - *minimum_channel >= 18) {
+      const bool chromatic = compensate_global_cast
+          ? cv::norm(pixelChromaticity(pixel) - reference_chromaticity) >=
+                0.032
+          : *maximum_channel - *minimum_channel >= 18;
+      if (chromatic) {
         chromatic_mask.at<unsigned char>(row, column) = 255;
         if ((row & 1) == 0 && (column & 1) == 0) {
           chromatic_points.emplace_back(static_cast<float>(column),
@@ -718,10 +1043,14 @@ std::vector<Quad> longEdgePairQuads(const cv::Mat& edges,
           0.01 * (colored_projections.size() - 1))];
       const double colored_maximum = colored_projections[static_cast<size_t>(
           0.99 * (colored_projections.size() - 1))];
+      // Chromatic outliers can cover the complete paper body, so their robust
+      // extent is already an endpoint estimate. Only pad for sampling and
+      // antialiasing; a half-strip-width pad can turn a visibly complete strip
+      // into a false frame-spanning crop.
       desired_minimum = std::min(desired_minimum,
-                                 colored_minimum - 0.55 * width);
+                                 colored_minimum - 0.08 * width);
       desired_maximum = std::max(desired_maximum,
-                                 colored_maximum + 0.55 * width);
+                                 colored_maximum + 0.08 * width);
     }
 
     // Intersect the tracked centerline with the image rectangle. If the whole
@@ -747,10 +1076,10 @@ std::vector<Quad> longEdgePairQuads(const cv::Mat& edges,
       const double center_projection = center.dot(axis);
       const double image_minimum = center_projection + frame_minimum;
       const double image_maximum = center_projection + frame_maximum;
-      if (desired_minimum - image_minimum < 1.5 * width) {
+      if (desired_minimum - image_minimum < 0.15 * width) {
         desired_minimum = image_minimum;
       }
-      if (image_maximum - desired_maximum < 1.5 * width) {
+      if (image_maximum - desired_maximum < 0.15 * width) {
         desired_maximum = image_maximum;
       }
     }
@@ -1743,14 +2072,25 @@ LocalizationResult ClassicalRegionLocator::locateBare(
   std::vector<cv::Point2f> proposal_chromatic_points;
   proposal_chromatic_points.reserve(
       static_cast<size_t>(proposal.rgb.total() / 12));
+  const cv::Vec3d proposal_reference_chromaticity =
+      robustImageChromaticity(proposal.rgb);
+  const bool compensate_proposal_cast =
+      cv::norm(proposal_reference_chromaticity -
+               cv::Vec3d(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)) > 0.05;
   for (int row = 0; row < proposal.rgb.rows; row += 2) {
     for (int column = 0; column < proposal.rgb.cols; column += 2) {
       const cv::Vec3b pixel = proposal.rgb.at<cv::Vec3b>(row, column);
+      // Select material that differs from the dominant image chromaticity,
+      // rather than using absolute channel spread. A global warm/cool cast can
+      // saturate the complete background, but it must not become a false
+      // "handle" cluster that extends a fragment across the frame.
       const auto [minimum_channel, maximum_channel] =
           std::minmax_element(pixel.val, pixel.val + 3);
-      // A mild global color cast (for example a green tabletop) must not
-      // become the "handle" cluster that extends a fragment across the frame.
-      if (*maximum_channel - *minimum_channel >= 25) {
+      const bool chromatic = compensate_proposal_cast
+          ? cv::norm(pixelChromaticity(pixel) -
+                     proposal_reference_chromaticity) >= 0.035
+          : *maximum_channel - *minimum_channel >= 25;
+      if (chromatic) {
         proposal_chromatic_points.emplace_back(
             static_cast<float>(column), static_cast<float>(row));
       }
@@ -1811,9 +2151,9 @@ LocalizationResult ClassicalRegionLocator::locateBare(
     }
     const double original_span = desired_maximum - desired_minimum;
     desired_minimum = std::min(
-        desired_minimum, projections[best_begin] - 0.45 * width);
+        desired_minimum, projections[best_begin] - 0.08 * width);
     desired_maximum = std::max(
-        desired_maximum, projections[best_end - 1] + 0.45 * width);
+        desired_maximum, projections[best_end - 1] + 0.08 * width);
     if (desired_maximum - desired_minimum < original_span + 0.8 * width) {
       return std::pair<bool, Quad>(false, unchanged);
     }
@@ -1924,6 +2264,16 @@ LocalizationResult ClassicalRegionLocator::locateBare(
     double scale_ratio = 1.0;
     double content_score = 0.0;
     double pink = 0.0;
+    double positioned_pink = 0.0;
+    double border_layout = 0.0;
+    double handle_coverage = 0.0;
+    bool transverse_width_refined = false;
+  };
+  const auto hasSufficientContent = [&](const BareResult& candidate) {
+    return sufficientStripContent(
+        {candidate.pink, candidate.positioned_pink, candidate.border_layout,
+         candidate.handle_coverage, candidate.content_score},
+        assay);
   };
   std::vector<BareResult> accepted;
   for (const BareProposal& candidate : proposals) {
@@ -1952,6 +2302,19 @@ LocalizationResult ClassicalRegionLocator::locateBare(
                            static_cast<float>(rgb.rows - 1));
     }
     if (!validConvexQuad(refined.corners)) {
+      continue;
+    }
+    const double refined_long_side =
+        0.5 * (edgeLength(refined.corners[0], refined.corners[1]) +
+               edgeLength(refined.corners[3], refined.corners[2]));
+    const double refined_short_side =
+        0.5 * (edgeLength(refined.corners[0], refined.corners[3]) +
+               edgeLength(refined.corners[1], refined.corners[2]));
+    // A result window inside a cassette can have excellent edges and line-like
+    // content, but it is too stubby to be the supported bare paper strip. Keep
+    // moderate projective foreshortening while rejecting these nested windows.
+    if (refined_long_side / std::max(1.0, refined_short_side) <
+        0.80 * assay.min_aspect_ratio) {
       continue;
     }
     const std::array<cv::Point2f, 4> destination = {
@@ -1990,7 +2353,8 @@ LocalizationResult ClassicalRegionLocator::locateBare(
                         polygonArea(refined.corners) /
                             static_cast<double>(rgb.cols * rgb.rows),
                         refined.support_fraction, refined.rmse_px, scale_ratio,
-                        content.score, content.pink});
+                        content.score, content.pink, content.positioned_pink,
+                        content.border_layout, content.handle_coverage, false});
   }
   for (BareResult& candidate : accepted) {
     const double long_side = 0.5 *
@@ -2052,6 +2416,95 @@ LocalizationResult ClassicalRegionLocator::locateBare(
       }
     }
   }
+  // Occasionally the proposal mask expands a real strip into a slightly
+  // larger, aligned background envelope. The ordinary-landscape enclosure
+  // prior above is useful for real backing/membrane pairs, so override it only
+  // when a near-tied inner quad preserves the handle and border evidence while
+  // materially increasing strip-specific content. This selects the bounded
+  // physical strip without weakening multi-strip or content gates.
+  for (BareResult& inner : accepted) {
+    if (!hasSufficientContent(inner)) {
+      continue;
+    }
+    for (const BareResult& outer : accepted) {
+      if (&inner == &outer || !hasSufficientContent(outer)) {
+        continue;
+      }
+      const double area_ratio = outer.area_fraction /
+          std::max(1.0e-9, inner.area_fraction);
+      if (area_ratio < 1.10 || area_ratio > 1.45 ||
+          quadIou(outer.quad, inner.quad) < 0.65 ||
+          inner.score < 0.95 * outer.score ||
+          inner.content_score < outer.content_score + 0.025 ||
+          inner.border_layout + 0.01 < outer.border_layout ||
+          inner.handle_coverage + 0.05 < outer.handle_coverage ||
+          inner.positioned_pink < outer.positioned_pink) {
+        continue;
+      }
+      cv::Point2f outer_direction = outer.quad[1] - outer.quad[0];
+      cv::Point2f inner_direction = inner.quad[1] - inner.quad[0];
+      const double outer_length = cv::norm(outer_direction);
+      const double inner_length = cv::norm(inner_direction);
+      if (outer_length < 1.0 || inner_length < 1.0) {
+        continue;
+      }
+      outer_direction *= static_cast<float>(1.0 / outer_length);
+      inner_direction *= static_cast<float>(1.0 / inner_length);
+      if (std::abs(outer_direction.dot(inner_direction)) <
+          std::cos(10.0 * CV_PI / 180.0)) {
+        continue;
+      }
+      const std::vector<cv::Point2f> outer_polygon(
+          outer.quad.begin(), outer.quad.end());
+      if (cv::pointPolygonTest(outer_polygon, quadCenter(inner.quad), false) <
+          0.0) {
+        continue;
+      }
+      inner.score += 0.06;
+      break;
+    }
+  }
+  const auto touchesFrameEndpoint = [&](const BareResult& candidate) {
+    constexpr float margin = 2.5F;
+    const auto endpointOnBoundary = [&](size_t first, size_t second) {
+      const auto bothNear = [&](auto coordinate, float boundary) {
+        return std::abs(coordinate(candidate.quad[first]) - boundary) <=
+                   margin &&
+               std::abs(coordinate(candidate.quad[second]) - boundary) <=
+                   margin;
+      };
+      return bothNear([](const cv::Point2f& point) { return point.x; },
+                      0.0F) ||
+             bothNear([](const cv::Point2f& point) { return point.x; },
+                      static_cast<float>(rgb.cols - 1)) ||
+             bothNear([](const cv::Point2f& point) { return point.y; },
+                      0.0F) ||
+             bothNear([](const cv::Point2f& point) { return point.y; },
+                      static_cast<float>(rgb.rows - 1));
+    };
+    return endpointOnBoundary(0, 3) || endpointOnBoundary(1, 2);
+  };
+  for (BareResult& frame_touching : accepted) {
+    if (!touchesFrameEndpoint(frame_touching)) {
+      continue;
+    }
+    const bool has_finite_competitor = std::any_of(
+        accepted.begin(), accepted.end(), [&](const BareResult& candidate) {
+          return &candidate != &frame_touching &&
+                 !touchesFrameEndpoint(candidate) &&
+                 hasSufficientContent(candidate) &&
+                 candidate.score >=
+                     kCompetingBareScoreRatio * frame_touching.score &&
+                 quadIou(frame_touching.quad, candidate.quad) >= 0.65;
+        });
+    if (has_finite_competitor) {
+      // A true cropped strip normally has no separate, profile-valid finite
+      // envelope. When one does exist and nearly ties the frame-spanning
+      // proposal, prefer the physically bounded object; sparse chromatic noise
+      // can otherwise stretch one or both endpoints to the image border.
+      frame_touching.score -= kFrameEndpointAlternativePenalty;
+    }
+  }
   std::sort(accepted.begin(), accepted.end(),
             [](const BareResult& first, const BareResult& second) {
               return first.score > second.score;
@@ -2061,23 +2514,172 @@ LocalizationResult ClassicalRegionLocator::locateBare(
                                                : "strip_edge_support_insufficient";
     return result;
   }
+  // The learned endpoint/width policy is a recovery stage, not a replacement
+  // for a strong classical localization. Run it only when the final classical
+  // winner has insufficient strip content or unusable edge rectification.
+  // This protects reportable classical behavior, bounds runtime, and still
+  // targets invalid localization failure classes.
+  if (assay.id == "handled-paper-two-line-strip") {
+    const BareResult seed = accepted.front();
+    const double seed_short_side =
+        0.5 * (edgeLength(seed.quad[0], seed.quad[3]) +
+               edgeLength(seed.quad[1], seed.quad[2]));
+    const double normalized_seed_rmse =
+        seed.rmse * assay.canonical_height /
+        std::max(1.0, seed_short_side);
+    const bool classical_uncertain =
+        !hasSufficientContent(seed) || !std::isfinite(normalized_seed_rmse) ||
+        normalized_seed_rmse > 5.0;
+    if (classical_uncertain) {
+      const std::vector<internal::TransverseWidthHypothesis> hypotheses =
+          internal::scoreTransverseWidthHypotheses(rgb, seed.quad);
+      std::optional<BareResult> best_refinement;
+      for (const internal::TransverseWidthHypothesis& hypothesis : hypotheses) {
+        const double overlap = quadIou(seed.quad, hypothesis.corners);
+        if (overlap < 0.58 || overlap > 0.995) {
+          continue;
+        }
+        RefinedQuad refined = refineQuadEdges(rgb, hypothesis.corners);
+        if (!refined.found || !validConvexQuad(refined.corners)) {
+          continue;
+        }
+        for (cv::Point2f& point : refined.corners) {
+          point.x = std::clamp(point.x, 0.0F,
+                               static_cast<float>(rgb.cols - 1));
+          point.y = std::clamp(point.y, 0.0F,
+                               static_cast<float>(rgb.rows - 1));
+        }
+        if (!validConvexQuad(refined.corners) ||
+            quadIou(seed.quad, refined.corners) < 0.58) {
+          continue;
+        }
+        const double long_side =
+            0.5 * (edgeLength(refined.corners[0], refined.corners[1]) +
+                   edgeLength(refined.corners[3], refined.corners[2]));
+        const double short_side =
+            0.5 * (edgeLength(refined.corners[0], refined.corners[3]) +
+                   edgeLength(refined.corners[1], refined.corners[2]));
+        if (long_side / std::max(1.0, short_side) <
+            0.80 * assay.min_aspect_ratio) {
+          continue;
+        }
+        const std::array<cv::Point2f, 4> destination = {
+            cv::Point2f(0.0F, 0.0F),
+            cv::Point2f(static_cast<float>(assay.canonical_width - 1), 0.0F),
+            cv::Point2f(static_cast<float>(assay.canonical_width - 1),
+                        static_cast<float>(assay.canonical_height - 1)),
+            cv::Point2f(0.0F,
+                        static_cast<float>(assay.canonical_height - 1))};
+        const cv::Mat homography = cv::getPerspectiveTransform(
+            refined.corners.data(), destination.data());
+        double scale_ratio = 1.0;
+        if (!validHomography(
+                homography,
+                cv::Size(assay.canonical_width, assay.canonical_height),
+                scale_ratio)) {
+          continue;
+        }
+        const StripContentEvidence content =
+            stripContentEvidence(rgb, refined.corners, assay);
+        const double seed_residual = std::exp(-seed.rmse / 2.0);
+        const double refined_residual = std::exp(-refined.rmse_px / 2.0);
+        const double seed_pink_score = std::min(1.0, seed.pink / 0.12);
+        const double refined_pink_score = std::min(1.0, content.pink / 0.12);
+        double score = seed.score +
+                       0.27 * (refined.support_fraction - seed.support) +
+                       0.16 * (refined_residual - seed_residual) +
+                       0.09 * (refined_pink_score - seed_pink_score) +
+                       0.18 * (content.score - seed.content_score);
+        // Preserve the fitted policy order when deterministic evidence ties.
+        score -= 0.004 * std::max(0, hypothesis.endpoint_rank - 1);
+        if (hypothesis.width_corrected) {
+          score -= 0.002;
+        }
+        BareResult candidate = {
+            refined.corners,
+            homography,
+            score,
+            polygonArea(refined.corners) /
+                static_cast<double>(rgb.cols * rgb.rows),
+            refined.support_fraction,
+            refined.rmse_px,
+            scale_ratio,
+            content.score,
+            content.pink,
+            content.positioned_pink,
+            content.border_layout,
+            content.handle_coverage,
+            true};
+        if (!hasSufficientContent(candidate) ||
+            candidate.support + 0.03 < seed.support ||
+            candidate.content_score + 0.015 < seed.content_score ||
+            candidate.score < seed.score + 0.012) {
+          continue;
+        }
+        if (!best_refinement || candidate.score > best_refinement->score) {
+          best_refinement = std::move(candidate);
+        }
+      }
+      if (best_refinement) {
+        accepted.push_back(std::move(*best_refinement));
+        std::sort(accepted.begin(), accepted.end(),
+                  [](const BareResult& first, const BareResult& second) {
+                    return first.score > second.score;
+                  });
+      }
+    }
+  }
   const BareResult& best = accepted.front();
   if (best.score < 0.38) {
     result.failure_reason = "strip_not_found";
     return result;
   }
+  if (!hasSufficientContent(best)) {
+    result.failure_reason = "bare_strip_content_insufficient";
+    return result;
+  }
+  if (hasMultiStripSceneEvidence(rgb, best.quad, assay)) {
+    result.failure_reason = "multiple_bare_strips_detected";
+    return result;
+  }
+  const bool multiple_distinct_strips = std::any_of(
+      accepted.begin() + 1, accepted.end(), [&](const BareResult& candidate) {
+        return hasSufficientContent(candidate) &&
+               candidate.score >= kMultipleBareScoreRatio * best.score &&
+               quadIou(best.quad, candidate.quad) < kDistinctBareQuadIou;
+      });
+  if (multiple_distinct_strips) {
+    result.failure_reason = "multiple_bare_strips_detected";
+    return result;
+  }
+  const double source_short_side =
+      0.5 * (edgeLength(best.quad[0], best.quad[3]) +
+             edgeLength(best.quad[1], best.quad[2]));
+  const double normalized_rectification_rmse =
+      best.rmse * assay.canonical_height /
+      std::max(1.0, source_short_side);
+  // Edge residual is measured in source pixels, so a superficially small fit
+  // error on a 6-12 px thumbnail can become a many-pixel displacement after
+  // canonical rectification. The analyzer already treats >5 canonical pixels
+  // as degenerate geometry. Reject it here as well so locator-only evaluation
+  // cannot call a low-resolution rail/strip thumbnail a usable proposal.
+  if (!std::isfinite(normalized_rectification_rmse) ||
+      normalized_rectification_rmse > 5.0) {
+    result.failure_reason = "degenerate_projective_geometry";
+    return result;
+  }
   const double runner_up = accepted.size() > 1 ? accepted[1].score : 0.0;
   const double margin = std::clamp(best.score - runner_up, 0.0, 0.2);
   result.found = true;
+  if (best.transverse_width_refined) {
+    result.mode = "bare_transverse_width";
+  }
   result.corners = best.quad;
   result.homography = best.homography;
   result.confidence = std::clamp(best.score + 0.4 * margin, 0.0, 1.0);
   result.area_fraction = best.area_fraction;
   result.edge_support_fraction = best.support;
-  result.rectification_rmse_px = best.rmse * assay.canonical_height /
-                                 std::max(1.0, 0.5 *
-                                     (edgeLength(best.quad[0], best.quad[3]) +
-                                      edgeLength(best.quad[1], best.quad[2])));
+  result.rectification_rmse_px = normalized_rectification_rmse;
   result.reprojection_rmse_px = result.rectification_rmse_px;
   result.perspective_scale_ratio = best.scale_ratio;
   return result;
@@ -2234,23 +2836,345 @@ LocalizationResult ClassicalRegionLocator::locateCard(
   return result;
 }
 
+struct OnnxRegionLocator::Impl {
+  bool ready = false;
+  std::string failure_reason = "onnx_locator_not_built";
+  int64_t input_height = 640;
+  int64_t input_width = 640;
+
+#ifdef STRIPCV_ENABLE_ONNX
+  Ort::Env environment{ORT_LOGGING_LEVEL_WARNING, "stripcv-region-locator"};
+  Ort::SessionOptions session_options;
+  std::unique_ptr<Ort::Session> session;
+  std::string input_name;
+  std::string output_name;
+
+  explicit Impl(const std::string& model_path) {
+    if (model_path.empty() || !std::filesystem::is_regular_file(model_path)) {
+      failure_reason = "onnx_model_missing";
+      return;
+    }
+    try {
+      session_options.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+      session_options.SetIntraOpNumThreads(1);
+      session_options.SetInterOpNumThreads(1);
+      session_options.DisableMemPattern();
+      session_options.SetGraphOptimizationLevel(
+          GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
+      session = std::make_unique<Ort::Session>(environment, model_path.c_str(),
+                                               session_options);
+      if (session->GetInputCount() != 1 || session->GetOutputCount() != 1) {
+        failure_reason = "onnx_model_io_count_mismatch";
+        session.reset();
+        return;
+      }
+
+      Ort::AllocatorWithDefaultOptions allocator;
+      const auto input_name_value =
+          session->GetInputNameAllocated(0, allocator);
+      const auto output_name_value =
+          session->GetOutputNameAllocated(0, allocator);
+      input_name = input_name_value.get();
+      output_name = output_name_value.get();
+      if (input_name != "images" || output_name != "quad") {
+        failure_reason = "onnx_model_io_name_mismatch";
+        session.reset();
+        return;
+      }
+
+      const Ort::TypeInfo input_type_info = session->GetInputTypeInfo(0);
+      const Ort::TypeInfo output_type_info = session->GetOutputTypeInfo(0);
+      const auto input_info = input_type_info.GetTensorTypeAndShapeInfo();
+      const auto output_info = output_type_info.GetTensorTypeAndShapeInfo();
+      const std::vector<int64_t> input_shape = input_info.GetShape();
+      const std::vector<int64_t> output_shape = output_info.GetShape();
+      if (input_info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+        failure_reason = "onnx_model_input_type_mismatch";
+        session.reset();
+        return;
+      }
+      if (input_shape.size() != 4) {
+        failure_reason = "onnx_model_input_rank_mismatch";
+        session.reset();
+        return;
+      }
+      if (input_shape[0] != 1) {
+        failure_reason = "onnx_model_input_batch_mismatch";
+        session.reset();
+        return;
+      }
+      if (input_shape[1] != 3) {
+        failure_reason = "onnx_model_input_channel_mismatch";
+        session.reset();
+        return;
+      }
+      if (output_info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+        failure_reason = "onnx_model_output_type_mismatch";
+        session.reset();
+        return;
+      }
+      if (output_shape.size() != 2 || output_shape[0] != 1 ||
+          output_shape[1] != 9) {
+        failure_reason = "onnx_model_output_shape_mismatch";
+        session.reset();
+        return;
+      }
+      if (input_shape[2] != -1 &&
+          (input_shape[2] < 64 || input_shape[2] > 4096)) {
+        failure_reason = "onnx_model_input_height_unsupported";
+        session.reset();
+        return;
+      }
+      if (input_shape[3] != -1 &&
+          (input_shape[3] < 64 || input_shape[3] > 4096)) {
+        failure_reason = "onnx_model_input_width_unsupported";
+        session.reset();
+        return;
+      }
+      if (input_shape[2] > 0) {
+        input_height = input_shape[2];
+      }
+      if (input_shape[3] > 0) {
+        input_width = input_shape[3];
+      }
+      ready = true;
+      failure_reason.clear();
+    } catch (const Ort::Exception&) {
+      session.reset();
+      failure_reason = "onnx_model_initialization_failed";
+    }
+  }
+#else
+  explicit Impl(const std::string& model_path) {
+    failure_reason =
+        model_path.empty() ? "onnx_model_missing" : "onnx_locator_not_built";
+  }
+#endif
+};
+
 OnnxRegionLocator::OnnxRegionLocator(std::string model_path)
-    : model_path_(std::move(model_path)) {}
+    : model_path_(std::move(model_path)),
+      impl_(std::make_shared<Impl>(model_path_)) {}
 
 LocalizationResult OnnxRegionLocator::locateBare(
-    const cv::Mat&, const AssayProfile&) const {
-  LocalizationResult result;
-  result.mode = "onnx";
-  result.failure_reason = "onnx_locator_not_built_or_model_not_loaded";
-  return result;
+    const cv::Mat& rgb, const AssayProfile& assay) const {
+  const auto classicalFallback = [&](const std::string& reason) {
+    LocalizationResult fallback = classical_fallback_.locateBare(rgb, assay);
+    fallback.mode = "onnx_fallback_classical";
+    if (fallback.found) {
+      fallback.failure_reason = reason;
+    } else if (fallback.failure_reason.empty()) {
+      fallback.failure_reason = reason;
+    } else {
+      fallback.failure_reason = reason + ";" + fallback.failure_reason;
+    }
+    return fallback;
+  };
+
+  if (!impl_ || !impl_->ready) {
+    return classicalFallback(impl_ ? impl_->failure_reason
+                                   : "onnx_locator_not_initialized");
+  }
+
+#ifdef STRIPCV_ENABLE_ONNX
+  try {
+    if (rgb.empty() || rgb.type() != CV_8UC3) {
+      return classicalFallback("onnx_unsupported_image");
+    }
+    const int input_width = static_cast<int>(impl_->input_width);
+    const int input_height = static_cast<int>(impl_->input_height);
+    const double scale = std::min(input_width / static_cast<double>(rgb.cols),
+                                  input_height / static_cast<double>(rgb.rows));
+    const int resized_width = std::clamp(
+        static_cast<int>(std::lround(rgb.cols * scale)), 1, input_width);
+    const int resized_height = std::clamp(
+        static_cast<int>(std::lround(rgb.rows * scale)), 1, input_height);
+    const int padding_x = (input_width - resized_width) / 2;
+    const int padding_y = (input_height - resized_height) / 2;
+    cv::Mat resized;
+    cv::resize(rgb, resized, cv::Size(resized_width, resized_height), 0.0, 0.0,
+               scale < 1.0 ? cv::INTER_AREA : cv::INTER_LINEAR);
+    cv::Mat canvas(input_height, input_width, CV_8UC3,
+                   cv::Scalar(114, 114, 114));
+    resized.copyTo(
+        canvas(cv::Rect(padding_x, padding_y, resized_width, resized_height)));
+
+    const size_t plane_size = static_cast<size_t>(input_width) * input_height;
+    std::vector<float> input(plane_size * 3);
+    for (int row = 0; row < input_height; ++row) {
+      const cv::Vec3b* pixels = canvas.ptr<cv::Vec3b>(row);
+      for (int column = 0; column < input_width; ++column) {
+        const size_t offset = static_cast<size_t>(row) * input_width + column;
+        input[offset] = pixels[column][0] / 255.0F;
+        input[plane_size + offset] = pixels[column][1] / 255.0F;
+        input[2 * plane_size + offset] = pixels[column][2] / 255.0F;
+      }
+    }
+
+    const std::array<int64_t, 4> input_shape = {1, 3, impl_->input_height,
+                                                impl_->input_width};
+    Ort::MemoryInfo memory =
+        Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    Ort::Value tensor =
+        Ort::Value::CreateTensor<float>(memory, input.data(), input.size(),
+                                        input_shape.data(), input_shape.size());
+    const std::array<const char*, 1> input_names = {impl_->input_name.c_str()};
+    const std::array<const char*, 1> output_names = {
+        impl_->output_name.c_str()};
+    std::vector<Ort::Value> outputs =
+        impl_->session->Run(Ort::RunOptions{nullptr}, input_names.data(),
+                            &tensor, 1, output_names.data(), 1);
+    if (outputs.size() != 1 || !outputs[0].IsTensor() ||
+        outputs[0].GetTensorTypeAndShapeInfo().GetElementCount() != 9) {
+      return classicalFallback("onnx_output_contract_mismatch");
+    }
+    const float* output = outputs[0].GetTensorData<float>();
+    for (size_t index = 0; index < 9; ++index) {
+      if (!std::isfinite(output[index])) {
+        return classicalFallback("onnx_output_non_finite");
+      }
+    }
+    const double confidence = output[8];
+    if (confidence < 0.45 || confidence > 1.0) {
+      return classicalFallback("onnx_confidence_out_of_range");
+    }
+
+    Quad proposal{};
+    for (size_t index = 0; index < proposal.size(); ++index) {
+      const double normalized_x = output[index * 2];
+      const double normalized_y = output[index * 2 + 1];
+      if (normalized_x < 0.0 || normalized_x > 1.0 || normalized_y < 0.0 ||
+          normalized_y > 1.0) {
+        return classicalFallback("onnx_corner_out_of_range");
+      }
+      const double source_x =
+          (normalized_x * (input_width - 1) - padding_x) / scale;
+      const double source_y =
+          (normalized_y * (input_height - 1) - padding_y) / scale;
+      if (source_x < -1.0 || source_y < -1.0 || source_x > rgb.cols ||
+          source_y > rgb.rows) {
+        return classicalFallback("onnx_corner_in_letterbox_padding");
+      }
+      proposal[index] =
+          cv::Point2f(static_cast<float>(std::clamp(
+                          source_x, 0.0, static_cast<double>(rgb.cols - 1))),
+                      static_cast<float>(std::clamp(
+                          source_y, 0.0, static_cast<double>(rgb.rows - 1))));
+    }
+    const Quad ordered_proposal = orderQuad(proposal);
+    for (size_t index = 0; index < proposal.size(); ++index) {
+      if (cv::norm(proposal[index] - ordered_proposal[index]) > 1.0e-3) {
+        return classicalFallback("onnx_corner_order_mismatch");
+      }
+    }
+    proposal = ordered_proposal;
+    if (!validConvexQuad(proposal)) {
+      return classicalFallback("onnx_quad_not_convex");
+    }
+    const double area_fraction =
+        polygonArea(proposal) / static_cast<double>(rgb.total());
+    const double width = 0.5 * (edgeLength(proposal[0], proposal[1]) +
+                                edgeLength(proposal[3], proposal[2]));
+    const double height = 0.5 * (edgeLength(proposal[0], proposal[3]) +
+                                 edgeLength(proposal[1], proposal[2]));
+    const double aspect = width / std::max(height, 1.0e-6);
+    if (area_fraction < assay.quality.min_quad_area_fraction * 0.35 ||
+        area_fraction > 0.95 || height < 4.0 ||
+        aspect < assay.min_aspect_ratio * 0.5 ||
+        aspect > assay.max_aspect_ratio * 2.0) {
+      return classicalFallback("onnx_quad_geometry_rejected");
+    }
+
+    const RefinedQuad refined = refineQuadEdges(rgb, proposal, 0, true);
+    if (!refined.found) {
+      return classicalFallback("onnx_edge_refinement_failed:" +
+                               refined.failure_stage);
+    }
+    const double refined_width =
+        0.5 * (edgeLength(refined.corners[0], refined.corners[1]) +
+               edgeLength(refined.corners[3], refined.corners[2]));
+    const double refined_height =
+        0.5 * (edgeLength(refined.corners[0], refined.corners[3]) +
+               edgeLength(refined.corners[1], refined.corners[2]));
+    const double refined_aspect =
+        refined_width / std::max(refined_height, 1.0e-6);
+    if (refined_aspect < assay.min_aspect_ratio ||
+        refined_aspect > assay.max_aspect_ratio) {
+      return classicalFallback("onnx_refined_aspect_ratio_rejected");
+    }
+    const double normalized_refined_rmse =
+        refined.rmse_px * assay.canonical_height /
+        std::max(1.0, refined_height);
+    if (!std::isfinite(normalized_refined_rmse) ||
+        normalized_refined_rmse > 5.0) {
+      return classicalFallback("onnx_projective_geometry_rejected");
+    }
+    const std::array<cv::Point2f, 4> destination = {
+        cv::Point2f(0.0F, 0.0F),
+        cv::Point2f(static_cast<float>(assay.canonical_width - 1), 0.0F),
+        cv::Point2f(static_cast<float>(assay.canonical_width - 1),
+                    static_cast<float>(assay.canonical_height - 1)),
+        cv::Point2f(0.0F, static_cast<float>(assay.canonical_height - 1))};
+    const cv::Mat homography =
+        cv::getPerspectiveTransform(refined.corners.data(), destination.data());
+    const double scale_ratio = perspectiveScaleRatio(
+        homography, cv::Size(assay.canonical_width, assay.canonical_height));
+    if (!std::isfinite(scale_ratio) || scale_ratio > 4.0) {
+      return classicalFallback("onnx_projective_geometry_rejected");
+    }
+    if (!sufficientStripContent(
+            stripContentEvidence(rgb, refined.corners, assay), assay)) {
+      return classicalFallback("onnx_bare_strip_content_insufficient");
+    }
+
+    // The learned quadrilateral is a rescue proposal, never a replacement for
+    // a valid deterministic localization. The completed physical replay found
+    // that even a >0.90-IoU learned/classical pair can cross a downstream
+    // quality boundary and suppress an otherwise reportable two-line result.
+    // Preserve the classical coordinates whenever they exist; only a genuine
+    // classical miss may reach the learned path.
+    LocalizationResult classical = classical_fallback_.locateBare(rgb, assay);
+    if (classical.found) {
+      classical.mode = "onnx_fallback_classical";
+      classical.failure_reason = "onnx_classical_available";
+      return classical;
+    }
+    // A learned single-strip crop must not override global evidence that the
+    // input contains multiple physical strips. Re-run the independent scene
+    // veto on the refined proposal as well, because content/refinement checks
+    // alone are local to one candidate.
+    if (classical.failure_reason == "multiple_bare_strips_detected" ||
+        hasMultiStripSceneEvidence(rgb, refined.corners, assay)) {
+      classical.mode = "onnx_fallback_classical";
+      classical.failure_reason = "multiple_bare_strips_detected";
+      return classical;
+    }
+
+    LocalizationResult result;
+    result.found = true;
+    result.mode = "onnx";
+    result.corners = refined.corners;
+    result.homography = homography;
+    result.confidence = confidence;
+    result.area_fraction =
+        polygonArea(refined.corners) / static_cast<double>(rgb.total());
+    result.edge_support_fraction = refined.support_fraction;
+    result.rectification_rmse_px = normalized_refined_rmse;
+    result.perspective_scale_ratio = scale_ratio;
+    return result;
+  } catch (const Ort::Exception&) {
+    return classicalFallback("onnx_inference_failed");
+  } catch (const cv::Exception&) {
+    return classicalFallback("onnx_postprocessing_failed");
+  }
+#else
+  return classicalFallback("onnx_locator_not_built");
+#endif
 }
 
 LocalizationResult OnnxRegionLocator::locateCard(
-    const cv::Mat&, const CardProfile&) const {
-  LocalizationResult result;
-  result.mode = "onnx";
-  result.failure_reason = "onnx_locator_not_built_or_model_not_loaded";
-  return result;
+    const cv::Mat& rgb, const CardProfile& card) const {
+  return classical_fallback_.locateCard(rgb, card);
 }
 
 }  // namespace stripcv

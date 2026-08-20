@@ -67,6 +67,25 @@ the algorithm, calibration profile, or cutoff. Until signed profile envelopes
 are implemented, only an exact bundled profile with no cutoff is accepted; QR
 product metadata remains display-only.
 
+StripCV `0.4.1` also carries the frozen
+`transverse-width-p1-base1-correct-s16-top-4` geometry proposal head. On mobile
+it is applied only when the strongest fully ranked classical bare-strip anchor
+would otherwise fail content or rectification checks, and can replace that
+geometry only when deterministic edge/content evidence improves. Activation is
+observable as geometry mode `bare_transverse_width` and always returns for
+manual corner review; it cannot create an automatic reportable decision. Its
+historical `198/210` result is rank-1024 proposal recall at IoU 0.75, not top-1,
+reportable, diagnostic, or universal accuracy.
+
+The `0.4.1` quality policy admits only three narrow, observable corroboration
+paths: strong signal may confirm a 0.48--0.55 rail-support margin or a
+3.0--3.25 canonical-pixel rectification residual; a high-confidence coherent
+C/T pair may disambiguate a broad illumination gradient; and a geometrically
+strong one-line capture may ignore an isolated assay-region ripple only when
+the selected T evidence is non-positive. Missing controls, faint-line
+warnings, stains, ambiguous assignments, and transverse-width geometry remain
+non-reportable.
+
 ## Convex development
 
 Add `CONVEX_SELF_HOSTED_URL` and a freshly generated

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(stripcv VERSION 0.3.1 LANGUAGES CXX)
+project(stripcv VERSION 0.4.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,6 +18,7 @@ add_library(stripcv_core STATIC
   src/calibration.cpp
   src/c_api.cpp
   src/locator.cpp
+  src/transverse_width_scorer.cpp
   src/types.cpp
 )
 target_include_directories(stripcv_core PUBLIC include vendor)

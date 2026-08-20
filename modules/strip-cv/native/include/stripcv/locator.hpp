@@ -50,7 +50,10 @@ class OnnxRegionLocator final : public IRegionLocator {
                                 const CardProfile& card) const override;
 
  private:
+  struct Impl;
   std::string model_path_;
+  std::shared_ptr<Impl> impl_;
+  ClassicalRegionLocator classical_fallback_;
 };
 
 }  // namespace stripcv

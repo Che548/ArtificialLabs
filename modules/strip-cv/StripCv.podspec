@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name           = 'StripCv'
-  s.version        = '0.3.1'
+  s.version        = '0.4.1'
   s.summary        = 'Native StripCV pipeline for biochemical strip analysis'
   s.description    = 'Expo module that analyzes local camera images with the StripCV C++ core.'
   s.license        = { :type => 'MIT' }
@@ -14,7 +14,7 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
   s.dependency 'OpenCV-Dynamic-Framework', '~> 4.10.0.1'
 
-  s.source_files = 'ios/**/*.{h,m,mm,swift}', 'native/include/**/*.{h,hpp}', 'native/src/**/*.{cpp}', 'native/vendor/**/*.hpp'
+  s.source_files = 'ios/**/*.{h,m,mm,swift}', 'native/include/**/*.{h,hpp}', 'native/src/**/*.{cpp,hpp}', 'native/vendor/**/*.hpp'
   s.exclude_files = 'native/src/cli.cpp'
   s.public_header_files = 'ios/StripCvBridge.h', 'native/include/stripcv/c_api.h'
   s.header_mappings_dir = 'native/include'
