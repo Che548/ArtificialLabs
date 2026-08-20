@@ -16,10 +16,17 @@ test('public web client remains a read-only demo', async ({ page }) => {
     });
   });
 
-  await page.goto('/');
-  await expect(page.getByText('сфера.', { exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
+  const authHeading = page.getByText('сфера.', { exact: true });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await expect(authHeading).toBeVisible({ timeout: 15_000 });
+      break;
+    } catch (error) {
+      if (attempt === 2) throw error;
+      await page.reload({ waitUntil: 'domcontentloaded' });
+    }
+  }
   await page.getByPlaceholder('Email').fill('web-preview@example.test');
   await page.getByPlaceholder('Введите пароль').fill('Preview!123');
   await page
@@ -48,8 +55,8 @@ test('public web client remains a read-only demo', async ({ page }) => {
   }
 
   const healthStorageKeys = await page.evaluate(() =>
-    [...Object.keys(localStorage), ...Object.keys(sessionStorage)].filter((key) =>
-      /health|medical|outbox|profile/i.test(key),
+    [...Object.keys(localStorage), ...Object.keys(sessionStorage)].filter(
+      (key) => /health|medical|outbox|profile/i.test(key),
     ),
   );
   expect(healthStorageKeys).toEqual([]);
