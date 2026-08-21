@@ -66,6 +66,8 @@ export function NotificationManagerProvider({
   useEffect(() => {
     if (Platform.OS === 'web' || !stored) return;
     void reconcileHealthNotifications({
+      agentEnabled:
+        stored.medicalRecommendations && stored.agentNotifications === true,
       enabled: stored.notificationsEnabled,
       journalEnabled: stored.journalNotifications,
       profile,

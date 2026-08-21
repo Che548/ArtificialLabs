@@ -51,10 +51,18 @@ export const save = mutation({
     pregnancyStartAt: v.optional(v.number()),
     lastPeriodStartAt: v.optional(v.number()),
     cycleLengthDays: v.optional(v.number()),
+    timezoneOffsetMinutes: v.optional(v.number()),
     consentToCloudSyncAt: v.optional(v.number()),
     updatedAt: v.number(),
   },
   handler: async (ctx, args) => {
+    if (
+      args.timezoneOffsetMinutes !== undefined &&
+      (!Number.isInteger(args.timezoneOffsetMinutes) ||
+        args.timezoneOffsetMinutes < -840 ||
+        args.timezoneOffsetMinutes > 840)
+    )
+      throw new Error('INVALID_TIMEZONE_OFFSET');
     const userId = await requireActiveAccount(ctx);
     const existing = await ctx.db
       .query('profiles')
@@ -80,5 +88,22 @@ export const save = mutation({
       userId,
       createdAt: args.updatedAt,
     });
+  },
+});
+
+export const revokeCloudSync = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireActiveAccount(ctx);
+    const profile = await ctx.db
+      .query('profiles')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .unique();
+    if (!profile) return { revoked: false };
+    await ctx.db.patch(profile._id, {
+      consentToCloudSyncAt: undefined,
+      lastMedicalSyncAt: undefined,
+    });
+    return { revoked: true };
   },
 });

@@ -4,14 +4,21 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import type { LocalProfile, Reminder } from './health-types';
+import { loadLocalSetting, saveLocalSetting } from './local-database';
 import { planHealthNotifications } from './notification-schedule';
 import {
   getNotificationCopy,
   type NotificationTone,
 } from '../shared/notification-copy';
+import {
+  AGENT_PLAN_NOTIFICATION_BODY,
+  AGENT_PLAN_NOTIFICATION_TITLE,
+  maySendAgentPlanNotification,
+} from './agent-notification-policy';
 
 const CHANNEL_ID = 'health-reminders';
 const OWNER = 'artificiallabs';
+const AGENT_NOTIFICATION_SETTING = 'agentPlanNotification.v1';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -57,6 +64,7 @@ export async function clearHealthNotifications() {
 }
 
 export async function reconcileHealthNotifications({
+  agentEnabled,
   enabled,
   journalEnabled,
   profile,
@@ -64,6 +72,7 @@ export async function reconcileHealthNotifications({
   resultsEnabled,
   tone,
 }: {
+  agentEnabled: boolean;
   enabled: boolean;
   journalEnabled: boolean;
   profile: LocalProfile | null;
@@ -76,6 +85,7 @@ export async function reconcileHealthNotifications({
   await ensureAndroidChannel();
 
   const planned = planHealthNotifications({
+    agentEnabled,
     profile,
     reminders,
     tone,
@@ -133,6 +143,30 @@ export async function scheduleTestNotification(tone: NotificationTone) {
       channelId: Platform.OS === 'android' ? CHANNEL_ID : undefined,
     },
   });
+  return true;
+}
+
+export async function scheduleAgentPlanUpdateNotification() {
+  if (!(await notificationPermissionGranted())) return false;
+  const lastSentAt =
+    (await loadLocalSetting<number>(AGENT_NOTIFICATION_SETTING)) ?? 0;
+  const now = Date.now();
+  if (!maySendAgentPlanNotification(lastSentAt, now)) return false;
+  await ensureAndroidChannel();
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: AGENT_PLAN_NOTIFICATION_TITLE,
+      body: AGENT_PLAN_NOTIFICATION_BODY,
+      data: { owner: OWNER, eventKey: 'agentPlanUpdated', url: '/analyses' },
+      sound: 'default',
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: 1,
+      channelId: Platform.OS === 'android' ? CHANNEL_ID : undefined,
+    },
+  });
+  await saveLocalSetting(AGENT_NOTIFICATION_SETTING, now);
   return true;
 }
 

@@ -61,6 +61,10 @@ export async function deleteLocalSetting(key: string) {
   }
   localSettings.delete(key);
 }
+export async function tryAcquireLocalAgentRunLease(_runId: string) {
+  return true;
+}
+export async function releaseLocalAgentRunLease(_runId: string) {}
 export async function saveLocalRecord<K extends HealthEntityName>(
   entity: K,
   item: HealthEntityMap[K],
@@ -92,6 +96,71 @@ export async function saveScanResultWithJournal(
     ],
   };
 }
+export async function saveLabResultBundle({
+  document,
+  event,
+  journalEntry,
+  plan,
+  result,
+}: {
+  document?: HealthEntityMap['documents'];
+  event?: HealthEntityMap['recommendationEvents'];
+  journalEntry?: HealthEntityMap['journalEntries'];
+  plan?: HealthEntityMap['carePlanItems'];
+  result: HealthEntityMap['labResults'];
+}) {
+  await saveLocalRecord('labResults', result);
+  if (document) await saveLocalRecord('documents', document);
+  if (plan) await saveLocalRecord('carePlanItems', plan);
+  if (event) await saveLocalRecord('recommendationEvents', event);
+  if (journalEntry) await saveLocalRecord('journalEntries', journalEntry);
+}
+export async function saveAgentPlanChanges({
+  events = [],
+  items = [],
+  reminders = [],
+  triggers = [],
+}: {
+  events?: HealthEntityMap['recommendationEvents'][];
+  items?: HealthEntityMap['carePlanItems'][];
+  reminders?: HealthEntityMap['reminders'][];
+  triggers?: HealthEntityMap['agentTriggers'][];
+}) {
+  for (const item of items) await saveLocalRecord('carePlanItems', item);
+  for (const event of events)
+    await saveLocalRecord('recommendationEvents', event);
+  for (const trigger of triggers)
+    await saveLocalRecord('agentTriggers', trigger);
+  for (const reminder of reminders)
+    await saveLocalRecord('reminders', reminder);
+}
+export async function tombstoneLocalDocumentBundle(
+  document: HealthEntityMap['documents'],
+  labResults: HealthEntityMap['labResults'][],
+  _enqueue = true,
+  removeLocalFile?: () => Promise<void>,
+) {
+  const now = Date.now();
+  await saveLocalRecord('documents', {
+    ...document,
+    deletedAt: now,
+    updatedAt: now,
+  });
+  for (const result of labResults.filter(
+    (item) =>
+      !item.deletedAt &&
+      (item.sourceDocumentLocalId === document.localId ||
+        document.linkedLabResultLocalId === item.localId),
+  ))
+    await saveLocalRecord('labResults', {
+      ...result,
+      hasLocalSourceDocument: false,
+      sourceDocumentLocalId: undefined,
+      localDocumentUri: undefined,
+      updatedAt: now,
+    });
+  if (removeLocalFile) await removeLocalFile();
+}
 export async function tombstoneLocalChatConversation(
   conversation: ChatConversation,
   messages: ChatMessage[],
@@ -116,6 +185,20 @@ export async function enqueueLocalChatSnapshot(
   _messages: ChatMessage[],
 ) {}
 export async function clearPendingChatOutbox() {}
+export async function clearLocalAgentData() {
+  snapshot = {
+    ...snapshot,
+    carePlanItems: [],
+    agentTriggers: [],
+    recommendationEvents: [],
+    reminders: snapshot.reminders.filter(
+      (item) => !item.localId.startsWith('agent-prep_'),
+    ),
+  };
+  await deleteLocalSetting('agentPlanNotification.v1');
+  await deleteLocalSetting('agentAutomationLease.v1');
+  await deleteLocalSetting('agentBackgroundAuthorization.v1');
+}
 export async function pendingOutbox() {
   return [] as Array<{
     id: number;
@@ -124,6 +207,49 @@ export async function pendingOutbox() {
   }>;
 }
 export async function acknowledgeOutbox(_ids: number[]) {}
+export async function searchLocalAgentIndex({
+  entities,
+  limit = 12,
+  query,
+}: {
+  entities: HealthEntityName[];
+  limit?: number;
+  query: string;
+}) {
+  const needle = query.trim().toLocaleLowerCase('ru-RU');
+  if (!needle) return [];
+  const hits: Array<{
+    entity: HealthEntityName;
+    localId: string;
+    occurredAt: number;
+  }> = [];
+  for (const entity of entities) {
+    for (const item of snapshot[entity]) {
+      if (item.deletedAt) continue;
+      const text = JSON.stringify(item).toLocaleLowerCase('ru-RU');
+      if (!text.includes(needle)) continue;
+      hits.push({
+        entity,
+        localId: item.localId,
+        occurredAt:
+          'occurredAt' in item
+            ? item.occurredAt
+            : 'collectedAt' in item
+              ? item.collectedAt
+              : 'documentDate' in item
+                ? item.documentDate
+                : 'sentAt' in item
+                  ? item.sentAt
+                  : 'dueAt' in item && item.dueAt
+                    ? item.dueAt
+                    : item.updatedAt,
+      });
+    }
+  }
+  return hits
+    .sort((left, right) => right.occurredAt - left.occurredAt)
+    .slice(0, Math.max(1, Math.min(limit, 24)));
+}
 export async function mergeRemoteSnapshot(
   _remote: Omit<HealthSnapshot, 'profile'>,
 ) {}

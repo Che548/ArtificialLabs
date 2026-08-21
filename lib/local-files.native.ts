@@ -47,6 +47,14 @@ export const discardPersistedChatAttachment = (uri: string) =>
       : null,
   );
 
+export const discardPersistedLabDocument = (uri: string) =>
+  deleteWithin(
+    uri,
+    FileSystem.documentDirectory
+      ? `${FileSystem.documentDirectory}lab-documents/`
+      : null,
+  );
+
 export async function clearLocalHealthFiles() {
   if (!FileSystem.documentDirectory) return;
   for (const folder of [

@@ -18,6 +18,7 @@ import {
   acknowledgeOutbox,
   claimLocalDatabaseOwner,
   clearPendingChatOutbox,
+  clearLocalAgentData,
   clearLocalHealthData,
   deleteLocalSetting,
   enqueueLocalChatSnapshot,
@@ -29,12 +30,16 @@ import {
   saveLocalProfile,
   saveLocalRecord,
   saveLocalSetting,
+  saveAgentPlanChanges,
+  saveLabResultBundle,
   saveScanResultWithJournal,
   tombstoneLocalChatConversation,
+  tombstoneLocalDocumentBundle,
 } from './local-database';
 import type {
   AllergyRisk,
   AppPreferences,
+  CarePlanItem,
   ChatAttachment,
   ChatConversation,
   ChatMessage,
@@ -52,6 +57,7 @@ import type {
   MonitoringProgram,
   Reminder,
   ScanResult,
+  RecommendationEvent,
   SyncStatus,
 } from './health-types';
 import { createEmptySnapshot, newLocalId } from './health-types';
@@ -59,7 +65,16 @@ import { mayUseMedicalCloud } from './sync-policy';
 import {
   clearLocalHealthFiles,
   discardPersistedChatAttachment,
+  discardPersistedLabDocument,
 } from './local-files';
+import {
+  applyAgentPlanProposal,
+  applyConfirmedCarePlanSchedule,
+  applyCarePlanUserAction,
+  markAgentTriggersRun,
+  reconcileCarePlan,
+  type AgentPlanProposal,
+} from './care-plan';
 import {
   createSingleFlightRunner,
   synchronizeMedicalCloud,
@@ -67,9 +82,11 @@ import {
 import { useConnectivity } from './connectivity';
 import { classifyServiceIssue, retryDelayMs } from './service-errors';
 import type { ServiceIssue } from './service-errors';
+import { reconcileAgentBackgroundRegistration } from './agent-background';
 
 const backendApi = api;
 const CLOUD_SYNC_SETTING = 'cloudSyncPreference.v1';
+const AGENT_DATA_CLEARED_AT_SETTING = 'agentDataClearedAt.v1';
 const DELETION_DEADLINE_SETTING = 'accountDeletionDeadline.v1';
 
 function programTitleForGoal(goal: HealthGoal) {
@@ -117,6 +134,17 @@ type HealthStoreValue = HealthSnapshot & {
   saveDocument: (input: SavedInput<HealthDocument>) => Promise<void>;
   saveConversation: (input: SavedInput<ChatConversation>) => Promise<string>;
   saveChatMessage: (input: SavedInput<ChatMessage>) => Promise<void>;
+  applyCarePlanAction: (
+    item: CarePlanItem,
+    action: 'complete' | 'decline',
+  ) => Promise<void>;
+  reconcileAgentPlan: () => Promise<boolean>;
+  applyAgentPlanProposal: (proposal: AgentPlanProposal) => Promise<boolean>;
+  recordAgentPlanRun: (triggerLocalIds: string[], at?: number) => Promise<void>;
+  confirmCarePlanSchedule: (
+    item: CarePlanItem,
+    input: Parameters<typeof applyConfirmedCarePlanSchedule>[1],
+  ) => Promise<void>;
   deleteChatConversation: (conversation: ChatConversation) => Promise<void>;
   savePreferences: (
     input: Partial<Omit<AppPreferences, 'localId' | 'updatedAt'>>,
@@ -134,11 +162,24 @@ type HealthStoreValue = HealthSnapshot & {
   requestAccountDeletion: () => Promise<boolean>;
   restoreAccount: () => Promise<boolean>;
   clearAllLocalData: () => Promise<void>;
+  clearAgentData: () => Promise<void>;
   importData: (preview: ImportPreview) => Promise<void>;
   syncNow: () => Promise<boolean>;
 };
 
 const HealthStoreContext = createContext<HealthStoreValue | null>(null);
+
+async function persistCarePlanReconciliation(sourceSnapshot?: HealthSnapshot) {
+  const currentSnapshot = sourceSnapshot ?? (await loadLocalSnapshot());
+  const reconciliation = reconcileCarePlan(currentSnapshot);
+  await saveAgentPlanChanges(reconciliation);
+  return Boolean(
+    reconciliation.items.length ||
+    reconciliation.events.length ||
+    reconciliation.triggers.length ||
+    reconciliation.reminders.length,
+  );
+}
 
 function revisionFor(snapshot: HealthSnapshot) {
   return (Object.keys(snapshot) as Array<keyof HealthSnapshot>).reduce(
@@ -176,7 +217,10 @@ export function HealthStoreProvider({
   const offlineRef = useRef(isOffline);
   const chatCloudPrepared = useRef(false);
   const chatCloudPreparation = useRef<Promise<void> | undefined>(undefined);
+  const agentReconciliation = useRef<Promise<boolean> | undefined>(undefined);
+  const applyingRemoteAgentClear = useRef<number | undefined>(undefined);
   const saveRemoteProfile = useMutation(backendApi.profile.save);
+  const revokeRemoteCloudSync = useMutation(backendApi.profile.revokeCloudSync);
   const syncRemoteBatch = useMutation(backendApi.health.syncBatch);
   const requestRemoteDeletion = useMutation(backendApi.account.requestDeletion);
   const restoreRemoteAccount = useMutation(backendApi.account.restore);
@@ -269,6 +313,7 @@ export function HealthStoreProvider({
       pregnancyStartAt: remoteProfile.pregnancyStartAt,
       lastPeriodStartAt: remoteProfile.lastPeriodStartAt,
       cycleLengthDays: remoteProfile.cycleLengthDays,
+      timezoneOffsetMinutes: remoteProfile.timezoneOffsetMinutes,
       updatedAt: remoteProfile.updatedAt,
     };
     void saveLocalProfile(profile).then(refresh);
@@ -279,6 +324,41 @@ export function HealthStoreProvider({
     const { profile: _profile, ...records } = remoteSnapshot;
     void mergeRemoteSnapshot(records as never).then(refresh);
   }, [canUseCloud, refresh, remoteSnapshot]);
+
+  useEffect(() => {
+    const clearedAt = remoteProfile?.agentDataClearedAt;
+    if (!ready || !clearedAt || applyingRemoteAgentClear.current === clearedAt)
+      return;
+    applyingRemoteAgentClear.current = clearedAt;
+    void (async () => {
+      const appliedAt =
+        (await loadLocalSetting<number>(AGENT_DATA_CLEARED_AT_SETTING)) ?? 0;
+      if (appliedAt >= clearedAt) return;
+      await clearLocalAgentData();
+      const local = await loadLocalSnapshot();
+      const current = local.preferences.find((item) => !item.deletedAt);
+      if (current) {
+        await saveLocalRecord(
+          'preferences',
+          {
+            ...current,
+            medicalRecommendations: false,
+            agentNotifications: false,
+            agentLastSuccessfulRunAt: undefined,
+            updatedAt: Math.max(Date.now(), clearedAt),
+          },
+          false,
+        );
+      }
+      await saveLocalSetting(AGENT_DATA_CLEARED_AT_SETTING, clearedAt);
+      await refresh();
+    })()
+      .catch(() => undefined)
+      .finally(() => {
+        if (applyingRemoteAgentClear.current === clearedAt)
+          applyingRemoteAgentClear.current = undefined;
+      });
+  }, [ready, refresh, remoteProfile?.agentDataClearedAt]);
 
   const prepareChatCloud = useCallback(async () => {
     if (chatCloudPrepared.current && !chatCloudPreparation.current) return;
@@ -354,6 +434,29 @@ export function HealthStoreProvider({
     }
   }, [canUseCloud, prepareChatCloud, readOnly, snapshot.profile, synchronize]);
 
+  const flushCloudSyncRevocation = useCallback(async () => {
+    if (!remoteEnabled || offlineRef.current || !viewer) return false;
+    const preference =
+      await loadLocalSetting<CloudSyncPreference>(CLOUD_SYNC_SETTING);
+    if (preference?.enabled || !preference?.revocationPending) return true;
+    try {
+      await revokeRemoteCloudSync({});
+      await saveLocalSetting(CLOUD_SYNC_SETTING, {
+        ...preference,
+        revocationPending: false,
+        updatedAt: Date.now(),
+      } satisfies CloudSyncPreference);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [remoteEnabled, revokeRemoteCloudSync, viewer]);
+
+  useEffect(() => {
+    if (!ready || isOffline || !viewer) return;
+    void flushCloudSyncRevocation();
+  }, [flushCloudSyncRevocation, isOffline, ready, viewer]);
+
   useEffect(() => {
     if (!canUseCloud) chatCloudPrepared.current = false;
   }, [canUseCloud]);
@@ -407,6 +510,7 @@ export function HealthStoreProvider({
       const profile: LocalProfile = {
         ...input,
         onboardingCompleted: true,
+        timezoneOffsetMinutes: new Date().getTimezoneOffset(),
         updatedAt: now,
       };
       await saveLocalProfile(profile);
@@ -435,7 +539,12 @@ export function HealthStoreProvider({
     async (input: Partial<Omit<LocalProfile, 'updatedAt'>>) => {
       if (readOnly || !snapshot.profile) return;
       const updatedAt = Date.now();
-      const nextProfile = { ...snapshot.profile, ...input, updatedAt };
+      const nextProfile = {
+        ...snapshot.profile,
+        ...input,
+        timezoneOffsetMinutes: new Date().getTimezoneOffset(),
+        updatedAt,
+      };
       await saveLocalProfile(nextProfile);
       if (input.goal && input.goal !== snapshot.profile.goal) {
         const activeProgram = snapshot.programs.find(
@@ -450,6 +559,7 @@ export function HealthStoreProvider({
           });
         }
       }
+      await persistCarePlanReconciliation();
       await refresh();
     },
     [readOnly, refresh, snapshot.profile, snapshot.programs],
@@ -457,14 +567,17 @@ export function HealthStoreProvider({
 
   const addJournalEntry = useCallback(
     async (input: Omit<JournalEntry, 'localId' | 'updatedAt' | 'source'>) => {
+      if (readOnly) return;
       await writeRecord('journalEntries', {
         ...input,
         localId: newLocalId('journal'),
         source: 'manual',
         updatedAt: Date.now(),
       });
+      await persistCarePlanReconciliation();
+      await refresh();
     },
-    [writeRecord],
+    [readOnly, refresh, writeRecord],
   );
 
   const addLabResult = useCallback(
@@ -475,33 +588,64 @@ export function HealthStoreProvider({
         localId: newLocalId('lab'),
         updatedAt: Date.now(),
       };
-      await saveLocalRecord('labResults', result);
-      if (result.localDocumentUri) {
-        await saveLocalRecord('documents', {
-          localId: newLocalId('document'),
-          title: result.title,
-          category: 'lab',
-          documentDate: result.collectedAt,
-          hasLocalFile: true,
-          localFileUri: result.localDocumentUri,
-          updatedAt: result.updatedAt,
-        });
-      }
-      await saveLocalRecord('journalEntries', {
-        localId: newLocalId('journal'),
-        occurredAt: result.collectedAt,
-        kind: 'measurement',
-        label: result.title,
-        textValue: result.analytes
-          .map((item) => `${item.name}: ${item.value}`)
-          .join(', '),
-        source: 'lab',
-        sourceLocalId: result.localId,
-        updatedAt: result.updatedAt,
+      const linkedPlan = snapshot.carePlanItems.find(
+        (item) =>
+          !item.deletedAt &&
+          (item.status === 'current' || item.status === 'upcoming') &&
+          item.catalogKey === result.catalogKey,
+      );
+      const documentLocalId = result.localDocumentUri
+        ? newLocalId('document')
+        : undefined;
+      const document = result.localDocumentUri
+        ? ({
+            localId: documentLocalId!,
+            title: result.title,
+            category: 'lab',
+            documentDate: result.collectedAt,
+            hasLocalFile: true,
+            localFileUri: result.localDocumentUri,
+            linkedLabResultLocalId: result.localId,
+            linkedCarePlanLocalId: linkedPlan?.localId,
+            contentIndexStatus: 'metadata-only',
+            updatedAt: result.updatedAt,
+          } as HealthDocument)
+        : undefined;
+      const storedResult: LabResult = {
+        ...result,
+        hasLocalSourceDocument: Boolean(documentLocalId),
+        sourceDocumentLocalId: documentLocalId,
+        localDocumentUri: undefined,
+      };
+      const completed =
+        linkedPlan && result.status !== 'unreviewed'
+          ? applyCarePlanUserAction(linkedPlan, 'complete', result.collectedAt)
+          : undefined;
+      await saveLabResultBundle({
+        result: storedResult,
+        document,
+        plan: completed?.item,
+        event: completed?.event,
+        journalEntry:
+          result.status === 'unreviewed'
+            ? undefined
+            : {
+                localId: newLocalId('journal'),
+                occurredAt: result.collectedAt,
+                kind: 'measurement',
+                label: result.title,
+                textValue: result.analytes
+                  .map((item) => `${item.name}: ${item.value}`)
+                  .join(', '),
+                source: 'lab',
+                sourceLocalId: result.localId,
+                updatedAt: result.updatedAt,
+              },
       });
+      await persistCarePlanReconciliation();
       await refresh();
     },
-    [readOnly, refresh],
+    [readOnly, refresh, snapshot.carePlanItems],
   );
 
   const addScanResult = useCallback(
@@ -525,6 +669,7 @@ export function HealthStoreProvider({
         sourceLocalId: result.localId,
         updatedAt: result.updatedAt,
       });
+      await persistCarePlanReconciliation();
       await refresh();
     },
     [readOnly, refresh],
@@ -540,14 +685,19 @@ export function HealthStoreProvider({
       input: SavedInput<HealthEntityMap[K]>,
     ) => {
       const localId = input.localId ?? newLocalId(prefix);
+      if (readOnly) return localId;
       await writeRecord(entity, {
         ...input,
         localId,
         updatedAt: Date.now(),
       } as HealthEntityMap[K]);
+      if (entity !== 'documents') {
+        await persistCarePlanReconciliation();
+        await refresh();
+      }
       return localId;
     },
-    [writeRecord],
+    [readOnly, refresh, writeRecord],
   );
 
   const saveConversation = useCallback(
@@ -582,8 +732,96 @@ export function HealthStoreProvider({
     [canUseCloud, readOnly, refresh],
   );
 
+  const runCarePlanReconciliation = useCallback(
+    async (sourceSnapshot?: HealthSnapshot) => {
+      if (readOnly) return false;
+      if (agentReconciliation.current) {
+        return agentReconciliation.current;
+      }
+      const task = (async () => {
+        const changed = await persistCarePlanReconciliation(sourceSnapshot);
+        if (changed) await refresh();
+        return changed;
+      })().finally(() => {
+        agentReconciliation.current = undefined;
+      });
+      agentReconciliation.current = task;
+      return task;
+    },
+    [readOnly, refresh],
+  );
+
+  const applyValidatedAgentPlanProposal = useCallback(
+    async (proposal: AgentPlanProposal) => {
+      if (readOnly) return false;
+      const currentSnapshot = await loadLocalSnapshot();
+      const result = applyAgentPlanProposal(currentSnapshot, proposal);
+      await saveAgentPlanChanges(result);
+      if (result.items.length || result.events.length) await refresh();
+      return Boolean(result.items.length || result.events.length);
+    },
+    [readOnly, refresh],
+  );
+
+  const applyCarePlanAction = useCallback(
+    async (item: CarePlanItem, action: 'complete' | 'decline') => {
+      if (readOnly) return;
+      const result = applyCarePlanUserAction(item, action);
+      await saveAgentPlanChanges({
+        items: [result.item],
+        events: [result.event],
+      });
+      const currentSnapshot = await loadLocalSnapshot();
+      await runCarePlanReconciliation(currentSnapshot);
+      await refresh();
+    },
+    [readOnly, refresh, runCarePlanReconciliation],
+  );
+
+  const recordAgentPlanRun = useCallback(
+    async (triggerLocalIds: string[], at = Date.now()) => {
+      if (readOnly || !triggerLocalIds.length) return;
+      const currentSnapshot = await loadLocalSnapshot();
+      const triggers = markAgentTriggersRun(
+        currentSnapshot.agentTriggers,
+        triggerLocalIds,
+        at,
+      );
+      await saveAgentPlanChanges({ triggers });
+      await refresh();
+    },
+    [readOnly, refresh],
+  );
+
+  const confirmCarePlanSchedule = useCallback(
+    async (
+      item: CarePlanItem,
+      input: Parameters<typeof applyConfirmedCarePlanSchedule>[1],
+    ) => {
+      if (readOnly || item.status === 'current') return;
+      const result = applyConfirmedCarePlanSchedule(item, input);
+      await saveAgentPlanChanges({
+        items: [result.item],
+        events: [result.event],
+      });
+      await persistCarePlanReconciliation();
+      await refresh();
+    },
+    [readOnly, refresh],
+  );
+
   const savePreferences = useCallback(
     async (input: Partial<Omit<AppPreferences, 'localId' | 'updatedAt'>>) => {
+      if (readOnly) return;
+      if (input.medicalRecommendations === false) {
+        // Revoke the cached background-task authorization before persisting
+        // the preference or waiting on any server round trip. Even if the OS
+        // registration API fails, the adapter writes the local authorization
+        // bit first, so a later background launch exits without reading data.
+        await reconcileAgentBackgroundRegistration(false).catch(
+          () => undefined,
+        );
+      }
       const current = snapshot.preferences.find((item) => !item.deletedAt);
       await writeRecord('preferences', {
         localId: 'preferences',
@@ -593,26 +831,68 @@ export function HealthStoreProvider({
         notificationTone: 'formal',
         anonymousAnalytics: false,
         medicalRecommendations: false,
+        agentNotifications: false,
+        agentLastSuccessfulRunAt: undefined,
         language: 'ru',
         region: 'RU',
         ...current,
         ...input,
         updatedAt: Date.now(),
       });
+      if (input.medicalRecommendations !== undefined) {
+        await persistCarePlanReconciliation();
+        await refresh();
+      }
     },
-    [snapshot.preferences, writeRecord],
+    [readOnly, refresh, snapshot.preferences, writeRecord],
   );
 
   const deleteRecord = useCallback(
     async <K extends HealthEntityName>(entity: K, item: HealthEntityMap[K]) => {
+      if (readOnly) return;
+      if (entity === 'documents') {
+        await tombstoneLocalDocumentBundle(
+          item as HealthDocument,
+          snapshot.labResults,
+          true,
+          'localFileUri' in item && typeof item.localFileUri === 'string'
+            ? () => discardPersistedLabDocument(item.localFileUri as string)
+            : undefined,
+        );
+        await refresh();
+        return;
+      }
       await writeRecord(entity, {
         ...item,
         deletedAt: Date.now(),
         updatedAt: Date.now(),
       });
+      if (
+        entity === 'medicalConditions' ||
+        entity === 'medications' ||
+        entity === 'allergyRisks' ||
+        entity === 'labResults' ||
+        entity === 'scanResults'
+      ) {
+        await persistCarePlanReconciliation();
+        await refresh();
+      }
     },
-    [writeRecord],
+    [readOnly, refresh, snapshot.labResults, writeRecord],
   );
+
+  useEffect(() => {
+    if (!ready || readOnly) return;
+    void runCarePlanReconciliation(snapshot);
+  }, [
+    readOnly,
+    ready,
+    runCarePlanReconciliation,
+    snapshot.agentTriggers,
+    snapshot.carePlanItems,
+    snapshot.preferences,
+    snapshot.profile,
+  ]);
 
   const deleteChatConversation = useCallback(
     async (conversation: ChatConversation) => {
@@ -640,6 +920,7 @@ export function HealthStoreProvider({
       const preference: CloudSyncPreference = {
         enabled,
         consentedAt: enabled ? Date.now() : undefined,
+        revocationPending: !enabled && remoteEnabled,
         updatedAt: Date.now(),
       };
       await saveLocalSetting(CLOUD_SYNC_SETTING, preference);
@@ -654,12 +935,15 @@ export function HealthStoreProvider({
       }
       if (enabled && snapshot.profile && remoteEnabled) {
         await synchronize(snapshot.profile, preference.consentedAt);
+      } else if (!enabled && remoteEnabled) {
+        await flushCloudSyncRevocation();
       }
     },
     [
       readOnly,
       remoteEnabled,
       prepareChatCloud,
+      flushCloudSyncRevocation,
       snapshot.chatConversations,
       snapshot.chatMessages,
       snapshot.profile,
@@ -716,6 +1000,23 @@ export function HealthStoreProvider({
     await refresh();
   }, [readOnly, refresh]);
 
+  const clearAgentData = useCallback(async () => {
+    if (readOnly) return;
+    await reconcileAgentBackgroundRegistration(false).catch(() => undefined);
+    await clearLocalAgentData();
+    const current = snapshot.preferences.find((item) => !item.deletedAt);
+    if (current) {
+      await saveLocalRecord('preferences', {
+        ...current,
+        medicalRecommendations: false,
+        agentNotifications: false,
+        agentLastSuccessfulRunAt: undefined,
+        updatedAt: Date.now(),
+      });
+    }
+    await refresh();
+  }, [readOnly, refresh, snapshot.preferences]);
+
   const importData = useCallback(
     async (preview: ImportPreview) => {
       if (readOnly) return;
@@ -769,6 +1070,11 @@ export function HealthStoreProvider({
         saveTyped('documents', 'document', input).then(() => undefined),
       saveConversation,
       saveChatMessage,
+      applyCarePlanAction,
+      reconcileAgentPlan: runCarePlanReconciliation,
+      applyAgentPlanProposal: applyValidatedAgentPlanProposal,
+      recordAgentPlanRun,
+      confirmCarePlanSchedule,
       deleteChatConversation,
       savePreferences,
       deleteRecord,
@@ -784,6 +1090,7 @@ export function HealthStoreProvider({
       requestAccountDeletion,
       restoreAccount,
       clearAllLocalData,
+      clearAgentData,
       importData,
       syncNow,
     }),
@@ -805,6 +1112,11 @@ export function HealthStoreProvider({
       saveTyped,
       saveConversation,
       saveChatMessage,
+      applyCarePlanAction,
+      applyValidatedAgentPlanProposal,
+      recordAgentPlanRun,
+      confirmCarePlanSchedule,
+      runCarePlanReconciliation,
       savePreferences,
       deleteChatConversation,
       deleteRecord,
@@ -813,6 +1125,7 @@ export function HealthStoreProvider({
       requestAccountDeletion,
       restoreAccount,
       clearAllLocalData,
+      clearAgentData,
       importData,
       syncNow,
     ],

@@ -100,10 +100,21 @@ export const generateInternal = internalAction({
       };
     }
 
-    return await generateWithYandex({
+    const result = await generateWithYandex({
       capabilities: [],
       messages: args.messages,
       requestId: args.requestId,
     });
+    const currentAccess = await ctx.runQuery(internal.chat.generationAccess, {
+      userId: args.userId,
+    });
+    if (!currentAccess.ok) {
+      if (currentAccess.reason === 'CONSENT_REQUIRED')
+        return { ok: false as const, code: 'CONSENT_REQUIRED' as const };
+      throw new Error(currentAccess.reason);
+    }
+    if (!isAiChatFeatureEnabled())
+      return { ok: false as const, code: 'FEATURE_DISABLED' as const };
+    return result;
   },
 });

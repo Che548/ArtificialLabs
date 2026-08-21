@@ -11,10 +11,14 @@ export async function clearHealthNotifications() {}
 export async function scheduleTestNotification(_tone: NotificationTone) {
   return false;
 }
+export async function scheduleAgentPlanUpdateNotification() {
+  return false;
+}
 export async function getExpoPushToken() {
   return null;
 }
 export async function reconcileHealthNotifications(_input: {
+  agentEnabled: boolean;
   enabled: boolean;
   journalEnabled: boolean;
   profile: LocalProfile | null;

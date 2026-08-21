@@ -37,6 +37,11 @@ output/playwright/
 .playwright-cli/
 /tmp/
 
+# Local-only medical-agent tests and evaluations. Never publish these.
+/tests-local/agent/
+/.agent-evals/
+/.env.agent-test.local
+
 # macOS
 .DS_Store
 *.pem

@@ -185,11 +185,17 @@ function ProfileHistoryBackIcon() {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { panel } = useLocalSearchParams<{ panel?: string }>();
+  const { panel, sourceId } = useLocalSearchParams<{
+    panel?: string;
+    sourceId?: string;
+  }>();
   const { width: windowWidth } = useWindowDimensions();
   const { signOut } = useAuthActions();
   const { isAuthenticated } = useConvexAuth();
   const revokeAiChatConsent = useMutation(api.chat.revokeConsent);
+  const revokeAiAgentConsent = useMutation(api.chat.revokeAgentConsent);
+  const setRemoteAgentAutomation = useMutation(api.agent.setAutomation);
+  const clearRemoteAgentData = useMutation(api.agent.clearMyData);
   const notificationManager = useNotificationManager();
   const {
     accountDeletion,
@@ -197,6 +203,7 @@ export default function ProfileScreen() {
     cloudSyncEnabled,
     cloudProfileReady,
     clearAllLocalData,
+    clearAgentData,
     deleteRecord,
     documents,
     labResults,
@@ -224,6 +231,10 @@ export default function ProfileScreen() {
     api.chat.status,
     isAuthenticated && cloudProfileReady ? {} : 'skip',
   );
+  const aiAgentStatus = useQuery(
+    api.agent.status,
+    isAuthenticated && cloudProfileReady ? {} : 'skip',
+  );
   const [activeSection, setActiveSection] = useState<ProfileSection | null>(
     null,
   );
@@ -235,22 +246,14 @@ export default function ProfileScreen() {
   );
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
   const [medicalRecommendations, setMedicalRecommendations] = useState(false);
+  const [agentNotifications, setAgentNotifications] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string>();
   const [reducePageMotion, setReducePageMotion] = useState(false);
   const sectionProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (panel === 'ui-kit') {
-      setActiveSection('ui-kit');
-    } else if (panel === 'onboarding') {
-      setActiveSection('onboarding');
-    } else if (panel === 'scan-concepts') {
-      setActiveSection('scan-concepts');
-    } else if (panel === 'today-ui-kit') {
-      setActiveSection('today-ui-kit');
-    } else if (panel === 'planning-today-ui-kit') {
-      setActiveSection('planning-today-ui-kit');
-    }
+    if (panel && panel in SECTION_TITLES)
+      setActiveSection(panel as ProfileSection);
   }, [panel]);
 
   useEffect(() => {
@@ -262,6 +265,7 @@ export default function ProfileScreen() {
     setNotificationTone(stored.notificationTone ?? 'formal');
     setAnalyticsEnabled(stored.anonymousAnalytics);
     setMedicalRecommendations(stored.medicalRecommendations);
+    setAgentNotifications(stored.agentNotifications ?? false);
   }, [preferences]);
 
   useEffect(() => {
@@ -296,7 +300,11 @@ export default function ProfileScreen() {
   }, [activeSection, reducePageMotion, sectionProgress]);
 
   const visiblePrograms = programs.filter((program) => !program.deletedAt);
-  const visibleDocuments = documents.filter((item) => !item.deletedAt);
+  const visibleDocuments = documents
+    .filter((item) => !item.deletedAt)
+    .sort((left, right) =>
+      left.localId === sourceId ? -1 : right.localId === sourceId ? 1 : 0,
+    );
   const documentCount = Math.max(
     visibleDocuments.length,
     labResults.filter(
@@ -336,6 +344,84 @@ export default function ProfileScreen() {
         },
       ],
     );
+  };
+
+  const confirmAgentConsentRevocation = () => {
+    if (!aiAgentStatus?.consentAccepted) return;
+    Alert.alert(
+      'Отключить Ассистента?',
+      'Доступ к данным здоровья будет отозван, а автономные проверки приостановлены. Локальный план останется видимым.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Отключить',
+          style: 'destructive',
+          onPress: () => {
+            void savePreferences({
+              medicalRecommendations: false,
+              agentNotifications: false,
+              agentLastSuccessfulRunAt: undefined,
+            })
+              .then(() => revokeAiAgentConsent({}))
+              .catch((error) => {
+                console.error('Revoking AI agent consent failed', error);
+                Alert.alert(
+                  'Не удалось отключить Ассистента',
+                  'Проверьте подключение и попробуйте ещё раз.',
+                );
+              });
+          },
+        },
+      ],
+    );
+  };
+
+  const confirmAgentDataDeletion = () => {
+    Alert.alert(
+      'Удалить данные Ассистента?',
+      'План, автономные правила и история их изменений будут удалены. Дневник, анализы, документы и чаты останутся.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: () => {
+            void clearRemoteAgentData({})
+              .then(clearAgentData)
+              .catch((error) => {
+                console.error('Clearing AI agent data failed', error);
+                Alert.alert(
+                  'Не удалось удалить данные Ассистента',
+                  'Проверьте подключение и попробуйте ещё раз.',
+                );
+              });
+          },
+        },
+      ],
+    );
+  };
+
+  const updateAgentAutomation = async (enabled: boolean) => {
+    try {
+      if (enabled) {
+        await setRemoteAgentAutomation({ enabled: true });
+        await savePreferences({ medicalRecommendations: true });
+      } else {
+        await savePreferences({
+          medicalRecommendations: false,
+          agentNotifications: false,
+        });
+        await setRemoteAgentAutomation({ enabled: false });
+        setAgentNotifications(false);
+      }
+      setMedicalRecommendations(enabled);
+    } catch (error) {
+      console.error('Updating AI agent automation failed', error);
+      Alert.alert(
+        'Не удалось изменить автономные рекомендации',
+        'Проверьте подключение и попробуйте ещё раз.',
+      );
+    }
   };
 
   const openSection = (section: ProfileSection) => {
@@ -495,9 +581,20 @@ export default function ProfileScreen() {
             >
               {renderProfileSectionDirect({
                 aiConsentAccepted: aiChatStatus?.consentAccepted === true,
+                agentConsentAccepted: aiAgentStatus?.consentAccepted === true,
+                agentEnabled: aiAgentStatus?.enabled === true,
+                agentAutomationEnabled:
+                  aiAgentStatus?.automationEnabled === true,
+                agentAutomationAccepted:
+                  aiAgentStatus?.automationAccepted === true,
+                agentLastSuccessfulRunAt: preferences.find(
+                  (item) => !item.deletedAt,
+                )?.agentLastSuccessfulRunAt,
+                agentNotifications,
                 analyticsEnabled,
                 documentCount,
                 documents: visibleDocuments,
+                sourceDocumentId: sourceId,
                 allergyRisks: allergyRisks.filter((item) => !item.deletedAt),
                 cloudSyncEnabled,
                 clearAllLocalData,
@@ -524,10 +621,12 @@ export default function ProfileScreen() {
                 saveMedicalCondition,
                 saveMedication,
                 savePreferences,
+                saveAgentAutomation: updateAgentAutomation,
                 setCloudSyncEnabled,
                 setAnalyticsEnabled,
                 setJournalNotifications,
                 setMedicalRecommendations,
+                setAgentNotifications,
                 setNotificationsEnabled,
                 setNotificationPermission: notificationManager.setEnabled,
                 setNotificationTone,
@@ -538,6 +637,8 @@ export default function ProfileScreen() {
                 requestAccountDeletion,
                 serviceIssue,
                 revokeAiConsent: confirmAiConsentRevocation,
+                revokeAgentConsent: confirmAgentConsentRevocation,
+                clearAgentData: confirmAgentDataDeletion,
                 syncMessage,
                 syncNow: () => void synchronize(),
                 syncDisabled:
@@ -907,13 +1008,21 @@ function ProfileDetailScreen({
 
 function renderProfileSectionDirect({
   aiConsentAccepted,
+  agentAutomationAccepted,
+  agentAutomationEnabled,
+  agentConsentAccepted,
+  agentEnabled,
+  agentLastSuccessfulRunAt,
+  agentNotifications,
   analyticsEnabled,
   allergyRisks,
   cloudSyncEnabled,
+  clearAgentData,
   clearAllLocalData,
   deleteRecord,
   documentCount,
   documents,
+  sourceDocumentId,
   journalNotifications,
   medicalConditions,
   medications,
@@ -930,17 +1039,20 @@ function renderProfileSectionDirect({
   requestAccountDeletion,
   serviceIssue,
   revokeAiConsent,
+  revokeAgentConsent,
   saveAllergyRisk,
   saveDocumentFromPicker,
   saveMedicalCondition,
   saveMedication,
   savePreferences,
+  saveAgentAutomation,
   saveProfile,
   section,
   setCloudSyncEnabled,
   setAnalyticsEnabled,
   setJournalNotifications,
   setMedicalRecommendations,
+  setAgentNotifications,
   setNotificationsEnabled,
   setNotificationPermission,
   setNotificationTone,
@@ -955,9 +1067,16 @@ function renderProfileSectionDirect({
   viewerEmail,
 }: {
   aiConsentAccepted: boolean;
+  agentAutomationAccepted: boolean;
+  agentAutomationEnabled: boolean;
+  agentConsentAccepted: boolean;
+  agentEnabled: boolean;
+  agentLastSuccessfulRunAt?: number;
+  agentNotifications: boolean;
   analyticsEnabled: boolean;
   allergyRisks: AllergyRisk[];
   cloudSyncEnabled: boolean;
+  clearAgentData: () => void;
   clearAllLocalData: () => Promise<void>;
   deleteRecord: <K extends HealthEntityName>(
     entity: K,
@@ -965,6 +1084,7 @@ function renderProfileSectionDirect({
   ) => Promise<void>;
   documentCount: number;
   documents: HealthDocument[];
+  sourceDocumentId?: string;
   journalNotifications: boolean;
   medicalConditions: MedicalCondition[];
   medications: Medication[];
@@ -981,6 +1101,7 @@ function renderProfileSectionDirect({
   requestAccountDeletion: () => Promise<boolean>;
   serviceIssue?: ServiceIssue;
   revokeAiConsent: () => void;
+  revokeAgentConsent: () => void;
   saveAllergyRisk: (
     input: Omit<AllergyRisk, 'localId' | 'updatedAt'> & { localId?: string },
   ) => Promise<void>;
@@ -996,11 +1117,14 @@ function renderProfileSectionDirect({
   savePreferences: (input: {
     anonymousAnalytics?: boolean;
     medicalRecommendations?: boolean;
+    agentNotifications?: boolean;
+    agentLastSuccessfulRunAt?: number;
     notificationsEnabled?: boolean;
     journalNotifications?: boolean;
     resultNotifications?: boolean;
     notificationTone?: 'formal' | 'cute';
   }) => Promise<void>;
+  saveAgentAutomation: (enabled: boolean) => Promise<void>;
   saveProfile: (
     input: Partial<Omit<LocalProfile, 'updatedAt'>>,
   ) => Promise<void>;
@@ -1009,6 +1133,7 @@ function renderProfileSectionDirect({
   setAnalyticsEnabled: (value: boolean) => void;
   setJournalNotifications: (value: boolean) => void;
   setMedicalRecommendations: (value: boolean) => void;
+  setAgentNotifications: (value: boolean) => void;
   setNotificationsEnabled: (value: boolean) => void;
   setNotificationPermission: (
     enabled: boolean,
@@ -1211,7 +1336,13 @@ function renderProfileSectionDirect({
             onPress={() => void saveDocumentFromPicker()}
           />
           {documents.length ? (
-            <ProfileSettingsGroup title={`Сохранено: ${documentCount}`}>
+            <ProfileSettingsGroup
+              title={
+                sourceDocumentId
+                  ? 'Источник ответа Ассистента'
+                  : `Сохранено: ${documentCount}`
+              }
+            >
               {documents.map((item, index) => (
                 <ProfileSettingsRow
                   key={item.localId}
@@ -1219,9 +1350,24 @@ function renderProfileSectionDirect({
                   fallback="Д"
                   iconBackground={profileTones.health.tile}
                   label={item.title}
-                  value={formatDate(item.documentDate)}
+                  value={`${formatDate(item.documentDate)}${
+                    item.localId === sourceDocumentId ? ' · источник' : ''
+                  }`}
                   isLast={index === documents.length - 1}
-                  onPress={() => void deleteRecord('documents', item)}
+                  onPress={() =>
+                    Alert.alert(
+                      item.title,
+                      `${formatDate(item.documentDate)} · содержимое файла не прочитано`,
+                      [
+                        { text: 'Закрыть', style: 'cancel' },
+                        {
+                          text: 'Удалить документ',
+                          style: 'destructive',
+                          onPress: () => void deleteRecord('documents', item),
+                        },
+                      ],
+                    )
+                  }
                 />
               ))}
             </ProfileSettingsGroup>
@@ -1288,13 +1434,40 @@ function renderProfileSectionDirect({
               }}
             />
             <ProfileToggleRow
-              label="Медицинские данные"
-              subtitle="Использовать для персональных рекомендаций"
+              label="Автономные рекомендации"
+              subtitle={
+                !agentEnabled
+                  ? 'Ассистент выключен администратором'
+                  : !agentConsentAccepted
+                    ? 'Сначала включите Ассистента в чате'
+                    : !agentAutomationEnabled
+                      ? 'Автономные проверки временно выключены'
+                      : !agentAutomationAccepted && medicalRecommendations
+                        ? 'Настройка на сервере не подтверждена — включите заново'
+                        : agentLastSuccessfulRunAt
+                          ? `Последняя проверка: ${formatDate(agentLastSuccessfulRunAt)}. Фоновый запуск нерегулярный`
+                          : 'Проверка запустится при стабильном подключении; фоновые сроки не гарантируются'
+              }
               value={medicalRecommendations}
-              disabled={readOnly}
+              disabled={
+                readOnly ||
+                (!medicalRecommendations &&
+                  (!agentConsentAccepted || !agentAutomationEnabled))
+              }
               onChange={(value) => {
-                setMedicalRecommendations(value);
-                void savePreferences({ medicalRecommendations: value });
+                void saveAgentAutomation(value);
+              }}
+            />
+            <ProfileToggleRow
+              label="Обновления плана"
+              subtitle="Только нейтральный текст без названий анализов"
+              value={agentNotifications}
+              disabled={
+                readOnly || !medicalRecommendations || !notificationsEnabled
+              }
+              onChange={(value) => {
+                setAgentNotifications(value);
+                void savePreferences({ agentNotifications: value });
               }}
               isLast
             />
@@ -1310,6 +1483,37 @@ function renderProfileSectionDirect({
             subtitle="Передача только видимого текста чата"
             disabled={!aiConsentAccepted}
             onPress={revokeAiConsent}
+          />
+          <ProfileActionRow
+            secondary
+            icon="shield.lefthalf.filled"
+            label={
+              agentConsentAccepted
+                ? 'Отключить доступ Ассистента к данным'
+                : 'Доступ Ассистента к данным не дан'
+            }
+            subtitle="Профиль, дневник, анализы, метаданные документов, план и поиск по чатам; содержимое файлов недоступно"
+            disabled={!agentConsentAccepted}
+            onPress={revokeAgentConsent}
+          />
+          <ProfileActionRow
+            secondary
+            icon="list.bullet.rectangle"
+            label="Данные режима «Ассистент»"
+            subtitle="Посмотреть разрешённые категории данных"
+            onPress={() =>
+              Alert.alert(
+                'Доступ Ассистента',
+                'После отдельного согласия: параметры здоровья из профиля, записи дневника за 30 дней, подтверждённые анализы и домашние тесты, активный план. Только по запросу: старые записи дневника, другие ваши чаты и метаданные документов. Если автономные рекомендации включены, проверка плана может учитывать новые сообщения пользователя из режима «Ассистент» и только категорию и дату нового документа. Обычные чаты, ответы ИИ, названия и содержимое файлов автоматически не передаются. Имя, контакты, идентификаторы и пути к файлам недоступны.',
+              )
+            }
+          />
+          <ProfileActionRow
+            secondary
+            icon="trash"
+            label="Удалить данные Ассистента"
+            subtitle="План, правила и журнал изменений"
+            onPress={clearAgentData}
           />
           <ProfileActionRow
             secondary
@@ -1708,6 +1912,9 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
     documents: store.documents,
     chatConversations: store.chatConversations,
     chatMessages: store.chatMessages,
+    carePlanItems: store.carePlanItems,
+    agentTriggers: store.agentTriggers,
+    recommendationEvents: store.recommendationEvents,
     preferences: store.preferences,
   };
 

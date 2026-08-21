@@ -5,6 +5,7 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import {
@@ -329,6 +330,7 @@ function HistoryBackIcon() {
 }
 
 export default function ScanScreen() {
+  const { journalId } = useLocalSearchParams<{ journalId?: string }>();
   const { addJournalEntry, addScanResult, journalEntries, scanResults } =
     useHealthStore();
   const { width, height } = useWindowDimensions();
@@ -338,6 +340,9 @@ export default function ScanScreen() {
     string | null
   >(null);
   const [calendarVisible, setCalendarVisible] = useState(false);
+  const linkedJournalEntry = journalEntries.find(
+    (entry) => !entry.deletedAt && entry.localId === journalId,
+  );
   const [journalFlowDate, setJournalFlowDate] = useState<Date | null>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanHistoryRecord[]>([]);
@@ -392,6 +397,10 @@ export default function ScanScreen() {
       await addJournalEntry({ occurredAt, ...entry });
     }
   };
+
+  useEffect(() => {
+    if (linkedJournalEntry) setCalendarVisible(true);
+  }, [linkedJournalEntry]);
 
   useEffect(() => {
     let active = true;
@@ -829,6 +838,11 @@ export default function ScanScreen() {
 
       <CalendarPageModal
         visible={calendarVisible}
+        initialDate={
+          linkedJournalEntry
+            ? new Date(linkedJournalEntry.occurredAt)
+            : undefined
+        }
         onClose={() => setCalendarVisible(false)}
         onAddSymptoms={(date) => setJournalFlowDate(new Date(date))}
         symptomDateKeys={symptomDateKeys}

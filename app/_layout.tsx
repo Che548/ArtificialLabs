@@ -24,6 +24,7 @@ import '../global.css';
 import { AppGate } from '../components/AppGate';
 import { AuthScreen } from '../components/AuthScreen';
 import { convex } from '../lib/convex';
+import { AgentAutomationManager } from '../lib/agent-automation-manager';
 import { ConnectivityBanner, ConnectivityProvider } from '../lib/connectivity';
 import { HealthStoreProvider } from '../lib/health-store';
 import { NotificationManagerProvider } from '../lib/notification-manager';
@@ -498,6 +499,7 @@ function NativeApp() {
   return (
     <HealthStoreProvider>
       <NotificationManagerProvider>
+        <AgentAutomationManager />
         <AppGate>
           <Tabs />
         </AppGate>

@@ -77,6 +77,9 @@ async function deleteProfileData(ctx: MutationCtx, profileId: string) {
     'documents',
     'chatConversations',
     'chatMessages',
+    'carePlanItems',
+    'agentTriggers',
+    'recommendationEvents',
     'preferences',
   ] as const;
   for (const table of tables) {
@@ -138,6 +141,16 @@ export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
     .withIndex('by_user', (q) => q.eq('userId', userId as never))
     .unique();
   if (aiChatConsent) await ctx.db.delete(aiChatConsent._id);
+  const aiAgentConsent = await ctx.db
+    .query('aiAgentConsents')
+    .withIndex('by_user', (q) => q.eq('userId', userId as never))
+    .unique();
+  if (aiAgentConsent) await ctx.db.delete(aiAgentConsent._id);
+  const agentRuns = await ctx.db
+    .query('agentRuns')
+    .filter((q) => q.eq(q.field('userId'), userId))
+    .collect();
+  for (const run of agentRuns) await ctx.db.delete(run._id);
   await ctx.db.delete(userId as never);
 }
 

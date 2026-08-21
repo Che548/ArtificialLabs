@@ -11,4 +11,18 @@ crons.daily(
   {},
 );
 
+crons.hourly(
+  'purge expired AI agent continuations',
+  { minuteUTC: 7 },
+  internal.agent.purgeExpiredRuns,
+  {},
+);
+
+crons.hourly(
+  'review due synced AI agent plans',
+  { minuteUTC: 17 },
+  internal.agentPlan.reviewDueSynced,
+  {},
+);
+
 export default crons;

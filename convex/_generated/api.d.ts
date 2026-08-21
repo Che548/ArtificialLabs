@@ -9,7 +9,12 @@
  */
 
 import type * as account from "../account.js";
+import type * as agent from "../agent.js";
+import type * as agentAction from "../agentAction.js";
+import type * as agentPlan from "../agentPlan.js";
+import type * as ai_agentContextValidation from "../ai/agentContextValidation.js";
 import type * as ai_yandexProvider from "../ai/yandexProvider.js";
+import type * as aiAgentConfig from "../aiAgentConfig.js";
 import type * as aiChatConfig from "../aiChatConfig.js";
 import type * as auth from "../auth.js";
 import type * as chat from "../chat.js";
@@ -31,7 +36,12 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   account: typeof account;
+  agent: typeof agent;
+  agentAction: typeof agentAction;
+  agentPlan: typeof agentPlan;
+  "ai/agentContextValidation": typeof ai_agentContextValidation;
   "ai/yandexProvider": typeof ai_yandexProvider;
+  aiAgentConfig: typeof aiAgentConfig;
   aiChatConfig: typeof aiChatConfig;
   auth: typeof auth;
   chat: typeof chat;

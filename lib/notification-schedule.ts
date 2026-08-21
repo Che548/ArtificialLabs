@@ -20,6 +20,7 @@ function atHour(timestamp: number, hour = 9) {
 }
 
 export function planHealthNotifications({
+  agentEnabled = false,
   now = new Date(),
   profile,
   reminders,
@@ -27,6 +28,7 @@ export function planHealthNotifications({
   journalEnabled,
   resultsEnabled,
 }: {
+  agentEnabled?: boolean;
   now?: Date;
   profile: LocalProfile | null;
   reminders: Reminder[];
@@ -65,13 +67,13 @@ export function planHealthNotifications({
     add('fertileWindowEnded', atHour(ovulation + DAY), 'fertility-end');
   }
 
-  if (resultsEnabled) {
-    for (const reminder of reminders) {
-      if (reminder.deletedAt || reminder.readAt) continue;
-      const eventKey: NotificationEventKey =
-        reminder.type === 'result' ? 'resultExpiring' : 'analysisApproaching';
-      add(eventKey, new Date(reminder.dueAt), `reminder-${reminder.localId}`);
-    }
+  for (const reminder of reminders) {
+    if (reminder.deletedAt || reminder.readAt) continue;
+    const isAgentReminder = reminder.localId.startsWith('agent-prep_');
+    if (isAgentReminder ? !agentEnabled : !resultsEnabled) continue;
+    const eventKey: NotificationEventKey =
+      reminder.type === 'result' ? 'resultExpiring' : 'analysisApproaching';
+    add(eventKey, new Date(reminder.dueAt), `reminder-${reminder.localId}`);
   }
 
   // The recurring journal reminder is scheduled by the native adapter.

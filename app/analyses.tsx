@@ -1,10 +1,16 @@
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   Platform,
@@ -24,7 +30,6 @@ import {
   AnalysisTabs,
   AppText,
   colors,
-  type AnalysisPlanCardProps,
   type AnalysisTabKey,
   getHeaderTop,
   HealthInsightsPage,
@@ -32,7 +37,9 @@ import {
   sizes,
   spacing,
 } from '../design-system';
+import { analysisCatalogByKey } from '../lib/analysis-catalog';
 import { useHealthStore } from '../lib/health-store';
+import type { CarePlanItem } from '../lib/health-types';
 import { persistLabDocument } from '../lib/local-files';
 import { calculateCompletionScore } from '../lib/product-insights';
 
@@ -52,12 +59,22 @@ const e2eDocumentFixtureUri =
         : undefined
     : undefined;
 
-type PlannedAnalysis = Omit<AnalysisPlanCardProps, 'onView'> & {
+type PlannedAnalysis = {
+  carePlan: CarePlanItem;
+  category: string;
   clinic: string;
+  description: string;
+  dueLabel: string;
+  dueValue: string;
   id: string;
+  image?: ImageSourcePropType;
   purpose: string;
   requirements: string[];
+  statusLabel: string;
   tab: Exclude<AnalysisTabKey, 'completed'>;
+  title: string;
+  validityLabel: string;
+  validityValue: string;
 };
 
 type PendingAnalysisAttachment = {
@@ -66,87 +83,108 @@ type PendingAnalysisAttachment = {
   uri: string;
 };
 
-const plannedAnalyses: PlannedAnalysis[] = [
-  {
-    id: 'blood-count',
-    tab: 'current',
-    title: 'Исследования крови',
-    description: 'Общий анализ крови, гематокрит, гемоглобин, тромбоциты',
-    category: 'Лаборатория',
-    dueLabel: 'Сдать до',
-    dueValue: '22 августа',
-    validityLabel: 'Актуален',
-    validityValue: '30 дней',
-    status: 'Осталось 6 Дней',
-    image: bloodTubesImage,
-    imagePosition: 'center',
-    tone: 'rose',
-    requirements: [
-      'Общий анализ крови с лейкоцитарной формулой',
-      'Гематокрит и гемоглобин',
-      'Количество тромбоцитов',
-    ],
-    purpose:
-      'Чтобы оценить уровень гемоглобина, исключить анемию и заметить признаки воспаления до следующего этапа наблюдения.',
-    clinic: 'Клиника-партнёр рядом с вами',
-  },
-  {
-    id: 'pelvic-ultrasound',
-    tab: 'current',
-    title: 'УЗИ малого таза',
-    description: 'Ультразвуковое исследование органов малого таза',
-    category: 'Диагностика',
-    dueLabel: 'Пройти до',
-    dueValue: '26 августа',
-    validityLabel: 'Актуально',
-    validityValue: '3 месяца',
-    status: 'Запланировать визит',
-    image: ultrasoundImage,
-    imagePosition: 'center',
-    tone: 'lilac',
-    requirements: [
-      'УЗИ матки и эндометрия',
-      'Оценка яичников и фолликулярного аппарата',
-      'Заключение врача ультразвуковой диагностики',
-    ],
-    purpose:
-      'Чтобы оценить состояние органов малого таза и уточнить факторы, которые могут влиять на цикл и планирование беременности.',
-    clinic: 'Центр женского здоровья рядом с вами',
-  },
-  {
-    id: 'hysteroscopy',
-    tab: 'upcoming',
-    title: 'Гистероскопия',
-    description: 'Исследование полости матки и эндометрия',
-    category: 'Процедура',
-    dueLabel: 'Рекомендуемая дата',
-    dueValue: '5 сентября',
-    validityLabel: 'Актуально',
-    validityValue: '6 месяцев',
-    status: 'В следующем месяце',
-    image: hysteroscopeImage,
-    imagePosition: 'top',
-    tone: 'pearl',
-    requirements: [
-      'Гистероскопия по направлению врача',
-      'Заключение о состоянии полости матки',
-      'Результаты биопсии, если она проводилась',
-    ],
-    purpose:
-      'Чтобы детально оценить полость матки и эндометрий, когда данных УЗИ недостаточно для принятия решения.',
-    clinic: 'Профильная гинекологическая клиника',
-  },
-];
+const planImages: Record<string, ImageSourcePropType> = {
+  'blood-tubes': bloodTubesImage,
+  ultrasound: ultrasoundImage,
+  hysteroscope: hysteroscopeImage,
+};
+
+function formatPlanDate(timestamp?: number) {
+  if (!timestamp) return 'Дата уточняется';
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date(timestamp));
+}
+
+function normalizePlanDate(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 18);
+}
+
+function latestUpcomingPlanDate(now = new Date()) {
+  return new Date(now.getFullYear(), now.getMonth() + 5, 0, 18);
+}
+
+function viewModelForPlan(item: CarePlanItem): PlannedAnalysis {
+  const catalog = analysisCatalogByKey.get(item.catalogKey);
+  const statusLabel = item.safetyHoldAt
+    ? 'Приостановлено'
+    : item.requiresClinician || item.riskTier !== 'low'
+      ? 'Обсудить с врачом'
+      : item.provisional
+        ? 'Предварительная оценка'
+        : 'Подтверждено';
+  return {
+    carePlan: item,
+    category: catalog?.category ?? item.category,
+    clinic:
+      item.requiresClinician || item.riskTier !== 'low'
+        ? 'Обсудите необходимость и сроки с профильным врачом'
+        : 'Это рекомендация для планирования, а не медицинское назначение',
+    description: catalog?.specimen ?? item.description,
+    dueLabel: item.status === 'current' ? 'Рекомендуемый срок' : 'Ориентир',
+    dueValue: formatPlanDate(item.dueAt),
+    id: item.localId,
+    image: item.illustrationKey ? planImages[item.illustrationKey] : undefined,
+    purpose: item.rationale || catalog?.purpose || item.description,
+    requirements: [catalog?.specimen ?? item.description].filter(Boolean),
+    statusLabel,
+    tab: item.status === 'current' ? 'current' : 'upcoming',
+    title: item.title,
+    validityLabel: 'Основание',
+    validityValue:
+      item.scheduleBasis === 'model_inference'
+        ? 'Оценка ИИ'
+        : item.scheduleBasis === 'clinician'
+          ? 'Назначение врача'
+          : item.scheduleBasis === 'user'
+            ? 'Указано вами'
+            : 'Подтверждённые данные',
+  };
+}
+
+function recommendationReasonLabel(reasonCode?: string) {
+  const labels: Record<string, string> = {
+    MODEL_PLAN_PROPOSAL_VALIDATED:
+      'Добавлено после проверки профиля и подтверждённых данных.',
+    MODEL_REPLACEMENT_VALIDATED:
+      'Добавлено вместо ближайшего пункта после появления новых данных; рекомендация остаётся предварительной.',
+    NEW_CONFIRMED_EVIDENCE_SUPPORTED_BETTER_CANDIDATE:
+      'Ближайший пункт заменён после появления новых данных; рекомендация остаётся предварительной.',
+    NEW_EVIDENCE_SUPPORTED_BETTER_CANDIDATE:
+      'Ближайший пункт заменён после появления новых данных; рекомендация остаётся предварительной.',
+    DUE_WINDOW_REACHED:
+      'Срок наступил, поэтому пункт перенесён в текущий план.',
+    CONFIRMED_RESULT_MATCHED_DUE_WINDOW:
+      'Найден подтверждённый результат за соответствующий период.',
+    CURRENT_ITEM_REQUIRES_CLINICIAN_REVIEW:
+      'Пункт приостановлен до обсуждения с врачом.',
+    PREGNANCY_REQUIRES_CLINICIAN_SAFETY_REVIEW:
+      'При беременности требуется отдельная оценка безопасности врачом.',
+    CONFIRMED_CONTRAST_ALLERGY_REQUIRES_CLINICIAN_REVIEW:
+      'Указана тяжёлая аллергическая реакция, поэтому требуется оценка врачом.',
+  };
+  return reasonCode
+    ? (labels[reasonCode] ?? 'План пересмотрен по подтверждённым данным.')
+    : 'Это предварительная рекомендация, основанная на доступных подтверждённых данных.';
+}
 
 export default function AnalysesScreen() {
+  const { sourceId } = useLocalSearchParams<{ sourceId?: string }>();
   const insets = useSafeAreaInsets();
   const headerTop = getHeaderTop(insets.top);
   const {
+    applyCarePlanAction,
+    confirmCarePlanSchedule,
+    carePlanItems,
+    documents,
     journalEntries,
     labResults,
     profile,
     scanResults,
     addLabResult,
+    preferences,
+    recommendationEvents,
     readOnly,
   } = useHealthStore();
   const [activeTab, setActiveTab] = useState<AnalysisTabKey>('current');
@@ -155,37 +193,247 @@ export default function AnalysesScreen() {
     useState<PendingAnalysisAttachment>();
   const [attachmentError, setAttachmentError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  const [schedulePickerVisible, setSchedulePickerVisible] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState(() =>
+    normalizePlanDate(new Date()),
+  );
   const [attachmentPicking, setAttachmentPicking] = useState(false);
   const [modalViewportHeight, setModalViewportHeight] = useState(0);
   const [modalContentHeight, setModalContentHeight] = useState(0);
   const [chartsVisible, setChartsVisible] = useState(false);
+  const handledSource = useRef<string | undefined>(undefined);
+  const plannedAnalyses = useMemo(
+    () =>
+      carePlanItems
+        .filter(
+          (item) =>
+            !item.deletedAt &&
+            (item.status === 'current' || item.status === 'upcoming'),
+        )
+        .sort((left, right) =>
+          (left.dueAt ?? Infinity) === (right.dueAt ?? Infinity)
+            ? left.title.localeCompare(right.title, 'ru')
+            : (left.dueAt ?? Infinity) - (right.dueAt ?? Infinity),
+        )
+        .map(viewModelForPlan),
+    [carePlanItems],
+  );
+  const recommendationsEnabled =
+    preferences.find((item) => !item.deletedAt)?.medicalRecommendations ===
+    true;
+
+  useEffect(() => {
+    if (!sourceId || handledSource.current === sourceId) return;
+    const plan = plannedAnalyses.find((item) => item.id === sourceId);
+    if (plan) {
+      handledSource.current = sourceId;
+      setActiveTab(plan.tab);
+      openAnalysis(plan);
+      return;
+    }
+    const archivedPlan = carePlanItems.find(
+      (item) => !item.deletedAt && item.localId === sourceId,
+    );
+    if (archivedPlan) {
+      handledSource.current = sourceId;
+      setActiveTab('completed');
+      Alert.alert(
+        archivedPlan.title,
+        archivedPlan.status === 'completed'
+          ? `Выполнено ${new Date(
+              archivedPlan.performedAt ?? archivedPlan.updatedAt,
+            ).toLocaleDateString('ru-RU')}`
+          : archivedPlan.status === 'declined'
+            ? 'Вы отказались от этой рекомендации.'
+            : 'Рекомендация была заменена после пересмотра плана.',
+      );
+      return;
+    }
+    const result = labResults.find(
+      (item) => !item.deletedAt && item.localId === sourceId,
+    );
+    if (result) {
+      handledSource.current = sourceId;
+      setActiveTab('completed');
+      Alert.alert(
+        result.title,
+        `${new Date(result.collectedAt).toLocaleDateString('ru-RU')} · ${
+          result.status === 'unreviewed'
+            ? 'файл сохранён, содержимое не прочитано'
+            : result.status === 'attention'
+              ? 'требует внимания'
+              : 'подтверждено'
+        }`,
+      );
+      return;
+    }
+    const scan = scanResults.find(
+      (item) => !item.deletedAt && item.localId === sourceId,
+    );
+    if (scan) {
+      handledSource.current = sourceId;
+      setActiveTab('completed');
+      Alert.alert(
+        scan.testSystemKey === 'ovulation-strip'
+          ? 'Тест на овуляцию'
+          : scan.testSystemKey === 'pregnancy-strip'
+            ? 'Тест на беременность'
+            : scan.testSystemKey,
+        `${new Date(scan.capturedAt).toLocaleDateString('ru-RU')} · ${
+          scan.confirmedByUser
+            ? scan.confirmedValue === 'positive'
+              ? 'положительный результат'
+              : scan.confirmedValue === 'negative'
+                ? 'отрицательный результат'
+                : 'недействительный результат'
+            : 'ожидает подтверждения'
+        }`,
+      );
+    }
+  }, [carePlanItems, labResults, plannedAnalyses, scanResults, sourceId]);
 
   const savedResults = useMemo(
     () => labResults.filter((item) => !item.deletedAt),
     [labResults],
   );
+  const savedScans = useMemo(
+    () =>
+      scanResults
+        .filter((item) => !item.deletedAt)
+        .sort((left, right) => right.capturedAt - left.capturedAt),
+    [scanResults],
+  );
+  const completedPlans = useMemo(
+    () =>
+      carePlanItems
+        .filter((item) => !item.deletedAt && item.status === 'completed')
+        .filter((item) => {
+          const linkedByDocument = documents.some(
+            (document) =>
+              !document.deletedAt &&
+              document.linkedCarePlanLocalId === item.localId,
+          );
+          const linkedByCompletionEvidence = savedResults.some(
+            (result) =>
+              item.performedAt === result.collectedAt &&
+              item.evidenceRefs.some(
+                (ref) =>
+                  ref.source === 'test' && ref.localId === result.localId,
+              ),
+          );
+          return !linkedByDocument && !linkedByCompletionEvidence;
+        })
+        .sort(
+          (left, right) =>
+            (right.performedAt ?? right.updatedAt) -
+            (left.performedAt ?? left.updatedAt),
+        ),
+    [carePlanItems, documents, savedResults],
+  );
 
   const attachedResultsByPlan = useMemo(() => {
     const result = new Map<string, (typeof savedResults)[number]>();
     for (const item of savedResults) {
-      if (item.hasLocalSourceDocument && item.localDocumentUri) {
+      const document = documents.find(
+        (candidate) =>
+          !candidate.deletedAt &&
+          (candidate.localId === item.sourceDocumentLocalId ||
+            candidate.linkedLabResultLocalId === item.localId) &&
+          candidate.hasLocalFile &&
+          Boolean(candidate.localFileUri),
+      );
+      if (item.hasLocalSourceDocument && document) {
         result.set(item.catalogKey, item);
       }
     }
     return result;
-  }, [savedResults]);
+  }, [documents, savedResults]);
 
   const closeAnalysis = () => {
     if (saving || attachmentPicking) return;
     setSelectedAnalysis(undefined);
     setPendingAttachment(undefined);
     setAttachmentError(undefined);
+    setSchedulePickerVisible(false);
   };
 
   const openAnalysis = (analysis: PlannedAnalysis) => {
     setSelectedAnalysis(analysis);
     setPendingAttachment(undefined);
     setAttachmentError(undefined);
+    setScheduleDate(
+      normalizePlanDate(
+        new Date(Math.max(Date.now(), analysis.carePlan.dueAt ?? Date.now())),
+      ),
+    );
+    setSchedulePickerVisible(false);
+  };
+
+  const saveUserConfirmedSchedule = async (date: Date) => {
+    if (
+      !selectedAnalysis ||
+      selectedAnalysis.carePlan.status !== 'upcoming' ||
+      saving
+    )
+      return;
+    const confirmedAt = Date.now();
+    setSaving(true);
+    try {
+      await confirmCarePlanSchedule(selectedAnalysis.carePlan, {
+        basis: 'user',
+        dueAt: normalizePlanDate(date).getTime(),
+        evidenceRefs: [
+          {
+            source: 'care-plan',
+            localId: selectedAnalysis.carePlan.localId,
+            label: 'care-plan',
+            occurredAt: confirmedAt,
+          },
+        ],
+      });
+      setSchedulePickerVisible(false);
+      setSelectedAnalysis(undefined);
+      setPendingAttachment(undefined);
+      setAttachmentError(undefined);
+    } catch {
+      Alert.alert(
+        'Не удалось сохранить срок',
+        'Проверьте выбранную дату и попробуйте ещё раз.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const requestUserConfirmedSchedule = () => {
+    if (!selectedAnalysis || selectedAnalysis.carePlan.status !== 'upcoming')
+      return;
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: scheduleDate,
+        mode: 'date',
+        minimumDate: normalizePlanDate(new Date()),
+        maximumDate: latestUpcomingPlanDate(),
+        onChange: (event: DateTimePickerEvent, date?: Date) => {
+          if (event.type !== 'set' || !date) return;
+          const normalized = normalizePlanDate(date);
+          setScheduleDate(normalized);
+          Alert.alert(
+            'Подтвердить срок?',
+            `${formatPlanDate(normalized.getTime())}. Дата будет отмечена как указанная вами, а не назначенная врачом.`,
+            [
+              { text: 'Отмена', style: 'cancel' },
+              {
+                text: 'Сохранить',
+                onPress: () => void saveUserConfirmedSchedule(normalized),
+              },
+            ],
+          );
+        },
+      });
+      return;
+    }
+    setSchedulePickerVisible(true);
   };
 
   const pickAnalysisAttachment = async (kind: 'file' | 'photo') => {
@@ -261,7 +509,7 @@ export default function AnalysesScreen() {
         pendingAttachment.uri,
       );
       await addLabResult({
-        catalogKey: selectedAnalysis.id,
+        catalogKey: selectedAnalysis.carePlan.catalogKey,
         title: selectedAnalysis.title,
         collectedAt: Date.now(),
         status: 'unreviewed',
@@ -293,15 +541,40 @@ export default function AnalysesScreen() {
       : plannedAnalyses.filter((item) => item.tab === 'current');
   const currentPlans = plannedAnalyses.filter((item) => item.tab === 'current');
   const attentionScore = calculateCompletionScore(
-    currentPlans.map((item) => item.id),
+    currentPlans.map((item) => item.carePlan.catalogKey),
     new Set(attachedResultsByPlan.keys()),
   );
   const selectedSavedResult = selectedAnalysis
-    ? attachedResultsByPlan.get(selectedAnalysis.id)
+    ? attachedResultsByPlan.get(selectedAnalysis.carePlan.catalogKey)
     : undefined;
-  const hasSelectedResult = Boolean(
-    pendingAttachment || selectedSavedResult?.localDocumentUri,
-  );
+  const selectedPlanEvents = selectedAnalysis
+    ? recommendationEvents
+        .filter(
+          (event) =>
+            !event.deletedAt &&
+            event.carePlanLocalId === selectedAnalysis.carePlan.localId,
+        )
+        .sort((left, right) => right.occurredAt - left.occurredAt)
+    : [];
+  const selectedEvidence = selectedAnalysis
+    ? selectedAnalysis.carePlan.evidenceRefs.map((ref) => {
+        if (ref.source === 'journal')
+          return (
+            journalEntries.find(
+              (item) => !item.deletedAt && item.localId === ref.localId,
+            )?.label ?? 'Запись дневника'
+          );
+        if (ref.source === 'test')
+          return (
+            labResults.find(
+              (item) => !item.deletedAt && item.localId === ref.localId,
+            )?.title ?? 'Подтверждённый результат'
+          );
+        if (ref.source === 'care-plan') return ref.label;
+        return ref.label;
+      })
+    : [];
+  const hasSelectedResult = Boolean(pendingAttachment || selectedSavedResult);
 
   return (
     <View style={styles.root}>
@@ -344,30 +617,41 @@ export default function AnalysesScreen() {
 
         {activeTab !== 'completed' ? (
           <View style={styles.cardsList}>
-            {visiblePlans.map((item) => (
-              <AnalysisReferencePlanCard
-                key={item.id}
-                title={item.title}
-                description={item.description}
-                dueLabel={item.dueLabel}
-                dueValue={item.dueValue}
-                validityLabel={item.validityLabel}
-                validityValue={item.validityValue}
-                hasAttachedResult={attachedResultsByPlan.has(item.id)}
-                image={item.image}
-                onView={() => openAnalysis(item)}
-              />
-            ))}
+            {visiblePlans.length ? (
+              visiblePlans.map((item) => (
+                <AnalysisReferencePlanCard
+                  key={item.id}
+                  title={item.title}
+                  description={item.description}
+                  dueLabel={item.dueLabel}
+                  dueValue={item.dueValue}
+                  validityLabel={item.validityLabel}
+                  validityValue={item.validityValue}
+                  hasAttachedResult={attachedResultsByPlan.has(
+                    item.carePlan.catalogKey,
+                  )}
+                  image={item.image}
+                  statusLabel={item.statusLabel}
+                  onView={() => openAnalysis(item)}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <AppText role="body" weight="regular" style={styles.emptyTitle}>
+                  {recommendationsEnabled
+                    ? 'Сферка обновит план при стабильном подключении.'
+                    : 'Автономный план можно включить в профиле после согласия для Ассистента.'}
+                </AppText>
+              </View>
+            )}
           </View>
-        ) : savedResults.length ? (
+        ) : savedResults.length ||
+          savedScans.length ||
+          completedPlans.length ? (
           <View style={styles.cardsList}>
-            {savedResults.map((result, index) => {
+            {savedResults.map((result) => {
               const firstAnalyte = result.analytes[0];
-              const resultImages = [
-                bloodTubesImage,
-                ultrasoundImage,
-                hysteroscopeImage,
-              ];
+              const catalog = analysisCatalogByKey.get(result.catalogKey);
               return (
                 <AnalysisReferencePlanCard
                   key={result.localId}
@@ -382,7 +666,94 @@ export default function AnalysesScreen() {
                       ? `${firstAnalyte.value}${firstAnalyte.unit ? ` ${firstAnalyte.unit}` : ''}`
                       : 'Сохранён'
                   }
-                  image={resultImages[index % resultImages.length]}
+                  image={
+                    catalog?.illustrationKey
+                      ? planImages[catalog.illustrationKey]
+                      : undefined
+                  }
+                  statusLabel={
+                    result.status === 'unreviewed'
+                      ? 'Файл сохранён · содержимое не прочитано'
+                      : result.status === 'attention'
+                        ? 'Требует внимания'
+                        : 'Подтверждено'
+                  }
+                  onView={() => undefined}
+                />
+              );
+            })}
+            {savedScans.map((result) => (
+              <AnalysisReferencePlanCard
+                key={result.localId}
+                title={
+                  result.testSystemKey === 'ovulation-strip'
+                    ? 'Тест на овуляцию'
+                    : result.testSystemKey === 'pregnancy-strip'
+                      ? 'Тест на беременность'
+                      : result.testSystemKey
+                }
+                dueLabel="Дата теста"
+                dueValue={new Date(result.capturedAt).toLocaleDateString(
+                  'ru-RU',
+                )}
+                validityLabel="Результат"
+                validityValue={
+                  result.confirmedValue === 'positive'
+                    ? 'Положительный'
+                    : result.confirmedValue === 'negative'
+                      ? 'Отрицательный'
+                      : 'Недействительный'
+                }
+                statusLabel={
+                  result.confirmedByUser
+                    ? 'Подтверждено пользователем'
+                    : 'Ожидает подтверждения'
+                }
+                onView={() =>
+                  Alert.alert(
+                    result.testSystemKey === 'ovulation-strip'
+                      ? 'Тест на овуляцию'
+                      : result.testSystemKey === 'pregnancy-strip'
+                        ? 'Тест на беременность'
+                        : result.testSystemKey,
+                    `${new Date(result.capturedAt).toLocaleDateString('ru-RU')} · ${
+                      result.confirmedValue === 'positive'
+                        ? 'положительный результат'
+                        : result.confirmedValue === 'negative'
+                          ? 'отрицательный результат'
+                          : 'недействительный результат'
+                    }`,
+                  )
+                }
+              />
+            ))}
+            {completedPlans.map((item) => {
+              const catalog = analysisCatalogByKey.get(item.catalogKey);
+              return (
+                <AnalysisReferencePlanCard
+                  key={item.localId}
+                  title={item.title}
+                  description={catalog?.specimen ?? item.description}
+                  dueLabel="Дата выполнения"
+                  dueValue={new Date(
+                    item.performedAt ?? item.updatedAt,
+                  ).toLocaleDateString('ru-RU')}
+                  validityLabel="Основание"
+                  validityValue={
+                    item.scheduleBasis === 'clinician'
+                      ? 'Назначение врача'
+                      : item.scheduleBasis === 'user'
+                        ? 'Указано вами'
+                        : item.scheduleBasis === 'confirmed_data'
+                          ? 'Подтверждённые данные'
+                          : 'Предварительный план'
+                  }
+                  image={
+                    item.illustrationKey
+                      ? planImages[item.illustrationKey]
+                      : undefined
+                  }
+                  statusLabel="Отмечено выполненным"
                   onView={() => undefined}
                 />
               );
@@ -464,21 +835,33 @@ export default function AnalysesScreen() {
                 <View style={styles.analysisModalHandle} />
 
                 <View style={styles.analysisModalHero}>
-                  <View style={styles.analysisModalImageWrap}>
-                    <Image
-                      accessible
-                      accessibilityLabel={`Изображение: ${selectedAnalysis.title}`}
-                      resizeMode="contain"
-                      source={selectedAnalysis.image as ImageSourcePropType}
-                      style={styles.analysisModalImage}
-                    />
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={['rgba(255,255,255,0)', '#FFFFFF']}
-                      locations={[0.42, 1]}
-                      style={styles.analysisModalImageFade}
-                    />
-                  </View>
+                  {selectedAnalysis.image ? (
+                    <View style={styles.analysisModalImageWrap}>
+                      <Image
+                        accessible
+                        accessibilityLabel={`Изображение: ${selectedAnalysis.title}`}
+                        resizeMode="contain"
+                        source={selectedAnalysis.image}
+                        style={styles.analysisModalImage}
+                      />
+                      <LinearGradient
+                        pointerEvents="none"
+                        colors={['rgba(255,255,255,0)', '#FFFFFF']}
+                        locations={[0.42, 1]}
+                        style={styles.analysisModalImageFade}
+                      />
+                    </View>
+                  ) : (
+                    <View style={styles.analysisModalNoImage}>
+                      <AppText
+                        weight="semibold"
+                        color={colors.brand.primary}
+                        style={styles.analysisModalNoImageText}
+                      >
+                        {selectedAnalysis.title.slice(0, 1)}
+                      </AppText>
+                    </View>
+                  )}
 
                   <View style={styles.analysisModalHeroCopy}>
                     <AppText
@@ -502,6 +885,14 @@ export default function AnalysesScreen() {
                       style={styles.analysisModalDescription}
                     >
                       {selectedAnalysis.description}
+                    </AppText>
+                    <AppText
+                      role="caption"
+                      weight="semibold"
+                      color={colors.brand.burgundy}
+                      style={styles.analysisModalStatus}
+                    >
+                      {selectedAnalysis.statusLabel}
                     </AppText>
                   </View>
                 </View>
@@ -567,6 +958,53 @@ export default function AnalysesScreen() {
 
                   <View style={styles.analysisModalSection}>
                     <AppText role="label" weight="semibold">
+                      Почему это изменилось
+                    </AppText>
+                    <View style={styles.analysisModalInfoCard}>
+                      <AppText
+                        role="label"
+                        color={colors.text.secondary}
+                        style={styles.analysisModalBodyText}
+                      >
+                        {recommendationReasonLabel(
+                          selectedPlanEvents[0]?.reasonCode ??
+                            selectedAnalysis.carePlan.safetyHoldReason,
+                        )}
+                      </AppText>
+                    </View>
+                  </View>
+
+                  <View style={styles.analysisModalSection}>
+                    <AppText role="label" weight="semibold">
+                      Основания
+                    </AppText>
+                    <View style={styles.analysisModalInfoCard}>
+                      {selectedEvidence.length ? (
+                        selectedEvidence.slice(0, 6).map((label, index) => (
+                          <View
+                            key={`${label}-${index}`}
+                            style={styles.analysisModalRequirement}
+                          >
+                            <View style={styles.analysisModalBullet} />
+                            <AppText
+                              role="label"
+                              style={styles.analysisModalRequirementText}
+                            >
+                              {label}
+                            </AppText>
+                          </View>
+                        ))
+                      ) : (
+                        <AppText role="label" color={colors.text.secondary}>
+                          Общая цель профиля; рекомендация остаётся
+                          предварительной.
+                        </AppText>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.analysisModalSection}>
+                    <AppText role="label" weight="semibold">
                       Зачем это нужно?
                     </AppText>
                     <View style={styles.analysisModalInfoCard}>
@@ -582,7 +1020,7 @@ export default function AnalysesScreen() {
 
                   <View style={styles.analysisModalSection}>
                     <AppText role="label" weight="semibold">
-                      Рекомендованная клиника
+                      Как использовать рекомендацию
                     </AppText>
                     <View style={styles.analysisModalClinicCard}>
                       <View style={styles.analysisModalClinicIcon}>
@@ -599,16 +1037,148 @@ export default function AnalysesScreen() {
                           {selectedAnalysis.clinic}
                         </AppText>
                         <AppText role="caption" color={colors.text.secondary}>
-                          Подберём адрес и доступное время записи
+                          Сферка не записывает на процедуры и не заменяет врача
                         </AppText>
                       </View>
-                      <AppText
-                        role="label"
-                        weight="semibold"
-                        color={colors.brand.primary}
+                    </View>
+                  </View>
+
+                  <View style={styles.analysisModalSection}>
+                    <AppText role="label" weight="semibold">
+                      Управление планом
+                    </AppText>
+                    <View style={styles.analysisModalPlanActions}>
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={readOnly || saving}
+                        onPress={() => {
+                          void applyCarePlanAction(
+                            selectedAnalysis.carePlan,
+                            'complete',
+                          ).then(closeAnalysis);
+                        }}
+                        style={({ pressed }) => [
+                          styles.analysisModalPlanButton,
+                          pressed && styles.pressed,
+                        ]}
                       >
-                        ↗
-                      </AppText>
+                        <AppText weight="semibold" color={colors.brand.primary}>
+                          Отметить выполненным
+                        </AppText>
+                      </Pressable>
+                      {selectedAnalysis.carePlan.status === 'upcoming' ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Уточнить срок рекомендации"
+                          disabled={readOnly || saving}
+                          onPress={requestUserConfirmedSchedule}
+                          style={({ pressed }) => [
+                            styles.analysisModalPlanButton,
+                            styles.analysisModalPlanButtonSecondary,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <AppText
+                            weight="medium"
+                            color={colors.text.secondary}
+                          >
+                            Уточнить срок
+                          </AppText>
+                        </Pressable>
+                      ) : null}
+                      {Platform.OS === 'ios' &&
+                      schedulePickerVisible &&
+                      selectedAnalysis.carePlan.status === 'upcoming' ? (
+                        <View style={styles.analysisModalSchedulePicker}>
+                          <AppText
+                            role="caption"
+                            color={colors.text.secondary}
+                            style={styles.analysisModalScheduleHint}
+                          >
+                            Срок будет отмечен как указанный вами, а не как
+                            назначение врача.
+                          </AppText>
+                          <DateTimePicker
+                            value={scheduleDate}
+                            mode="date"
+                            display="compact"
+                            locale="ru-RU"
+                            minimumDate={normalizePlanDate(new Date())}
+                            maximumDate={latestUpcomingPlanDate()}
+                            accentColor={colors.brand.primary}
+                            onChange={(_event, date) => {
+                              if (date)
+                                setScheduleDate(normalizePlanDate(date));
+                            }}
+                          />
+                          <View style={styles.analysisModalScheduleActions}>
+                            <Pressable
+                              accessibilityRole="button"
+                              disabled={saving}
+                              onPress={() => setSchedulePickerVisible(false)}
+                              style={({ pressed }) => [
+                                styles.analysisModalScheduleAction,
+                                pressed && styles.pressed,
+                              ]}
+                            >
+                              <AppText color={colors.text.secondary}>
+                                Отмена
+                              </AppText>
+                            </Pressable>
+                            <Pressable
+                              accessibilityRole="button"
+                              disabled={saving}
+                              onPress={() =>
+                                void saveUserConfirmedSchedule(scheduleDate)
+                              }
+                              style={({ pressed }) => [
+                                styles.analysisModalScheduleAction,
+                                styles.analysisModalScheduleActionPrimary,
+                                pressed && styles.pressed,
+                              ]}
+                            >
+                              <AppText
+                                weight="semibold"
+                                color={colors.text.inverse}
+                              >
+                                Сохранить
+                              </AppText>
+                            </Pressable>
+                          </View>
+                        </View>
+                      ) : null}
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={readOnly || saving}
+                        onPress={() => {
+                          Alert.alert(
+                            'Отказаться от рекомендации?',
+                            'Сферка не предложит этот пункт снова в течение 90 дней.',
+                            [
+                              { text: 'Отмена', style: 'cancel' },
+                              {
+                                text: 'Отказаться',
+                                style: 'destructive',
+                                onPress: () => {
+                                  void applyCarePlanAction(
+                                    selectedAnalysis.carePlan,
+                                    'decline',
+                                  ).then(closeAnalysis);
+                                },
+                              },
+                            ],
+                          );
+                        }}
+                        style={({ pressed }) => [
+                          styles.analysisModalPlanButton,
+                          styles.analysisModalPlanButtonSecondary,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <AppText weight="medium" color={colors.text.secondary}>
+                          Отказаться
+                        </AppText>
+                      </Pressable>
                     </View>
                   </View>
 
@@ -935,6 +1505,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexShrink: 0,
   },
+  analysisModalNoImage: {
+    width: 92,
+    height: 92,
+    flexShrink: 0,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF0F6',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(234,64,135,0.18)',
+  },
+  analysisModalNoImageText: {
+    fontSize: 34,
+    lineHeight: 38,
+  },
   analysisModalImage: {
     width: '100%',
     height: '100%',
@@ -967,6 +1552,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 14,
     lineHeight: 18,
+  },
+  analysisModalStatus: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 15,
   },
   analysisModalDates: {
     minHeight: 68,
@@ -1041,6 +1631,55 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(234,64,135,0.18)',
     backgroundColor: '#FFF7FA',
+  },
+  analysisModalPlanActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  analysisModalPlanButton: {
+    minHeight: 46,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(234,64,135,0.22)',
+    backgroundColor: '#FFF0F6',
+    paddingHorizontal: 10,
+  },
+  analysisModalPlanButtonSecondary: {
+    borderColor: 'rgba(33,31,32,0.10)',
+    backgroundColor: '#F7F3F4',
+  },
+  analysisModalSchedulePicker: {
+    width: '100%',
+    flexBasis: '100%',
+    gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(33,31,32,0.10)',
+    backgroundColor: '#F7F3F4',
+  },
+  analysisModalScheduleHint: {
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  analysisModalScheduleActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  analysisModalScheduleAction: {
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 13,
+  },
+  analysisModalScheduleActionPrimary: {
+    backgroundColor: colors.brand.primary,
   },
   analysisModalClinicIcon: {
     width: 40,

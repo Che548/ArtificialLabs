@@ -14,9 +14,23 @@ import type {
 } from './health-types';
 import { createEmptySnapshot } from './health-types';
 import { createChatTombstones } from './chat-deletion';
+import {
+  isAllowedAgentTriggerMutation,
+  isAllowedCarePlanMutation,
+  validateAgentTrigger,
+  validateCarePlanItem,
+  validateRecommendationEvent,
+} from './care-plan';
+import type {
+  AgentTrigger,
+  CarePlanItem,
+  RecommendationEvent,
+} from './health-types';
 
 const DATABASE_NAME = 'artificiallabs.db';
 const DATABASE_KEY_NAME = 'artificiallabs.database-key.v1';
+const AGENT_SEARCH_INDEX_VERSION = '1';
+const AGENT_AUTOMATION_LEASE_SETTING = 'agentAutomationLease.v1';
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
 let writeQueue = Promise.resolve();
 
@@ -25,6 +39,111 @@ type OutboxRow = {
   entity: HealthEntityName;
   payload: string;
 };
+
+export type AgentSearchHit = {
+  entity: HealthEntityName;
+  localId: string;
+  occurredAt: number;
+};
+
+const searchableEntities = new Set<HealthEntityName>([
+  'journalEntries',
+  'labResults',
+  'scanResults',
+  'documents',
+  'chatMessages',
+  'carePlanItems',
+]);
+
+function searchTextFor(
+  entity: HealthEntityName,
+  item: HealthEntityMap[HealthEntityName],
+) {
+  if (item.deletedAt || !searchableEntities.has(entity)) return undefined;
+  if (entity === 'journalEntries') {
+    const entry = item as HealthEntityMap['journalEntries'];
+    return [entry.label, entry.textValue, entry.numericValue, entry.unit]
+      .filter((value) => value !== undefined)
+      .join(' ');
+  }
+  if (entity === 'labResults') {
+    const result = item as HealthEntityMap['labResults'];
+    return [
+      result.title,
+      ...result.analytes.flatMap((analyte) => [
+        analyte.name,
+        analyte.value,
+        analyte.unit,
+        analyte.reference,
+      ]),
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+  if (entity === 'scanResults') {
+    const result = item as HealthEntityMap['scanResults'];
+    return [
+      result.testSystemKey,
+      result.confirmedValue,
+      ...result.qualityFlags,
+    ].join(' ');
+  }
+  if (entity === 'documents') {
+    const document = item as HealthEntityMap['documents'];
+    return [document.title, document.category].join(' ');
+  }
+  if (entity === 'chatMessages') {
+    return (item as HealthEntityMap['chatMessages']).text;
+  }
+  const plan = item as HealthEntityMap['carePlanItems'];
+  return [plan.title, plan.category, plan.description, plan.rationale].join(
+    ' ',
+  );
+}
+
+function occurredAtForSearch(
+  entity: HealthEntityName,
+  item: HealthEntityMap[HealthEntityName],
+) {
+  if (entity === 'journalEntries')
+    return (item as HealthEntityMap['journalEntries']).occurredAt;
+  if (entity === 'labResults')
+    return (item as HealthEntityMap['labResults']).collectedAt;
+  if (entity === 'scanResults')
+    return (item as HealthEntityMap['scanResults']).capturedAt;
+  if (entity === 'documents')
+    return (item as HealthEntityMap['documents']).documentDate;
+  if (entity === 'chatMessages')
+    return (item as HealthEntityMap['chatMessages']).sentAt;
+  if (entity === 'carePlanItems') {
+    const plan = item as HealthEntityMap['carePlanItems'];
+    return plan.dueAt ?? plan.updatedAt;
+  }
+  return item.updatedAt;
+}
+
+async function updateAgentSearchIndex(
+  db: SQLite.SQLiteDatabase,
+  entity: HealthEntityName,
+  item: HealthEntityMap[HealthEntityName],
+) {
+  if (!searchableEntities.has(entity)) return;
+  await db.runAsync(
+    'DELETE FROM agent_search_fts WHERE entity = ? AND local_id = ?',
+    entity,
+    item.localId,
+  );
+  const text = searchTextFor(entity, item);
+  if (!text?.trim()) return;
+  await db.runAsync(
+    `INSERT INTO agent_search_fts(entity, local_id, occurred_at, text)
+     VALUES (?, ?, ?, ?)`,
+    entity,
+    item.localId,
+    occurredAtForSearch(entity, item),
+    text.slice(0, 16_000),
+  );
+}
 
 type RemoteSnapshot = {
   [K in HealthEntityName]: Array<
@@ -81,7 +200,36 @@ async function openDatabase() {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS outbox_entity_local
       ON outbox(entity, local_id);
+    CREATE VIRTUAL TABLE IF NOT EXISTS agent_search_fts USING fts5(
+      entity UNINDEXED,
+      local_id UNINDEXED,
+      occurred_at UNINDEXED,
+      text,
+      tokenize = 'unicode61'
+    );
   `);
+  const searchVersion = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM settings WHERE key = 'agentSearchIndexVersion'",
+  );
+  if (searchVersion?.value !== AGENT_SEARCH_INDEX_VERSION) {
+    await db.runAsync('DELETE FROM agent_search_fts');
+    const rows = await db.getAllAsync<{
+      entity: HealthEntityName;
+      payload: string;
+    }>('SELECT entity, payload FROM records');
+    for (const row of rows) {
+      await updateAgentSearchIndex(
+        db,
+        row.entity,
+        JSON.parse(row.payload) as HealthEntityMap[HealthEntityName],
+      );
+    }
+    await db.runAsync(
+      `INSERT INTO settings(key, value) VALUES ('agentSearchIndexVersion', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      AGENT_SEARCH_INDEX_VERSION,
+    );
+  }
   return db;
 }
 
@@ -126,7 +274,7 @@ export async function claimLocalDatabaseOwner(userId: string) {
   if (row?.value === userId) return false;
   await withWriteTransaction(async (transaction) => {
     await transaction.execAsync(
-      'DELETE FROM records; DELETE FROM outbox; DELETE FROM settings;',
+      'DELETE FROM records; DELETE FROM outbox; DELETE FROM agent_search_fts; DELETE FROM settings;',
     );
     await transaction.runAsync(
       `INSERT INTO settings (key, value) VALUES ('ownerId', ?)
@@ -192,12 +340,107 @@ export async function deleteLocalSetting(key: string) {
   });
 }
 
+export async function tryAcquireLocalAgentRunLease(
+  runId: string,
+  now = Date.now(),
+  ttlMs = 10 * 60_000,
+) {
+  let acquired = false;
+  await withWriteTransaction(async (db) => {
+    const row = await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM settings WHERE key = ?',
+      AGENT_AUTOMATION_LEASE_SETTING,
+    );
+    let active: { runId?: unknown; expiresAt?: unknown } | undefined;
+    try {
+      active = row ? JSON.parse(row.value) : undefined;
+    } catch {
+      active = undefined;
+    }
+    if (
+      active &&
+      active.runId !== runId &&
+      typeof active.expiresAt === 'number' &&
+      active.expiresAt > now
+    )
+      return;
+    await db.runAsync(
+      `INSERT INTO settings (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      AGENT_AUTOMATION_LEASE_SETTING,
+      JSON.stringify({ runId, expiresAt: now + Math.max(60_000, ttlMs) }),
+    );
+    acquired = true;
+  });
+  return acquired;
+}
+
+export async function releaseLocalAgentRunLease(runId: string) {
+  await withWriteTransaction(async (db) => {
+    const row = await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM settings WHERE key = ?',
+      AGENT_AUTOMATION_LEASE_SETTING,
+    );
+    if (!row) return;
+    try {
+      const active = JSON.parse(row.value) as { runId?: unknown };
+      if (active.runId !== runId) return;
+    } catch {
+      return;
+    }
+    await db.runAsync(
+      'DELETE FROM settings WHERE key = ?',
+      AGENT_AUTOMATION_LEASE_SETTING,
+    );
+  });
+}
+
 async function writeLocalRecord<K extends HealthEntityName>(
   transaction: SQLite.SQLiteDatabase,
   entity: K,
   item: HealthEntityMap[K],
   enqueue = true,
 ) {
+  const existingAgentRow =
+    entity === 'carePlanItems' ||
+    entity === 'agentTriggers' ||
+    entity === 'recommendationEvents'
+      ? await transaction.getFirstAsync<{ payload: string }>(
+          'SELECT payload FROM records WHERE entity = ? AND local_id = ?',
+          entity,
+          item.localId,
+        )
+      : null;
+  if (entity === 'carePlanItems') {
+    const candidate = item as HealthEntityMap['carePlanItems'];
+    if (!candidate.deletedAt && !validateCarePlanItem(candidate))
+      throw new Error('INVALID_AGENT_PLAN_RECORD');
+    if (
+      existingAgentRow &&
+      !isAllowedCarePlanMutation(
+        JSON.parse(existingAgentRow.payload) as CarePlanItem,
+        candidate,
+      )
+    )
+      throw new Error('CURRENT_PLAN_IMMUTABLE');
+  } else if (entity === 'agentTriggers') {
+    const candidate = item as HealthEntityMap['agentTriggers'];
+    if (!candidate.deletedAt && !validateAgentTrigger(candidate))
+      throw new Error('INVALID_AGENT_TRIGGER_RECORD');
+    if (
+      existingAgentRow &&
+      !isAllowedAgentTriggerMutation(
+        JSON.parse(existingAgentRow.payload) as AgentTrigger,
+        candidate,
+      )
+    )
+      throw new Error('AGENT_TRIGGER_IMMUTABLE');
+  } else if (entity === 'recommendationEvents') {
+    const candidate = item as HealthEntityMap['recommendationEvents'];
+    if (candidate.deletedAt || !validateRecommendationEvent(candidate))
+      throw new Error('INVALID_RECOMMENDATION_EVENT');
+    if (existingAgentRow) return;
+  }
   const payload = JSON.stringify(item);
   const occurredAt =
     'occurredAt' in item
@@ -207,7 +450,7 @@ async function writeLocalRecord<K extends HealthEntityName>(
         : 'collectedAt' in item
           ? item.collectedAt
           : 'dueAt' in item
-            ? item.dueAt
+            ? (item.dueAt ?? item.updatedAt)
             : 'documentDate' in item
               ? item.documentDate
               : 'sentAt' in item
@@ -219,7 +462,7 @@ async function writeLocalRecord<K extends HealthEntityName>(
                     : 'startedAt' in item && item.startedAt
                       ? item.startedAt
                       : item.updatedAt;
-  await transaction.runAsync(
+  const writeResult = await transaction.runAsync(
     `INSERT INTO records (entity, local_id, payload, occurred_at, updated_at)
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(entity, local_id) DO UPDATE SET
@@ -233,6 +476,12 @@ async function writeLocalRecord<K extends HealthEntityName>(
     occurredAt,
     item.updatedAt,
   );
+  if (writeResult.changes > 0)
+    await updateAgentSearchIndex(
+      transaction,
+      entity,
+      item as HealthEntityMap[HealthEntityName],
+    );
   if (enqueue) {
     await transaction.runAsync(
       `INSERT INTO outbox (entity, local_id, payload, updated_at)
@@ -265,6 +514,93 @@ export async function saveScanResultWithJournal(
   await withWriteTransaction(async (transaction) => {
     await writeLocalRecord(transaction, 'scanResults', result);
     await writeLocalRecord(transaction, 'journalEntries', journalEntry);
+  });
+}
+
+export async function saveLabResultBundle({
+  document,
+  event,
+  journalEntry,
+  plan,
+  result,
+}: {
+  document?: HealthEntityMap['documents'];
+  event?: HealthEntityMap['recommendationEvents'];
+  journalEntry?: HealthEntityMap['journalEntries'];
+  plan?: HealthEntityMap['carePlanItems'];
+  result: HealthEntityMap['labResults'];
+}) {
+  await withWriteTransaction(async (transaction) => {
+    await writeLocalRecord(transaction, 'labResults', result);
+    if (document) await writeLocalRecord(transaction, 'documents', document);
+    if (plan) await writeLocalRecord(transaction, 'carePlanItems', plan);
+    if (event)
+      await writeLocalRecord(transaction, 'recommendationEvents', event);
+    if (journalEntry)
+      await writeLocalRecord(transaction, 'journalEntries', journalEntry);
+  });
+}
+
+export async function saveAgentPlanChanges({
+  events = [],
+  items = [],
+  reminders = [],
+  triggers = [],
+}: {
+  events?: HealthEntityMap['recommendationEvents'][];
+  items?: HealthEntityMap['carePlanItems'][];
+  reminders?: HealthEntityMap['reminders'][];
+  triggers?: HealthEntityMap['agentTriggers'][];
+}) {
+  await withWriteTransaction(async (transaction) => {
+    for (const item of items)
+      await writeLocalRecord(transaction, 'carePlanItems', item);
+    for (const event of events)
+      await writeLocalRecord(transaction, 'recommendationEvents', event);
+    for (const trigger of triggers)
+      await writeLocalRecord(transaction, 'agentTriggers', trigger);
+    for (const reminder of reminders)
+      await writeLocalRecord(transaction, 'reminders', reminder);
+  });
+}
+
+export async function tombstoneLocalDocumentBundle(
+  document: HealthEntityMap['documents'],
+  labResults: HealthEntityMap['labResults'][],
+  enqueue = true,
+  removeLocalFile?: () => Promise<void>,
+) {
+  const now = Date.now();
+  await withWriteTransaction(async (transaction) => {
+    await writeLocalRecord(
+      transaction,
+      'documents',
+      { ...document, deletedAt: now, updatedAt: now },
+      enqueue,
+    );
+    for (const result of labResults.filter(
+      (item) =>
+        !item.deletedAt &&
+        (item.sourceDocumentLocalId === document.localId ||
+          document.linkedLabResultLocalId === item.localId),
+    )) {
+      await writeLocalRecord(
+        transaction,
+        'labResults',
+        {
+          ...result,
+          hasLocalSourceDocument: false,
+          sourceDocumentLocalId: undefined,
+          localDocumentUri: undefined,
+          updatedAt: now,
+        },
+        enqueue,
+      );
+    }
+    // Keep the SQL transaction open until the owned file has been removed.
+    // A filesystem failure rolls the tombstones and association updates back
+    // instead of leaving an undeclared medical file behind.
+    if (removeLocalFile) await removeLocalFile();
   });
 }
 
@@ -314,6 +650,14 @@ export async function clearPendingChatOutbox() {
   });
 }
 
+export async function clearLocalAgentData() {
+  await withWriteTransaction(async (transaction) => {
+    await transaction.execAsync(
+      "DELETE FROM records WHERE entity IN ('carePlanItems', 'agentTriggers', 'recommendationEvents') OR (entity = 'reminders' AND local_id LIKE 'agent-prep\\_%' ESCAPE '\\'); DELETE FROM outbox WHERE entity IN ('carePlanItems', 'agentTriggers', 'recommendationEvents') OR (entity = 'reminders' AND local_id LIKE 'agent-prep\\_%' ESCAPE '\\'); DELETE FROM agent_search_fts WHERE entity = 'carePlanItems'; DELETE FROM settings WHERE key IN ('agentPlanNotification.v1', 'agentAutomationLease.v1', 'agentBackgroundAuthorization.v1');",
+    );
+  });
+}
+
 export async function pendingOutbox() {
   const db = await database();
   const rows = await db.getAllAsync<OutboxRow>(
@@ -324,6 +668,43 @@ export async function pendingOutbox() {
     entity: row.entity,
     payload: JSON.parse(row.payload) as HealthEntityMap[HealthEntityName],
   }));
+}
+
+function ftsQuery(query: string) {
+  return query
+    .normalize('NFKC')
+    .toLowerCase()
+    .match(/[\p{L}\p{N}]{2,}/gu)
+    ?.slice(0, 8)
+    .map((token) => `"${token.replaceAll('"', '""')}"*`)
+    .join(' OR ');
+}
+
+export async function searchLocalAgentIndex({
+  entities,
+  limit = 12,
+  query,
+}: {
+  entities: HealthEntityName[];
+  limit?: number;
+  query: string;
+}): Promise<AgentSearchHit[]> {
+  const match = ftsQuery(query);
+  if (!match || !entities.length) return [];
+  const allowed = entities.filter((entity) => searchableEntities.has(entity));
+  if (!allowed.length) return [];
+  const placeholders = allowed.map(() => '?').join(',');
+  const db = await database();
+  return await db.getAllAsync<AgentSearchHit>(
+    `SELECT entity, local_id AS localId, occurred_at AS occurredAt
+     FROM agent_search_fts
+     WHERE agent_search_fts MATCH ? AND entity IN (${placeholders})
+     ORDER BY bm25(agent_search_fts), occurred_at DESC
+     LIMIT ?`,
+    match,
+    ...allowed,
+    Math.max(1, Math.min(limit, 24)),
+  );
 }
 
 export async function acknowledgeOutbox(ids: number[]) {
@@ -406,7 +787,7 @@ export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
 export async function clearLocalHealthData() {
   await withWriteTransaction(async (db) => {
     await db.execAsync(
-      "DELETE FROM records; DELETE FROM outbox; DELETE FROM settings WHERE key = 'profile';",
+      "DELETE FROM records; DELETE FROM outbox; DELETE FROM agent_search_fts; DELETE FROM settings WHERE key = 'profile';",
     );
   });
 }

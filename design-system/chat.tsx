@@ -177,12 +177,7 @@ const chatHeaderModes: Array<{
   disabled?: boolean;
 }> = [
   { value: 'chat', label: 'Чат' },
-  {
-    value: 'assistant',
-    label: 'Ассистент',
-    badge: 'Скоро',
-    disabled: true,
-  },
+  { value: 'assistant', label: 'Ассистент' },
 ];
 
 export function ChatModeSwitcher({
@@ -1084,6 +1079,7 @@ export function ChatComposer({
 }
 
 export function ChatMessageBubble({
+  allowExternalLinks = true,
   children,
   assistant = false,
   errorText,
@@ -1092,9 +1088,12 @@ export function ChatMessageBubble({
   onCopy,
   onRetry,
   onShare,
+  onSourcePress,
   reduceMotion = false,
+  sources = [],
   variant = 1,
 }: {
+  allowExternalLinks?: boolean;
   children: ReactNode;
   assistant?: boolean;
   errorText?: string;
@@ -1103,7 +1102,20 @@ export function ChatMessageBubble({
   onCopy?: () => void;
   onRetry?: () => void;
   onShare?: () => void;
+  onSourcePress?: (source: {
+    source: 'journal' | 'test' | 'document' | 'chat' | 'care-plan';
+    localId: string;
+    label: string;
+  }) => void;
   reduceMotion?: boolean;
+  sources?: Array<{
+    source: 'journal' | 'test' | 'document' | 'chat' | 'care-plan';
+    localId: string;
+    label: string;
+    occurredAt?: number;
+    stale?: boolean;
+    unverified?: boolean;
+  }>;
   variant?: ChatMessageVariant;
 }) {
   const config = chatMessageVariantConfigs[variant];
@@ -1325,10 +1337,19 @@ export function ChatMessageBubble({
             allowedImageHandlers={[]}
             defaultImageHandler={null}
             markdownit={safeMarkdown}
-            rules={safeMarkdownRules}
+            rules={
+              allowExternalLinks
+                ? safeMarkdownRules
+                : {
+                    ...safeMarkdownRules,
+                    link: (_node, children) => <Text>{children}</Text>,
+                    blocklink: (_node, children) => <Text>{children}</Text>,
+                  }
+            }
             style={markdownStyles}
             onLinkPress={(url) => {
-              if (isAllowedChatMarkdownLink(url)) void Linking.openURL(url);
+              if (allowExternalLinks && isAllowedChatMarkdownLink(url))
+                void Linking.openURL(url);
               return false;
             }}
           >
@@ -1349,6 +1370,40 @@ export function ChatMessageBubble({
           </AppText>
         )}
       </View>
+
+      {assistant && !errorText && sources.length ? (
+        <View style={styles.messageSources}>
+          {sources.slice(0, 6).map((source) => (
+            <Pressable
+              key={`${source.localId}:${source.label}`}
+              accessibilityRole={onSourcePress ? 'button' : undefined}
+              accessibilityLabel={`Открыть источник: ${source.label}`}
+              disabled={!onSourcePress}
+              onPress={() => onSourcePress?.(source)}
+              style={styles.messageSourceChip}
+            >
+              <AppText
+                role="caption"
+                numberOfLines={1}
+                style={styles.messageSourceText}
+              >
+                {source.unverified ? 'Не проверено · ' : ''}
+                {source.stale ? 'Старая запись · ' : ''}
+                {source.label}
+                {source.occurredAt
+                  ? ` · ${new Date(source.occurredAt).toLocaleDateString(
+                      'ru-RU',
+                      {
+                        day: 'numeric',
+                        month: 'short',
+                      },
+                    )}`
+                  : ''}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
 
       {actions.length > 0 && !errorText ? (
         <View
@@ -2494,6 +2549,27 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'flex-start',
     gap: 14,
+  },
+  messageSources: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  messageSourceChip: {
+    maxWidth: '100%',
+    minHeight: 26,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderRadius: 13,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(130,53,55,0.15)',
+    backgroundColor: '#FFF5F8',
+  },
+  messageSourceText: {
+    maxWidth: 260,
+    color: colors.brand.burgundy,
+    fontSize: 11.5,
+    lineHeight: 14,
   },
   thinkingRow: {
     flexDirection: 'row',

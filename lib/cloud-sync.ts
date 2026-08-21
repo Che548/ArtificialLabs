@@ -28,10 +28,16 @@ const entityNames: HealthEntityName[] = [
   'documents',
   'chatConversations',
   'chatMessages',
+  'carePlanItems',
+  'agentTriggers',
+  'recommendationEvents',
   'preferences',
 ];
 
-function withoutLocalFiles(item: Record<string, unknown>) {
+function withoutLocalFiles(
+  entity: HealthEntityName,
+  item: Record<string, unknown>,
+) {
   const {
     localImageUri: _image,
     localDocumentUri: _document,
@@ -42,6 +48,17 @@ function withoutLocalFiles(item: Record<string, unknown>) {
     syncable.attachments = syncable.attachments.map((raw) => {
       const { localUri: _uri, ...attachment } = raw as Record<string, unknown>;
       return { ...attachment, availableLocally: false };
+    });
+  }
+  if (
+    (entity === 'carePlanItems' ||
+      entity === 'agentTriggers' ||
+      entity === 'recommendationEvents') &&
+    Array.isArray(syncable.evidenceRefs)
+  ) {
+    syncable.evidenceRefs = syncable.evidenceRefs.map((raw) => {
+      const ref = raw as Record<string, unknown>;
+      return { ...ref, label: ref.source };
     });
   }
   return syncable;
@@ -91,7 +108,10 @@ export async function synchronizeMedicalCloud({
     const batch = emptyBatch();
     for (const row of rows) {
       batch[row.entity].push(
-        withoutLocalFiles(row.payload as unknown as Record<string, unknown>),
+        withoutLocalFiles(
+          row.entity,
+          row.payload as unknown as Record<string, unknown>,
+        ),
       );
     }
     await pushBatch(batch);

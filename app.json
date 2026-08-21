@@ -65,7 +65,8 @@
       [
         "expo-sqlite",
         {
-          "useSQLCipher": true
+          "useSQLCipher": true,
+          "enableFTS": true
         }
       ],
       [
@@ -102,7 +103,8 @@
             "./assets/tab-icons/today.png"
           ]
         }
-      ]
+      ],
+      "expo-background-task"
     ]
   }
 }

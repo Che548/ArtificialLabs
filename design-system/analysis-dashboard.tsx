@@ -193,7 +193,7 @@ export function AnalysisDeadlineSummary({
       />
       <DeadlineCard
         count={upcomingCount}
-        duration="3 месяцев"
+        duration="4 месяцев"
         onPress={onUpcoming}
       />
     </View>
@@ -207,6 +207,7 @@ export function AnalysisReferencePlanCard({
   hasAttachedResult = false,
   image,
   onView,
+  statusLabel,
   title,
   validityLabel,
   validityValue,
@@ -215,29 +216,38 @@ export function AnalysisReferencePlanCard({
   dueLabel: string;
   dueValue: string;
   hasAttachedResult?: boolean;
-  image: ImageSourcePropType;
+  image?: ImageSourcePropType;
   onView?: () => void;
+  statusLabel?: string;
   title: string;
   validityLabel: string;
   validityValue: string;
 }) {
   return (
     <View style={styles.planCard}>
-      <View style={styles.planMedia}>
-        <Image
-          accessible
-          accessibilityLabel={`Изображение: ${title}`}
-          source={image}
-          resizeMode="contain"
-          style={styles.planImage}
-        />
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(255,255,255,0)', '#FFFFFF']}
-          locations={[0.46, 1]}
-          style={styles.planImageFade}
-        />
-      </View>
+      {image ? (
+        <View style={styles.planMedia}>
+          <Image
+            accessible
+            accessibilityLabel={`Изображение: ${title}`}
+            source={image}
+            resizeMode="contain"
+            style={styles.planImage}
+          />
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(255,255,255,0)', '#FFFFFF']}
+            locations={[0.46, 1]}
+            style={styles.planImageFade}
+          />
+        </View>
+      ) : (
+        <View style={styles.planNoImageMark}>
+          <AppText weight="semibold" style={styles.planNoImageMarkText}>
+            {title.slice(0, 1).toLocaleUpperCase('ru-RU')}
+          </AppText>
+        </View>
+      )}
 
       <View style={styles.planCopy}>
         {hasAttachedResult ? (
@@ -249,6 +259,17 @@ export function AnalysisReferencePlanCard({
               style={styles.planAttachedText}
             >
               Результат прикреплён
+            </AppText>
+          </View>
+        ) : null}
+        {statusLabel ? (
+          <View style={styles.planStatusBadge}>
+            <AppText
+              role="caption"
+              weight="semibold"
+              style={styles.planStatusText}
+            >
+              {statusLabel}
             </AppText>
           </View>
         ) : null}
@@ -512,6 +533,24 @@ const styles = StyleSheet.create({
     height: 108,
     overflow: 'hidden',
   },
+  planNoImageMark: {
+    position: 'absolute',
+    top: 24,
+    left: 22,
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF0F6',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(234,64,135,0.18)',
+  },
+  planNoImageMarkText: {
+    color: colors.brand.primary,
+    fontSize: 28,
+    lineHeight: 32,
+  },
   planImage: {
     width: '100%',
     height: '100%',
@@ -555,6 +594,20 @@ const styles = StyleSheet.create({
     color: colors.brand.primary,
     fontSize: 11.5,
     lineHeight: 14,
+  },
+  planStatusBadge: {
+    alignSelf: 'flex-start',
+    minHeight: 22,
+    justifyContent: 'center',
+    marginBottom: 6,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    backgroundColor: '#F3F0F1',
+  },
+  planStatusText: {
+    color: colors.text.secondary,
+    fontSize: 11,
+    lineHeight: 13,
   },
   planTitle: {
     fontSize: 20,

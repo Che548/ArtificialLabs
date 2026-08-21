@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { useNavigation } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
@@ -42,6 +42,13 @@ import {
   sizes,
 } from '../design-system';
 import { api } from '../convex/_generated/api';
+import { buildAgentContextEnvelope } from '../lib/agent-context-builder';
+import { assistantQuestionNeedsBodyMetrics } from '../lib/agent-context-policy';
+import {
+  executeLocalAgentTool,
+  type AgentToolCall,
+  type AgentToolOutput,
+} from '../lib/agent-context';
 import {
   buildChatTranscript,
   findUnansweredUserMessage,
@@ -52,7 +59,7 @@ import {
   transitionChatGeneration,
 } from '../lib/chat-generation-state';
 import { useHealthStore } from '../lib/health-store';
-import type { ChatMessage } from '../lib/health-types';
+import type { AgentSourceRef, ChatMessage } from '../lib/health-types';
 
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
@@ -63,18 +70,43 @@ type ScreenMessage = {
   conversationLocalId: string;
   state: 'thinking' | 'complete' | 'error';
   retryUserMessageId?: string;
+  sourceRefs?: AgentSourceRef[];
 };
 
 type ActiveGeneration = {
   assistantMessageId: string;
   conversationLocalId: string;
   userMessageId: string;
+  mode: ChatHeaderMode;
 };
 
 type PendingConsentRequest =
-  { kind: 'new'; text: string } | { kind: 'retry'; userMessage: ChatMessage };
+  | { kind: 'mode'; mode: 'assistant' }
+  | { kind: 'new'; mode: ChatHeaderMode; text: string }
+  | { kind: 'retry'; mode: ChatHeaderMode; userMessage: ChatMessage };
 
 const PRIVACY_POLICY_URL = 'https://brainwaves.engineering/docs#document-2';
+const AGENT_LOCAL_TOOL_TIMEOUT_MS = 60_000;
+
+async function executeAgentToolWithTimeout(
+  healthStore: Parameters<typeof executeLocalAgentTool>[0],
+  call: AgentToolCall,
+) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      executeLocalAgentTool(healthStore, call),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error('LOCAL_AGENT_TOOL_TIMEOUT')),
+          AGENT_LOCAL_TOOL_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 function ConversationOverlay({
   children,
@@ -107,11 +139,15 @@ function ConversationOverlay({
 
 function AiChatConsentSheet({
   accepting,
+  assistant,
+  sendAfterAccept,
   onAccept,
   onCancel,
   visible,
 }: {
   accepting: boolean;
+  assistant: boolean;
+  sendAfterAccept: boolean;
   onAccept: () => void;
   onCancel: () => void;
   visible: boolean;
@@ -127,16 +163,14 @@ function AiChatConsentSheet({
       <View style={styles.consentBackdrop}>
         <View accessibilityViewIsModal style={styles.consentSheet}>
           <AppText role="heading" weight="semibold" style={styles.consentTitle}>
-            Передача текста в Yandex AI Studio
+            {assistant
+              ? 'Данные для режима «Ассистент»'
+              : 'Передача текста в Yandex AI Studio'}
           </AppText>
           <AppText style={styles.consentBody}>
-            Для ответа Сферка отправит ваше сообщение и до 20 последних
-            сообщений этого чата через наш сервер в Yandex AI Studio.
-            Структурированные данные профиля, анализы и файлы автоматически не
-            передаются — отправляется только видимый текст чата. Логирование
-            запросов у Yandex отключено. История хранится зашифрованно на
-            устройстве и синхронизируется только при включённой облачной
-            синхронизации.
+            {assistant
+              ? 'Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый текст чата; возраст, цель, параметры тела и данные цикла или беременности; указанные заболевания, лекарства и аллергии; записи дневника не старше 30 дней; подтверждённые результаты анализов и домашние тесты; активный план. По запросу Ассистент сможет искать более старые записи, другие ваши чаты и метаданные документов. Если вы отдельно включите автономные рекомендации, при проверке плана также могут передаваться новые сообщения, написанные вами в режиме «Ассистент», и факт появления нового документа с его категорией и датой. Обычные чаты, ответы ИИ, названия и содержимое файлов при такой проверке не передаются. Содержимое файлов, имя, контакты, пути к файлам, идентификаторы аккаунта и устройства не передаются. Логирование запросов у Yandex отключено.'
+              : 'Для ответа Сферка отправит ваше сообщение и до 20 последних сообщений этого чата через наш сервер в Yandex AI Studio. Структурированные данные профиля, анализы и файлы автоматически не передаются — отправляется только видимый текст чата. Логирование запросов у Yandex отключено. История хранится зашифрованно на устройстве и синхронизируется только при включённой облачной синхронизации.'}
           </AppText>
           <Pressable
             accessibilityRole="link"
@@ -167,7 +201,11 @@ function AiChatConsentSheet({
               ]}
             >
               <AppText weight="semibold" color={colors.text.inverse}>
-                {accepting ? 'Сохраняем…' : 'Согласиться и отправить'}
+                {accepting
+                  ? 'Сохраняем…'
+                  : sendAfterAccept
+                    ? 'Согласиться и отправить'
+                    : 'Согласиться'}
               </AppText>
             </Pressable>
           </View>
@@ -178,6 +216,7 @@ function AiChatConsentSheet({
 }
 
 export default function ChatScreen() {
+  const healthStore = useHealthStore();
   const {
     chatConversations,
     chatMessages,
@@ -191,9 +230,10 @@ export default function ChatScreen() {
     reminders,
     saveChatMessage,
     saveConversation,
-  } = useHealthStore();
+  } = healthStore;
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const navigation = useNavigation();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const aiEligible = Platform.OS !== 'web' && isAuthenticated && !readOnly;
@@ -201,13 +241,20 @@ export default function ChatScreen() {
     api.chat.status,
     aiEligible && cloudProfileReady ? {} : 'skip',
   );
+  const agentStatus = useQuery(
+    api.agent.status,
+    aiEligible && cloudProfileReady ? {} : 'skip',
+  );
   const generateChat = useAction(api.chat.generate);
+  const startAgentTurn = useAction(api.chat.startAgentTurn);
+  const continueAgentTurn = useAction(api.chat.continueAgentTurn);
   const acceptAiConsent = useMutation(api.chat.acceptConsent);
+  const acceptAgentConsent = useMutation(api.chat.acceptAgentConsent);
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ScreenMessage[]>([]);
   const [conversationId, setConversationId] = useState<string>();
   const [composerFocused, setComposerFocused] = useState(false);
-  const headerMode: ChatHeaderMode = 'chat';
+  const [headerMode, setHeaderMode] = useState<ChatHeaderMode>('chat');
   const [conversationVisible, setConversationVisible] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRendered, setHistoryRendered] = useState(false);
@@ -239,6 +286,16 @@ export default function ChatScreen() {
   const knownUserMessages = useRef(new Map<string, ChatMessage>());
   const chatMessagesRef = useRef(chatMessages);
   const aiReady = aiEligible && chatStatus?.enabled === true;
+  const agentReady =
+    aiEligible &&
+    healthStore.ready &&
+    Boolean(profile) &&
+    agentStatus?.enabled === true;
+  const selectedModeReady = headerMode === 'assistant' ? agentReady : aiReady;
+  const selectedConsentAccepted =
+    headerMode === 'assistant'
+      ? agentStatus?.consentAccepted === true
+      : chatStatus?.consentAccepted === true;
   const availabilityNotice =
     Platform.OS === 'web'
       ? 'ИИ-чат доступен в приложении для iOS и Android после входа.'
@@ -248,11 +305,15 @@ export default function ChatScreen() {
           ? 'Войдите в аккаунт, чтобы получать ответы Сферки.'
           : !cloudProfileReady
             ? 'ИИ-чат станет доступен после включения облачной синхронизации.'
-            : !chatStatus
-              ? 'Проверяем доступность ИИ-чата…'
-              : !chatStatus.enabled
-                ? 'ИИ-чат пока выключен администратором.'
-                : undefined;
+            : headerMode === 'assistant' && !agentStatus
+              ? 'Проверяем доступность Ассистента…'
+              : headerMode === 'chat' && !chatStatus
+                ? 'Проверяем доступность ИИ-чата…'
+                : headerMode === 'assistant' && !agentStatus?.enabled
+                  ? 'Ассистент пока выключен администратором.'
+                  : headerMode === 'chat' && !chatStatus?.enabled
+                    ? 'ИИ-чат пока выключен администратором.'
+                    : undefined;
   const persistedRecentChats = useMemo<ChatHistoryItem[]>(
     () =>
       chatConversations
@@ -485,8 +546,13 @@ export default function ChatScreen() {
         assistant: message.role === 'assistant',
         conversationLocalId: item.id,
         state: 'complete',
+        sourceRefs: message.sourceRefs,
       }),
     );
+    const conversation = chatConversations.find(
+      (candidate) => candidate.localId === item.id,
+    );
+    setHeaderMode(conversation?.mode ?? 'chat');
     const running = activeGeneration.current;
     if (
       running?.conversationLocalId === item.id &&
@@ -522,6 +588,36 @@ export default function ChatScreen() {
     setMessages(restoredMessages);
     setConversationVisible(true);
     closeHistory();
+  };
+
+  const openAssistantSource = (source: AgentSourceRef) => {
+    if (source.source === 'chat') {
+      const sourceMessage = chatMessagesRef.current.find(
+        (message) => !message.deletedAt && message.localId === source.localId,
+      );
+      const sourceConversation = sourceMessage
+        ? recentChats.find(
+            (item) => item.id === sourceMessage.conversationLocalId,
+          )
+        : undefined;
+      if (sourceConversation) openRecentChat(sourceConversation);
+      return;
+    }
+    if (source.source === 'document') {
+      router.push({
+        pathname: '/profile',
+        params: { panel: 'documents', sourceId: source.localId },
+      });
+      return;
+    }
+    if (source.source === 'journal') {
+      router.push({ pathname: '/scan', params: { journalId: source.localId } });
+      return;
+    }
+    router.push({
+      pathname: '/analyses',
+      params: { sourceId: source.localId },
+    });
   };
 
   const renameRecentChat = (item: ChatHistoryItem) => {
@@ -646,14 +742,58 @@ export default function ChatScreen() {
     currentGeneration: ActiveGeneration,
   ) => {
     try {
-      const result = await generateChat({
-        requestId: `chat_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
-        messages: buildChatTranscript(
-          [...chatMessagesRef.current, userMessage],
-          currentGeneration.conversationLocalId,
-          userMessage,
-        ),
-      });
+      const requestId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const transcript = buildChatTranscript(
+        [...chatMessagesRef.current, userMessage],
+        currentGeneration.conversationLocalId,
+        userMessage,
+      );
+      const result =
+        currentGeneration.mode === 'chat'
+          ? await generateChat({ requestId, messages: transcript })
+          : await (async () => {
+              const contextEnvelope = JSON.stringify(
+                buildAgentContextEnvelope(healthStore, Date.now(), {
+                  includeBodyMetrics: assistantQuestionNeedsBodyMetrics(
+                    userMessage.text,
+                  ),
+                }),
+              );
+              let step = await startAgentTurn({
+                requestId,
+                messages: transcript,
+                contextEnvelope,
+              });
+              const accumulatedProviderItems: Array<{
+                type: 'function_call';
+                call_id: string;
+                name: string;
+                arguments: string;
+              }> = [];
+              const accumulatedToolResults: AgentToolOutput[] = [];
+              while (step.ok && step.kind === 'tool_calls') {
+                const currentToolResults = await Promise.all(
+                  step.calls.map((call) =>
+                    executeAgentToolWithTimeout(
+                      healthStore,
+                      call as AgentToolCall,
+                    ),
+                  ),
+                );
+                accumulatedProviderItems.push(...step.providerItems);
+                accumulatedToolResults.push(...currentToolResults);
+                step = await continueAgentTurn({
+                  requestId,
+                  continuationId: step.continuationId,
+                  step: step.step,
+                  messages: transcript,
+                  contextEnvelope,
+                  providerItems: accumulatedProviderItems,
+                  toolResults: accumulatedToolResults,
+                });
+              }
+              return step;
+            })();
 
       if (!result.ok) {
         markGenerationError(
@@ -673,6 +813,10 @@ export default function ChatScreen() {
         text: result.reply,
         sentAt,
         attachments: [],
+        sourceRefs:
+          'sourceRefs' in result
+            ? (result.sourceRefs as AgentSourceRef[])
+            : undefined,
         generation: {
           provider: result.provider,
           model: result.model,
@@ -693,6 +837,7 @@ export default function ChatScreen() {
         text: assistantMessage.text,
         sentAt: assistantMessage.sentAt,
         attachments: assistantMessage.attachments,
+        sourceRefs: assistantMessage.sourceRefs,
         generation: assistantMessage.generation,
       });
       chatMessagesRef.current = [
@@ -704,7 +849,12 @@ export default function ChatScreen() {
       setMessages((current) =>
         current.map((message) =>
           message.id === currentGeneration.assistantMessageId
-            ? { ...message, text: result.reply, state: 'complete' }
+            ? {
+                ...message,
+                text: result.reply,
+                state: 'complete',
+                sourceRefs: assistantMessage.sourceRefs,
+              }
             : message,
         ),
       );
@@ -717,7 +867,7 @@ export default function ChatScreen() {
     }
   };
 
-  const startNewMessage = (text: string) => {
+  const startNewMessage = (text: string, mode = headerMode) => {
     if (generationInFlight.current) return;
     generationInFlight.current = true;
     setGenerationState((current) => transitionChatGeneration(current, 'start'));
@@ -735,6 +885,7 @@ export default function ChatScreen() {
             title: text.slice(0, 80),
             createdAt: messageTimestamp,
             lastMessageAt: messageTimestamp,
+            mode,
           });
           setConversationId(activeConversationId);
           setSelectedHistoryId(activeConversationId);
@@ -780,6 +931,7 @@ export default function ChatScreen() {
           assistantMessageId,
           conversationLocalId: activeConversationId,
           userMessageId,
+          mode,
         };
         activeGeneration.current = currentGeneration;
         setMessages((current) => [
@@ -824,7 +976,7 @@ export default function ChatScreen() {
     })();
   };
 
-  const startRetry = (userMessage: ChatMessage) => {
+  const startRetry = (userMessage: ChatMessage, mode = headerMode) => {
     if (generationInFlight.current) return;
     generationInFlight.current = true;
     setGenerationState((current) => transitionChatGeneration(current, 'start'));
@@ -832,6 +984,7 @@ export default function ChatScreen() {
       assistantMessageId: `message_${Date.now()}_${Math.random().toString(36).slice(2, 9)}_assistant`,
       conversationLocalId: userMessage.conversationLocalId,
       userMessageId: userMessage.localId,
+      mode,
     };
     activeGeneration.current = currentGeneration;
     setMessages((current) => [
@@ -865,33 +1018,47 @@ export default function ChatScreen() {
       );
     if (!userMessage || generationInFlight.current) return;
     knownUserMessages.current.set(userMessage.localId, userMessage);
-    if (!aiReady) {
+    const retryMode =
+      chatConversations.find(
+        (conversation) =>
+          conversation.localId === userMessage.conversationLocalId,
+      )?.mode ?? headerMode;
+    const retryReady = retryMode === 'assistant' ? agentReady : aiReady;
+    const retryConsentAccepted =
+      retryMode === 'assistant'
+        ? agentStatus?.consentAccepted
+        : chatStatus?.consentAccepted;
+    if (!retryReady) {
       Alert.alert(
         'ИИ-чат недоступен',
         availabilityNotice ?? 'Попробуйте позже.',
       );
       return;
     }
-    if (!chatStatus?.consentAccepted) {
-      setPendingConsentRequest({ kind: 'retry', userMessage });
+    if (!retryConsentAccepted) {
+      setPendingConsentRequest({
+        kind: 'retry',
+        mode: retryMode,
+        userMessage,
+      });
       setConsentVisible(true);
       return;
     }
-    startRetry(userMessage);
+    startRetry(userMessage, retryMode);
   };
 
   const send = () => {
     const text = draft.trim();
     if (!text || generationInFlight.current) return;
-    if (!aiReady) {
+    if (!selectedModeReady) {
       Alert.alert(
         'ИИ-чат недоступен',
         availabilityNotice ?? 'Попробуйте позже.',
       );
       return;
     }
-    if (!chatStatus?.consentAccepted) {
-      setPendingConsentRequest({ kind: 'new', text });
+    if (!selectedConsentAccepted) {
+      setPendingConsentRequest({ kind: 'new', mode: headerMode, text });
       setConsentVisible(true);
       return;
     }
@@ -900,14 +1067,26 @@ export default function ChatScreen() {
 
   const acceptConsentAndContinue = async () => {
     const pending = pendingConsentRequest;
-    if (!pending || !chatStatus?.policyVersion || consentAccepting) return;
+    const policyVersion =
+      pending?.mode === 'assistant'
+        ? agentStatus?.policyVersion
+        : chatStatus?.policyVersion;
+    if (!pending || !policyVersion || consentAccepting) return;
     setConsentAccepting(true);
     try {
-      await acceptAiConsent({ policyVersion: chatStatus.policyVersion });
+      if (pending.mode === 'assistant') {
+        await acceptAgentConsent({
+          policyVersion,
+          scopes: [...(agentStatus?.scopes ?? [])],
+        });
+      } else {
+        await acceptAiConsent({ policyVersion });
+      }
       setConsentVisible(false);
       setPendingConsentRequest(undefined);
-      if (pending.kind === 'new') startNewMessage(pending.text);
-      else startRetry(pending.userMessage);
+      if (pending.kind === 'new') startNewMessage(pending.text, pending.mode);
+      else if (pending.kind === 'retry')
+        startRetry(pending.userMessage, pending.mode);
     } catch (error) {
       console.error('Accepting AI chat consent failed', error);
       Alert.alert(
@@ -922,8 +1101,12 @@ export default function ChatScreen() {
   const explainAttachments = () => {
     void Haptics.selectionAsync();
     Alert.alert(
-      'Файлы появятся в режиме «Ассистент»',
-      'Сейчас Сферка получает только видимый текст чата. Фото, документы, их названия и содержимое не отправляются.',
+      headerMode === 'assistant'
+        ? 'Чтение файлов появится позже'
+        : 'Файлы доступны через разделы приложения',
+      headerMode === 'assistant'
+        ? 'Ассистент пока видит только метаданные документов и подтверждённые структурированные результаты. Содержимое файлов не читается и не отправляется.'
+        : 'В обычном чате Сферка получает только видимый текст. Документы можно сохранить в «Анализах» или профиле.',
     );
   };
 
@@ -951,6 +1134,39 @@ export default function ChatScreen() {
       setMessages([]);
       setConversationId(undefined);
     });
+  };
+
+  const changeMode = (nextMode: ChatHeaderMode) => {
+    if (nextMode === headerMode || generationInFlight.current) return;
+    const activate = () => {
+      setHeaderMode(nextMode);
+      if (
+        nextMode === 'assistant' &&
+        agentReady &&
+        agentStatus?.consentAccepted === false
+      ) {
+        setPendingConsentRequest({ kind: 'mode', mode: 'assistant' });
+        setConsentVisible(true);
+      }
+    };
+    if (conversationVisible && messages.length) {
+      Alert.alert(
+        'Начать новый разговор?',
+        'Режимы «Чат» и «Ассистент» используют разные разрешения на данные.',
+        [
+          { text: 'Отмена', style: 'cancel' },
+          {
+            text: 'Начать',
+            onPress: () => {
+              closeConversation();
+              activate();
+            },
+          },
+        ],
+      );
+      return;
+    }
+    activate();
   };
 
   const historySurfaceMotionStyle =
@@ -1012,6 +1228,7 @@ export default function ChatScreen() {
         >
           <ChatHeader
             activeMode={headerMode}
+            onModeChange={changeMode}
             onHistory={openHistory}
             onCalendar={() =>
               Alert.alert(
@@ -1109,7 +1326,7 @@ export default function ChatScreen() {
             </AppText>
           ) : null}
           <ChatComposer
-            disabled={!aiReady || generationState === 'thinking'}
+            disabled={!selectedModeReady || generationState === 'thinking'}
             value={draft}
             onChangeText={setDraft}
             onSubmit={send}
@@ -1183,6 +1400,7 @@ export default function ChatScreen() {
             <View style={[styles.headerWrap, { top: headerTop }]}>
               <ChatHeader
                 activeMode={headerMode}
+                onModeChange={changeMode}
                 conversation
                 conversationIconProgress={conversationProgress}
                 onExitConversation={closeConversation}
@@ -1226,6 +1444,7 @@ export default function ChatScreen() {
                 <View style={styles.messages}>
                   {messages.map((message) => (
                     <ChatMessageBubble
+                      allowExternalLinks={headerMode === 'chat'}
                       key={message.id}
                       assistant={message.assistant}
                       errorText={
@@ -1250,7 +1469,9 @@ export default function ChatScreen() {
                           ? () => void Share.share({ message: message.text })
                           : undefined
                       }
+                      onSourcePress={openAssistantSource}
                       reduceMotion={reduceMotion}
+                      sources={message.sourceRefs}
                       variant={17}
                     >
                       {message.state === 'error' ? '' : message.text}
@@ -1314,7 +1535,7 @@ export default function ChatScreen() {
                 </AppText>
               ) : null}
               <ChatComposer
-                disabled={!aiReady || generationState === 'thinking'}
+                disabled={!selectedModeReady || generationState === 'thinking'}
                 value={draft}
                 onChangeText={setDraft}
                 onSubmit={send}
@@ -1348,10 +1569,13 @@ export default function ChatScreen() {
       </ConversationOverlay>
       <AiChatConsentSheet
         accepting={consentAccepting}
+        assistant={pendingConsentRequest?.mode === 'assistant'}
+        sendAfterAccept={pendingConsentRequest?.kind !== 'mode'}
         visible={consentVisible}
         onAccept={() => void acceptConsentAndContinue()}
         onCancel={() => {
           if (consentAccepting) return;
+          if (pendingConsentRequest?.kind === 'mode') setHeaderMode('chat');
           setConsentVisible(false);
           setPendingConsentRequest(undefined);
         }}

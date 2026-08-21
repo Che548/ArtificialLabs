@@ -10,4 +10,5 @@ export async function persistChatAttachment(uri: string) {
 export async function discardTemporaryScanImage(_uri: string) {}
 export async function discardPersistedScanImage(_uri: string) {}
 export async function discardPersistedChatAttachment(_uri: string) {}
+export async function discardPersistedLabDocument(_uri: string) {}
 export async function clearLocalHealthFiles() {}
