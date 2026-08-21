@@ -37,6 +37,12 @@ output/playwright/
 .playwright-cli/
 /tmp/
 
+# Local visual QA artifacts
+/.codex-qa/
+/qa/
+__pycache__/
+*.py[cod]
+
 # Local-only medical-agent tests and evaluations. Never publish these.
 /tests-local/agent/
 /.agent-evals/

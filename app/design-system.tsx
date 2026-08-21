@@ -45,6 +45,7 @@ import {
   CalendarSymptomStatusPreview,
   type CalendarSymptomStatusVariant,
   ChatKitPreview,
+  ChatDeleteActionPreview,
   ChatMessageVariantsCatalog,
   ChatSendButtonVariantsCatalog,
   colors,
@@ -67,7 +68,12 @@ import {
   NavbarIconVariantsCatalog,
   PetalProgressStatesCatalog,
   PrimaryButton,
+  DestructiveButtonPreview,
+  ProfileActionRow,
   ProfileKitPreview,
+  ProfileSettingsGroup,
+  ProfileSettingsRow,
+  profileTones,
   radii,
   shadows,
   sizes,
@@ -728,6 +734,121 @@ export default function DesignSystemScreen({
         </View>
 
         <View style={styles.sheet}>
+          <View testID="delete-actions-catalog">
+            <Section
+              eyebrow="00 / Destructive styles"
+              title="5 стилей кнопки удаления"
+            >
+              <AppText role="body" color={colors.text.secondary}>
+                Пять вариантов с разной силой визуального акцента. Это
+                предложения для выбора — ниже сохранены текущие кнопки
+                приложения.
+              </AppText>
+
+              <View
+                testID="destructive-style-variants"
+                style={styles.destructiveVariantList}
+              >
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>01 / SOFT SURFACE</TokenLabel>
+                  <DestructiveButtonPreview variant="soft" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>02 / OUTLINE</TokenLabel>
+                  <DestructiveButtonPreview variant="outline" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>03 / SOLID CRITICAL</TokenLabel>
+                  <DestructiveButtonPreview variant="solid" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>04 / ICON TILE</TokenLabel>
+                  <DestructiveButtonPreview variant="iconTile" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>05 / SPLIT ACTION</TokenLabel>
+                  <DestructiveButtonPreview variant="split" />
+                </View>
+              </View>
+
+              <View style={styles.destructiveInternalRule} />
+
+              <AppText role="heading" weight="semibold">
+                Текущие кнопки приложения
+              </AppText>
+
+              <AppText role="body" color={colors.text.secondary}>
+                Все кастомные destructive-контролы, которые используются в
+                приложении. Кнопки финального подтверждения документа и чата
+                остаются нативными действиями системного Alert.
+              </AppText>
+
+              <View style={styles.destructiveCatalog}>
+                <View style={styles.destructiveGroup}>
+                  <TokenLabel>PROFILE / NAVIGATION</TokenLabel>
+                  <ProfileSettingsGroup>
+                    <ProfileSettingsRow
+                      icon="trash.fill"
+                      fallback="×"
+                      iconBackground={profileTones.destructive.tile}
+                      iconColor={profileTones.destructive.glyph}
+                      label="Удаление аккаунта"
+                      destructive
+                      isLast
+                      onPress={() => undefined}
+                    />
+                  </ProfileSettingsGroup>
+                </View>
+
+                <View style={styles.destructiveGroup}>
+                  <TokenLabel>PROFILE / ACTIONS</TokenLabel>
+                  <View style={styles.destructiveActionStack}>
+                    <ProfileActionRow
+                      secondary
+                      icon="trash"
+                      label="Удалить данные Ассистента"
+                      subtitle="План, правила и журнал изменений"
+                      onPress={() => undefined}
+                    />
+                    <ProfileActionRow
+                      destructive
+                      icon="trash.fill"
+                      label="Удалить запись"
+                      onPress={() => undefined}
+                    />
+                    <ProfileActionRow
+                      destructive
+                      icon="trash.fill"
+                      label="Подтвердить удаление записи"
+                      onPress={() => undefined}
+                    />
+                    <ProfileActionRow
+                      destructive
+                      icon="trash.fill"
+                      label="Удалить локальные данные"
+                      onPress={() => undefined}
+                    />
+                    <ProfileActionRow
+                      destructive
+                      icon="trash.fill"
+                      label="Удалить аккаунт и все данные"
+                      onPress={() => undefined}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.destructiveGroup}>
+                  <TokenLabel>CHAT / CONTEXT MENU</TokenLabel>
+                  <View style={styles.destructiveChatPreview}>
+                    <ChatDeleteActionPreview />
+                  </View>
+                </View>
+              </View>
+            </Section>
+          </View>
+
+          <View style={styles.rule} />
+
           <Section eyebrow="00 / Health data" title="Графики показателей">
             <View style={styles.analysisVariantHeading}>
               <TokenLabel>18 PRODUCTION CHARTS</TokenLabel>
@@ -1898,6 +2019,29 @@ const styles = StyleSheet.create({
     height: 1,
     marginVertical: 38,
     backgroundColor: colors.surface.divider,
+  },
+  destructiveCatalog: {
+    gap: spacing.lg,
+  },
+  destructiveVariantList: {
+    gap: spacing.md,
+  },
+  destructiveVariantItem: {
+    gap: spacing.sm,
+  },
+  destructiveInternalRule: {
+    height: 1,
+    backgroundColor: colors.surface.divider,
+  },
+  destructiveGroup: {
+    gap: spacing.sm,
+  },
+  destructiveActionStack: {
+    gap: spacing.sm,
+  },
+  destructiveChatPreview: {
+    minHeight: 90,
+    alignItems: 'flex-start',
   },
   swatchGrid: {
     flexDirection: 'row',

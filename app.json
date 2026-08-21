@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Private",
+    "name": "сфера.",
     "slug": "private-expo",
     "scheme": "private-expo",
     "version": "1.0.0",
@@ -14,7 +14,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -51,13 +51,13 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Разрешите Private выбирать фотографии тестов из медиатеки."
+          "photosPermission": "Разрешите приложению «сфера.» выбирать фотографии тестов из медиатеки."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Разрешите приложению Private использовать камеру для сканирования QR-кодов и тестов.",
+          "cameraPermission": "Разрешите приложению «сфера.» использовать камеру для сканирования QR-кодов и тестов.",
           "recordAudioAndroid": false
         }
       ],
@@ -73,7 +73,7 @@
         "expo-secure-store",
         {
           "configureAndroidBackup": true,
-          "faceIDPermission": "Разрешите Private защищать локальные медицинские данные."
+          "faceIDPermission": "Разрешите приложению «сфера.» защищать локальные медицинские данные."
         }
       ],
       [

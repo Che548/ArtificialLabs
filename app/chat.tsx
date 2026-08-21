@@ -140,14 +140,12 @@ function ConversationOverlay({
 function AiChatConsentSheet({
   accepting,
   assistant,
-  sendAfterAccept,
   onAccept,
   onCancel,
   visible,
 }: {
   accepting: boolean;
   assistant: boolean;
-  sendAfterAccept: boolean;
   onAccept: () => void;
   onCancel: () => void;
   visible: boolean;
@@ -201,11 +199,7 @@ function AiChatConsentSheet({
               ]}
             >
               <AppText weight="semibold" color={colors.text.inverse}>
-                {accepting
-                  ? 'Сохраняем…'
-                  : sendAfterAccept
-                    ? 'Согласиться и отправить'
-                    : 'Согласиться'}
+                {accepting ? 'Сохраняем…' : 'Согласиться'}
               </AppText>
             </Pressable>
           </View>
@@ -266,6 +260,7 @@ export default function ChatScreen() {
     useState<ChatGenerationState>('idle');
   const [consentVisible, setConsentVisible] = useState(false);
   const [consentAccepting, setConsentAccepting] = useState(false);
+  const [copyNoticeVisible, setCopyNoticeVisible] = useState(false);
   const [pendingConsentRequest, setPendingConsentRequest] =
     useState<PendingConsentRequest>();
   const compactHeight = window.height < 760;
@@ -273,13 +268,16 @@ export default function ChatScreen() {
     Platform.OS === 'android'
       ? Math.max(insets.bottom, 8) + 60 + 12
       : Math.max(insets.bottom, 12) + (!hasNativeLiquidGlass ? 72 : 58);
-  const conversationComposerBottom = Math.max(insets.bottom + 4, 16);
+  const conversationComposerBottom = Math.max(insets.bottom + 4, 16) - 12;
   const historyPanelWidth = Math.min(window.width * 0.76, 318);
   const headerTop = getHeaderTop(insets.top);
   const suggestionsVisible = !composerFocused;
   const suggestionsProgress = useRef(new Animated.Value(1)).current;
   const conversationProgress = useRef(new Animated.Value(0)).current;
   const historyProgress = useRef(new Animated.Value(0)).current;
+  const copyNoticeProgress = useRef(new Animated.Value(0)).current;
+  const copyNoticeAnimation = useRef<Animated.CompositeAnimation | null>(null);
+  const copyNoticeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationScrollRef = useRef<ScrollView>(null);
   const generationInFlight = useRef(false);
   const activeGeneration = useRef<ActiveGeneration | undefined>(undefined);
@@ -408,6 +406,14 @@ export default function ChatScreen() {
     );
     return () => subscription.remove();
   }, []);
+
+  useEffect(
+    () => () => {
+      copyNoticeAnimation.current?.stop();
+      if (copyNoticeTimeout.current) clearTimeout(copyNoticeTimeout.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!conversationVisible) return undefined;
@@ -683,22 +689,40 @@ export default function ChatScreen() {
           const conversation = chatConversations.find(
             (candidate) => candidate.localId === item.id,
           );
-          if (conversation) {
-            void deleteChatConversation(conversation).catch((error) => {
+          const deletingLastChat = recentChats.length === 1;
+          const finishDeletion = () => {
+            setRecentChats((current) =>
+              current.filter((chat) => chat.id !== item.id),
+            );
+
+            if (deletingLastChat) {
+              setSelectedHistoryId('');
+              closeHistory(() => {
+                if (conversationVisible) closeConversation();
+              });
+              return;
+            }
+
+            if (selectedHistoryId === item.id) {
+              const nextChat = recentChats.find((chat) => chat.id !== item.id);
+              setSelectedHistoryId(nextChat?.id ?? '');
+            }
+          };
+
+          if (!conversation) {
+            finishDeletion();
+            return;
+          }
+
+          void deleteChatConversation(conversation)
+            .then(finishDeletion)
+            .catch((error) => {
               console.error('Deleting chat failed', error);
               Alert.alert(
                 'Не удалось удалить чат',
                 'Проверьте подключение и попробуйте ещё раз.',
               );
             });
-          }
-          setRecentChats((current) => {
-            const nextChats = current.filter((chat) => chat.id !== item.id);
-            if (selectedHistoryId === item.id) {
-              setSelectedHistoryId(nextChats[0]?.id ?? '');
-            }
-            return nextChats;
-          });
         },
       },
     ]);
@@ -1110,6 +1134,57 @@ export default function ChatScreen() {
     );
   };
 
+  const showCopyNotice = () => {
+    copyNoticeAnimation.current?.stop();
+    if (copyNoticeTimeout.current) {
+      clearTimeout(copyNoticeTimeout.current);
+      copyNoticeTimeout.current = null;
+    }
+
+    setCopyNoticeVisible(true);
+    AccessibilityInfo.announceForAccessibility('Текст скопирован');
+
+    if (reduceMotion) {
+      copyNoticeProgress.setValue(1);
+      copyNoticeTimeout.current = setTimeout(() => {
+        setCopyNoticeVisible(false);
+        copyNoticeProgress.setValue(0);
+        copyNoticeTimeout.current = null;
+      }, 1600);
+      return;
+    }
+
+    copyNoticeProgress.setValue(0);
+    const animation = Animated.sequence([
+      Animated.timing(copyNoticeProgress, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.bezier(0.22, 1, 0.36, 1),
+        useNativeDriver: true,
+      }),
+      Animated.delay(1400),
+      Animated.timing(copyNoticeProgress, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]);
+
+    copyNoticeAnimation.current = animation;
+    animation.start(({ finished }) => {
+      if (!finished) return;
+      setCopyNoticeVisible(false);
+      copyNoticeAnimation.current = null;
+    });
+  };
+
+  const copyMessage = async (text: string) => {
+    await Clipboard.setStringAsync(text);
+    void Haptics.selectionAsync();
+    showCopyNotice();
+  };
+
   const closeConversation = () => {
     Keyboard.dismiss();
     setComposerFocused(false);
@@ -1342,8 +1417,12 @@ export default function ChatScreen() {
               )
             }
           />
-          <AppText role="caption" style={styles.aiDisclaimer}>
-            ИИ может ошибаться. Важные решения проверяйте у специалиста.
+          <AppText
+            numberOfLines={2}
+            role="caption"
+            style={styles.aiDisclaimer}
+          >
+            {'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'}
           </AppText>
         </View>
 
@@ -1456,7 +1535,7 @@ export default function ChatScreen() {
                       }
                       onCopy={
                         message.state === 'complete'
-                          ? () => void Clipboard.setStringAsync(message.text)
+                          ? () => void copyMessage(message.text)
                           : undefined
                       }
                       onRetry={
@@ -1534,6 +1613,40 @@ export default function ChatScreen() {
                   {availabilityNotice}
                 </AppText>
               ) : null}
+              {copyNoticeVisible ? (
+                <Animated.View
+                  accessibilityRole="alert"
+                  pointerEvents="none"
+                  style={[
+                    styles.copyNotice,
+                    {
+                      opacity: copyNoticeProgress,
+                      transform: [
+                        {
+                          translateY: copyNoticeProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [8, 0],
+                          }),
+                        },
+                        {
+                          scale: copyNoticeProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.98, 1],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <AppText
+                    role="label"
+                    weight="semibold"
+                    color={colors.text.inverse}
+                  >
+                    Текст скопирован
+                  </AppText>
+                </Animated.View>
+              ) : null}
               <ChatComposer
                 disabled={!selectedModeReady || generationState === 'thinking'}
                 value={draft}
@@ -1551,8 +1664,12 @@ export default function ChatScreen() {
                   )
                 }
               />
-              <AppText role="caption" style={styles.aiDisclaimer}>
-                ИИ может ошибаться. Важные решения проверяйте у специалиста.
+              <AppText
+                numberOfLines={2}
+                role="caption"
+                style={styles.aiDisclaimer}
+              >
+                {'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'}
               </AppText>
             </Animated.View>
             {historyRendered ? (
@@ -1570,7 +1687,6 @@ export default function ChatScreen() {
       <AiChatConsentSheet
         accepting={consentAccepting}
         assistant={pendingConsentRequest?.mode === 'assistant'}
-        sendAfterAccept={pendingConsentRequest?.kind !== 'mode'}
         visible={consentVisible}
         onAccept={() => void acceptConsentAndContinue()}
         onCancel={() => {
@@ -1660,6 +1776,19 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
   },
+  copyNotice: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    backgroundColor: colors.text.primary,
+    shadowColor: '#2F151B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    elevation: 8,
+  },
   consentBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -1671,7 +1800,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 24,
     paddingBottom: 22,
-    borderRadius: 28,
+    borderRadius: 40,
     backgroundColor: colors.surface.raised,
   },
   consentTitle: {
@@ -1688,9 +1817,11 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   consentActions: {
+    flexDirection: 'row',
     gap: 10,
   },
   consentCancelButton: {
+    flex: 1,
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1698,12 +1829,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EEF0',
   },
   consentAcceptButton: {
+    flex: 1,
     minHeight: 50,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
     borderRadius: 25,
-    backgroundColor: colors.brand.burgundy,
+    backgroundColor: colors.brand.primary,
   },
   consentButtonDisabled: {
     opacity: 0.52,

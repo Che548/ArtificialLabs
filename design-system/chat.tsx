@@ -26,6 +26,7 @@ import {
   View,
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import PlusIcon from '../assets/figma/chat/plus.svg';
 import ChatExitArrowIcon from '../assets/figma/calendar-page/back.svg';
@@ -274,6 +275,21 @@ type ChatPopupMenuAction = {
   onPress?: () => void;
 };
 
+function ChatTrashIcon({ color }: { color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24">
+      <Path
+        d="M4.5 6.5h15M9 6.5V4.75c0-.69.56-1.25 1.25-1.25h3.5c.69 0 1.25.56 1.25 1.25V6.5m-7.75 0 .8 12.25c.05.98.87 1.75 1.85 1.75h4.2c.98 0 1.8-.77 1.85-1.75l.8-12.25M10 10v6.5M14 10v6.5"
+        fill="none"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 function ChatPopupMenu({
   visible,
   actions,
@@ -289,6 +305,8 @@ function ChatPopupMenu({
 }) {
   const menuProgress = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const [menuRendered, setMenuRendered] = useState(visible);
+  const menuContentHeight = actions.length * 66;
+  const menuHeight = menuContentHeight + 24;
 
   useEffect(() => {
     if (visible) {
@@ -366,13 +384,16 @@ function ChatPopupMenu({
         tintColor="rgba(255,255,255,0.42)"
         style={[
           styles.attachmentMenuGlass,
+          { height: menuHeight },
           shadowless && styles.popupMenuShadowless,
         ]}
       >
         <View />
       </ChatComposerGlass>
 
-      <View style={styles.attachmentMenuContent}>
+      <View
+        style={[styles.attachmentMenuContent, { height: menuContentHeight }]}
+      >
         {actions.map((action) => (
           <View key={action.id} style={styles.attachmentMenuRowSlot}>
             <Pressable
@@ -389,19 +410,29 @@ function ChatPopupMenu({
               ]}
             >
               <View style={styles.attachmentMenuIcon}>
-                <SymbolView
-                  name={action.symbol}
-                  size={20}
-                  tintColor={
-                    action.destructive
-                      ? colors.state.error
-                      : colors.text.primary
-                  }
-                  weight="medium"
-                  fallback={
-                    <Text style={styles.attachmentFallbackIcon}>●</Text>
-                  }
-                />
+                {action.symbol === 'trash' ? (
+                  <ChatTrashIcon
+                    color={
+                      action.destructive
+                        ? colors.state.error
+                        : colors.text.primary
+                    }
+                  />
+                ) : (
+                  <SymbolView
+                    name={action.symbol}
+                    size={20}
+                    tintColor={
+                      action.destructive
+                        ? colors.state.error
+                        : colors.text.primary
+                    }
+                    weight="medium"
+                    fallback={
+                      <Text style={styles.attachmentFallbackIcon}>●</Text>
+                    }
+                  />
+                )}
               </View>
               <Text
                 accessible={false}
@@ -418,6 +449,28 @@ function ChatPopupMenu({
         ))}
       </View>
     </Animated.View>
+  );
+}
+
+export function ChatDeleteActionPreview({
+  onPress,
+}: {
+  onPress?: () => void;
+}) {
+  return (
+    <ChatPopupMenu
+      actions={[
+        {
+          id: 'delete-preview',
+          label: 'Удалить',
+          symbol: 'trash',
+          destructive: true,
+          onPress,
+        },
+      ]}
+      visible
+      shadowless
+    />
   );
 }
 
@@ -579,110 +632,122 @@ export function ChatHistoryPanel({
         Недавнее
       </AppText>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        style={[styles.historyScroll, { width: Math.max(width - 40, 0) }]}
-        contentContainerStyle={styles.historyList}
-      >
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.historySelectionIndicator,
-            {
-              opacity: selectionOpacity,
-              width: Math.max(width - 52, 0),
-              transform: [
-                {
-                  translateY: Animated.multiply(selectionPosition, 48),
-                },
-              ],
-            },
-          ]}
-        />
-        {items.map((item, index) => {
-          const selected = item.id === selectedId;
-          const menuVisible = item.id === actionMenuId;
-          return (
-            <View
-              key={item.id}
-              style={[
-                styles.historyItem,
-                selected && styles.historyItemSelected,
-                menuVisible && styles.historyItemMenuOpen,
-                {
-                  width: Math.max(width - 52, 0),
-                  marginBottom: index === items.length - 1 ? 0 : 4,
-                },
-              ]}
-            >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Открыть чат: ${item.title}`}
-                accessibilityState={{ selected }}
-                onPress={() => onSelect?.(item)}
+      {items.length === 0 ? (
+        <View style={styles.historyEmptyState}>
+          <AppText
+            color={colors.text.secondary}
+            role="body"
+            style={styles.historyEmptyText}
+          >
+            У вас пока нет чатов
+          </AppText>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={[styles.historyScroll, { width: Math.max(width - 40, 0) }]}
+          contentContainerStyle={styles.historyList}
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.historySelectionIndicator,
+              {
+                opacity: selectionOpacity,
+                width: Math.max(width - 52, 0),
+                transform: [
+                  {
+                    translateY: Animated.multiply(selectionPosition, 48),
+                  },
+                ],
+              },
+            ]}
+          />
+          {items.map((item, index) => {
+            const selected = item.id === selectedId;
+            const menuVisible = item.id === actionMenuId;
+            return (
+              <View
+                key={item.id}
                 style={[
-                  styles.historyItemPressable,
-                  selected && styles.historyItemPressableSelected,
+                  styles.historyItem,
+                  selected && styles.historyItemSelected,
+                  menuVisible && styles.historyItemMenuOpen,
+                  {
+                    width: Math.max(width - 52, 0),
+                    marginBottom: index === items.length - 1 ? 0 : 4,
+                  },
                 ]}
               >
-                <AppText
-                  numberOfLines={1}
-                  role="body"
-                  color={colors.text.primary}
-                  weight="regular"
-                  style={styles.historyItemText}
-                >
-                  {item.title}
-                </AppText>
-              </Pressable>
-              {selected ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Действия с чатом: ${item.title}`}
-                  accessibilityState={{ expanded: menuVisible }}
-                  hitSlop={6}
-                  onPress={() => {
-                    setActionMenuId((current) =>
-                      current === item.id ? null : item.id,
-                    );
-                  }}
-                  style={({ pressed }) => [
-                    styles.historyMoreButton,
-                    pressed && styles.historyMoreButtonPressed,
+                  accessibilityLabel={`Открыть чат: ${item.title}`}
+                  accessibilityState={{ selected }}
+                  onPress={() => onSelect?.(item)}
+                  style={[
+                    styles.historyItemPressable,
+                    selected && styles.historyItemPressableSelected,
                   ]}
                 >
-                  <SymbolView
-                    name="ellipsis"
-                    size={19}
-                    tintColor={colors.text.primary}
-                    weight="semibold"
-                    fallback={
-                      <Text style={styles.historyMoreFallback}>•••</Text>
-                    }
-                  />
+                  <AppText
+                    numberOfLines={1}
+                    role="body"
+                    color={colors.text.primary}
+                    weight="regular"
+                    style={styles.historyItemText}
+                  >
+                    {item.title}
+                  </AppText>
                 </Pressable>
-              ) : null}
+                {selected ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Действия с чатом: ${item.title}`}
+                    accessibilityState={{ expanded: menuVisible }}
+                    hitSlop={6}
+                    onPress={() => {
+                      setActionMenuId((current) =>
+                        current === item.id ? null : item.id,
+                      );
+                    }}
+                    style={({ pressed }) => [
+                      styles.historyMoreButton,
+                      pressed && styles.historyMoreButtonPressed,
+                    ]}
+                  >
+                    <SymbolView
+                      name="ellipsis"
+                      size={19}
+                      tintColor={colors.text.primary}
+                      weight="semibold"
+                      fallback={
+                        <Text style={styles.historyMoreFallback}>•••</Text>
+                      }
+                    />
+                  </Pressable>
+                ) : null}
 
-              <ChatHistoryActionMenu
-                visible={menuVisible}
-                pinned={item.pinned}
-                onRename={() => {
-                  setActionMenuId(null);
-                  onRename?.(item);
-                }}
-                onDelete={() => {
-                  setActionMenuId(null);
-                  onDelete?.(item);
-                }}
-                onPin={() => {
-                  setActionMenuId(null);
-                  onPin?.(item);
-                }}
-              />
-            </View>
-          );
-        })}
-      </ScrollView>
+                <ChatHistoryActionMenu
+                  visible={menuVisible}
+                  pinned={item.pinned}
+                  onRename={() => {
+                    setActionMenuId(null);
+                    onRename?.(item);
+                  }}
+                  onDelete={() => {
+                    setActionMenuId(null);
+                    onDelete?.(item);
+                  }}
+                  onPin={() => {
+                    setActionMenuId(null);
+                    onPin?.(item);
+                  }}
+                />
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -2660,6 +2725,18 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 21,
     letterSpacing: -0.28,
+  },
+  historyEmptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 96,
+  },
+  historyEmptyText: {
+    fontSize: 15.5,
+    lineHeight: 20,
+    letterSpacing: -0.22,
+    textAlign: 'center',
   },
   historyScroll: {
     marginLeft: -12,

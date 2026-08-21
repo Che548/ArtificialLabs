@@ -162,8 +162,8 @@ function DeadlineCard({
         <View style={styles.deadlineArrow}>
           <ArrowUpRightIcon width={16} height={16} />
         </View>
-        <Text style={styles.deadlineCopy}>
-          {displayNoun} нужно сдать{`\n`}в течение{' '}
+        <Text numberOfLines={3} style={styles.deadlineCopy}>
+          {displayNoun} нужно{`\n`}сдать в течение{`\n`}
           <Text style={styles.deadlineStrong}>{duration}</Text>
         </Text>
       </View>
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
   },
   deadlineCard: {
     position: 'relative',
-    height: Platform.OS === 'android' ? 120 : 104,
+    height: 124,
     minWidth: 0,
     flexBasis: 0,
     flexGrow: 1,
@@ -476,6 +476,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
     minWidth: 0,
     flex: 1,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
@@ -497,10 +498,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   deadlineCopy: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    left: 16,
     color: colors.text.secondary,
     fontFamily: fonts.sfRegular,
     fontSize: 15,

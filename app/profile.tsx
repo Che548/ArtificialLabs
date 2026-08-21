@@ -19,6 +19,7 @@ import {
   Linking,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -63,6 +64,7 @@ import {
   ProfileSettingsRow,
   ProfileToggleRow,
   ProfileVerticalChoiceControl,
+  SegmentedSwitcher,
   profileTones,
   radii,
   sizes,
@@ -89,6 +91,7 @@ import type {
   Medication,
   MonitoringProgram,
 } from '../lib/health-types';
+import type { NotificationTone } from '../shared/notification-copy';
 import DesignSystemScreen from './design-system';
 
 const e2eDocumentFixtureUri =
@@ -528,7 +531,6 @@ export default function ProfileScreen() {
             medicationCount={
               medications.filter((item) => !item.deletedAt).length
             }
-            programCount={programs.filter((item) => !item.deletedAt).length}
             onOpen={openSection}
           />
         </ScrollView>
@@ -575,6 +577,11 @@ export default function ProfileScreen() {
           ) : (
             <ProfileDetailScreen
               bottomInset={insets.bottom}
+              compactBottom={
+                activeSection === 'medical-history' ||
+                activeSection === 'medications' ||
+                activeSection === 'allergies'
+              }
               title={SECTION_TITLES[activeSection]}
               topInset={insets.top}
               onBack={closeSection}
@@ -681,14 +688,12 @@ function ProfileOverview({
   conditionCount,
   documentCount,
   medicationCount,
-  programCount,
   onOpen,
 }: {
   allergyCount: number;
   conditionCount: number;
   documentCount: number;
   medicationCount: number;
-  programCount: number;
   onOpen: (section: ProfileSection) => void;
 }) {
   return (
@@ -732,15 +737,6 @@ function ProfileOverview({
           label="Аллергии и риски"
           value={allergyCount ? String(allergyCount) : 'Не заполнено'}
           onPress={() => onOpen('allergies')}
-        />
-        <ProfileSettingsRow
-          icon="heart.text.square.fill"
-          fallback="П"
-          iconBackground={profileTones.health.tile}
-          iconColor={profileTones.health.glyph}
-          label="Программы"
-          value={programCount ? String(programCount) : 'Нет программ'}
-          onPress={() => onOpen('programs')}
         />
         <ProfileSettingsRow
           icon="doc.text.fill"
@@ -955,15 +951,218 @@ function PlanningTodayProfileKitPreview() {
   );
 }
 
+const notificationCuteImage = require('../assets/profile/notification-tones/cute.png');
+const notificationFormalImage = require('../assets/profile/notification-tones/formal.png');
+const notificationCuteIcon = require('../assets/profile/notification-tones/cute-icon.png');
+const notificationFormalIcon = require('../assets/profile/notification-tones/formal-icon.png');
+
+const notificationTonePreviewCopy: Record<
+  NotificationTone,
+  { title: string; body: string }
+> = {
+  formal: {
+    title: 'Добрый день',
+    body: 'Я ваш личный ассистент Сферка',
+  },
+  cute: {
+    title: 'Привет!',
+    body: 'Я твой личный ассистент Сферка',
+  },
+};
+
+function NotificationTonePreview({ tone }: { tone: NotificationTone }) {
+  const toneProgress = useRef(
+    new Animated.Value(tone === 'cute' ? 1 : 0),
+  ).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      setReduceMotion,
+    );
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    toneProgress.stopAnimation();
+    const nextValue = tone === 'cute' ? 1 : 0;
+
+    if (reduceMotion) {
+      toneProgress.setValue(nextValue);
+      return undefined;
+    }
+
+    const animation = Animated.timing(toneProgress, {
+      toValue: nextValue,
+      duration: 460,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [reduceMotion, tone, toneProgress]);
+
+  const formalOpacity = toneProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+  const cuteOpacity = toneProgress;
+  const formalScale = toneProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.01],
+  });
+  const cuteScale = toneProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.99, 1],
+  });
+  const formalTranslateY = toneProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -4],
+  });
+  const cuteTranslateY = toneProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [4, 0],
+  });
+
+  return (
+    <View style={styles.notificationTonePreview}>
+      <View
+        accessible
+        accessibilityLabel={
+          tone === 'formal' ? 'Сферка в формальном костюме' : 'Милая Сферка'
+        }
+        style={styles.notificationToneImageFrame}
+      >
+        <Animated.Image
+          accessibilityIgnoresInvertColors
+          accessible={false}
+          resizeMode="contain"
+          source={notificationFormalImage}
+          style={[
+            styles.notificationToneImage,
+            { opacity: formalOpacity, transform: [{ scale: formalScale }] },
+          ]}
+        />
+        <Animated.Image
+          accessibilityIgnoresInvertColors
+          accessible={false}
+          resizeMode="contain"
+          source={notificationCuteImage}
+          style={[
+            styles.notificationToneImage,
+            { opacity: cuteOpacity, transform: [{ scale: cuteScale }] },
+          ]}
+        />
+      </View>
+
+      <View
+        accessible
+        accessibilityLabel={`${notificationTonePreviewCopy[tone].title}. ${notificationTonePreviewCopy[tone].body}`}
+        style={styles.notificationExampleCard}
+      >
+        <View style={styles.notificationExampleBody}>
+          <View style={styles.notificationExampleIconFrame}>
+            <Animated.Image
+              accessible={false}
+              resizeMode="contain"
+              source={notificationFormalIcon}
+              style={[
+                styles.notificationExampleIconImage,
+                { opacity: formalOpacity },
+              ]}
+            />
+            <Animated.Image
+              accessible={false}
+              resizeMode="contain"
+              source={notificationCuteIcon}
+              style={[
+                styles.notificationExampleIconImage,
+                { opacity: cuteOpacity },
+              ]}
+            />
+          </View>
+          <View style={styles.notificationExampleTextStack}>
+            <Animated.View
+              aria-hidden={tone !== 'formal'}
+              accessibilityElementsHidden={tone !== 'formal'}
+              importantForAccessibility={
+                tone === 'formal' ? 'auto' : 'no-hide-descendants'
+              }
+              pointerEvents="none"
+              style={[
+                styles.notificationExampleCopy,
+                {
+                  opacity: formalOpacity,
+                  transform: [{ translateY: formalTranslateY }],
+                },
+              ]}
+            >
+              <AppText role="label" weight="semibold">
+                {notificationTonePreviewCopy.formal.title}
+              </AppText>
+              <AppText
+                numberOfLines={1}
+                role="body"
+                color={colors.text.secondary}
+                style={styles.notificationExampleDescription}
+              >
+                {notificationTonePreviewCopy.formal.body}
+              </AppText>
+            </Animated.View>
+            <Animated.View
+              aria-hidden={tone !== 'cute'}
+              accessibilityElementsHidden={tone !== 'cute'}
+              importantForAccessibility={
+                tone === 'cute' ? 'auto' : 'no-hide-descendants'
+              }
+              pointerEvents="none"
+              style={[
+                styles.notificationExampleCopyOverlay,
+                {
+                  opacity: cuteOpacity,
+                  transform: [{ translateY: cuteTranslateY }],
+                },
+              ]}
+            >
+              <AppText role="label" weight="semibold">
+                {notificationTonePreviewCopy.cute.title}
+              </AppText>
+              <AppText
+                numberOfLines={1}
+                role="body"
+                color={colors.text.secondary}
+                style={styles.notificationExampleDescription}
+              >
+                {notificationTonePreviewCopy.cute.body}
+              </AppText>
+            </Animated.View>
+          </View>
+          <AppText
+            role="caption"
+            color={colors.text.secondary}
+            style={styles.notificationExampleTime}
+          >
+            сейчас
+          </AppText>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function ProfileDetailScreen({
   bottomInset,
   children,
+  compactBottom = false,
   onBack,
   title,
   topInset,
 }: {
   bottomInset: number;
   children: ReactNode;
+  compactBottom?: boolean;
   onBack: () => void;
   title: string;
   topInset: number;
@@ -996,7 +1195,9 @@ function ProfileDetailScreen({
           styles.detailContent,
           {
             paddingTop: topInset + 84,
-            paddingBottom: Math.max(bottomInset + 112, 128),
+            paddingBottom: compactBottom
+              ? Math.max(bottomInset + 64, 80)
+              : Math.max(bottomInset + 112, 128),
           },
         ]}
       >
@@ -1489,12 +1690,14 @@ function renderProfileSectionDirect({
             icon="shield.lefthalf.filled"
             label={
               agentConsentAccepted
-                ? 'Отключить доступ Ассистента к данным'
-                : 'Доступ Ассистента к данным не дан'
+                ? 'Отключить доступ Ассистенту'
+                : 'Доступ Ассистенту не дан'
             }
-            subtitle="Профиль, дневник, анализы, метаданные документов, план и поиск по чатам; содержимое файлов недоступно"
+            subtitle="Профиль, дневник, анализы, план и чаты"
             disabled={!agentConsentAccepted}
             onPress={revokeAgentConsent}
+            singleLineLabel
+            singleLineSubtitle
           />
           <ProfileActionRow
             secondary
@@ -1609,7 +1812,7 @@ function renderProfileSectionDirect({
             />
           </ProfileSettingsGroup>
           <ProfileSettingsGroup title="Стиль уведомлений">
-            <View style={{ padding: spacing.md }}>
+            <View style={styles.notificationToneBlock}>
               <ProfileChoiceControl
                 accessibilityLabel="Стиль уведомлений"
                 defaultValue="formal"
@@ -1623,6 +1826,7 @@ function renderProfileSectionDirect({
                   void savePreferences({ notificationTone: value });
                 }}
               />
+              <NotificationTonePreview tone={notificationTone} />
             </View>
           </ProfileSettingsGroup>
           <ProfileActionRow
@@ -1714,10 +1918,94 @@ type MedicalCrudProps =
       onDelete: (item: AllergyRisk) => Promise<void>;
     };
 
+const medicationDoseUnits = [
+  { value: 'mcg', label: 'мкг' },
+  { value: 'mg', label: 'мг' },
+  { value: 'g', label: 'г' },
+  { value: 'ml', label: 'мл' },
+  { value: 'iu', label: 'МЕ' },
+] as const;
+
+type MedicationDoseUnit = (typeof medicationDoseUnits)[number]['value'];
+
+const medicationFrequencyOptions = [
+  { value: 'hour', label: 'час' },
+  { value: 'day', label: 'день' },
+  { value: 'week', label: 'неделя' },
+  { value: 'month', label: 'месяц' },
+] as const;
+
+type MedicationFrequency =
+  (typeof medicationFrequencyOptions)[number]['value'];
+
+const medicationDoseUnitAliases: Record<string, MedicationDoseUnit> = {
+  mcg: 'mcg',
+  ug: 'mcg',
+  'μg': 'mcg',
+  мкг: 'mcg',
+  mg: 'mg',
+  мг: 'mg',
+  g: 'g',
+  г: 'g',
+  ml: 'ml',
+  мл: 'ml',
+  iu: 'iu',
+  ме: 'iu',
+};
+
+function parseMedicationDosage(value?: string) {
+  const match = value
+    ?.trim()
+    .match(/^(\d+(?:[.,]\d+)?)\s*(mcg|ug|μg|мкг|mg|мг|g|г|ml|мл|iu|ме)\.?$/i);
+  if (!match) return undefined;
+  const unit = medicationDoseUnitAliases[match[2].toLocaleLowerCase('ru-RU')];
+  if (!unit) return undefined;
+  return { amount: match[1], unit };
+}
+
+function sanitizeMedicationDoseAmount(value: string) {
+  const cleaned = value.replace(/[^\d.,]/g, '');
+  const separatorIndex = cleaned.search(/[.,]/);
+  if (separatorIndex < 0) return cleaned;
+  return `${cleaned.slice(0, separatorIndex + 1)}${cleaned
+    .slice(separatorIndex + 1)
+    .replace(/[.,]/g, '')}`;
+}
+
+function parseMedicationFrequency(value?: string): MedicationFrequency {
+  const normalized = value?.trim().toLocaleLowerCase('ru-RU');
+  if (
+    normalized === 'час' ||
+    normalized === 'hour' ||
+    normalized === 'hourly' ||
+    normalized === 'каждый час'
+  )
+    return 'hour';
+  if (
+    normalized === 'неделя' ||
+    normalized === 'week' ||
+    normalized === 'weekly' ||
+    normalized === 'раз в неделю'
+  )
+    return 'week';
+  if (
+    normalized === 'месяц' ||
+    normalized === 'month' ||
+    normalized === 'monthly' ||
+    normalized === 'раз в месяц'
+  )
+    return 'month';
+  return 'day';
+}
+
 function MedicalCrudSection(props: MedicalCrudProps) {
   const [selectedId, setSelectedId] = useState<string>();
   const [primary, setPrimary] = useState('');
   const [secondary, setSecondary] = useState('');
+  const [medicationDoseUnit, setMedicationDoseUnit] =
+    useState<MedicationDoseUnit>('mg');
+  const [medicationFrequency, setMedicationFrequency] =
+    useState<MedicationFrequency>('day');
   const records = props.records;
   const selected = records.find((item) => item.localId === selectedId);
   const primaryLabel =
@@ -1725,7 +2013,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
       ? 'Состояние или диагноз'
       : props.kind === 'medication'
         ? 'Название препарата'
-        : 'Аллерген или риск';
+        : 'Аллерген';
   const secondaryLabel =
     props.kind === 'condition'
       ? 'Заметка'
@@ -1737,6 +2025,8 @@ function MedicalCrudSection(props: MedicalCrudProps) {
     setSelectedId(undefined);
     setPrimary('');
     setSecondary('');
+    setMedicationDoseUnit('mg');
+    setMedicationFrequency('day');
   };
 
   const select = (item: MedicalCondition | Medication | AllergyRisk) => {
@@ -1746,7 +2036,10 @@ function MedicalCrudSection(props: MedicalCrudProps) {
       setSecondary(item.notes ?? '');
     } else if ('name' in item) {
       setPrimary(item.name);
-      setSecondary(item.dosage ?? '');
+      const parsedDosage = parseMedicationDosage(item.dosage);
+      setSecondary(parsedDosage?.amount ?? '');
+      setMedicationDoseUnit(parsedDosage?.unit ?? 'mg');
+      setMedicationFrequency(parseMedicationFrequency(item.frequency));
     } else {
       setPrimary(item.allergen);
       setSecondary(item.reaction ?? '');
@@ -1767,11 +2060,22 @@ function MedicalCrudSection(props: MedicalCrudProps) {
       });
     } else if (props.kind === 'medication') {
       const current = selected as Medication | undefined;
+      const doseAmount = secondary.trim().replace(',', '.');
+      const doseUnit = medicationDoseUnits.find(
+        (option) => option.value === medicationDoseUnit,
+      )?.label;
+      const frequency = medicationFrequencyOptions.find(
+        (option) => option.value === medicationFrequency,
+      )?.label;
       await props.onSave({
         ...current,
         localId: current?.localId,
         name: normalized,
-        dosage: secondary.trim() || undefined,
+        dosage:
+          doseAmount && doseUnit
+            ? `${Number(doseAmount)} ${doseUnit}`
+            : current?.dosage,
+        frequency: frequency ?? 'день',
         active: current?.active ?? true,
       });
     } else {
@@ -1797,48 +2101,66 @@ function MedicalCrudSection(props: MedicalCrudProps) {
     reset();
   };
 
+  const medicationDoseValid =
+    props.kind !== 'medication' ||
+    !secondary.trim() ||
+    Number(secondary.trim().replace(',', '.')) > 0;
+
   return (
     <View style={styles.medicalHistoryLayout}>
+      {selected ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Закрыть редактирование записи"
+          onPress={reset}
+          style={styles.medicalEditorDismissLayer}
+        />
+      ) : null}
       {records.length ? (
-        <ProfileSettingsGroup title="Сохранённые записи">
-          {records.map((item, index) => {
-            const label =
-              'title' in item
-                ? item.title
-                : 'name' in item
-                  ? item.name
-                  : item.allergen;
-            const value =
-              'status' in item
-                ? item.status === 'active'
-                  ? 'Активно'
-                  : 'Завершено'
-                : 'active' in item
-                  ? item.active
-                    ? 'Принимается'
-                    : 'Завершён'
-                  : item.severity === 'unknown'
-                    ? undefined
-                    : item.severity;
-            return (
-              <ProfileSettingsRow
-                key={item.localId}
-                icon="cross.case.fill"
-                fallback="+"
-                iconBackground={profileTones.health.tile}
-                iconColor={profileTones.health.glyph}
-                label={label}
-                value={value}
-                isLast={index === records.length - 1}
-                onPress={() => select(item)}
-              />
-            );
-          })}
-        </ProfileSettingsGroup>
+        <View style={styles.medicalEditorForeground}>
+          <ProfileSettingsGroup title="Сохранённые записи">
+            {records.map((item, index) => {
+              const label =
+                'title' in item
+                  ? item.title
+                  : 'name' in item
+                    ? item.name
+                    : item.allergen;
+              const value =
+                'status' in item
+                  ? item.status === 'active'
+                    ? 'Активно'
+                    : 'Завершено'
+                  : 'active' in item
+                    ? item.active
+                      ? 'Принимается'
+                      : 'Завершён'
+                    : item.severity === 'unknown'
+                      ? undefined
+                      : item.severity;
+              return (
+                <ProfileSettingsRow
+                  key={item.localId}
+                  icon="cross.case.fill"
+                  fallback="+"
+                  hideIcon
+                  iconBackground={profileTones.health.tile}
+                  iconColor={profileTones.health.glyph}
+                  label={label}
+                  value={value}
+                  isLast={index === records.length - 1}
+                  onPress={() =>
+                    selectedId === item.localId ? reset() : select(item)
+                  }
+                />
+              );
+            })}
+          </ProfileSettingsGroup>
+        </View>
       ) : (
         <ProfileEmptyMessage title="Записей пока нет" />
       )}
-      <View style={styles.inlineEditor}>
+      <View style={[styles.inlineEditor, styles.medicalEditorForeground]}>
         <AppText role="label" weight="semibold">
           {selected ? 'Изменить запись' : 'Добавить запись'}
         </AppText>
@@ -1851,19 +2173,63 @@ function MedicalCrudSection(props: MedicalCrudProps) {
           placeholderTextColor="#989395"
           style={styles.inlineInput}
         />
-        <TextInput
-          editable={!props.readOnly}
-          testID="e2e-medical-secondary"
-          value={secondary}
-          onChangeText={setSecondary}
-          placeholder={secondaryLabel}
-          placeholderTextColor="#989395"
-          style={styles.inlineInput}
-        />
+        {props.kind === 'medication' ? (
+          <>
+            <View style={styles.medicationDoseRow}>
+              <TextInput
+                editable={!props.readOnly}
+                inputMode="decimal"
+                keyboardType="decimal-pad"
+                testID="e2e-medical-secondary"
+                value={secondary}
+                onChangeText={(value) =>
+                  setSecondary(sanitizeMedicationDoseAmount(value))
+                }
+                placeholder="Количество"
+                placeholderTextColor="#989395"
+                style={[styles.inlineInput, styles.medicationDoseInput]}
+              />
+              <SegmentedSwitcher
+                accessibilityLabel="Единица измерения дозировки"
+                options={medicationDoseUnits}
+                value={medicationDoseUnit}
+                onChange={setMedicationDoseUnit}
+                style={styles.medicationDoseUnits}
+              />
+            </View>
+            <View style={styles.medicationFrequencyBlock}>
+              <AppText
+                role="caption"
+                color={colors.text.secondary}
+                style={styles.medicationFrequencyLabel}
+              >
+                Периодичность
+              </AppText>
+              <SegmentedSwitcher
+                accessibilityLabel="Периодичность приёма препарата"
+                options={medicationFrequencyOptions}
+                value={medicationFrequency}
+                onChange={setMedicationFrequency}
+              />
+            </View>
+          </>
+        ) : (
+          <TextInput
+            editable={!props.readOnly}
+            testID="e2e-medical-secondary"
+            value={secondary}
+            onChangeText={setSecondary}
+            placeholder={secondaryLabel}
+            placeholderTextColor="#989395"
+            style={styles.inlineInput}
+          />
+        )}
         <ProfileActionRow
           icon="checkmark"
           label="Сохранить"
-          disabled={props.readOnly || !primary.trim()}
+          disabled={
+            props.readOnly || !primary.trim() || !medicationDoseValid
+          }
           onPress={() => void save()}
         />
         {selected ? (
@@ -2165,10 +2531,93 @@ const styles = StyleSheet.create({
     height: 874,
     transformOrigin: 'top left',
   },
+  notificationToneBlock: {
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  notificationTonePreview: {
+    gap: spacing.md,
+  },
+  notificationToneImageFrame: {
+    width: '100%',
+    aspectRatio: 1.75,
+    alignSelf: 'center',
+    overflow: 'hidden',
+    borderRadius: 24,
+    backgroundColor: '#FDECE5',
+  },
+  notificationToneImage: {
+    position: 'absolute',
+    top: '2.5%',
+    left: '2.5%',
+    width: '95%',
+    height: '95%',
+  },
+  notificationExampleCard: {
+    borderWidth: 1,
+    borderColor: '#EEE7E9',
+    borderRadius: radii.lg,
+    backgroundColor: '#FFFEFE',
+    padding: spacing.md,
+  },
+  notificationExampleBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  notificationExampleIconFrame: {
+    width: 48,
+    height: 48,
+    flexShrink: 0,
+    overflow: 'hidden',
+    borderRadius: 14,
+    backgroundColor: '#FDECE5',
+  },
+  notificationExampleIconImage: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    bottom: 3,
+    left: 3,
+    width: 42,
+    height: 42,
+  },
+  notificationExampleTextStack: {
+    minWidth: 0,
+    flex: 1,
+    position: 'relative',
+    paddingTop: 1,
+  },
+  notificationExampleTime: {
+    flexShrink: 0,
+    paddingTop: 3,
+  },
+  notificationExampleDescription: {
+    marginTop: -2,
+  },
+  notificationExampleCopy: {
+    gap: 0,
+  },
+  notificationExampleCopyOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    gap: 0,
+  },
   medicalHistoryLayout: {
+    position: 'relative',
     minHeight: 0,
     flex: 1,
     gap: spacing.lg,
+  },
+  medicalEditorDismissLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  medicalEditorForeground: {
+    position: 'relative',
+    zIndex: 1,
   },
   inlineEditor: {
     gap: spacing.sm,
@@ -2182,6 +2631,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#F6F3F4',
     paddingHorizontal: spacing.md,
     color: colors.text.primary,
+  },
+  medicationDoseRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  medicationDoseInput: {
+    width: 112,
+    flexShrink: 0,
+  },
+  medicationDoseUnits: {
+    minWidth: 0,
+    flex: 1,
+  },
+  medicationFrequencyBlock: {
+    width: '100%',
+    gap: 6,
+  },
+  medicationFrequencyLabel: {
+    paddingHorizontal: 2,
   },
   dangerIntro: {
     borderRadius: radii.lg,
