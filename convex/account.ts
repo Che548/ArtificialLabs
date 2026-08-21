@@ -33,6 +33,13 @@ export const requestDeletion = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await requireUserId(ctx);
+    const adminMembership = await ctx.db
+      .query('adminMemberships')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .unique();
+    if (adminMembership && adminMembership.revokedAt === undefined) {
+      throw new Error('REVOKE_ADMIN_BEFORE_ACCOUNT_DELETION');
+    }
     const now = Date.now();
     const existing = await accountStateFor(ctx, userId);
     const state = {
@@ -146,6 +153,11 @@ export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
     .withIndex('by_user', (q) => q.eq('userId', userId as never))
     .unique();
   if (aiAgentConsent) await ctx.db.delete(aiAgentConsent._id);
+  const analyticsConsent = await ctx.db
+    .query('analyticsConsents')
+    .withIndex('by_user', (q) => q.eq('userId', userId as never))
+    .unique();
+  if (analyticsConsent) await ctx.db.delete(analyticsConsent._id);
   const agentRuns = await ctx.db
     .query('agentRuns')
     .filter((q) => q.eq(q.field('userId'), userId))

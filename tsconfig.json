@@ -15,6 +15,7 @@
     "dist",
     "web-build",
     "tmp",
+    "admin",
     "**/*.test.ts"
   ]
 }

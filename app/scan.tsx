@@ -1,5 +1,6 @@
 import type { BlurTint } from 'expo-blur';
 import { useFonts } from 'expo-font';
+import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
@@ -51,6 +52,7 @@ import {
 } from '../design-system';
 import { FallbackGlassBackdrop } from '../design-system/glass-fallback';
 import { useHealthStore } from '../lib/health-store';
+import { enqueueTelemetryEvent } from '../lib/local-database';
 import { loadScanHistory, saveScanToHistory } from '../services/scanning';
 
 const DESIGN_WIDTH = 402;
@@ -331,8 +333,13 @@ function HistoryBackIcon() {
 
 export default function ScanScreen() {
   const { journalId } = useLocalSearchParams<{ journalId?: string }>();
-  const { addJournalEntry, addScanResult, journalEntries, scanResults } =
-    useHealthStore();
+  const {
+    addJournalEntry,
+    addScanResult,
+    journalEntries,
+    preferences,
+    scanResults,
+  } = useHealthStore();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [scanFlowVisible, setScanFlowVisible] = useState(false);
@@ -815,6 +822,38 @@ export default function ScanScreen() {
                         hasLocalImage: true,
                         localImageUri: record.imageUri,
                       });
+                      const analyticsEnabled = preferences.some(
+                        (item) => !item.deletedAt && item.anonymousAnalytics,
+                      );
+                      if (analyticsEnabled && Platform.OS !== 'web') {
+                        const normalizedLot = record.batch
+                          .trim()
+                          .replace(/[^A-Za-z0-9._:+-]/g, '-')
+                          .slice(0, 64);
+                        await enqueueTelemetryEvent({
+                          eventId: `scan-${record.id}`,
+                          kind: 'cv_processed',
+                          occurredAt: record.capturedAt,
+                          platform: Platform.OS as 'ios' | 'android',
+                          osMajor: String(Platform.Version).split('.')[0],
+                          appVersion: Constants.expoConfig?.version ?? '1.0.0',
+                          algorithmVersion: record.algorithmVersion,
+                          calibrationVersion: record.calibrationVersion,
+                          testSystemKey:
+                            record.type === 'Ovulation LH'
+                              ? 'ovulation-strip'
+                              : 'pregnancy-strip',
+                          lotNumber: normalizedLot || undefined,
+                          durationMs: record.processingDurationMs,
+                          outcome:
+                            record.analysisStatus === 'invalid'
+                              ? 'invalid'
+                              : record.analysisStatus === 'review'
+                                ? 'review'
+                                : 'success',
+                          qualityFlags: record.qualityFlags?.slice(0, 12) ?? [],
+                        });
+                      }
                       setScanHistory((current) =>
                         [record, ...current].sort(
                           (left, right) => right.capturedAt - left.capturedAt,

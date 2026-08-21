@@ -12,6 +12,10 @@ import type {
   LocalProfile,
   ScanResult,
 } from './health-types';
+import type {
+  AnonymousTelemetryEvent,
+  PendingTelemetryEvent,
+} from './telemetry-types';
 import { createEmptySnapshot } from './health-types';
 import { createChatTombstones } from './chat-deletion';
 import {
@@ -200,6 +204,14 @@ async function openDatabase() {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS outbox_entity_local
       ON outbox(entity, local_id);
+    CREATE TABLE IF NOT EXISTS telemetry_outbox (
+      event_id TEXT PRIMARY KEY NOT NULL,
+      payload TEXT NOT NULL,
+      occurred_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS telemetry_outbox_time
+      ON telemetry_outbox(occurred_at ASC);
     CREATE VIRTUAL TABLE IF NOT EXISTS agent_search_fts USING fts5(
       entity UNINDEXED,
       local_id UNINDEXED,
@@ -274,7 +286,7 @@ export async function claimLocalDatabaseOwner(userId: string) {
   if (row?.value === userId) return false;
   await withWriteTransaction(async (transaction) => {
     await transaction.execAsync(
-      'DELETE FROM records; DELETE FROM outbox; DELETE FROM agent_search_fts; DELETE FROM settings;',
+      'DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings;',
     );
     await transaction.runAsync(
       `INSERT INTO settings (key, value) VALUES ('ownerId', ?)
@@ -787,7 +799,66 @@ export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
 export async function clearLocalHealthData() {
   await withWriteTransaction(async (db) => {
     await db.execAsync(
-      "DELETE FROM records; DELETE FROM outbox; DELETE FROM agent_search_fts; DELETE FROM settings WHERE key = 'profile';",
+      "DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings WHERE key = 'profile';",
     );
+  });
+}
+
+export async function enqueueTelemetryEvent(event: AnonymousTelemetryEvent) {
+  await withWriteTransaction(async (db) => {
+    await db.runAsync(
+      `INSERT INTO telemetry_outbox(event_id, payload, occurred_at, attempts)
+       VALUES (?, ?, ?, 0)
+       ON CONFLICT(event_id) DO NOTHING`,
+      event.eventId,
+      JSON.stringify(event),
+      event.occurredAt,
+    );
+  });
+}
+
+export async function loadPendingTelemetryEvents(limit = 50) {
+  const db = await database();
+  const rows = await db.getAllAsync<{
+    payload: string;
+    attempts: number;
+  }>(
+    `SELECT payload, attempts FROM telemetry_outbox
+     ORDER BY occurred_at ASC LIMIT ?`,
+    Math.max(1, Math.min(limit, 50)),
+  );
+  return rows.map(
+    (row) =>
+      ({
+        ...(JSON.parse(row.payload) as AnonymousTelemetryEvent),
+        attempts: row.attempts,
+      }) satisfies PendingTelemetryEvent,
+  );
+}
+
+export async function acknowledgeTelemetryEvents(eventIds: string[]) {
+  if (eventIds.length === 0) return;
+  await withWriteTransaction(async (db) => {
+    for (const eventId of eventIds) {
+      await db.runAsync('DELETE FROM telemetry_outbox WHERE event_id = ?', eventId);
+    }
+  });
+}
+
+export async function markTelemetryAttempt(eventIds: string[]) {
+  if (eventIds.length === 0) return;
+  await withWriteTransaction(async (db) => {
+    for (const eventId of eventIds) {
+      await db.runAsync(
+        'UPDATE telemetry_outbox SET attempts = attempts + 1 WHERE event_id = ?',
+        eventId,
+      );
+    }
+  });
+}
+
+export async function clearPendingTelemetryEvents() {
+  await withWriteTransaction(async (db) => {
+    await db.runAsync('DELETE FROM telemetry_outbox');
   });
 }

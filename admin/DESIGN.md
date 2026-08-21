@@ -57,7 +57,7 @@ Designing a high-density analytical workspace for operators, data scientists, an
 - `components/charts.tsx`: line, bar, scatter, and heatmap visualization primitives.
 - `components/studio-shell.tsx`: shared command bar and three-pane responsive shell.
 - `app/kit/page.tsx`: full, production-component-driven system inventory.
-- `app/page.tsx`: realistic production analysis workspace composed from the same kit.
+- `app/page.tsx`: production ArtificialLabs admin workspace composed from the same kit.
 
 ## Accessibility
 

@@ -28,6 +28,7 @@ import { AgentAutomationManager } from '../lib/agent-automation-manager';
 import { ConnectivityBanner, ConnectivityProvider } from '../lib/connectivity';
 import { HealthStoreProvider } from '../lib/health-store';
 import { NotificationManagerProvider } from '../lib/notification-manager';
+import { TelemetryManager } from '../lib/telemetry-manager';
 import { authTokenStorage } from '../lib/secure-storage';
 import {
   androidMaterials,
@@ -499,6 +500,7 @@ function NativeApp() {
   return (
     <HealthStoreProvider>
       <NotificationManagerProvider>
+        <TelemetryManager />
         <AgentAutomationManager />
         <AppGate>
           <Tabs />

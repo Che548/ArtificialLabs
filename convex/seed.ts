@@ -14,8 +14,22 @@ export const catalog = mutation({
       { key: 'ovulation-strip', name: 'Тест на овуляцию', testKind: 'ovulation' as const },
     ]) {
       const existing = await ctx.db.query('testSystems').withIndex('by_key', (q) => q.eq('key', system.key)).unique();
-      if (existing) await ctx.db.patch(existing._id, { ...system, updatedAt: now });
-      else await ctx.db.insert('testSystems', { ...system, resultType: 'qualitative', active: true, updatedAt: now });
+      const patch = {
+        ...system,
+        manufacturer: 'ArtificialLabs',
+        description: '',
+        format: 'strip',
+        status: 'active' as const,
+        compatibleAlgorithmVersions: [],
+        active: true,
+        updatedAt: now,
+      };
+      if (existing) await ctx.db.patch(existing._id, patch);
+      else await ctx.db.insert('testSystems', {
+        ...patch,
+        resultType: 'qualitative',
+        createdAt: now,
+      });
     }
     return { seeded: 2 };
   },

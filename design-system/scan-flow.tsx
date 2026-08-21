@@ -2390,6 +2390,8 @@ export function ScanFlowOverlay({
   const [isCompleting, setIsCompleting] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const analysisRequestId = useRef(0);
+  const analysisStartedAt = useRef<number | null>(null);
+  const analysisDurationMs = useRef<number | undefined>(undefined);
   const capturedImageUriRef = useRef<string | null>(null);
   const capturedImageOwnedRef = useRef(false);
   const completingRef = useRef(false);
@@ -2460,6 +2462,7 @@ export function ScanFlowOverlay({
     setUseLegacyPipeline(true);
     setAnalysisResult(null);
     setAnalysisError(null);
+    analysisStartedAt.current = Date.now();
     navigateToStage('processing', 'fade');
     void scanningService
       .analyze(initialImageUri, {
@@ -2471,6 +2474,9 @@ export function ScanFlowOverlay({
           return;
         }
         setAnalysisResult(result);
+        analysisDurationMs.current = analysisStartedAt.current
+          ? Date.now() - analysisStartedAt.current
+          : undefined;
         navigateToStage('result', 'result');
       })
       .catch((error: unknown) => {
@@ -2482,6 +2488,9 @@ export function ScanFlowOverlay({
             ? error.message
             : 'Неизвестная ошибка анализа.',
         );
+        analysisDurationMs.current = analysisStartedAt.current
+          ? Date.now() - analysisStartedAt.current
+          : undefined;
         navigateToStage('result', 'result');
       });
   }, [initialImageUri, visible]);
@@ -2616,6 +2625,7 @@ export function ScanFlowOverlay({
         qualityFlags: analysisResult?.reason_codes ?? [],
         calibrationVersion: analysisResult?.assay_profile.version,
         signalRatio: analysisResult?.signal.value ?? undefined,
+        processingDurationMs: analysisDurationMs.current,
       }),
     )
       .then(() => discardCapturedImage())
@@ -2698,6 +2708,7 @@ export function ScanFlowOverlay({
           updateCapturedImageUri(imageUri);
           setAnalysisResult(null);
           setAnalysisError(null);
+          analysisStartedAt.current = Date.now();
           navigateToStage('processing', 'fade');
           void scanningService
             .analyze(imageUri, {
@@ -2709,6 +2720,9 @@ export function ScanFlowOverlay({
                 return;
               }
               setAnalysisResult(result);
+              analysisDurationMs.current = analysisStartedAt.current
+                ? Date.now() - analysisStartedAt.current
+                : undefined;
               navigateToStage('result', 'result');
             })
             .catch((error: unknown) => {
@@ -2720,6 +2734,9 @@ export function ScanFlowOverlay({
                   ? error.message
                   : 'Неизвестная ошибка анализа.',
               );
+              analysisDurationMs.current = analysisStartedAt.current
+                ? Date.now() - analysisStartedAt.current
+                : undefined;
               navigateToStage('result', 'result');
             });
         }}

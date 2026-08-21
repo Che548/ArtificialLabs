@@ -491,10 +491,53 @@ export default defineSchema({
     name: v.string(),
     testKind: v.union(v.literal('pregnancy'), v.literal('ovulation')),
     resultType: v.literal('qualitative'),
+    manufacturer: v.optional(v.string()),
+    description: v.optional(v.string()),
+    format: v.optional(v.string()),
+    status: v.optional(
+      v.union(
+        v.literal('draft'),
+        v.literal('active'),
+        v.literal('archived'),
+      ),
+    ),
+    compatibleAlgorithmVersions: v.optional(v.array(v.string())),
     publishedCalibrationVersion: v.optional(v.string()),
     active: v.boolean(),
+    createdAt: v.optional(v.number()),
     updatedAt: v.number(),
-  }).index('by_key', ['key']),
+  })
+    .index('by_key', ['key'])
+    .index('by_status_updated', ['status', 'updatedAt']),
+  testLots: defineTable({
+    testSystemId: v.id('testSystems'),
+    lotNumber: v.string(),
+    manufacturedAt: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
+    applicabilityMin: v.optional(v.number()),
+    applicabilityMax: v.optional(v.number()),
+    applicabilityUnit: v.optional(v.string()),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('review'),
+      v.literal('active'),
+      v.literal('archived'),
+      v.literal('revoked'),
+    ),
+    compatibleAppVersions: v.array(v.string()),
+    compatibleAlgorithmVersions: v.array(v.string()),
+    currentCalibrationId: v.optional(v.id('calibrationVersions')),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_system_lot', ['testSystemId', 'lotNumber'])
+    .index('by_system_status_updated', [
+      'testSystemId',
+      'status',
+      'updatedAt',
+    ])
+    .index('by_status_updated', ['status', 'updatedAt']),
   calibrationVersions: defineTable({
     testSystemKey: v.string(),
     version: v.string(),
@@ -508,5 +551,250 @@ export default defineSchema({
     checksum: v.string(),
     publishedAt: v.optional(v.number()),
     updatedAt: v.number(),
-  }).index('by_system_version', ['testSystemKey', 'version']),
+    testSystemId: v.optional(v.id('testSystems')),
+    lotId: v.optional(v.id('testLots')),
+    lifecycleStatus: v.optional(
+      v.union(
+        v.literal('draft'),
+        v.literal('review'),
+        v.literal('approved'),
+        v.literal('signing'),
+        v.literal('published'),
+        v.literal('active'),
+        v.literal('rejected'),
+        v.literal('revoked'),
+        v.literal('rolled_back'),
+        v.literal('signing_failed'),
+      ),
+    ),
+    assetIds: v.optional(v.array(v.id('adminAssets'))),
+    manifest: v.optional(v.string()),
+    signature: v.optional(v.string()),
+    publicKey: v.optional(v.string()),
+    publicKeyVersion: v.optional(v.string()),
+    previousVersionId: v.optional(v.id('calibrationVersions')),
+    rollbackOfId: v.optional(v.id('calibrationVersions')),
+    authorId: v.optional(v.id('users')),
+    reviewerId: v.optional(v.id('users')),
+    approvedAt: v.optional(v.number()),
+    signedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    createdAt: v.optional(v.number()),
+  })
+    .index('by_system_version', ['testSystemKey', 'version'])
+    .index('by_lot_status_updated', ['lotId', 'lifecycleStatus', 'updatedAt'])
+    .index('by_status_updated', ['lifecycleStatus', 'updatedAt']),
+  adminMemberships: defineTable({
+    userId: v.id('users'),
+    role: v.literal('admin'),
+    emailSnapshot: v.string(),
+    grantedBy: v.optional(v.id('users')),
+    grantedAt: v.number(),
+    revokedBy: v.optional(v.id('users')),
+    revokedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_role_revoked', ['role', 'revokedAt'])
+    .index('by_updated', ['updatedAt']),
+  adminAuditEvents: defineTable({
+    actorUserId: v.id('users'),
+    action: v.string(),
+    entityType: v.string(),
+    entityId: v.optional(v.string()),
+    summary: v.string(),
+    requestId: v.string(),
+    occurredAt: v.number(),
+  })
+    .index('by_time', ['occurredAt'])
+    .index('by_entity_time', ['entityType', 'occurredAt'])
+    .index('by_actor_time', ['actorUserId', 'occurredAt']),
+  adminAssets: defineTable({
+    storageId: v.id('_storage'),
+    kind: v.union(
+      v.literal('calibration_json'),
+      v.literal('reference_csv'),
+      v.literal('reference_json'),
+      v.literal('cms_image'),
+    ),
+    fileName: v.string(),
+    mimeType: v.string(),
+    size: v.number(),
+    checksum: v.optional(v.string()),
+    status: v.union(
+      v.literal('uploaded'),
+      v.literal('validated'),
+      v.literal('rejected'),
+    ),
+    validationError: v.optional(v.string()),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_storage', ['storageId'])
+    .index('by_status_updated', ['status', 'updatedAt']),
+  calibrationValidations: defineTable({
+    calibrationId: v.id('calibrationVersions'),
+    datasetAssetId: v.optional(v.id('adminAssets')),
+    sampleCount: v.number(),
+    passed: v.boolean(),
+    metrics: v.array(
+      v.object({
+        key: v.string(),
+        value: v.number(),
+        threshold: v.optional(v.number()),
+        passed: v.boolean(),
+      }),
+    ),
+    notes: v.optional(v.string()),
+    algorithmVersions: v.array(v.string()),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+  })
+    .index('by_calibration_time', ['calibrationId', 'createdAt'])
+    .index('by_time', ['createdAt']),
+  contentItems: defineTable({
+    key: v.string(),
+    category: v.union(
+      v.literal('article'),
+      v.literal('infographic'),
+      v.literal('term'),
+      v.literal('hint'),
+      v.literal('tooltip'),
+    ),
+    placement: v.string(),
+    currentPublishedVersionId: v.optional(v.id('contentVersions')),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_key', ['key'])
+    .index('by_category_updated', ['category', 'updatedAt']),
+  contentVersions: defineTable({
+    contentItemId: v.id('contentItems'),
+    version: v.number(),
+    title: v.string(),
+    markdown: v.string(),
+    imageAssetId: v.optional(v.id('adminAssets')),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('review'),
+      v.literal('published'),
+      v.literal('unpublished'),
+    ),
+    authorId: v.id('users'),
+    reviewerId: v.optional(v.id('users')),
+    publishedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_item_version', ['contentItemId', 'version'])
+    .index('by_status_updated', ['status', 'updatedAt']),
+  analyticsConsents: defineTable({
+    userId: v.id('users'),
+    enabled: v.boolean(),
+    updatedAt: v.number(),
+  }).index('by_user', ['userId']),
+  telemetryEvents: defineTable({
+    eventId: v.string(),
+    kind: v.union(
+      v.literal('cv_processed'),
+      v.literal('calibration_fetch'),
+      v.literal('client_error'),
+    ),
+    occurredAt: v.number(),
+    day: v.string(),
+    platform: v.union(v.literal('ios'), v.literal('android')),
+    osMajor: v.string(),
+    appVersion: v.string(),
+    algorithmVersion: v.optional(v.string()),
+    calibrationVersion: v.optional(v.string()),
+    testSystemKey: v.optional(v.string()),
+    lotNumber: v.optional(v.string()),
+    durationMs: v.optional(v.number()),
+    outcome: v.optional(
+      v.union(
+        v.literal('success'),
+        v.literal('review'),
+        v.literal('invalid'),
+        v.literal('error'),
+      ),
+    ),
+    errorCode: v.optional(v.string()),
+    qualityFlags: v.array(v.string()),
+    processedAt: v.optional(v.number()),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index('by_event_id', ['eventId'])
+    .index('by_processed_time', ['processedAt', 'createdAt'])
+    .index('by_outcome_time', ['outcome', 'createdAt'])
+    .index('by_expiry', ['expiresAt']),
+  analyticsBuckets: defineTable({
+    day: v.string(),
+    scope: v.union(
+      v.literal('global'),
+      v.literal('platform'),
+      v.literal('test_system'),
+      v.literal('lot'),
+      v.literal('algorithm'),
+      v.literal('app_version'),
+    ),
+    dimension: v.string(),
+    processed: v.number(),
+    successes: v.number(),
+    reviews: v.number(),
+    invalid: v.number(),
+    errors: v.number(),
+    durationCount: v.number(),
+    durationTotalMs: v.number(),
+    qualityFlagCounts: v.array(
+      v.object({ key: v.string(), count: v.number() }),
+    ),
+    errorCounts: v.array(v.object({ key: v.string(), count: v.number() })),
+    updatedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_scope_dimension_day', ['scope', 'dimension', 'day'])
+    .index('by_expiry', ['expiresAt']),
+  analyticsDailyActiveKeys: defineTable({
+    day: v.string(),
+    keyHash: v.string(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index('by_day_key', ['day', 'keyHash'])
+    .index('by_expiry', ['expiresAt']),
+  analyticsDailyActiveCounts: defineTable({
+    day: v.string(),
+    count: v.number(),
+    updatedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_day', ['day'])
+    .index('by_expiry', ['expiresAt']),
+  analyticsWorkerState: defineTable({
+    key: v.literal('telemetry'),
+    scheduled: v.boolean(),
+    leaseUntil: v.optional(v.number()),
+    lastStartedAt: v.optional(v.number()),
+    lastCompletedAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_key', ['key']),
+  serviceChecks: defineTable({
+    service: v.string(),
+    status: v.union(
+      v.literal('healthy'),
+      v.literal('degraded'),
+      v.literal('offline'),
+    ),
+    latencyMs: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    checkedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_service_time', ['service', 'checkedAt'])
+    .index('by_time', ['checkedAt'])
+    .index('by_expiry', ['expiresAt']),
 });

@@ -3,19 +3,23 @@ FROM node:22.13.1-alpine AS build
 
 WORKDIR /app
 
-ARG EXPO_PUBLIC_CONVEX_URL
-ENV EXPO_PUBLIC_CONVEX_URL=$EXPO_PUBLIC_CONVEX_URL
+ARG NEXT_PUBLIC_CONVEX_URL
+ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
 
 COPY package.json package-lock.json ./
-RUN npm ci
+COPY admin/package.json admin/package-lock.json ./admin/
+RUN npm ci && npm --prefix admin ci
 
-COPY . .
-RUN npm run build:web
+COPY admin ./admin
+COPY convex ./convex
+COPY lib ./lib
+COPY shared ./shared
+RUN npm --prefix admin run build
 
 FROM nginx:1.28-alpine AS runtime
 
 COPY infra/web/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/admin/out /usr/share/nginx/html
 
 EXPOSE 80
 

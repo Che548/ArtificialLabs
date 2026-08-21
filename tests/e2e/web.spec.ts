@@ -1,82 +1,64 @@
 import { expect, test } from '@playwright/test';
 
-test('public web client remains a read-only demo', async ({ page }) => {
-  const mutationFrames: string[] = [];
-  const mutationRequests: string[] = [];
-
-  page.on('request', (request) => {
-    if (/\/api\/(mutation|action)/.test(request.url())) {
-      mutationRequests.push(request.url());
-    }
-  });
-  page.on('websocket', (socket) => {
-    socket.on('framesent', ({ payload }) => {
-      const text = typeof payload === 'string' ? payload : payload.toString();
-      if (/"type":"(Mutation|Action)"/.test(text)) mutationFrames.push(text);
-    });
-  });
-
-  const authHeading = page.getByText('сфера.', { exact: true });
+test('admin and UI kit are login protected', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      await expect(authHeading).toBeVisible({ timeout: 15_000 });
-      break;
-    } catch (error) {
-      if (attempt === 2) throw error;
-      await page.reload({ waitUntil: 'domcontentloaded' });
-    }
-  }
-  await page.getByPlaceholder('Email').fill('web-preview@example.test');
-  await page.getByPlaceholder('Введите пароль').fill('Preview!123');
+  await expect(
+    page.getByRole('heading', { name: 'Административная консоль' }),
+  ).toBeVisible();
+  await expect(page.getByText('Саморегистрация отключена.')).toBeVisible();
+  await expect(page.getByText('Dashboard', { exact: true })).not.toBeVisible();
+
+  await page.goto('/kit/', { waitUntil: 'domcontentloaded' });
+  await expect(
+    page.getByRole('heading', { name: 'Административная консоль' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Foundations', { exact: true }),
+  ).not.toBeVisible();
+});
+
+test('invalid credentials fail without revealing access state', async ({
+  page,
+}) => {
+  await page.goto('/');
   await page
-    .getByRole('checkbox', {
-      name: 'Согласие на обработку персональных данных',
-    })
-    .click();
-  await page
-    .getByRole('checkbox', { name: 'Принятие пользовательского соглашения' })
-    .click();
-  await page.getByRole('button', { name: 'Далее' }).click();
-
+    .getByRole('textbox', { name: 'Email' })
+    .fill('not-admin@example.test');
+  await page.getByLabel('Пароль').fill('Wrong!Password123');
+  await page.getByRole('button', { name: 'Войти' }).click();
   await expect(
-    page.getByText('Web demo · медицинские данные не сохраняются'),
+    page.getByText('Не удалось войти. Проверьте email и пароль.'),
   ).toBeVisible();
+  await expect(page.getByText('Dashboard', { exact: true })).not.toBeVisible();
+});
 
-  for (const label of ['Сферка', 'Анализы', 'Сегодня', 'Скан', 'Профиль']) {
-    await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
-  }
-
-  await page.getByText('Сферка', { exact: true }).first().click();
-  await expect(
-    page.getByText(
-      'ИИ-чат доступен в приложении для iOS и Android после входа.',
-    ),
-  ).toBeVisible();
-  await expect(page.getByLabel('Сообщение для Сферки')).not.toBeEditable();
-  await expect(
-    page.getByRole('tab', { name: 'Ассистент, Скоро' }),
-  ).toBeDisabled();
-  await expect(page.getByLabel('Добавить вложение')).toBeVisible();
-  await expect(
-    page.getByText(
-      'ИИ может ошибаться. Важные решения проверяйте у специалиста.',
-    ),
-  ).toBeVisible();
-
-  for (const label of ['Сферка', 'Анализы', 'Сегодня', 'Скан', 'Профиль']) {
-    await page.getByText(label, { exact: true }).first().click();
+test('admin can open every bounded workspace section', async ({ page }) => {
+  const email = process.env.E2E_ADMIN_EMAIL;
+  const password = process.env.E2E_ADMIN_PASSWORD;
+  test.skip(
+    !email || !password,
+    'Protected admin E2E credentials are not configured',
+  );
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'Email' }).fill(email!);
+  await page.getByLabel('Пароль').fill(password!);
+  await page.getByRole('button', { name: 'Войти' }).click();
+  for (const section of [
+    'Dashboard',
+    'Test Systems',
+    'Lots',
+    'Calibrations',
+    'Validation',
+    'Content',
+    'Monitoring',
+    'Admin Access',
+    'Audit',
+  ]) {
+    await page.getByRole('button', { name: section, exact: true }).click();
     await expect(
-      page.getByText('Web demo · медицинские данные не сохраняются'),
+      page.getByRole('heading', { name: section, exact: true }),
     ).toBeVisible();
   }
-
-  const healthStorageKeys = await page.evaluate(() =>
-    [...Object.keys(localStorage), ...Object.keys(sessionStorage)].filter(
-      (key) => /health|medical|outbox|profile/i.test(key),
-    ),
-  );
-  expect(healthStorageKeys).toEqual([]);
-  expect(mutationRequests).toEqual([]);
-  expect(mutationFrames).toEqual([]);
+  await page.goto('/kit/');
+  await expect(page.getByText('Foundations', { exact: true })).toBeVisible();
 });

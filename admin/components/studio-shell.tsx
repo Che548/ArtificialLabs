@@ -1,18 +1,30 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icons } from "./icons";
 import { Badge, Field, IconButton, Input, ListRow, Segmented, Select, Slider, Switch, ToolButton, UserChip } from "./ui";
 
-export function StudioShell({ children, title = "Revenue model", inspector = true }: { children: ReactNode; title?: string; inspector?: boolean }) {
+export function StudioShell({ children, title = "ArtificialLabs Admin", inspector = true }: { children: ReactNode; title?: string; inspector?: boolean }) {
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
   const [inspectOpen, setInspectOpen] = useState(inspector);
+  useEffect(() => {
+    const narrow = window.matchMedia("(max-width: 900px)");
+    const closePanels = (event: MediaQueryListEvent | MediaQueryList) => {
+      if (event.matches) {
+        setNavOpen(false);
+        setInspectOpen(false);
+      }
+    };
+    closePanels(narrow);
+    narrow.addEventListener("change", closePanels);
+    return () => narrow.removeEventListener("change", closePanels);
+  }, []);
   return <div className="studio-shell">
     <header className="command-bar">
-      <div className="command-leading"><IconButton label="Toggle navigator" onClick={() => setNavOpen(!navOpen)} active={navOpen}><Icons.sidebar/></IconButton><Link href="/" className="product-mark" aria-label="Vector home"><span><i/><i/><i/></span></Link><div className="document-title"><strong>{title}</strong><small>Saved just now</small></div></div>
+      <div className="command-leading"><IconButton label="Toggle navigator" onClick={() => setNavOpen(!navOpen)} active={navOpen}><Icons.sidebar/></IconButton><Link href="/" className="product-mark" aria-label="ArtificialLabs admin home"><span><i/><i/><i/></span></Link><div className="document-title"><strong>{title}</strong><small>Admin UI kit</small></div></div>
       <div className="command-tools"><ToolButton label="Pointer" shortcut="V" active><Icons.pointer/></ToolButton><ToolButton label="Inspect" shortcut="I"><Icons.crosshair/></ToolButton><ToolButton label="Zoom" shortcut="Z"><Icons.zoom/></ToolButton><span className="tool-divider"/><ToolButton label="Table"><Icons.table/></ToolButton><ToolButton label="Chart"><Icons.chart/></ToolButton><ToolButton label="Filter"><Icons.filter/></ToolButton></div>
       <div className="command-actions"><div className="sync-state"><span/> Synced</div><IconButton label="Notifications"><Icons.bell/></IconButton><IconButton label="Toggle inspector" onClick={() => setInspectOpen(!inspectOpen)} active={inspectOpen}><Icons.inspector/></IconButton><UserChip/></div>
     </header>
