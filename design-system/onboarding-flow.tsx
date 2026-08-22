@@ -27,6 +27,7 @@ import BabyIcon from '../assets/figma/onboarding/baby.svg';
 import CycleIcon from '../assets/figma/onboarding/cycle.svg';
 import HeartIcon from '../assets/figma/onboarding/heart.svg';
 import { AppText } from './components';
+import { ProfileSettingsGroup, ProfileToggleRow } from './profile';
 import { colors, fonts, shadows } from './tokens';
 
 type OnboardingGoal = 'cycle' | 'planning' | 'pregnancy';
@@ -43,6 +44,9 @@ export type OnboardingFlowResult = {
   postpartum?: boolean;
   postContraception?: boolean;
   medicalConditions: string[];
+  cloudSyncEnabled: boolean;
+  anonymousAnalytics: boolean;
+  medicalRecommendations: boolean;
 };
 
 const goals: ReadonlyArray<{
@@ -68,7 +72,7 @@ const goals: ReadonlyArray<{
   },
   {
     value: 'cycle',
-    title: 'Отслеживать цикл',
+    title: 'Мониторинг здоровья',
     description: 'Календарь, прогноз менструации и наблюдение за изменениями',
     icon: 'calendar',
     assetIcon: CycleIcon,
@@ -100,7 +104,8 @@ const selectionEase = Easing.bezier(0.22, 1, 0.36, 1);
 function OnboardingShell({
   backLabel = 'Назад',
   children,
-  contentTop = 480,
+  header,
+  headerHeight = 32,
   nextLabel,
   nextDisabled = false,
   onBack,
@@ -109,7 +114,8 @@ function OnboardingShell({
 }: {
   backLabel?: string;
   children: ReactNode;
-  contentTop?: number;
+  header: ReactNode;
+  headerHeight?: number;
   nextLabel: string;
   nextDisabled?: boolean;
   onBack: () => void;
@@ -119,7 +125,9 @@ function OnboardingShell({
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const scale = width / 402;
-  const panelContentTop = Math.max(contentTop * scale, height * 0.525);
+  const panelHeaderTop =
+    Math.max(470 * scale, height * 0.525) + 16 * scale;
+  const scrollTop = panelHeaderTop + headerHeight;
   const actionBottomPadding = Math.max(insets.bottom - 10, 16 * scale);
   const actionHeight = 46 + actionBottomPadding + 18 * scale;
   const progressBottom = actionHeight + 6 * scale;
@@ -151,8 +159,12 @@ function OnboardingShell({
 
       <View style={[styles.progressPill, { top: Math.max(insets.top + 8, 16 * scale) }]}>
         <AppText numeric role="body" weight="semibold" style={styles.progressText}>
-          {step}/5
+          {step}/6
         </AppText>
+      </View>
+
+      <View style={[styles.shellHeader, { top: panelHeaderTop }]}>
+        {header}
       </View>
 
       <ScrollView
@@ -170,7 +182,7 @@ function OnboardingShell({
           styles.shellContent,
           {
             bottom: scrollBottom,
-            top: panelContentTop,
+            top: scrollTop,
           },
         ]}
       >
@@ -178,13 +190,19 @@ function OnboardingShell({
       </ScrollView>
 
       <LinearGradient
+        colors={['#FFFFFF', 'rgba(255,255,255,0)']}
+        pointerEvents="none"
+        style={[styles.contentTopFade, { top: scrollTop }]}
+      />
+
+      <LinearGradient
         colors={['rgba(255,255,255,0)', '#FFFFFF']}
         pointerEvents="none"
-        style={[styles.actionFade, { bottom: actionHeight }]}
+        style={[styles.contentBottomFade, { bottom: scrollBottom }]}
       />
 
       <View style={[styles.stepSegments, { bottom: progressBottom }]}>
-        {[1, 2, 3, 4, 5].map((item) => (
+        {[1, 2, 3, 4, 5, 6].map((item) => (
           <View key={item} style={[styles.stepSegment, item <= step && styles.stepSegmentActive]} />
         ))}
       </View>
@@ -838,6 +856,9 @@ export function OnboardingPreviewFlow({
   const [selectedDiseases, setSelectedDiseases] = useState<Set<string>>(new Set());
   const [customDisease, setCustomDisease] = useState('');
   const [diseaseModalVisible, setDiseaseModalVisible] = useState(false);
+  const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
+  const [anonymousAnalytics, setAnonymousAnalytics] = useState(false);
+  const [medicalRecommendations, setMedicalRecommendations] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -967,6 +988,9 @@ export function OnboardingPreviewFlow({
         postContraception:
           factors.has('Недавно отменила гормональную контрацепцию') || undefined,
         medicalConditions,
+        cloudSyncEnabled,
+        anonymousAnalytics,
+        medicalRecommendations,
       });
       transitionContent(() => setCompleted(true), 1);
     } catch (cause) {
@@ -977,27 +1001,74 @@ export function OnboardingPreviewFlow({
     }
   };
 
+  const stepTitle =
+    step === 1
+      ? 'Для чего вы хотите\nиспользовать Сферу?'
+      : step === 2
+        ? 'Немного о вас'
+        : step === 3
+          ? goal === 'pregnancy'
+            ? 'Какая дата вам известна?'
+            : 'Когда началась последняя менструация?'
+          : step === 4
+            ? goal === 'pregnancy'
+              ? 'Выберите дату'
+              : 'Расскажите о цикле'
+            : step === 5
+              ? 'Что может влиять на цикл?'
+              : 'Разрешения и данные';
+
+  const fixedHeader = (
+    <Animated.View
+      style={{
+        opacity: contentOpacity,
+        transform: [{ translateX: contentTranslateX }],
+      }}
+    >
+      <AppText
+        role="display"
+        weight="semibold"
+        style={[styles.title, styles.centeredTitle]}
+      >
+        {stepTitle}
+      </AppText>
+    </Animated.View>
+  );
+
   if (completed) {
     return (
       <OnboardingShell
+        header={
+          <Animated.View
+            style={{
+              opacity: contentOpacity,
+              transform: [{ translateX: contentTranslateX }],
+            }}
+          >
+            <AppText
+              role="display"
+              weight="semibold"
+              style={[styles.title, styles.centeredTitle]}
+            >
+              Готово
+            </AppText>
+          </Animated.View>
+        }
+        headerHeight={32}
         nextLabel="Открыть"
         onBack={() => {
           transitionContent(() => {
             setCompleted(false);
-            setStep(5);
+            setStep(6);
           }, -1);
         }}
         onNext={onClose}
-        step={5}
-        contentTop={505}
+        step={6}
       >
         <Animated.View style={[styles.completeScreen, { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }] }] }>
           <View style={styles.completeGlyph}>
             <SymbolView name="checkmark" tintColor="#FFFFFF" size={34} type="monochrome" />
           </View>
-          <AppText role="display" weight="semibold" style={styles.completeTitle}>
-            Готово
-          </AppText>
           <AppText role="body" color={colors.text.secondary} style={styles.completeText}>
             Программа наблюдения создана. Точность прогнозов будет повышаться по мере заполнения данных и сканирования тестов.
           </AppText>
@@ -1010,12 +1081,15 @@ export function OnboardingPreviewFlow({
     <>
       <OnboardingShell
       backLabel="Назад"
-      contentTop={step === 1 ? 500 : 480}
-      nextLabel={step === 5 ? 'Начать' : 'Далее'}
+      header={fixedHeader}
+      headerHeight={
+        step === 1 || (step === 3 && goal !== 'pregnancy') ? 58 : 32
+      }
+      nextLabel={step === 6 ? 'Начать' : 'Далее'}
       nextDisabled={submitting}
       onBack={step === 1 ? onClose : () => transitionContent(() => setStep(step - 1), -1)}
       onNext={() => {
-        if (step < 5) transitionContent(() => setStep(step + 1), 1);
+        if (step < 6) transitionContent(() => setStep(step + 1), 1);
         else void complete();
       }}
       step={step}
@@ -1029,9 +1103,6 @@ export function OnboardingPreviewFlow({
       >
         {step === 1 ? (
           <>
-            <AppText role="display" weight="semibold" style={[styles.title, styles.centeredTitle]}>
-              Для чего вы хотите{`\n`}использовать Сферу?
-            </AppText>
             <View accessibilityRole="radiogroup" style={styles.goalPillList}>
               {goals.map((item) => (
                 <GoalPill
@@ -1047,7 +1118,6 @@ export function OnboardingPreviewFlow({
 
         {step === 2 ? (
           <>
-            <AppText role="display" weight="semibold" style={[styles.title, styles.centeredTitle]}>Немного о вас</AppText>
             <NumberWheel editable label="Год рождения" min={1940} max={2010} suffix="год" value={birthYear} onChange={setBirthYear} />
             <View style={styles.fieldBlock}>
               <AppText role="label" weight="medium">Как к вам обращаться?</AppText>
@@ -1060,7 +1130,6 @@ export function OnboardingPreviewFlow({
           <>
             {goal === 'pregnancy' ? (
               <>
-                <AppText role="display" weight="semibold" style={[styles.title, styles.centeredTitle]}>Какая дата вам известна?</AppText>
                 <View style={styles.simpleChoiceList}>
                   <ChoiceRow label="Первый день последней менструации" selected={pregnancyDateKind === 'lastPeriod'} onPress={() => setPregnancyDateKind('lastPeriod')} />
                   <ChoiceRow label="Предполагаемая дата родов" selected={pregnancyDateKind === 'dueDate'} onPress={() => setPregnancyDateKind('dueDate')} />
@@ -1069,7 +1138,6 @@ export function OnboardingPreviewFlow({
               </>
             ) : (
               <>
-                <AppText role="display" weight="semibold" style={[styles.title, styles.centeredTitle]}>Когда началась последняя менструация?</AppText>
                 <View style={styles.dateStepCard}>
                   <AppText role="body" weight="semibold" style={styles.dateStepLabel}>
                     {dateUnknown ? 'Дата не указана' : 'Дата начала'}
@@ -1121,7 +1189,6 @@ export function OnboardingPreviewFlow({
           <>
             {goal === 'pregnancy' ? (
               <>
-                <AppText role="display" weight="semibold" style={[styles.title, styles.centeredTitle]}>Выберите дату</AppText>
                 <AppText role="label" color={colors.text.secondary} style={[styles.description, styles.centeredDescription]}>
                   {pregnancyDateKind === 'dueDate' ? 'Предполагаемая дата родов' : pregnancyDateKind === 'lastPeriod' ? 'Первый день последней менструации' : 'Дату можно добавить позже'}
                 </AppText>
@@ -1138,7 +1205,6 @@ export function OnboardingPreviewFlow({
               </>
             ) : (
               <>
-                <AppText role="display" weight="semibold" style={[styles.title, styles.centeredTitle]}>Расскажите о цикле</AppText>
                 <View style={styles.measureGrid}>
                   <CycleMeasure label="Длина цикла" min={20} max={45} unknown={cycleUnknown} value={cycleLength} onChange={setCycleLength} onUnknownChange={setCycleUnknown} />
                   <CycleMeasure label="Менструация" min={2} max={10} unknown={periodUnknown} value={periodLength} onChange={setPeriodLength} onUnknownChange={setPeriodUnknown} />
@@ -1150,7 +1216,6 @@ export function OnboardingPreviewFlow({
 
         {step === 5 ? (
           <>
-            <AppText role="display" weight="semibold" style={[styles.title, styles.centeredTitle]}>Что может влиять на цикл?</AppText>
             <AppText role="label" color={colors.text.secondary} style={[styles.description, styles.centeredDescription]}>Можно выбрать несколько вариантов.</AppText>
             <View style={styles.factorPills}>
               {cycleFactors.map((factor) => {
@@ -1160,8 +1225,44 @@ export function OnboardingPreviewFlow({
                 );
               })}
             </View>
+          </>
+        ) : null}
+
+        {step === 6 ? (
+          <>
+            <AppText
+              role="label"
+              color={colors.text.secondary}
+              style={[styles.description, styles.centeredDescription]}
+            >
+              Выберите функции, которые хотите включить. Настройки можно изменить позже.
+            </AppText>
+            <ProfileSettingsGroup title="Данные">
+              <ProfileToggleRow
+                label="Облачная синхронизация"
+                subtitle="Только структурированные данные"
+                value={cloudSyncEnabled}
+                onChange={setCloudSyncEnabled}
+              />
+              <ProfileToggleRow
+                label="Анонимная аналитика"
+                value={anonymousAnalytics}
+                onChange={setAnonymousAnalytics}
+              />
+              <ProfileToggleRow
+                label="Автономные рекомендации"
+                subtitle="Проверка запускается при стабильном подключении; фоновые сроки не гарантируются"
+                value={medicalRecommendations}
+                onChange={setMedicalRecommendations}
+                isLast
+              />
+            </ProfileSettingsGroup>
             {submissionError ? (
-              <AppText role="caption" color={colors.state.error} style={styles.submissionError}>
+              <AppText
+                role="caption"
+                color={colors.state.error}
+                style={styles.submissionError}
+              >
                 {submissionError}
               </AppText>
             ) : null}
@@ -1203,8 +1304,16 @@ const styles = StyleSheet.create({
     ...shadows.floating,
   },
   progressText: { fontSize: 23, lineHeight: 27, color: colors.brand.primary },
+  shellHeader: {
+    position: 'absolute',
+    zIndex: 6,
+    left: 20,
+    right: 20,
+    minHeight: 54,
+    justifyContent: 'flex-start',
+  },
   shellContent: { position: 'absolute', zIndex: 4, left: 0, right: 0 },
-  shellContentContainer: { paddingBottom: 36 },
+  shellContentContainer: { paddingTop: 16, paddingBottom: 36 },
   content: { paddingHorizontal: 20, gap: 12 },
   firstStepContent: { paddingHorizontal: 28, gap: 28, alignItems: 'center' },
   centeredTitle: { textAlign: 'center', alignSelf: 'stretch' },
@@ -1223,12 +1332,19 @@ const styles = StyleSheet.create({
   },
   goalPillSelected: { borderColor: '#F2A8CB', backgroundColor: '#FFF7FA' },
   goalPillText: { fontSize: 18, lineHeight: 22 },
-  actionFade: {
+  contentTopFade: {
     position: 'absolute',
-    zIndex: 7,
+    zIndex: 5,
     left: 0,
     right: 0,
-    height: 38,
+    height: 16,
+  },
+  contentBottomFade: {
+    position: 'absolute',
+    zIndex: 5,
+    left: 0,
+    right: 0,
+    height: 34,
   },
   stepSegments: {
     position: 'absolute',
@@ -1354,11 +1470,11 @@ const styles = StyleSheet.create({
   fieldBlock: { padding: 14, gap: 8, borderRadius: 22, backgroundColor: '#FFFFFF' },
   field: { height: 46, borderRadius: 14, paddingHorizontal: 13, backgroundColor: '#F2EFF0', color: colors.text.primary, fontFamily: fonts.sfRegular, fontSize: 16 },
   dateStepCard: {
-    minHeight: 150,
-    paddingVertical: 10,
+    minHeight: 104,
+    paddingVertical: 0,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
+    justifyContent: 'flex-start',
+    gap: 6,
   },
   dateStepLabel: { textAlign: 'center' },
   datePickerSurface: {

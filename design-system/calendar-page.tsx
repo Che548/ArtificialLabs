@@ -25,11 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AddIcon from '../assets/figma/calendar-page/add.svg';
 import BackIcon from '../assets/figma/calendar-page/back.svg';
 import HeaderShape from '../assets/figma/calendar-page/header-shape.svg';
-import {
-  AppText,
-  LiquidGlassSurface,
-  SegmentedSwitcher,
-} from './components';
+import { AppText, LiquidGlassSurface, SegmentedSwitcher } from './components';
 import {
   androidShadows,
   colors,
@@ -432,12 +428,11 @@ function CalendarDayGrid({
         const period = periodSelectionMode
           ? loggedPeriod
           : forecastPeriod || loggedPeriod;
-        const futureForecastPeriod =
-          useCycleForecast &&
-          forecastPeriod &&
-          !loggedPeriod &&
-          currentDate !== undefined &&
-          dayTimestamp(date) > dayTimestamp(currentDate);
+        const forecastOnlyPeriod =
+          useCycleForecast && forecastPeriod && !loggedPeriod;
+        const confirmedOrSamplePeriod = useCycleForecast
+          ? loggedPeriod
+          : period;
         const ovulation = useCycleForecast
           ? forecast?.kind === 'ovulation'
           : key === OVULATION_DATE_KEY;
@@ -482,8 +477,8 @@ function CalendarDayGrid({
                     style={[
                       styles.dayCircle,
                       fertile && styles.dayFertile,
-                      period && styles.dayPeriod,
-                      futureForecastPeriod && styles.dayFuturePeriod,
+                      confirmedOrSamplePeriod && styles.dayPeriod,
+                      forecastOnlyPeriod && styles.dayForecastPeriod,
                       periodSelectionMode && period && styles.dayPeriodSelected,
                       ovulation &&
                         !(periodSelectionMode && period) &&
@@ -501,8 +496,8 @@ function CalendarDayGrid({
                           : selected
                             ? colors.text.inverse
                             : inCurrentMonth
-                                ? colors.text.primary
-                                : 'rgba(115,110,108,0.34)'
+                              ? colors.text.primary
+                              : 'rgba(115,110,108,0.34)'
                       }
                       style={styles.dayNumber}
                     >
@@ -633,13 +628,12 @@ function YearMiniMonth({
             return <View key={key} style={styles.yearMiniDayCell} />;
           }
 
-          const forecast = forecastForDate(date) ?? getDayForecast(date);
+          const forecast = forecastForDate(date);
           const loggedPeriod = periodDateKeys.has(key);
-          const period = forecast.kind === 'menstruation' || loggedPeriod;
-          const futurePeriod =
-            period && !loggedPeriod && dayTimestamp(date) > dayTimestamp(currentDate);
-          const fertile = forecast.kind === 'fertile';
-          const ovulation = forecast.kind === 'ovulation';
+          const forecastPeriod = forecast?.kind === 'menstruation';
+          const forecastOnlyPeriod = forecastPeriod && !loggedPeriod;
+          const fertile = forecast?.kind === 'fertile';
+          const ovulation = forecast?.kind === 'ovulation';
           const current = key === currentKey;
           const selected = key === selectedKey;
 
@@ -658,8 +652,8 @@ function YearMiniMonth({
                     styles.yearMiniDay,
                     fertile && styles.yearMiniDayFertile,
                     ovulation && styles.yearMiniDayOvulation,
-                    period && !futurePeriod && styles.yearMiniDayPeriod,
-                    futurePeriod && styles.yearMiniDayFuturePeriod,
+                    loggedPeriod && styles.yearMiniDayPeriod,
+                    forecastOnlyPeriod && styles.yearMiniDayForecastPeriod,
                     selected && styles.yearMiniDaySelected,
                     pressed && styles.yearMiniDayPressed,
                   ]}
@@ -669,9 +663,9 @@ function YearMiniMonth({
                     role="caption"
                     weight={current ? 'bold' : 'regular'}
                     color={
-                      period && !futurePeriod
+                      loggedPeriod
                         ? colors.text.inverse
-                        : futurePeriod
+                        : forecastOnlyPeriod
                           ? colors.brand.primary
                           : fertile || ovulation
                             ? '#2EB7B1'
@@ -708,7 +702,12 @@ function YearCalendarSection({
 }) {
   return (
     <View style={styles.yearSection}>
-      <AppText numeric role="display" weight="semibold" style={styles.yearTitle}>
+      <AppText
+        numeric
+        role="display"
+        weight="semibold"
+        style={styles.yearTitle}
+      >
         {year}
       </AppText>
       <View style={styles.yearMonthsGrid}>
@@ -1199,7 +1198,13 @@ function CalendarPageModalBase({
     returnButtonProgress.setValue(0);
     daySheetProgress.setValue(0);
     viewProgress.setValue(0);
-  }, [daySheetProgress, initialDate, returnButtonProgress, viewProgress, visible]);
+  }, [
+    daySheetProgress,
+    initialDate,
+    returnButtonProgress,
+    viewProgress,
+    visible,
+  ]);
 
   useEffect(() => {
     const target = viewMode === 'year' ? 1 : 0;
@@ -1242,8 +1247,7 @@ function CalendarPageModalBase({
     () =>
       Array.from(
         { length: YEARS_BEFORE_SELECTED + YEARS_AFTER_SELECTED + 1 },
-        (_, index) =>
-          initialDate.getFullYear() + index - YEARS_BEFORE_SELECTED,
+        (_, index) => initialDate.getFullYear() + index - YEARS_BEFORE_SELECTED,
       ),
     [initialDate],
   );
@@ -1263,7 +1267,7 @@ function CalendarPageModalBase({
     () =>
       calculatedCycle
         ? (date: Date) => getCalculatedDayForecast(date, calculatedCycle)
-        : (date: Date) => getDayForecast(date),
+        : (_date: Date) => null,
     [calculatedCycle],
   );
   const headerDate = dayTitle(
@@ -1278,8 +1282,7 @@ function CalendarPageModalBase({
   const headerForecast = selectedDate ? selectedForecast : todayForecast;
   const selectedHeaderIsFertile =
     headerForecast.kind === 'fertile' || headerForecast.kind === 'ovulation';
-  const selectedHeaderIsMenstruation =
-    headerForecast.kind === 'menstruation';
+  const selectedHeaderIsMenstruation = headerForecast.kind === 'menstruation';
   const selectedHeaderIsColored =
     selectedHeaderIsFertile || selectedHeaderIsMenstruation;
   const selectedHeaderColor = selectedHeaderIsFertile
@@ -1562,10 +1565,7 @@ function CalendarPageModalBase({
       initialDate.getMonth();
     const targetIndex = Math.max(
       0,
-      Math.min(
-        monthSequence.length - 1,
-        MONTHS_BEFORE_SELECTED + monthOffset,
-      ),
+      Math.min(monthSequence.length - 1, MONTHS_BEFORE_SELECTED + monthOffset),
     );
 
     setSelectedDate(date);
@@ -1752,105 +1752,155 @@ function CalendarPageModalBase({
                       },
                     ]}
                   >
-                    <FlatList
-                  ref={monthListRef}
-                  data={monthSequence}
-                  keyExtractor={(month) =>
-                    `${month.getFullYear()}-${month.getMonth()}`
-                  }
-                  renderItem={({ item: month }) => {
-                    const initialMonthTimestamp = dayTimestamp(
-                      new Date(
-                        initialDate.getFullYear(),
-                        initialDate.getMonth(),
-                        1,
-                      ),
-                    );
-                    const futureMonth =
-                      dayTimestamp(
-                        new Date(month.getFullYear(), month.getMonth(), 1),
-                      ) > initialMonthTimestamp;
-
-                    return (
-                    <View style={styles.continuousMonth}>
-                      <AppText
-                        role="title"
-                        weight="semibold"
-                        color={
-                          futureMonth
-                            ? colors.text.secondary
-                            : colors.brand.primary
-                        }
-                        style={styles.continuousMonthTitle}
+                    {calculatedCycle ? (
+                      <View
+                        style={[styles.yearLegend, { top: headerTop + 60 }]}
                       >
-                        {monthTitle(month)}
-                      </AppText>
-                      <View style={styles.continuousWeekRow}>
-                        {WEEK_DAYS.map((day, index) => (
-                          <AppText
-                            key={day}
-                            role="caption"
-                            weight="medium"
-                            color={
-                              index > 4
-                                ? colors.brand.primary
-                                : colors.text.secondary
-                            }
-                            style={styles.weekDay}
-                          >
-                            {day}
+                        <View style={styles.yearLegendItem}>
+                          <View
+                            style={[
+                              styles.yearLegendMarker,
+                              styles.yearLegendMarkerLogged,
+                            ]}
+                          />
+                          <AppText role="caption" color={colors.text.secondary}>
+                            Отмечено
                           </AppText>
-                        ))}
+                        </View>
+                        <View style={styles.yearLegendItem}>
+                          <View
+                            style={[
+                              styles.yearLegendMarker,
+                              styles.yearLegendMarkerForecast,
+                            ]}
+                          />
+                          <AppText role="caption" color={colors.text.secondary}>
+                            Прогноз
+                          </AppText>
+                        </View>
+                        <View style={styles.yearLegendItem}>
+                          <View
+                            style={[
+                              styles.yearLegendMarker,
+                              styles.yearLegendMarkerFertile,
+                            ]}
+                          />
+                          <AppText role="caption" color={colors.text.secondary}>
+                            Фертильность
+                          </AppText>
+                        </View>
+                        <View style={styles.yearLegendItem}>
+                          <View
+                            style={[
+                              styles.yearLegendMarker,
+                              styles.yearLegendMarkerOvulation,
+                            ]}
+                          />
+                          <AppText role="caption" color={colors.text.secondary}>
+                            Овуляция
+                          </AppText>
+                        </View>
                       </View>
-                      <CalendarDayGrid
-                        cellWidth={sizes.contentWidth / 7}
-                        currentDate={initialDate}
-                        forecastForDate={calculatedForecastForDate}
-                        maximumSelectableDate={initialDate}
-                        month={month}
-                        onDayPressIn={() => {
-                          protectedDayInteractionRef.current = true;
-                        }}
-                        periodDateKeys={
-                          periodMarkingMode
-                            ? periodDraftDateKeys
-                            : periodDateKeys
-                        }
-                        periodSelectionMode={periodMarkingMode}
-                        selectOnPressIn={!periodMarkingMode}
-                        selectedDate={selectedDate}
-                        onSelectDate={selectDate}
-                        symptomDateKeys={symptomDateKeys}
-                        showOutsideDays={false}
-                        useCycleForecast
-                      />
-                      <View style={styles.continuousMonthDivider} />
-                    </View>
-                    );
-                  }}
-                  getItemLayout={(_, index) => ({
-                    index,
-                    length: MONTH_SECTION_HEIGHT,
-                    offset: MONTH_SECTION_HEIGHT * index,
-                  })}
-                  initialNumToRender={3}
-                  maxToRenderPerBatch={4}
-                  windowSize={5}
-                  onViewableItemsChanged={onViewableItemsChanged}
-                  viewabilityConfig={viewabilityConfig}
-                  contentInsetAdjustmentBehavior="never"
-                  showsVerticalScrollIndicator={false}
-                  style={styles.scroll}
-                  contentContainerStyle={[
-                    styles.continuousScrollContent,
-                    periodMarkingMode && styles.periodMarkingScrollContent,
-                  ]}
-                  extraData={{
-                    periodDateKeys,
-                    periodDraftDateKeys,
-                    periodMarkingMode,
-                    selectedDate,
-                  }}
+                    ) : null}
+                    <FlatList
+                      ref={monthListRef}
+                      data={monthSequence}
+                      keyExtractor={(month) =>
+                        `${month.getFullYear()}-${month.getMonth()}`
+                      }
+                      renderItem={({ item: month }) => {
+                        const initialMonthTimestamp = dayTimestamp(
+                          new Date(
+                            initialDate.getFullYear(),
+                            initialDate.getMonth(),
+                            1,
+                          ),
+                        );
+                        const futureMonth =
+                          dayTimestamp(
+                            new Date(month.getFullYear(), month.getMonth(), 1),
+                          ) > initialMonthTimestamp;
+
+                        return (
+                          <View style={styles.continuousMonth}>
+                            <AppText
+                              role="title"
+                              weight="semibold"
+                              color={
+                                futureMonth
+                                  ? colors.text.secondary
+                                  : colors.brand.primary
+                              }
+                              style={styles.continuousMonthTitle}
+                            >
+                              {monthTitle(month)}
+                            </AppText>
+                            <View style={styles.continuousWeekRow}>
+                              {WEEK_DAYS.map((day, index) => (
+                                <AppText
+                                  key={day}
+                                  role="caption"
+                                  weight="medium"
+                                  color={
+                                    index > 4
+                                      ? colors.brand.primary
+                                      : colors.text.secondary
+                                  }
+                                  style={styles.weekDay}
+                                >
+                                  {day}
+                                </AppText>
+                              ))}
+                            </View>
+                            <CalendarDayGrid
+                              cellWidth={sizes.contentWidth / 7}
+                              currentDate={initialDate}
+                              forecastForDate={calculatedForecastForDate}
+                              maximumSelectableDate={initialDate}
+                              month={month}
+                              onDayPressIn={() => {
+                                protectedDayInteractionRef.current = true;
+                              }}
+                              periodDateKeys={
+                                periodMarkingMode
+                                  ? periodDraftDateKeys
+                                  : periodDateKeys
+                              }
+                              periodSelectionMode={periodMarkingMode}
+                              selectOnPressIn={!periodMarkingMode}
+                              selectedDate={selectedDate}
+                              onSelectDate={selectDate}
+                              symptomDateKeys={symptomDateKeys}
+                              showOutsideDays={false}
+                              useCycleForecast
+                            />
+                            <View style={styles.continuousMonthDivider} />
+                          </View>
+                        );
+                      }}
+                      getItemLayout={(_, index) => ({
+                        index,
+                        length: MONTH_SECTION_HEIGHT,
+                        offset: MONTH_SECTION_HEIGHT * index,
+                      })}
+                      initialNumToRender={3}
+                      maxToRenderPerBatch={4}
+                      windowSize={5}
+                      onViewableItemsChanged={onViewableItemsChanged}
+                      viewabilityConfig={viewabilityConfig}
+                      contentInsetAdjustmentBehavior="never"
+                      showsVerticalScrollIndicator={false}
+                      style={styles.scroll}
+                      contentContainerStyle={[
+                        styles.continuousScrollContent,
+                        periodMarkingMode && styles.periodMarkingScrollContent,
+                      ]}
+                      extraData={{
+                        periodDateKeys,
+                        periodDraftDateKeys,
+                        periodMarkingMode,
+                        selectedDate,
+                      }}
                     />
                   </Animated.View>
 
@@ -1895,7 +1945,10 @@ function CalendarPageModalBase({
                       windowSize={5}
                       contentInsetAdjustmentBehavior="never"
                       showsVerticalScrollIndicator={false}
-                      style={[styles.yearScroll, { top: headerTop + 62 }]}
+                      style={[
+                        styles.yearScroll,
+                        { top: headerTop + (calculatedCycle ? 86 : 62) },
+                      ]}
                       contentContainerStyle={styles.yearScrollContent}
                       extraData={{ periodDateKeys, selectedDate }}
                     />
@@ -2020,8 +2073,8 @@ function CalendarPageModalBase({
                       selectedHeaderIsColored
                         ? colors.text.inverse
                         : isTodayFertile && !isTodayMenstruation
-                        ? colors.brand.success
-                        : colors.brand.primary
+                          ? colors.brand.success
+                          : colors.brand.primary
                     }
                     style={styles.metricValue}
                   >
@@ -2325,6 +2378,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: sizes.screenGutter,
     paddingBottom: 96,
   },
+  yearLegend: {
+    position: 'absolute',
+    right: sizes.screenGutter,
+    left: sizes.screenGutter,
+    zIndex: 2,
+    height: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  yearLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  yearLegendMarker: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+  },
+  yearLegendMarkerLogged: {
+    backgroundColor: colors.brand.primary,
+  },
+  yearLegendMarkerForecast: {
+    borderWidth: 1,
+    borderStyle: 'dotted',
+    borderColor: colors.brand.primary,
+  },
+  yearLegendMarkerFertile: {
+    backgroundColor: 'rgba(46,183,177,0.14)',
+  },
+  yearLegendMarkerOvulation: {
+    borderWidth: 1,
+    borderStyle: 'dotted',
+    borderColor: '#2EB7B1',
+  },
   yearSection: {
     height: YEAR_SECTION_HEIGHT,
     paddingTop: 12,
@@ -2386,7 +2476,7 @@ const styles = StyleSheet.create({
   yearMiniDayPeriod: {
     backgroundColor: colors.brand.primary,
   },
-  yearMiniDayFuturePeriod: {
+  yearMiniDayForecastPeriod: {
     borderWidth: 1,
     borderStyle: 'dotted',
     borderColor: colors.brand.primary,
@@ -2971,7 +3061,7 @@ const styles = StyleSheet.create({
   dayPeriod: {
     backgroundColor: 'rgba(211,20,113,0.10)',
   },
-  dayFuturePeriod: {
+  dayForecastPeriod: {
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: colors.brand.primarySoft,

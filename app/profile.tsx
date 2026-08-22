@@ -16,6 +16,7 @@ import {
   Alert,
   Animated,
   Easing,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
@@ -168,6 +169,7 @@ function formatDate(timestamp?: number) {
 
 function goalLabel(goal?: HealthGoal) {
   if (goal === 'pregnancy') return 'Беременность';
+  if (goal === 'cycle') return 'Мониторинг';
   return 'Планирование';
 }
 
@@ -1380,16 +1382,15 @@ function renderProfileSectionDirect({
 
           <ProfileVerticalChoiceControl<HealthGoal>
             accessibilityLabel="Цель использования"
-            defaultValue={
-              profile?.goal === 'pregnancy' ? 'pregnancy' : 'planning'
-            }
+            defaultValue={profile?.goal ?? 'planning'}
             disabled={readOnly}
             grouped
             label="Цель использования"
-            value={profile?.goal === 'pregnancy' ? 'pregnancy' : 'planning'}
+            value={profile?.goal ?? 'planning'}
             options={[
               { value: 'planning', label: 'Планирование' },
               { value: 'pregnancy', label: 'Беременность' },
+              { value: 'cycle', label: 'Мониторинг' },
             ]}
             onChange={(goal) => void saveProfile({ goal })}
           />
@@ -1999,6 +2000,10 @@ function parseMedicationFrequency(value?: string): MedicationFrequency {
 }
 
 function MedicalCrudSection(props: MedicalCrudProps) {
+  const insets = useSafeAreaInsets();
+  const [editorVisible, setEditorVisible] = useState(false);
+  const [reduceEditorMotion, setReduceEditorMotion] = useState(false);
+  const editorProgress = useRef(new Animated.Value(0)).current;
   const [selectedId, setSelectedId] = useState<string>();
   const [primary, setPrimary] = useState('');
   const [secondary, setSecondary] = useState('');
@@ -2020,13 +2025,72 @@ function MedicalCrudSection(props: MedicalCrudProps) {
       : props.kind === 'medication'
         ? 'Дозировка'
         : 'Реакция';
+  const addLabel =
+    props.kind === 'condition'
+      ? 'Добавить запись'
+      : props.kind === 'medication'
+        ? 'Добавить препарат'
+        : 'Добавить аллергию';
 
-  const reset = () => {
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceEditorMotion);
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      setReduceEditorMotion,
+    );
+    return () => subscription.remove();
+  }, []);
+
+  const clearEditor = () => {
+    setEditorVisible(false);
     setSelectedId(undefined);
     setPrimary('');
     setSecondary('');
     setMedicationDoseUnit('mg');
     setMedicationFrequency('day');
+  };
+
+  const openEditor = () => {
+    editorProgress.stopAnimation();
+    setEditorVisible(true);
+
+    if (reduceEditorMotion) {
+      editorProgress.setValue(1);
+      return;
+    }
+
+    editorProgress.setValue(0);
+    requestAnimationFrame(() => {
+      Animated.spring(editorProgress, {
+        toValue: 1,
+        stiffness: 270,
+        damping: 30,
+        mass: 1,
+        overshootClamping: false,
+        restDisplacementThreshold: 0.5,
+        restSpeedThreshold: 0.5,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  const reset = () => {
+    editorProgress.stopAnimation();
+
+    if (reduceEditorMotion) {
+      editorProgress.setValue(0);
+      clearEditor();
+      return;
+    }
+
+    Animated.timing(editorProgress, {
+      toValue: 0,
+      duration: 220,
+      easing: Easing.bezier(0.32, 0.72, 0, 1),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) clearEditor();
+    });
   };
 
   const select = (item: MedicalCondition | Medication | AllergyRisk) => {
@@ -2044,6 +2108,16 @@ function MedicalCrudSection(props: MedicalCrudProps) {
       setPrimary(item.allergen);
       setSecondary(item.reaction ?? '');
     }
+    openEditor();
+  };
+
+  const startAdding = () => {
+    setSelectedId(undefined);
+    setPrimary('');
+    setSecondary('');
+    setMedicationDoseUnit('mg');
+    setMedicationFrequency('day');
+    openEditor();
   };
 
   const save = async () => {
@@ -2108,16 +2182,15 @@ function MedicalCrudSection(props: MedicalCrudProps) {
 
   return (
     <View style={styles.medicalHistoryLayout}>
-      {selected ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Закрыть редактирование записи"
-          onPress={reset}
-          style={styles.medicalEditorDismissLayer}
-        />
-      ) : null}
+      <ProfileActionRow
+        icon="plus"
+        label={addLabel}
+        pill
+        disabled={props.readOnly}
+        onPress={startAdding}
+      />
       {records.length ? (
-        <View style={styles.medicalEditorForeground}>
+        <View>
           <ProfileSettingsGroup title="Сохранённые записи">
             {records.map((item, index) => {
               const label =
@@ -2149,9 +2222,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
                   label={label}
                   value={value}
                   isLast={index === records.length - 1}
-                  onPress={() =>
-                    selectedId === item.localId ? reset() : select(item)
-                  }
+                  onPress={() => select(item)}
                 />
               );
             })}
@@ -2160,86 +2231,178 @@ function MedicalCrudSection(props: MedicalCrudProps) {
       ) : (
         <ProfileEmptyMessage title="Записей пока нет" />
       )}
-      <View style={[styles.inlineEditor, styles.medicalEditorForeground]}>
-        <AppText role="label" weight="semibold">
-          {selected ? 'Изменить запись' : 'Добавить запись'}
-        </AppText>
-        <TextInput
-          editable={!props.readOnly}
-          testID="e2e-medical-primary"
-          value={primary}
-          onChangeText={setPrimary}
-          placeholder={primaryLabel}
-          placeholderTextColor="#989395"
-          style={styles.inlineInput}
-        />
-        {props.kind === 'medication' ? (
-          <>
-            <View style={styles.medicationDoseRow}>
+      <Modal
+        animationType="none"
+        transparent
+        statusBarTranslucent
+        visible={editorVisible}
+        onRequestClose={reset}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.medicalEditorModalRoot}
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.medicalEditorBackdropVisual,
+              {
+                opacity: editorProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 0.28],
+                }),
+              },
+            ]}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Закрыть форму"
+            onPress={reset}
+            style={styles.medicalEditorBackdrop}
+          />
+          <Animated.View
+            style={[
+              styles.inlineEditor,
+              styles.medicalEditorSheet,
+              { paddingBottom: Math.max(insets.bottom, spacing.md) },
+              {
+                transform: [
+                  {
+                    translateY: editorProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [520, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.medicalEditorHeader}>
+              <AppText
+                role="heading"
+                weight="semibold"
+                style={styles.medicalEditorTitle}
+              >
+                {selected ? 'Изменить запись' : addLabel}
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Закрыть форму"
+                hitSlop={12}
+                onPress={reset}
+                style={styles.medicalEditorClose}
+              >
+                <AppText role="heading" color={colors.text.secondary}>
+                  ×
+                </AppText>
+              </Pressable>
+            </View>
+            <TextInput
+              editable={!props.readOnly}
+              testID="e2e-medical-primary"
+              value={primary}
+              onChangeText={setPrimary}
+              placeholder={primaryLabel}
+              placeholderTextColor="#989395"
+              style={styles.inlineInput}
+            />
+            {props.kind === 'medication' ? (
+              <>
+                <View style={styles.medicationDoseRow}>
+                  <TextInput
+                    editable={!props.readOnly}
+                    inputMode="decimal"
+                    keyboardType="decimal-pad"
+                    testID="e2e-medical-secondary"
+                    value={secondary}
+                    onChangeText={(value) =>
+                      setSecondary(sanitizeMedicationDoseAmount(value))
+                    }
+                    placeholder="Количество"
+                    placeholderTextColor="#989395"
+                    style={[styles.inlineInput, styles.medicationDoseInput]}
+                  />
+                  <SegmentedSwitcher
+                    accessibilityLabel="Единица измерения дозировки"
+                    options={medicationDoseUnits}
+                    value={medicationDoseUnit}
+                    onChange={setMedicationDoseUnit}
+                    style={styles.medicationDoseUnits}
+                  />
+                </View>
+                <View style={styles.medicationFrequencyBlock}>
+                  <AppText
+                    role="caption"
+                    color={colors.text.secondary}
+                    style={styles.medicationFrequencyLabel}
+                  >
+                    Периодичность
+                  </AppText>
+                  <SegmentedSwitcher
+                    accessibilityLabel="Периодичность приёма препарата"
+                    options={medicationFrequencyOptions}
+                    value={medicationFrequency}
+                    onChange={setMedicationFrequency}
+                  />
+                </View>
+              </>
+            ) : (
               <TextInput
                 editable={!props.readOnly}
-                inputMode="decimal"
-                keyboardType="decimal-pad"
                 testID="e2e-medical-secondary"
                 value={secondary}
-                onChangeText={(value) =>
-                  setSecondary(sanitizeMedicationDoseAmount(value))
-                }
-                placeholder="Количество"
+                onChangeText={setSecondary}
+                placeholder={secondaryLabel}
                 placeholderTextColor="#989395"
-                style={[styles.inlineInput, styles.medicationDoseInput]}
+                style={styles.inlineInput}
               />
-              <SegmentedSwitcher
-                accessibilityLabel="Единица измерения дозировки"
-                options={medicationDoseUnits}
-                value={medicationDoseUnit}
-                onChange={setMedicationDoseUnit}
-                style={styles.medicationDoseUnits}
-              />
-            </View>
-            <View style={styles.medicationFrequencyBlock}>
-              <AppText
-                role="caption"
-                color={colors.text.secondary}
-                style={styles.medicationFrequencyLabel}
+            )}
+            <View style={styles.medicalEditorActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Назад"
+                onPress={reset}
+                style={styles.medicalEditorSecondaryAction}
               >
-                Периодичность
-              </AppText>
-              <SegmentedSwitcher
-                accessibilityLabel="Периодичность приёма препарата"
-                options={medicationFrequencyOptions}
-                value={medicationFrequency}
-                onChange={setMedicationFrequency}
-              />
+                <AppText role="body" weight="semibold">
+                  Назад
+                </AppText>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Сохранить"
+                accessibilityState={{
+                  disabled:
+                    props.readOnly || !primary.trim() || !medicationDoseValid,
+                }}
+                disabled={
+                  props.readOnly || !primary.trim() || !medicationDoseValid
+                }
+                onPress={() => void save()}
+                style={[
+                  styles.medicalEditorPrimaryAction,
+                  (props.readOnly ||
+                    !primary.trim() ||
+                    !medicationDoseValid) &&
+                    styles.medicalEditorPrimaryActionDisabled,
+                ]}
+              >
+                <AppText role="body" weight="semibold" color="#FFFFFF">
+                  Сохранить
+                </AppText>
+              </Pressable>
             </View>
-          </>
-        ) : (
-          <TextInput
-            editable={!props.readOnly}
-            testID="e2e-medical-secondary"
-            value={secondary}
-            onChangeText={setSecondary}
-            placeholder={secondaryLabel}
-            placeholderTextColor="#989395"
-            style={styles.inlineInput}
-          />
-        )}
-        <ProfileActionRow
-          icon="checkmark"
-          label="Сохранить"
-          disabled={
-            props.readOnly || !primary.trim() || !medicationDoseValid
-          }
-          onPress={() => void save()}
-        />
-        {selected ? (
-          <ConfirmedAction
-            label="Удалить запись"
-            confirmation="Подтвердить удаление записи"
-            onConfirm={remove}
-          />
-        ) : null}
-      </View>
+            {selected ? (
+              <ConfirmedAction
+                compact
+                label="Удалить запись"
+                confirmation="Подтвердить удаление записи"
+                onConfirm={remove}
+              />
+            ) : null}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -2424,10 +2587,12 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
 }
 
 function ConfirmedAction({
+  compact = false,
   confirmation,
   label,
   onConfirm,
 }: {
+  compact?: boolean;
   confirmation: string;
   label: string;
   onConfirm: () => Promise<void>;
@@ -2438,6 +2603,7 @@ function ConfirmedAction({
       destructive
       icon="trash.fill"
       label={armed ? confirmation : label}
+      style={compact ? styles.compactConfirmedAction : undefined}
       onPress={() => {
         if (!armed) {
           setArmed(true);
@@ -2611,19 +2777,81 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.lg,
   },
-  medicalEditorDismissLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-  },
-  medicalEditorForeground: {
-    position: 'relative',
-    zIndex: 1,
-  },
   inlineEditor: {
     gap: spacing.sm,
     borderRadius: radii.lg,
     backgroundColor: '#FFFFFF',
     padding: spacing.md,
+  },
+  medicalEditorModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  medicalEditorBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  medicalEditorBackdropVisual: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#1C181A',
+  },
+  medicalEditorSheet: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    paddingTop: 10,
+    shadowColor: '#2B2025',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  medicalEditorHeader: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  medicalEditorTitle: {
+    flex: 1,
+    fontSize: 20,
+    lineHeight: 25,
+  },
+  medicalEditorClose: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicalEditorActions: {
+    width: '100%',
+    height: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  medicalEditorSecondaryAction: {
+    height: 46,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 23,
+    borderWidth: 1,
+    borderColor: '#EEE3E7',
+    backgroundColor: '#F7F1F3',
+  },
+  medicalEditorPrimaryAction: {
+    height: 46,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 23,
+    backgroundColor: colors.brand.primary,
+  },
+  medicalEditorPrimaryActionDisabled: {
+    opacity: 0.55,
+  },
+  compactConfirmedAction: {
+    height: 46,
+    borderRadius: 23,
   },
   inlineInput: {
     minHeight: 48,

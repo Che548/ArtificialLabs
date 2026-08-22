@@ -501,8 +501,12 @@ export function ProfileDateRow({
 }) {
   const insets = useSafeAreaInsets();
   const initialDate = value ? new Date(value) : undefined;
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialDate);
-  const [draftDate, setDraftDate] = useState(initialDate ?? maximumDate ?? new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    initialDate,
+  );
+  const [draftDate, setDraftDate] = useState(
+    initialDate ?? maximumDate ?? new Date(),
+  );
   const [pickerVisible, setPickerVisible] = useState(false);
 
   useEffect(() => {
@@ -994,10 +998,7 @@ function ProfileSelectionPopover<T extends string>({
                 />
                 <LinearGradient
                   pointerEvents="none"
-                  colors={[
-                    'rgba(255,255,255,0.92)',
-                    'rgba(255,244,249,0.70)',
-                  ]}
+                  colors={['rgba(255,255,255,0.92)', 'rgba(255,244,249,0.70)']}
                   start={{ x: 0.1, y: 0 }}
                   end={{ x: 0.9, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
@@ -1017,10 +1018,7 @@ function ProfileSelectionPopover<T extends string>({
                   tint="light"
                   style={StyleSheet.absoluteFillObject}
                 />
-                <View
-                  pointerEvents="none"
-                  style={styles.languagePopoverTint}
-                />
+                <View pointerEvents="none" style={styles.languagePopoverTint} />
               </>
             )}
             {options.map((option, index) => {
@@ -1223,6 +1221,7 @@ export function ProfileActionRow({
   secondary = false,
   singleLineLabel = false,
   singleLineSubtitle = false,
+  style,
   subtitle,
 }: {
   destructive?: boolean;
@@ -1234,6 +1233,7 @@ export function ProfileActionRow({
   secondary?: boolean;
   singleLineLabel?: boolean;
   singleLineSubtitle?: boolean;
+  style?: StyleProp<ViewStyle>;
   subtitle?: string;
 }) {
   const foreground = destructive
@@ -1249,6 +1249,7 @@ export function ProfileActionRow({
         secondary && styles.actionRowSecondary,
         destructive && styles.actionRowDestructive,
         disabled && styles.disabled,
+        style,
       ]}
     >
       <Pressable
@@ -1314,7 +1315,17 @@ export type DestructiveButtonVariant =
   | 'outline'
   | 'solid'
   | 'iconTile'
-  | 'split';
+  | 'split'
+  | 'compact'
+  | 'quietRow'
+  | 'warning'
+  | 'hold'
+  | 'confirm'
+  | 'iconOnly'
+  | 'glass'
+  | 'inset'
+  | 'elevated'
+  | 'textOnly';
 
 export function DestructiveButtonPreview({
   label = 'Удалить запись',
@@ -1328,20 +1339,90 @@ export function DestructiveButtonPreview({
   const solid = variant === 'solid';
   const split = variant === 'split';
   const iconTile = variant === 'iconTile';
-  const foreground = solid ? colors.text.inverse : colors.state.error;
+  const compact = variant === 'compact';
+  const quietRow = variant === 'quietRow';
+  const warning = variant === 'warning';
+  const hold = variant === 'hold';
+  const confirm = variant === 'confirm';
+  const iconOnly = variant === 'iconOnly';
+  const glass = variant === 'glass';
+  const inset = variant === 'inset';
+  const elevated = variant === 'elevated';
+  const textOnly = variant === 'textOnly';
+  const leftAligned =
+    iconTile || quietRow || warning || hold || confirm || inset;
+  const colorByVariant: Record<
+    DestructiveButtonVariant,
+    { icon: string; subtitle: string; text: string }
+  > = {
+    soft: { icon: '#E0445A', subtitle: '#A76570', text: '#B9364B' },
+    outline: { icon: '#E13A3A', subtitle: '#A85A5A', text: '#C92F36' },
+    solid: {
+      icon: colors.text.inverse,
+      subtitle: 'rgba(255,255,255,0.72)',
+      text: colors.text.inverse,
+    },
+    iconTile: {
+      icon: '#E24658',
+      subtitle: colors.text.secondary,
+      text: '#2B2224',
+    },
+    split: {
+      icon: colors.text.inverse,
+      subtitle: colors.text.secondary,
+      text: '#34282B',
+    },
+    compact: { icon: '#D62F63', subtitle: '#A85670', text: '#B92758' },
+    quietRow: { icon: '#CF4656', subtitle: '#886B70', text: '#7A3C45' },
+    warning: { icon: '#C66A2B', subtitle: '#9B7355', text: '#965124' },
+    hold: {
+      icon: colors.text.inverse,
+      subtitle: 'rgba(255,255,255,0.64)',
+      text: colors.text.inverse,
+    },
+    confirm: {
+      icon: '#D43D4D',
+      subtitle: colors.text.secondary,
+      text: '#302629',
+    },
+    iconOnly: { icon: '#E03E52', subtitle: '#9A6069', text: '#B42E43' },
+    glass: { icon: '#A72C44', subtitle: '#8E5E67', text: '#7C2637' },
+    inset: {
+      icon: '#C93B4A',
+      subtitle: colors.text.secondary,
+      text: '#33282B',
+    },
+    elevated: { icon: '#DB3650', subtitle: '#98616A', text: '#A9233B' },
+    textOnly: { icon: '#B24D5B', subtitle: '#95656C', text: '#A54857' },
+  };
+  const {
+    icon: iconColor,
+    subtitle: subtitleColor,
+    text: textColor,
+  } = colorByVariant[variant];
+  const subtitle = warning
+    ? 'Действие нельзя отменить'
+    : quietRow
+      ? 'Удалить без переноса в архив'
+      : hold
+        ? 'Нажмите и удерживайте'
+        : confirm
+          ? 'Потребуется подтверждение'
+          : inset
+            ? 'Запись будет удалена навсегда'
+            : null;
 
-  const icon = (
+  const icon = (tile = false, color = iconColor) => (
     <View
       style={[
         styles.destructivePreviewIcon,
-        iconTile && styles.destructivePreviewIconTile,
+        tile && styles.destructivePreviewIconTile,
+        warning && styles.destructivePreviewIconWarning,
         split && styles.destructivePreviewIconSolid,
+        hold && styles.destructivePreviewIconHold,
       ]}
     >
-      <ProfileTrashIcon
-        color={split ? colors.text.inverse : foreground}
-        size={18}
-      />
+      <ProfileTrashIcon color={color} size={compact || textOnly ? 16 : 18} />
     </View>
   );
 
@@ -1354,6 +1435,16 @@ export function DestructiveButtonPreview({
         solid && styles.destructivePreviewSolid,
         iconTile && styles.destructivePreviewIconTileButton,
         split && styles.destructivePreviewSplit,
+        compact && styles.destructivePreviewCompact,
+        quietRow && styles.destructivePreviewQuietRow,
+        warning && styles.destructivePreviewWarning,
+        hold && styles.destructivePreviewHold,
+        confirm && styles.destructivePreviewConfirm,
+        iconOnly && styles.destructivePreviewIconOnly,
+        glass && styles.destructivePreviewGlass,
+        inset && styles.destructivePreviewInset,
+        elevated && styles.destructivePreviewElevated,
+        textOnly && styles.destructivePreviewTextOnly,
       ]}
     >
       <Pressable
@@ -1362,31 +1453,92 @@ export function DestructiveButtonPreview({
         onPress={onPress}
         style={({ pressed }) => [
           styles.destructivePreviewPressable,
-          (iconTile || split) && styles.destructivePreviewPressableLeft,
+          !textOnly && styles.destructivePreviewPressableFill,
+          leftAligned && styles.destructivePreviewPressableLeft,
+          compact && styles.destructivePreviewPressableCompact,
+          iconOnly && styles.destructivePreviewPressableIconOnly,
+          textOnly && styles.destructivePreviewPressableTextOnly,
+          inset && styles.destructivePreviewPressableInset,
+          elevated && styles.destructivePreviewPressableElevated,
           pressed && styles.destructivePreviewPressed,
         ]}
       >
         <View
           style={[
             styles.destructivePreviewContent,
-            (iconTile || split) && styles.destructivePreviewContentLeft,
+            !textOnly && styles.destructivePreviewContentFill,
+            leftAligned && styles.destructivePreviewContentLeft,
             split && styles.destructivePreviewContentSplit,
+            iconOnly && styles.destructivePreviewContentIconOnly,
+            textOnly && styles.destructivePreviewContentTextOnly,
           ]}
         >
-          {split ? null : icon}
-          <AppText
-            role="body"
-            weight="semibold"
-            color={foreground}
-            numberOfLines={1}
+          {split ? <View style={styles.destructivePreviewSplitSpacer} /> : null}
+          {!split && !textOnly
+            ? icon(iconTile || warning || inset || iconOnly)
+            : null}
+          <View
             style={[
-              styles.destructivePreviewLabel,
-              (iconTile || split) && styles.destructivePreviewLabelLeft,
+              styles.destructivePreviewCopy,
+              leftAligned && styles.destructivePreviewCopyLeft,
+              split && styles.destructivePreviewCopySplit,
+              iconOnly && styles.destructivePreviewCopyIconOnly,
             ]}
           >
-            {label}
-          </AppText>
-          {split ? icon : null}
+            <AppText
+              role="body"
+              weight="semibold"
+              color={textColor}
+              numberOfLines={1}
+              style={[
+                styles.destructivePreviewLabel,
+                leftAligned && styles.destructivePreviewLabelLeft,
+                compact && styles.destructivePreviewLabelCompact,
+                textOnly && styles.destructivePreviewLabelTextOnly,
+              ]}
+            >
+              {label}
+            </AppText>
+            {subtitle ? (
+              <AppText
+                role="caption"
+                color={subtitleColor}
+                numberOfLines={1}
+                style={styles.destructivePreviewSubtitle}
+              >
+                {subtitle}
+              </AppText>
+            ) : null}
+          </View>
+          {split ? (
+            <View style={styles.destructivePreviewSplitAction}>
+              {icon(false, colors.text.inverse)}
+            </View>
+          ) : null}
+          {quietRow ? (
+            <ProfileSymbol
+              fallback="›"
+              name="chevron.right"
+              size={15}
+              tintColor={colors.text.secondary}
+            />
+          ) : null}
+          {hold ? (
+            <View style={styles.destructivePreviewHoldTrack}>
+              <View style={styles.destructivePreviewHoldThumb} />
+            </View>
+          ) : null}
+          {confirm ? (
+            <View style={styles.destructivePreviewConfirmChip}>
+              <AppText
+                role="caption"
+                weight="semibold"
+                color={colors.state.error}
+              >
+                Подтвердить
+              </AppText>
+            </View>
+          ) : null}
         </View>
       </Pressable>
     </View>
@@ -1575,6 +1727,7 @@ export function ProfileKitPreview() {
         options={[
           { value: 'planning', label: 'Планирование' },
           { value: 'pregnancy', label: 'Беременность' },
+          { value: 'cycle', label: 'Мониторинг' },
         ]}
       />
       <ProfileLanguageSelector />
@@ -2110,7 +2263,9 @@ const styles = StyleSheet.create({
     borderColor: '#DCD7D9',
   },
   actionRowDestructive: {
-    backgroundColor: '#F7E8E8',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.state.error,
   },
   actionRowPill: {
     borderRadius: radii.pill,
@@ -2135,87 +2290,304 @@ const styles = StyleSheet.create({
   },
   destructivePreviewButton: {
     width: '100%',
-    minHeight: 56,
+    height: 52,
+    minHeight: 52,
     overflow: 'hidden',
-    borderRadius: 18,
+    borderRadius: 14,
   },
   destructivePreviewSoft: {
-    backgroundColor: '#F7E8E8',
+    backgroundColor: '#FBECEE',
   },
   destructivePreviewOutline: {
-    backgroundColor: '#FFFEFE',
+    backgroundColor: colors.surface.raised,
     borderWidth: 1,
-    borderColor: '#D93838',
+    borderColor: 'rgba(217,56,56,0.72)',
   },
   destructivePreviewSolid: {
     backgroundColor: colors.state.error,
   },
   destructivePreviewIconTileButton: {
-    minHeight: 62,
+    height: 58,
+    minHeight: 58,
     backgroundColor: colors.surface.raised,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#DDD6D8',
   },
   destructivePreviewSplit: {
-    minHeight: 62,
+    height: 58,
+    minHeight: 58,
     backgroundColor: '#FFFEFE',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#DDD6D8',
   },
-  destructivePreviewPressable: {
+  destructivePreviewCompact: {
+    width: '58%',
+    height: 40,
+    minHeight: 40,
+    alignSelf: 'center',
+    borderRadius: 20,
+    backgroundColor: '#FBECEE',
+  },
+  destructivePreviewQuietRow: {
+    height: 56,
     minHeight: 56,
-    paddingHorizontal: 18,
+    borderRadius: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.surface.divider,
+    backgroundColor: 'transparent',
+  },
+  destructivePreviewWarning: {
+    height: 64,
+    minHeight: 64,
+    borderWidth: 1,
+    borderColor: '#F0C7A5',
+    backgroundColor: '#FFF8F1',
+  },
+  destructivePreviewHold: {
+    height: 64,
+    minHeight: 64,
+    backgroundColor: '#2B2224',
+  },
+  destructivePreviewConfirm: {
+    height: 62,
+    minHeight: 62,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#D7D1D3',
+    backgroundColor: colors.surface.raised,
+  },
+  destructivePreviewIconOnly: {
+    width: 118,
+    height: 92,
+    minHeight: 92,
+    alignSelf: 'center',
+    overflow: 'visible',
+    backgroundColor: 'transparent',
+  },
+  destructivePreviewGlass: {
+    height: 56,
+    minHeight: 56,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.82)',
+    backgroundColor: 'rgba(255,255,255,0.58)',
+    shadowColor: '#7A4650',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 22,
+  },
+  destructivePreviewInset: {
+    height: 68,
+    minHeight: 68,
+    padding: 5,
+    backgroundColor: '#EEE9EA',
+  },
+  destructivePreviewElevated: {
+    height: 56,
+    minHeight: 56,
+    overflow: 'visible',
+    backgroundColor: colors.surface.raised,
+    shadowColor: '#6E2831',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  destructivePreviewTextOnly: {
+    width: 'auto',
+    height: 40,
+    minHeight: 40,
+    alignSelf: 'center',
+    overflow: 'visible',
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+  },
+  destructivePreviewPressable: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  destructivePreviewPressableFill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
   destructivePreviewPressableLeft: {
-    minHeight: 62,
-    paddingLeft: 10,
-    paddingRight: 10,
+    minHeight: 58,
+    paddingHorizontal: 8,
+  },
+  destructivePreviewPressableCompact: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+  },
+  destructivePreviewPressableIconOnly: {
+    minHeight: 92,
+    paddingHorizontal: 0,
+    borderRadius: 18,
+  },
+  destructivePreviewPressableTextOnly: {
+    minHeight: 40,
+    paddingHorizontal: 8,
+    borderRadius: 0,
+  },
+  destructivePreviewPressableInset: {
+    minHeight: 58,
+    top: 5,
+    right: 5,
+    bottom: 5,
+    left: 5,
+    borderRadius: 10,
+    backgroundColor: colors.surface.raised,
+  },
+  destructivePreviewPressableElevated: {
+    minHeight: 56,
+    borderRadius: 14,
+    backgroundColor: colors.surface.raised,
   },
   destructivePreviewPressed: {
     backgroundColor: 'rgba(118,31,39,0.07)',
+    opacity: 0.78,
+    transform: [{ scale: 0.985 }],
   },
   destructivePreviewContent: {
     maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 8,
+  },
+  destructivePreviewContentFill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    paddingHorizontal: 16,
   },
   destructivePreviewContentLeft: {
-    width: '100%',
     justifyContent: 'flex-start',
-    gap: 12,
+    gap: 10,
+    paddingHorizontal: 8,
   },
   destructivePreviewContentSplit: {
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  destructivePreviewContentIconOnly: {
+    flexDirection: 'column',
+    gap: 8,
+    paddingHorizontal: 0,
+  },
+  destructivePreviewContentTextOnly: {
+    width: 'auto',
   },
   destructivePreviewIcon: {
-    width: 24,
-    height: 24,
+    width: 22,
+    height: 22,
     flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  destructivePreviewSplitSpacer: {
+    width: 46,
+    height: 46,
+    flexShrink: 0,
+  },
   destructivePreviewIconTile: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     backgroundColor: profileTones.destructive.tile,
+  },
+  destructivePreviewIconWarning: {
+    backgroundColor: '#FBE6D4',
   },
   destructivePreviewIconSolid: {
     width: 42,
     height: 42,
-    borderRadius: 13,
+    borderRadius: 11,
     backgroundColor: colors.state.error,
+  },
+  destructivePreviewIconHold: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  destructivePreviewCopy: {
+    minWidth: 0,
+    flexShrink: 1,
+    alignItems: 'center',
+  },
+  destructivePreviewCopySplit: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  destructivePreviewCopyLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  destructivePreviewCopyIconOnly: {
+    flexShrink: 0,
   },
   destructivePreviewLabel: {
     flexShrink: 1,
+    lineHeight: 21,
     textAlign: 'center',
+    transform: [{ translateY: 1 }],
   },
   destructivePreviewLabelLeft: {
     textAlign: 'left',
+  },
+  destructivePreviewLabelCompact: {
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  destructivePreviewLabelTextOnly: {
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'solid',
+  },
+  destructivePreviewSubtitle: {
+    marginTop: 2,
+    textAlign: 'left',
+  },
+  destructivePreviewSplitAction: {
+    width: 46,
+    height: 46,
+    marginRight: -2,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.state.error,
+  },
+  destructivePreviewHoldTrack: {
+    width: 58,
+    height: 28,
+    marginLeft: 'auto',
+    padding: 3,
+    borderRadius: 14,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  destructivePreviewHoldThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.state.error,
+  },
+  destructivePreviewConfirmChip: {
+    minHeight: 30,
+    marginLeft: 'auto',
+    paddingHorizontal: 10,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FBECEE',
   },
   profileEmptyState: {
     width: '100%',

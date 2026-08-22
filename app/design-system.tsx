@@ -737,12 +737,12 @@ export default function DesignSystemScreen({
           <View testID="delete-actions-catalog">
             <Section
               eyebrow="00 / Destructive styles"
-              title="5 стилей кнопки удаления"
+              title="15 стилей кнопки удаления"
             >
               <AppText role="body" color={colors.text.secondary}>
-                Пять вариантов с разной силой визуального акцента. Это
-                предложения для выбора — ниже сохранены текущие кнопки
-                приложения.
+                Пятнадцать самостоятельных destructive-паттернов: от тихой
+                текстовой команды до удержания и явного подтверждения. Ниже
+                сохранены текущие кнопки приложения для сравнения.
               </AppText>
 
               <View
@@ -768,6 +768,46 @@ export default function DesignSystemScreen({
                 <View style={styles.destructiveVariantItem}>
                   <TokenLabel>05 / SPLIT ACTION</TokenLabel>
                   <DestructiveButtonPreview variant="split" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>06 / COMPACT CAPSULE</TokenLabel>
+                  <DestructiveButtonPreview variant="compact" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>07 / QUIET SETTINGS ROW</TokenLabel>
+                  <DestructiveButtonPreview variant="quietRow" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>08 / WARNING PANEL</TokenLabel>
+                  <DestructiveButtonPreview variant="warning" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>09 / HOLD TO DELETE</TokenLabel>
+                  <DestructiveButtonPreview variant="hold" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>10 / CONFIRMATION CHIP</TokenLabel>
+                  <DestructiveButtonPreview variant="confirm" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>11 / ICON COMMAND</TokenLabel>
+                  <DestructiveButtonPreview variant="iconOnly" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>12 / GLASS CRITICAL</TokenLabel>
+                  <DestructiveButtonPreview variant="glass" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>13 / INSET CONTROL</TokenLabel>
+                  <DestructiveButtonPreview variant="inset" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>14 / ELEVATED ACTION</TokenLabel>
+                  <DestructiveButtonPreview variant="elevated" />
+                </View>
+                <View style={styles.destructiveVariantItem}>
+                  <TokenLabel>15 / TEXT COMMAND</TokenLabel>
+                  <DestructiveButtonPreview variant="textOnly" />
                 </View>
               </View>
 
@@ -853,10 +893,10 @@ export default function DesignSystemScreen({
             <View style={styles.analysisVariantHeading}>
               <TokenLabel>18 PRODUCTION CHARTS</TokenLabel>
               <AppText role="body" color={colors.text.secondary}>
-                Восемнадцать способов показать данные, которые уже собираются
-                в приложении: от базальной температуры, цикла и сна до
-                гормонального окна, корреляций симптомов, динамики биомаркеров
-                и сводного индекса внимания к здоровью.
+                Восемнадцать способов показать данные, которые уже собираются в
+                приложении: от базальной температуры, цикла и сна до
+                гормонального окна, корреляций симптомов, динамики биомаркеров и
+                сводного индекса внимания к здоровью.
               </AppText>
             </View>
             <HealthMetricsChartsCatalog />
@@ -908,16 +948,21 @@ export default function DesignSystemScreen({
 
           <View style={styles.rule} />
 
-          <Section eyebrow="00 / Analyses overview" title="Верх страницы Анализы">
+          <Section
+            eyebrow="00 / Analyses overview"
+            title="Верх страницы Анализы"
+          >
             <View style={styles.analysisVariantHeading}>
               <TokenLabel>PRODUCTION OVERVIEW BLOCKS</TokenLabel>
               <AppText role="body" color={colors.text.secondary}>
-                Крупный автоперелистывающийся блок материалов и единая сводка
-                по ближайшим, пропущенным и сданным анализам.
+                Крупный автоперелистывающийся блок материалов и единая сводка по
+                ближайшим, пропущенным и сданным анализам.
               </AppText>
             </View>
             <View style={styles.analysisVariantList}>
-              <AnalysisKnowledgeCarousel items={analysisKnowledgePreviewItems} />
+              <AnalysisKnowledgeCarousel
+                items={analysisKnowledgePreviewItems}
+              />
               <AnalysisCountsBlock upcoming={3} missed={0} completed={2} />
             </View>
           </Section>
