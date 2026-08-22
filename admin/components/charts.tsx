@@ -1,0 +1,31 @@
+import { Badge, IconButton, Segmented } from "./ui";
+import { Icons } from "./icons";
+
+const Grid = () => <>{[38, 78, 118, 158, 198].map((y) => <line key={y} x1="48" x2="612" y1={y} y2={y} className="chart-grid"/>)}</>;
+
+export function RevenueChart() {
+  return <div className="chart-module"><header className="chart-module-head"><div><span className="eyebrow">Revenue & baseline</span><strong>$5.44M <small>+6.8%</small></strong></div><Segmented items={["30D", "90D", "1Y"]} initial={1}/></header><div className="chart-legend"><span><i className="legend-teal"/>Observed</span><span><i className="legend-gray"/>Baseline</span><span><i className="legend-dash"/>Forecast</span></div><svg className="chart-svg revenue-chart" viewBox="0 0 660 246" role="img" aria-label="Revenue trend from March through August"><Grid/><line x1="48" x2="48" y1="20" y2="206" className="axis"/><line x1="48" x2="612" y1="206" y2="206" className="axis"/><path d="M48 174 C82 170 93 150 124 155 S177 130 205 139 S255 107 287 116 S344 84 372 94 S428 61 458 70 S510 46 542 55 S586 35 612 40" className="area-line"/><path d="M48 186 C92 169 118 165 158 157 S226 140 266 132 S334 117 374 105 S450 91 492 78 S566 68 612 59" className="baseline-line"/><path d="M542 55 C566 49 584 39 612 40" className="forecast-line"/><circle cx="458" cy="70" r="4" className="chart-point"/><g className="chart-note"><rect x="422" y="25" width="74" height="28" rx="3"/><text x="459" y="37">Jul 18</text><text x="459" y="48">$193.4K</text></g>{["Mar", "Apr", "May", "Jun", "Jul", "Aug"].map((m, i) => <text key={m} x={48 + i * 112.8} y="226" className="axis-label" textAnchor={i === 0 ? "start" : i === 5 ? "end" : "middle"}>{m}</text>)}{["240k", "180k", "120k", "60k", "0"].map((v, i) => <text key={v} x="40" y={42 + i * 40} className="axis-label" textAnchor="end">{v}</text>)}</svg><footer className="chart-footer"><span>Updated 2 min ago</span><button><Icons.download size={13}/> Export SVG</button></footer></div>;
+}
+
+const barData = [[50,34],[74,46],[63,55],[92,69],[82,61],[106,78],[94,72],[122,91],[111,84],[139,102],[128,94],[151,109]];
+export function ComparisonBars() {
+  return <div className="chart-module"><header className="chart-module-head"><div><span className="eyebrow">Period comparison</span><strong>42.8% <small>margin</small></strong></div><Badge tone="neutral">FY 2026</Badge></header><div className="chart-legend"><span><i className="legend-teal"/>Current</span><span><i className="legend-gray"/>Prior</span></div><svg className="chart-svg bar-svg" viewBox="0 0 520 240" role="img" aria-label="Monthly current and prior period grouped bars"><line x1="38" x2="498" y1="200" y2="200" className="axis"/>{[60,100,140,180].map(y => <line key={y} x1="38" x2="498" y1={y} y2={y} className="chart-grid"/>)}{barData.map(([current, prior], i) => { const x=49+i*37; return <g key={i}><rect x={x} y={200-prior} width="9" height={prior} rx="1.5" className="bar-prior"/><rect x={x+11} y={200-current} width="9" height={current} rx="1.5" className="bar-current"/>{i%2===0 && <text x={x+10} y="218" className="axis-label" textAnchor="middle">{["S1","S3","S5","S7","S9","S11"][i/2]}</text>}</g>})}</svg><footer className="chart-footer"><span>12 monthly cohorts</span><button><Icons.more size={13}/> Options</button></footer></div>;
+}
+
+const points = [[70,155],[92,137],[114,160],[142,118],[168,126],[190,91],[222,112],[249,75],[278,83],[304,52],[335,66],[364,41],[390,62],[421,33],[450,47],[478,25]];
+export function ScatterPlot() {
+  return <div className="chart-module"><header className="chart-module-head"><div><span className="eyebrow">Efficiency frontier</span><strong>0.82 <small>r² score</small></strong></div><IconButton label="Chart settings"><Icons.sliders size={14}/></IconButton></header><svg className="chart-svg scatter-svg" viewBox="0 0 520 240" role="img" aria-label="Scatter plot of acquisition cost and lifetime value"><line x1="44" x2="494" y1="198" y2="198" className="axis"/><line x1="44" x2="44" y1="22" y2="198" className="axis"/>{[58,93,128,163].map(y => <line key={y} x1="44" x2="494" y1={y} y2={y} className="chart-grid"/>)}<path d="M60 169 486 20" className="trend-line"/>{points.map(([x,y],i) => <circle key={i} cx={x} cy={y} r={i === 11 ? 6 : 4} className={i === 11 ? "scatter-point focus" : "scatter-point"}/>)}<g className="chart-note"><rect x="312" y="74" width="82" height="29" rx="3"/><text x="353" y="86">Partner · EU</text><text x="353" y="97">LTV $1,248</text></g><text x="268" y="226" className="axis-title" textAnchor="middle">Acquisition cost →</text><text x="13" y="110" className="axis-title" transform="rotate(-90 13 110)" textAnchor="middle">Lifetime value →</text></svg><footer className="chart-footer"><span>n = 1,284 accounts</span><button><Icons.crosshair size={13}/> Inspect points</button></footer></div>;
+}
+
+const heat = [
+  [1,2,2,3,4,4,5,4,3,3,2,2], [1,1,2,3,3,4,4,5,4,3,2,1], [2,2,3,4,5,5,4,4,3,2,2,1],
+  [1,2,3,4,4,5,5,4,4,3,2,2], [1,1,2,3,4,4,5,5,4,3,2,1], [1,2,2,3,3,4,4,4,3,2,1,1],
+  [1,1,2,2,3,3,4,3,3,2,2,1], [1,2,3,3,4,5,5,4,3,3,2,1]
+];
+export function RetentionHeatmap() {
+  return <div className="chart-module"><header className="chart-module-head"><div><span className="eyebrow">Retention matrix</span><strong>68.4% <small>at M6</small></strong></div><Badge tone="teal">Cohort</Badge></header><div className="heatmap-wrap"><div className="heat-labels y">{["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug"].map(x=><span key={x}>{x}</span>)}</div><div className="heat-grid">{heat.flatMap((row,r)=>row.map((v,c)=><span key={`${r}-${c}`} className={`heat-${v}`} title={`${Math.max(22,94-c*4-r)}% retained`}/>))}</div><div className="heat-labels x">{Array.from({length:12},(_,i)=><span key={i}>M{i+1}</span>)}</div></div><footer className="chart-footer"><span>Low <i className="heat-scale"/> High</span><button><Icons.table size={13}/> View values</button></footer></div>;
+}
+
+export function MiniSparkline({ trend = "up" }: { trend?: "up" | "down" }) {
+  return <svg viewBox="0 0 92 24" className={trend === "up" ? "sparkline up" : "sparkline down"} aria-hidden="true"><path d={trend === "up" ? "M2 19 14 17 25 18 37 11 49 13 61 7 74 9 90 3" : "M2 5 14 7 25 5 37 11 49 9 61 15 74 13 90 20"}/></svg>;
+}

@@ -9,6 +9,10 @@
  */
 
 import type * as account from "../account.js";
+import type * as admin from "../admin.js";
+import type * as adminAssetActions from "../adminAssetActions.js";
+import type * as adminCatalog from "../adminCatalog.js";
+import type * as adminMigrations from "../adminMigrations.js";
 import type * as agent from "../agent.js";
 import type * as agentAction from "../agentAction.js";
 import type * as agentPlan from "../agentPlan.js";
@@ -17,15 +21,21 @@ import type * as ai_yandexProvider from "../ai/yandexProvider.js";
 import type * as aiAgentConfig from "../aiAgentConfig.js";
 import type * as aiChatConfig from "../aiChatConfig.js";
 import type * as auth from "../auth.js";
+import type * as calibrationActions from "../calibrationActions.js";
 import type * as chat from "../chat.js";
 import type * as chatAction from "../chatAction.js";
 import type * as crons from "../crons.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as lib_access from "../lib/access.js";
+import type * as lib_adminAccess from "../lib/adminAccess.js";
+import type * as monitoring from "../monitoring.js";
+import type * as monitoringData from "../monitoringData.js";
 import type * as notifications from "../notifications.js";
 import type * as profile from "../profile.js";
+import type * as publicCatalog from "../publicCatalog.js";
 import type * as seed from "../seed.js";
+import type * as telemetry from "../telemetry.js";
 import type * as testing from "../testing.js";
 
 import type {
@@ -36,6 +46,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   account: typeof account;
+  admin: typeof admin;
+  adminAssetActions: typeof adminAssetActions;
+  adminCatalog: typeof adminCatalog;
+  adminMigrations: typeof adminMigrations;
   agent: typeof agent;
   agentAction: typeof agentAction;
   agentPlan: typeof agentPlan;
@@ -44,15 +58,21 @@ declare const fullApi: ApiFromModules<{
   aiAgentConfig: typeof aiAgentConfig;
   aiChatConfig: typeof aiChatConfig;
   auth: typeof auth;
+  calibrationActions: typeof calibrationActions;
   chat: typeof chat;
   chatAction: typeof chatAction;
   crons: typeof crons;
   health: typeof health;
   http: typeof http;
   "lib/access": typeof lib_access;
+  "lib/adminAccess": typeof lib_adminAccess;
+  monitoring: typeof monitoring;
+  monitoringData: typeof monitoringData;
   notifications: typeof notifications;
   profile: typeof profile;
+  publicCatalog: typeof publicCatalog;
   seed: typeof seed;
+  telemetry: typeof telemetry;
   testing: typeof testing;
 }>;
 

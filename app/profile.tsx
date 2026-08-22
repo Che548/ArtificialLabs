@@ -80,6 +80,7 @@ import {
   parseImportPayload,
 } from '../lib/data-transfer';
 import { persistLabDocument } from '../lib/local-files';
+import { clearPendingTelemetryEvents } from '../lib/local-database';
 import type { ServiceIssue } from '../lib/service-errors';
 import type {
   AllergyRisk,
@@ -201,6 +202,7 @@ export default function ProfileScreen() {
   const revokeAiAgentConsent = useMutation(api.chat.revokeAgentConsent);
   const setRemoteAgentAutomation = useMutation(api.agent.setAutomation);
   const clearRemoteAgentData = useMutation(api.agent.clearMyData);
+  const setAnalyticsConsent = useMutation(api.telemetry.setConsent);
   const notificationManager = useNotificationManager();
   const {
     accountDeletion,
@@ -601,6 +603,10 @@ export default function ProfileScreen() {
                 )?.agentLastSuccessfulRunAt,
                 agentNotifications,
                 analyticsEnabled,
+                setAnalyticsConsent: async (enabled) => {
+                  if (!isAuthenticated) return;
+                  await setAnalyticsConsent({ enabled });
+                },
                 documentCount,
                 documents: visibleDocuments,
                 sourceDocumentId: sourceId,
@@ -1248,6 +1254,7 @@ function renderProfileSectionDirect({
   saveMedicalCondition,
   saveMedication,
   savePreferences,
+  setAnalyticsConsent,
   saveAgentAutomation,
   saveProfile,
   section,
@@ -1327,6 +1334,7 @@ function renderProfileSectionDirect({
     resultNotifications?: boolean;
     notificationTone?: 'formal' | 'cute';
   }) => Promise<void>;
+  setAnalyticsConsent: (enabled: boolean) => Promise<void>;
   saveAgentAutomation: (enabled: boolean) => Promise<void>;
   saveProfile: (
     input: Partial<Omit<LocalProfile, 'updatedAt'>>,
@@ -1633,6 +1641,8 @@ function renderProfileSectionDirect({
               onChange={(value) => {
                 setAnalyticsEnabled(value);
                 void savePreferences({ anonymousAnalytics: value });
+                if (!value) void clearPendingTelemetryEvents();
+                void setAnalyticsConsent(value);
               }}
             />
             <ProfileToggleRow

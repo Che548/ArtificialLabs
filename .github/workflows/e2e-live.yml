@@ -19,6 +19,8 @@ jobs:
       EXPO_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
       CONVEX_SELF_HOSTED_URL: https://artificiallabs-convex.bebra42.ru
       E2E_WEB_URL: https://artificiallabs.bebra42.ru
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
       CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
 
     steps:
@@ -50,7 +52,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Test deployed read-only web client
+      - name: Test deployed protected admin client
         run: npm run e2e:web
 
       - name: Upload E2E evidence

@@ -10,6 +10,7 @@ import type {
 } from './health-types';
 import { createEmptySnapshot } from './health-types';
 import { createChatTombstones } from './chat-deletion';
+import type { AnonymousTelemetryEvent } from './telemetry-types';
 
 let snapshot: HealthSnapshot = {
   ...createEmptySnapshot(),
@@ -263,3 +264,10 @@ export async function clearLocalHealthData() {
     }
   }
 }
+export async function enqueueTelemetryEvent(_event: AnonymousTelemetryEvent) {}
+export async function loadPendingTelemetryEvents(_limit = 50) {
+  return [];
+}
+export async function acknowledgeTelemetryEvents(_eventIds: string[]) {}
+export async function markTelemetryAttempt(_eventIds: string[]) {}
+export async function clearPendingTelemetryEvents() {}

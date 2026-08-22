@@ -32,6 +32,7 @@ export type StoredScanRecord = {
   qualityFlags?: string[];
   calibrationVersion?: string;
   signalRatio?: number;
+  processingDurationMs?: number;
 };
 
 export type PendingScanRecord = Pick<
@@ -47,6 +48,7 @@ export type PendingScanRecord = Pick<
   | 'qualityFlags'
   | 'calibrationVersion'
   | 'signalRatio'
+  | 'processingDurationMs'
 >;
 
 const historyDirectory = documentDirectory

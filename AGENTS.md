@@ -63,8 +63,9 @@ push tokens or provider credentials. Web does not request notification access.
   device. Never add their URI or bytes to a Convex mutation or file storage.
 - All personal queries and mutations require Convex Auth and enforce ownership
   server-side. Public catalog data must not expose personal or medical data.
-- Expo web is a read-only demonstration. Do not enable account, camera, journal,
-  lab, scan, or other medical-data writes on web without a separate review.
+- Expo web remains a read-only development demonstration. The deployed web
+  image is the separate login-protected `admin/` package; it must never expose
+  account, camera, journal, lab, scan, chat, or other personal medical data.
 - StripCV performs on-device computer-vision analysis. Persist its source,
   algorithm version, quality flags, signal ratio, and numeric confidence, while
   keeping the final value explicitly user-confirmed. Never describe it as a
@@ -76,15 +77,33 @@ push tokens or provider credentials. Web does not request notification access.
   status, retry transient transport failures with bounded backoff, and trigger
   an immediate single-flight sync when connectivity returns. Do not retry Auth
   or validation errors as transport failures.
-- Email verification, password reset, OCR, AI chat, push notifications, and
-  the admin panel are deferred milestones. Do not imply they are operational.
+- Email verification, password reset and OCR remain deferred milestones. The
+  admin console manages only catalogs, lots, calibrations, published content,
+  privacy-safe aggregates, monitoring and admin access.
+
+## Admin console
+
+- `admin/` is a statically exported Next.js application. Every page, including
+  `/kit`, is protected by Convex Auth and every server operation calls
+  `requireAdmin()`; client checks are presentation only.
+- Bootstrap the first administrator only with
+  `npx convex run admin:bootstrapByEmail '{"email":"..."}' --env-file .env.local`.
+  Later grants and revocations are audited in the console. Never allow admin
+  self-registration or revocation of the last active administrator.
+- `CALIBRATION_SIGNING_PRIVATE_KEY` and `ANALYTICS_HASH_SECRET` are Convex
+  environment secrets. They must never be exposed as `NEXT_PUBLIC_*`, Docker
+  build arguments, logs or Git content.
+- Admin queries are cursor-paginated and bounded. Analytics pages read only
+  materialized daily buckets; do not scan personal tables or raw telemetry.
+- Run `npm --prefix admin ci`, then `npm --prefix admin run verify` before
+  publishing the admin image.
 
 SQLCipher and camera changes require a native development/release build; Expo
 Go is not sufficient for verification after native plugin changes.
 
 # Web deployment
 
-GitHub Actions builds the Expo web export into
+GitHub Actions builds the static `admin/out` export into
 `ghcr.io/che548/artificiallabs`. A push to `main` automatically publishes the
 commit and `latest` tags. Other branches deploy only through the manual
 **Build and Publish Web Image** workflow; choose the branch in the GitHub
@@ -97,7 +116,7 @@ never echo it, expose it to a `pull_request` job, or pass it to untrusted code.
 The deployment workflow has no `pull_request` trigger. Public PRs run only
 `.github/workflows/ci.yml`, which receives no Convex admin credentials.
 
-The runtime image contains only the generated `dist` directory and nginx
+The runtime image contains only the generated `admin/out` directory and nginx
 configuration. Never copy `.env` files, Git metadata, source files, or Convex
 admin credentials into the runtime image. The `artificiallabs_web` container on
 `junk` is updated by its dedicated label-enabled Watchtower service. The image

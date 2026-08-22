@@ -78,13 +78,14 @@
     "typecheck": "tsc --noEmit",
     "check:expo": "expo install --check",
     "doctor": "npx --yes expo-doctor@latest",
-    "build:web": "expo export --platform web --output-dir dist",
+    "build:expo-web": "expo export --platform web --output-dir dist",
+    "build:web": "npm --prefix admin run build",
     "build:strip-cv": "node scripts/build-strip-cv.mjs",
     "test:strip-cv": "npm run build:strip-cv && ctest --test-dir web-build/stripcv-native --output-on-failure && tsx scripts/smoke-strip-cv.mjs && npm run test:strip-cv-server",
     "test:strip-cv-server": "tsx scripts/smoke-strip-cv-server.mjs",
     "web:serve": "node scripts/web-server.mjs",
-    "web:full": "npm run build:web && npm run build:strip-cv && npm run web:serve",
-    "test": "tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts services/scanning/scan-overlay-geometry.test.ts modules/strip-cv/src/StripCv.web-request.test.ts lib/auth-session.test.ts lib/chat-context.test.ts lib/chat-deletion.test.ts lib/chat-generation-state.test.ts lib/safe-markdown.test.ts lib/cloud-sync.test.ts lib/data-transfer.test.ts lib/notification-schedule.test.ts lib/product-insights.test.ts lib/service-errors.test.ts lib/sync-policy.test.ts tests/e2e/convex-e2e-proxy.test.ts && vitest run convex/health.test.ts convex/chat.test.ts tests/unit/yandex-provider.test.ts",
+    "web:full": "npm run build:expo-web && npm run build:strip-cv && npm run web:serve",
+    "test": "tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts services/scanning/scan-overlay-geometry.test.ts modules/strip-cv/src/StripCv.web-request.test.ts lib/auth-session.test.ts lib/chat-context.test.ts lib/chat-deletion.test.ts lib/chat-generation-state.test.ts lib/safe-markdown.test.ts lib/cloud-sync.test.ts lib/data-transfer.test.ts lib/notification-schedule.test.ts lib/product-insights.test.ts lib/service-errors.test.ts lib/sync-policy.test.ts tests/e2e/convex-e2e-proxy.test.ts && vitest run convex/health.test.ts convex/chat.test.ts convex/admin.test.ts convex/telemetry.test.ts tests/unit/yandex-provider.test.ts",
     "e2e:backend": "node --env-file-if-exists=.env.local --import tsx tests/e2e/backend.live.ts",
     "e2e:yandex": "node --env-file-if-exists=.env.local --import tsx tests/e2e/yandex-ai.live.ts",
     "e2e:web": "playwright test tests/e2e/web.spec.ts",
@@ -92,7 +93,7 @@
     "e2e:coverage": "tsx scripts/validate-e2e-coverage.ts",
     "e2e:all": "npm run e2e:backend && npm run e2e:web && npm run e2e:native",
     "e2e:cleanup": "node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts cleanup",
-    "verify": "npm run check:expo && npm run typecheck && npm run doctor && npm run build:web"
+    "verify": "npm run check:expo && npm run typecheck && npm run doctor && npm run build:expo-web && npm --prefix admin run verify"
   },
   "engines": {
     "node": ">=20.19.4"

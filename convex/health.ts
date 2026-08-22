@@ -619,7 +619,10 @@ export const snapshot = query({
 export const catalog = query({
   args: {},
   handler: async (ctx) => {
-    const systems = await ctx.db.query('testSystems').collect();
-    return systems.filter((system) => system.active);
+    return await ctx.db
+      .query('testSystems')
+      .withIndex('by_status_updated', (q) => q.eq('status', 'active'))
+      .order('desc')
+      .take(100);
   },
 });

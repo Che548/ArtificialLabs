@@ -18,6 +18,7 @@ jobs:
     env:
       CI: true
       EXPO_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
+      NEXT_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
 
     steps:
       - name: Check out repository
@@ -31,6 +32,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install admin dependencies
+        run: npm --prefix admin ci
 
       - name: Run unit tests
         run: npm test

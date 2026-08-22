@@ -25,4 +25,32 @@ crons.hourly(
   {},
 );
 
+crons.interval(
+  'aggregate telemetry watchdog',
+  { minutes: 5 },
+  internal.telemetry.watchdog,
+  {},
+);
+
+crons.hourly(
+  'purge expired service checks',
+  { minuteUTC: 47 },
+  internal.monitoringData.cleanupExpired,
+  {},
+);
+
+crons.hourly(
+  'purge expired telemetry',
+  { minuteUTC: 37 },
+  internal.telemetry.cleanupExpired,
+  {},
+);
+
+crons.interval(
+  'check admin services',
+  { minutes: 5 },
+  internal.monitoring.checkServices,
+  {},
+);
+
 export default crons;
