@@ -4,6 +4,20 @@ export const CHAT_CONTEXT_MAX_MESSAGES = 20;
 export const CHAT_CONTEXT_MAX_CHARACTERS = 24_000;
 export const CHAT_CONTEXT_MAX_MESSAGE_CHARACTERS = 8_000;
 
+export type ChatHistoryPeriod = '7-days' | 'all' | 'today';
+
+export function chatTimestampIsInPeriod(
+  timestamp: number,
+  period: ChatHistoryPeriod,
+  now = Date.now(),
+) {
+  if (period === 'all') return true;
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  if (period === '7-days') start.setDate(start.getDate() - 6);
+  return timestamp >= start.getTime() && timestamp <= now;
+}
+
 export type ChatTranscriptMessage = {
   role: 'user' | 'assistant';
   content: string;

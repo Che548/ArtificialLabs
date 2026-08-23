@@ -6,7 +6,7 @@ import {
   readAsStringAsync,
   writeAsStringAsync,
 } from 'expo-file-system/legacy';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
@@ -191,6 +191,7 @@ function ProfileHistoryBackIcon() {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { panel, sourceId } = useLocalSearchParams<{
     panel?: string;
     sourceId?: string;
@@ -257,6 +258,27 @@ export default function ProfileScreen() {
   const [syncMessage, setSyncMessage] = useState<string>();
   const [reducePageMotion, setReducePageMotion] = useState(false);
   const sectionProgress = useRef(new Animated.Value(0)).current;
+  const signOutInFlight = useRef(false);
+
+  const signOutSafely = async () => {
+    if (signOutInFlight.current) return;
+    signOutInFlight.current = true;
+    try {
+      // Leave the native profile tab before auth removes the entire tab tree.
+      // Await token deletion so a native SecureStore failure is handled instead
+      // of becoming an unhandled rejection on the next activation.
+      router.replace('/');
+      await signOut();
+    } catch (error) {
+      console.error('Signing out failed', error);
+      Alert.alert(
+        'Не удалось выйти',
+        'Защищённое хранилище недоступно. Разблокируйте устройство и попробуйте ещё раз.',
+      );
+    } finally {
+      signOutInFlight.current = false;
+    }
+  };
 
   useEffect(() => {
     if (panel && panel in SECTION_TITLES)
@@ -318,7 +340,8 @@ export default function ProfileScreen() {
       (result) => !result.deletedAt && result.hasLocalSourceDocument,
     ).length,
   );
-  const displayName = profile?.displayName?.trim() || 'Демо-профиль';
+  const displayName =
+    profile?.displayName?.trim() || viewerEmail?.split('@')[0] || 'Профиль';
 
   const synchronize = async () => {
     setSyncMessage(undefined);
@@ -596,6 +619,8 @@ export default function ProfileScreen() {
                 agentEnabled: aiAgentStatus?.enabled === true,
                 agentAutomationEnabled:
                   aiAgentStatus?.automationEnabled === true,
+                agentProviderConfigured:
+                  aiAgentStatus?.providerConfigured === true,
                 agentAutomationAccepted:
                   aiAgentStatus?.automationAccepted === true,
                 agentLastSuccessfulRunAt: preferences.find(
@@ -648,7 +673,7 @@ export default function ProfileScreen() {
                 setProgramStatus,
                 setResultNotifications,
                 sendTestNotification: notificationManager.sendTest,
-                signOut: () => void signOut(),
+                signOut: () => void signOutSafely(),
                 requestAccountDeletion,
                 serviceIssue,
                 revokeAiConsent: confirmAiConsentRevocation,
@@ -1219,6 +1244,7 @@ function renderProfileSectionDirect({
   aiConsentAccepted,
   agentAutomationAccepted,
   agentAutomationEnabled,
+  agentProviderConfigured,
   agentConsentAccepted,
   agentEnabled,
   agentLastSuccessfulRunAt,
@@ -1279,6 +1305,7 @@ function renderProfileSectionDirect({
   aiConsentAccepted: boolean;
   agentAutomationAccepted: boolean;
   agentAutomationEnabled: boolean;
+  agentProviderConfigured: boolean;
   agentConsentAccepted: boolean;
   agentEnabled: boolean;
   agentLastSuccessfulRunAt?: number;
@@ -1654,17 +1681,21 @@ function renderProfileSectionDirect({
                     ? 'Сначала включите Ассистента в чате'
                     : !agentAutomationEnabled
                       ? 'Автономные проверки временно выключены'
-                      : !agentAutomationAccepted && medicalRecommendations
-                        ? 'Настройка на сервере не подтверждена — включите заново'
-                        : agentLastSuccessfulRunAt
-                          ? `Последняя проверка: ${formatDate(agentLastSuccessfulRunAt)}. Фоновый запуск нерегулярный`
-                          : 'Проверка запустится при стабильном подключении; фоновые сроки не гарантируются'
+                      : !agentProviderConfigured
+                        ? 'Сервис плана не настроен на сервере'
+                        : !agentAutomationAccepted && medicalRecommendations
+                          ? 'Настройка на сервере не подтверждена — включите заново'
+                          : agentLastSuccessfulRunAt
+                            ? `Последняя проверка: ${formatDate(agentLastSuccessfulRunAt)}. Фоновый запуск нерегулярный`
+                            : 'Проверка запустится при стабильном подключении; фоновые сроки не гарантируются'
               }
               value={medicalRecommendations}
               disabled={
                 readOnly ||
                 (!medicalRecommendations &&
-                  (!agentConsentAccepted || !agentAutomationEnabled))
+                  (!agentConsentAccepted ||
+                    !agentAutomationEnabled ||
+                    !agentProviderConfigured))
               }
               onChange={(value) => {
                 void saveAgentAutomation(value);
@@ -1946,13 +1977,12 @@ const medicationFrequencyOptions = [
   { value: 'month', label: 'месяц' },
 ] as const;
 
-type MedicationFrequency =
-  (typeof medicationFrequencyOptions)[number]['value'];
+type MedicationFrequency = (typeof medicationFrequencyOptions)[number]['value'];
 
 const medicationDoseUnitAliases: Record<string, MedicationDoseUnit> = {
   mcg: 'mcg',
   ug: 'mcg',
-  'μg': 'mcg',
+  μg: 'mcg',
   мкг: 'mcg',
   mg: 'mg',
   мг: 'mg',
@@ -2391,9 +2421,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
                 onPress={() => void save()}
                 style={[
                   styles.medicalEditorPrimaryAction,
-                  (props.readOnly ||
-                    !primary.trim() ||
-                    !medicationDoseValid) &&
+                  (props.readOnly || !primary.trim() || !medicationDoseValid) &&
                     styles.medicalEditorPrimaryActionDisabled,
                 ]}
               >

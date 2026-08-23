@@ -13,6 +13,7 @@ import {
   AI_AGENT_LIMITS,
   type AiAgentPlanReviewResult,
   isAiAgentAutomationEnabled,
+  isAiAgentProviderConfigured,
 } from './aiAgentConfig';
 import { generatePlanReviewWithYandex } from './ai/yandexProvider';
 import { agentPlanCatalogCandidates } from '../lib/care-plan';
@@ -22,11 +23,13 @@ import {
 } from './ai/agentContextValidation';
 
 const rateLimiter = new RateLimiter(components.rateLimiter, {
-  aiAgentPlanPerUser: {
+  // V2 starts clean after the original bucket consumed quota for requests that
+  // could never reach an incompletely configured provider.
+  aiAgentPlanPerUserV2: {
     kind: 'token bucket',
     ...AI_AGENT_AUTOMATION_RATE_LIMITS.perUser,
   },
-  aiAgentPlanGlobal: {
+  aiAgentPlanGlobalV2: {
     kind: 'token bucket',
     ...AI_AGENT_AUTOMATION_RATE_LIMITS.global,
   },
@@ -76,6 +79,8 @@ export const review = action({
     if (!userId) throw new Error('UNAUTHENTICATED');
     if (!isAiAgentAutomationEnabled())
       return { ok: false, code: 'FEATURE_DISABLED' };
+    if (!isAiAgentProviderConfigured())
+      return { ok: false, code: 'PROVIDER_UNAVAILABLE' };
     if (
       args.requestId.length < 8 ||
       args.requestId.length > 80 ||
@@ -109,7 +114,7 @@ export const review = action({
     const goal = contextGoal(context);
     if (!goal || goal !== access.goal)
       return { ok: false, code: 'INVALID_REQUEST' };
-    const perUser = await rateLimiter.limit(ctx, 'aiAgentPlanPerUser', {
+    const perUser = await rateLimiter.limit(ctx, 'aiAgentPlanPerUserV2', {
       key: userId,
     });
     if (!perUser.ok)
@@ -118,7 +123,7 @@ export const review = action({
         code: 'RATE_LIMITED',
         retryAfterMs: Math.max(0, perUser.retryAfter ?? 0),
       };
-    const global = await rateLimiter.limit(ctx, 'aiAgentPlanGlobal');
+    const global = await rateLimiter.limit(ctx, 'aiAgentPlanGlobalV2');
     if (!global.ok)
       return {
         ok: false,
@@ -167,7 +172,8 @@ export const review = action({
 export const reviewDueSynced = internalAction({
   args: { now: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    if (!isAiAgentAutomationEnabled()) return { reviewed: 0, applied: 0 };
+    if (!isAiAgentAutomationEnabled() || !isAiAgentProviderConfigured())
+      return { reviewed: 0, applied: 0 };
     const now = args.now ?? Date.now();
     const due = (await ctx.runQuery(internal.agent.dueSyncedAutomation, {
       now,
@@ -181,11 +187,11 @@ export const reviewDueSynced = internalAction({
     let reviewed = 0;
     let applied = 0;
     for (const item of due) {
-      const perUser = await rateLimiter.limit(ctx, 'aiAgentPlanPerUser', {
+      const perUser = await rateLimiter.limit(ctx, 'aiAgentPlanPerUserV2', {
         key: item.userId,
       });
       if (!perUser.ok) continue;
-      const global = await rateLimiter.limit(ctx, 'aiAgentPlanGlobal');
+      const global = await rateLimiter.limit(ctx, 'aiAgentPlanGlobalV2');
       if (!global.ok) break;
       const requestId = `scheduled_${now}_${String(item.triggerId).slice(-12)}`;
       const result = await generatePlanReviewWithYandex({

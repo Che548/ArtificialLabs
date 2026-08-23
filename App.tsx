@@ -68,7 +68,23 @@ import {
   shadows,
 } from './design-system';
 import { FallbackGlassBackdrop } from './design-system/glass-fallback';
+import {
+  createCycleHistory,
+  cycleDateFromKey,
+  cycleDateKey,
+  cycleDayInsight,
+  cycleHistoryFromHealthData,
+  cycleLengthVariation,
+  isMenstruationJournalEntry,
+  periodDateKeysFromJournal,
+} from './lib/cycle-insights';
 import { useHealthStore } from './lib/health-store';
+import {
+  carePlanProgress,
+  homeDashboardForGoal,
+  journalProgressForDay,
+  pregnancyWeekFromStart,
+} from './lib/product-insights';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
@@ -78,7 +94,6 @@ const FONT_YARO_RG = 'YaroRg';
 const FontReadyContext = createContext(false);
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const MAX_PREGNANCY_WEEK = 42;
-const INITIAL_WEEK = 7;
 const WEEK_ITEM_WIDTH = 84;
 const WEEK_BUBBLE_SIZE = 75;
 const WEEK_CENTER_PADDING = (DESIGN_WIDTH - WEEK_ITEM_WIDTH) / 2;
@@ -299,7 +314,9 @@ function LiquidGlassPressable({
       style={[
         controlStyle,
         styles.fallbackGlassHost,
-        headerElevation ? styles.headerControlShadow : styles.glassControlShadow,
+        headerElevation
+          ? styles.headerControlShadow
+          : styles.glassControlShadow,
       ]}
     >
       <FallbackGlassBackdrop
@@ -400,30 +417,25 @@ function ProjectText({
 
 type FeatureCardProps = {
   title: string;
-  accent?: boolean;
+  onPress?: () => void;
 };
 
-function FeatureCard({ title, accent = false }: FeatureCardProps) {
+function FeatureCard({ title, onPress }: FeatureCardProps) {
   return (
-    <View
-      style={[
-        styles.featureCard,
-        accent ? styles.featureCardAccent : styles.featureCardSoft,
-      ]}
-    >
-      <Pressable accessibilityRole="button" accessibilityLabel={title}>
+    <View style={[styles.featureCard, styles.featureCardSoft]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={title.replace(/\n/g, ' ')}
+        onPress={onPress}
+      >
         {({ pressed }) => (
           <View style={[styles.featureCardContent, pressed && styles.pressed]}>
-            {accent ? (
-              <ProjectText style={styles.attentionValue}>72%</ProjectText>
-            ) : (
-              <View style={styles.cardArrow}>
-                <ArrowCard width={18.3} height={18.3} />
-              </View>
-            )}
+            <View style={styles.cardArrow}>
+              <ArrowCard width={18.3} height={18.3} />
+            </View>
             <ProjectText
               numberOfLines={3}
-              style={[styles.featureTitle, accent && styles.featureTitleLight]}
+              style={styles.featureTitle}
               weight="regular"
             >
               {title}
@@ -435,7 +447,7 @@ function FeatureCard({ title, accent = false }: FeatureCardProps) {
   );
 }
 
-function ImportantMascotCard() {
+function ImportantMascotCard({ onPress }: { onPress?: () => void }) {
   const fontsReady = useContext(FontReadyContext);
 
   return (
@@ -443,7 +455,8 @@ function ImportantMascotCard() {
       <View pointerEvents="none" style={styles.importantCardSurface} />
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Важно"
+        accessibilityLabel="Открыть важные пункты плана"
+        onPress={onPress}
         style={({ pressed }) => [
           styles.importantCardHitArea,
           pressed && styles.pressed,
@@ -481,28 +494,21 @@ function MonitoringScreen({
   onCalendarPress,
   onChartsPress,
   onJournalPress,
+  onNutritionPress,
+  onPregnancyDatePress,
   onCheckupsPress,
 }: {
   headerTop: number;
   onCalendarPress: () => void;
   onChartsPress: () => void;
   onJournalPress: () => void;
+  onNutritionPress: () => void;
+  onPregnancyDatePress: () => void;
   onCheckupsPress: () => void;
 }) {
-  const { profile, journalEntries, labResults, scanResults } = useHealthStore();
-  const initialWeek =
-    profile?.goal === 'pregnancy' && profile.pregnancyStartAt
-      ? Math.min(
-          MAX_PREGNANCY_WEEK,
-          Math.max(
-            1,
-            Math.floor(
-              (Date.now() - profile.pregnancyStartAt) /
-                (7 * 24 * 60 * 60 * 1000),
-            ) + 1,
-          ),
-        )
-      : INITIAL_WEEK;
+  const { carePlanItems, profile, journalEntries } = useHealthStore();
+  const pregnancyWeek = pregnancyWeekFromStart(profile?.pregnancyStartAt);
+  const initialWeek = pregnancyWeek ?? 1;
   const [activeWeek, setActiveWeek] = useState(initialWeek);
   const fontsReady = useContext(FontReadyContext);
   const weekScrollRef = useRef<ScrollView>(null);
@@ -577,15 +583,8 @@ function MonitoringScreen({
     });
   };
 
-  const todayStart = new Date().setHours(0, 0, 0, 0);
-  const journalCompleted = journalEntries.some(
-    (entry) => !entry.deletedAt && entry.occurredAt >= todayStart,
-  );
-  const completedCheckups = Math.min(
-    6,
-    labResults.filter((item) => !item.deletedAt).length +
-      scanResults.filter((item) => !item.deletedAt).length,
-  );
+  const journalProgress = journalProgressForDay(journalEntries);
+  const checkupProgress = carePlanProgress(carePlanItems);
 
   return (
     <View style={styles.canvas}>
@@ -656,181 +655,210 @@ function MonitoringScreen({
         contentContainerStyle={styles.dashboardScrollContent}
       >
         <View style={styles.dashboardScrollCanvas}>
-          <Animated.ScrollView
-            ref={weekScrollRef}
-            horizontal
-            nestedScrollEnabled
-            accessibilityRole="adjustable"
-            accessibilityLabel="Текущая неделя беременности"
-            contentInsetAdjustmentBehavior="never"
-            contentOffset={{
-              x: (initialWeek - 1) * WEEK_ITEM_WIDTH,
-              y: 0,
-            }}
-            contentContainerStyle={styles.weekCarouselContent}
-            decelerationRate="fast"
-            disableIntervalMomentum
-            showsHorizontalScrollIndicator={false}
-            snapToAlignment="start"
-            snapToInterval={WEEK_ITEM_WIDTH}
-            style={styles.weekCarousel}
-            onMomentumScrollEnd={handleWeekScrollEnd}
-            onScrollEndDrag={handleWeekScrollEnd}
-            onScroll={Animated.event(
-              [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-              {
-                useNativeDriver: true,
-                listener: handleWeekScroll,
-              },
-            )}
-            scrollEventThrottle={16}
-          >
-            {weeks.map((week, index) => {
-              const selected = week === activeWeek;
-              const weekLabel = getWeekLabel(week);
-              const itemOffset = index * WEEK_ITEM_WIDTH;
-              const inputRange = [
-                itemOffset - WEEK_ITEM_WIDTH * 2,
-                itemOffset - WEEK_ITEM_WIDTH,
-                itemOffset,
-                itemOffset + WEEK_ITEM_WIDTH,
-                itemOffset + WEEK_ITEM_WIDTH * 2,
-              ];
-              const scale = scrollX.interpolate({
-                inputRange,
-                outputRange: [0.8, 0.867, 1, 0.867, 0.8],
-                extrapolate: 'clamp',
-              });
-              const translateY = scrollX.interpolate({
-                inputRange,
-                outputRange: [-8, 21, 28, 21, -8],
-                extrapolate: 'clamp',
-              });
-
-              return (
-                <Animated.View
-                  key={week}
-                  style={[
-                    styles.weekItem,
-                    { transform: [{ translateY }, { scale }] },
-                  ]}
-                >
-                  <LiquidGlassPressable
-                    accessibilityLabel={`${week} ${weekLabel}`}
-                    controlStyle={styles.weekBubble}
-                    onPress={() => scrollToWeek(week)}
-                    washColor="transparent"
-                  >
-                    <View style={styles.weekCopy}>
-                      <Text
-                        style={[
-                          styles.weekNumber,
-                          { fontFamily: weekNumberFont },
-                        ]}
-                      >
-                        {week}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.weekLabel,
-                          { fontFamily: weekLabelFont },
-                        ]}
-                      >
-                        {weekLabel}
-                      </Text>
-                    </View>
-                  </LiquidGlassPressable>
-                </Animated.View>
-              );
-            })}
-          </Animated.ScrollView>
-
-          <View
-            pointerEvents="none"
-            style={[styles.weekSelector, styles.weekBubbleSelected]}
-          >
-            <View style={styles.selectedWeekFill} />
-          </View>
-
-          <View pointerEvents="none" style={styles.weekTextCarousel}>
-            <Animated.View
-              style={[
-                styles.weekTextTrack,
-                {
-                  transform: [{ translateX: Animated.multiply(scrollX, -1) }],
-                },
-              ]}
-            >
-              {weeks.map((week, index) => {
-                const weekLabel = getWeekLabel(week);
-                const itemOffset = index * WEEK_ITEM_WIDTH;
-                const inputRange = [
-                  itemOffset - WEEK_ITEM_WIDTH * 2,
-                  itemOffset - WEEK_ITEM_WIDTH,
-                  itemOffset,
-                  itemOffset + WEEK_ITEM_WIDTH,
-                  itemOffset + WEEK_ITEM_WIDTH * 2,
-                ];
-                const scale = scrollX.interpolate({
-                  inputRange,
-                  outputRange: [0.8, 0.867, 1, 0.867, 0.8],
-                  extrapolate: 'clamp',
-                });
-                const translateY = scrollX.interpolate({
-                  inputRange,
-                  outputRange: [-8, 21, 28, 21, -8],
-                  extrapolate: 'clamp',
-                });
-                const selectedTextOpacity = scrollX.interpolate({
-                  inputRange: [
+          {pregnancyWeek ? (
+            <>
+              <Animated.ScrollView
+                ref={weekScrollRef}
+                horizontal
+                nestedScrollEnabled
+                accessibilityRole="adjustable"
+                accessibilityLabel="Текущая неделя беременности"
+                contentInsetAdjustmentBehavior="never"
+                contentOffset={{
+                  x: (initialWeek - 1) * WEEK_ITEM_WIDTH,
+                  y: 0,
+                }}
+                contentContainerStyle={styles.weekCarouselContent}
+                decelerationRate="fast"
+                disableIntervalMomentum
+                showsHorizontalScrollIndicator={false}
+                snapToAlignment="start"
+                snapToInterval={WEEK_ITEM_WIDTH}
+                style={styles.weekCarousel}
+                onMomentumScrollEnd={handleWeekScrollEnd}
+                onScrollEndDrag={handleWeekScrollEnd}
+                onScroll={Animated.event(
+                  [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                  {
+                    useNativeDriver: true,
+                    listener: handleWeekScroll,
+                  },
+                )}
+                scrollEventThrottle={16}
+              >
+                {weeks.map((week, index) => {
+                  const selected = week === activeWeek;
+                  const weekLabel = getWeekLabel(week);
+                  const itemOffset = index * WEEK_ITEM_WIDTH;
+                  const inputRange = [
+                    itemOffset - WEEK_ITEM_WIDTH * 2,
                     itemOffset - WEEK_ITEM_WIDTH,
                     itemOffset,
                     itemOffset + WEEK_ITEM_WIDTH,
-                  ],
-                  outputRange: [0, 1, 0],
-                  extrapolate: 'clamp',
-                });
+                    itemOffset + WEEK_ITEM_WIDTH * 2,
+                  ];
+                  const scale = scrollX.interpolate({
+                    inputRange,
+                    outputRange: [0.8, 0.867, 1, 0.867, 0.8],
+                    extrapolate: 'clamp',
+                  });
+                  const translateY = scrollX.interpolate({
+                    inputRange,
+                    outputRange: [-8, 21, 28, 21, -8],
+                    extrapolate: 'clamp',
+                  });
 
-                return (
-                  <Animated.View
-                    key={week}
-                    style={[
-                      styles.weekItem,
-                      { transform: [{ translateY }, { scale }] },
-                    ]}
-                  >
-                    <View style={styles.weekCopy}>
+                  return (
+                    <Animated.View
+                      key={week}
+                      style={[
+                        styles.weekItem,
+                        { transform: [{ translateY }, { scale }] },
+                      ]}
+                    >
+                      <LiquidGlassPressable
+                        accessibilityLabel={`${week} ${weekLabel}`}
+                        controlStyle={styles.weekBubble}
+                        onPress={() => scrollToWeek(week)}
+                        washColor="transparent"
+                      >
+                        <View style={styles.weekCopy}>
+                          <Text
+                            style={[
+                              styles.weekNumber,
+                              { fontFamily: weekNumberFont },
+                            ]}
+                          >
+                            {week}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.weekLabel,
+                              { fontFamily: weekLabelFont },
+                            ]}
+                          >
+                            {weekLabel}
+                          </Text>
+                        </View>
+                      </LiquidGlassPressable>
+                    </Animated.View>
+                  );
+                })}
+              </Animated.ScrollView>
+
+              <View
+                pointerEvents="none"
+                style={[styles.weekSelector, styles.weekBubbleSelected]}
+              >
+                <View style={styles.selectedWeekFill} />
+              </View>
+
+              <View pointerEvents="none" style={styles.weekTextCarousel}>
+                <Animated.View
+                  style={[
+                    styles.weekTextTrack,
+                    {
+                      transform: [
+                        { translateX: Animated.multiply(scrollX, -1) },
+                      ],
+                    },
+                  ]}
+                >
+                  {weeks.map((week, index) => {
+                    const weekLabel = getWeekLabel(week);
+                    const itemOffset = index * WEEK_ITEM_WIDTH;
+                    const inputRange = [
+                      itemOffset - WEEK_ITEM_WIDTH * 2,
+                      itemOffset - WEEK_ITEM_WIDTH,
+                      itemOffset,
+                      itemOffset + WEEK_ITEM_WIDTH,
+                      itemOffset + WEEK_ITEM_WIDTH * 2,
+                    ];
+                    const scale = scrollX.interpolate({
+                      inputRange,
+                      outputRange: [0.8, 0.867, 1, 0.867, 0.8],
+                      extrapolate: 'clamp',
+                    });
+                    const translateY = scrollX.interpolate({
+                      inputRange,
+                      outputRange: [-8, 21, 28, 21, -8],
+                      extrapolate: 'clamp',
+                    });
+                    const selectedTextOpacity = scrollX.interpolate({
+                      inputRange: [
+                        itemOffset - WEEK_ITEM_WIDTH,
+                        itemOffset,
+                        itemOffset + WEEK_ITEM_WIDTH,
+                      ],
+                      outputRange: [0, 1, 0],
+                      extrapolate: 'clamp',
+                    });
+
+                    return (
                       <Animated.View
+                        key={week}
                         style={[
-                          styles.weekSelectedCopy,
-                          { opacity: selectedTextOpacity },
+                          styles.weekItem,
+                          { transform: [{ translateY }, { scale }] },
                         ]}
                       >
-                        <Animated.Text
-                          style={[
-                            styles.weekNumber,
-                            styles.weekTextSelected,
-                            { fontFamily: weekNumberFont },
-                          ]}
-                        >
-                          {week}
-                        </Animated.Text>
-                        <Animated.Text
-                          style={[
-                            styles.weekLabel,
-                            styles.weekTextSelected,
-                            { fontFamily: weekLabelFont },
-                          ]}
-                        >
-                          {weekLabel}
-                        </Animated.Text>
+                        <View style={styles.weekCopy}>
+                          <Animated.View
+                            style={[
+                              styles.weekSelectedCopy,
+                              { opacity: selectedTextOpacity },
+                            ]}
+                          >
+                            <Animated.Text
+                              style={[
+                                styles.weekNumber,
+                                styles.weekTextSelected,
+                                { fontFamily: weekNumberFont },
+                              ]}
+                            >
+                              {week}
+                            </Animated.Text>
+                            <Animated.Text
+                              style={[
+                                styles.weekLabel,
+                                styles.weekTextSelected,
+                                { fontFamily: weekLabelFont },
+                              ]}
+                            >
+                              {weekLabel}
+                            </Animated.Text>
+                          </Animated.View>
+                        </View>
                       </Animated.View>
-                    </View>
-                  </Animated.View>
-                );
-              })}
-            </Animated.View>
-          </View>
+                    );
+                  })}
+                </Animated.View>
+              </View>
+            </>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Добавить дату беременности в профиль"
+              onPress={onPregnancyDatePress}
+              style={({ pressed }) => [
+                styles.pregnancyDateMissing,
+                pressed && styles.pressed,
+              ]}
+            >
+              <ProjectText
+                style={styles.pregnancyDateMissingTitle}
+                weight="semibold"
+              >
+                Срок беременности не рассчитан
+              </ProjectText>
+              <ProjectText style={styles.pregnancyDateMissingBody}>
+                Добавьте дату в профиле
+              </ProjectText>
+              <View style={styles.pregnancyDateMissingArrow}>
+                <ArrowCard width={18.3} height={18.3} />
+              </View>
+            </Pressable>
+          )}
 
           <View pointerEvents="none" style={styles.contentSurfaceExtension} />
 
@@ -844,8 +872,16 @@ function MonitoringScreen({
           <View style={styles.journalArea}>
             <JournalAssessment
               variant="ring"
-              value={journalCompleted ? 24 : 16}
-              actionLabel={journalCompleted ? 'Готово' : 'Заполнить'}
+              value={journalProgress.completed}
+              total={journalProgress.total}
+              status={journalProgress.status}
+              actionLabel={
+                journalProgress.completed === journalProgress.total
+                  ? 'Готово'
+                  : journalProgress.completed
+                    ? 'Дополнить'
+                    : 'Заполнить'
+              }
               actionVariant="outline"
               onPress={onJournalPress}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
@@ -855,13 +891,18 @@ function MonitoringScreen({
           <View style={styles.checkupsArea}>
             <JournalAssessment
               variant="fraction"
-              value={completedCheckups}
-              total={6}
+              value={checkupProgress.completed}
+              total={checkupProgress.total}
               title="Прохождение чекапов"
-              status="Средняя регулярность"
-              leftCaption={`Пройдено ${completedCheckups}`}
-              rightCaption="Всего 6"
-              actionLabel={completedCheckups >= 6 ? 'Готово' : 'Пройти'}
+              status={checkupProgress.status}
+              leftCaption={`Пройдено ${checkupProgress.completed}`}
+              rightCaption={`Всего ${checkupProgress.total}`}
+              actionLabel={
+                checkupProgress.total > 0 &&
+                checkupProgress.completed === checkupProgress.total
+                  ? 'Готово'
+                  : 'Открыть'
+              }
               actionVariant="outline"
               onPress={onCheckupsPress}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
@@ -871,9 +912,19 @@ function MonitoringScreen({
           <View pointerEvents="none" style={styles.metricsDivider} />
 
           <View style={styles.cardsRow}>
-            <ImportantMascotCard />
-            <FeatureCard title={'Подбор\nпитания в 1-м\nтриместре'} />
-            <FeatureCard title={'7 Важных\nобследований\nи анализов'} />
+            <ImportantMascotCard onPress={onCheckupsPress} />
+            <FeatureCard
+              title={'Заполнить\nпитание\nза сегодня'}
+              onPress={onNutritionPress}
+            />
+            <FeatureCard
+              title={
+                checkupProgress.total
+                  ? `План наблюдения\nПунктов: ${checkupProgress.total}`
+                  : 'План наблюдения\nпока пуст'
+              }
+              onPress={onCheckupsPress}
+            />
           </View>
         </View>
       </ScrollView>
@@ -914,9 +965,7 @@ function PlanningQuickAction({
         controlStyle={styles.planningActionCircle}
         onPress={onPress}
         tintColor={primary ? '#EA4087' : 'rgba(255,255,255,0.62)'}
-        washColor={
-          primary ? 'rgba(234,64,135,0.94)' : 'rgba(255,255,255,0.22)'
-        }
+        washColor={primary ? 'rgba(234,64,135,0.94)' : 'rgba(255,255,255,0.22)'}
         intensity={72}
       >
         {primary ? (
@@ -972,8 +1021,7 @@ function PlanningIntimacyModal({
   const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
   const [scrollContentHeight, setScrollContentHeight] = useState(0);
   const scrollEnabled =
-    scrollViewportHeight > 0 &&
-    scrollContentHeight > scrollViewportHeight + 1;
+    scrollViewportHeight > 0 && scrollContentHeight > scrollViewportHeight + 1;
   const selectedLabels = planningIntimacyOptions
     .filter((option) => selection[option.group] === option.id)
     .map((option) => option.label);
@@ -1023,115 +1071,119 @@ function PlanningIntimacyModal({
               { paddingBottom: Math.max(insets.bottom + 102, 118) },
             ]}
           >
-          <View style={styles.planningModalHandle} />
+            <View style={styles.planningModalHandle} />
 
-          <View style={styles.planningModalContent}>
-            {(
-              [
-                {
-                  group: 'contact' as const,
-                  title: 'Близость',
-                  caption: 'Выберите один вариант',
-                },
-                {
-                  group: 'desire' as const,
-                  title: 'Желание',
-                  caption: 'Необязательно',
-                },
-              ] as const
-            ).map((section) => (
-              <View key={section.group} style={styles.planningOptionSection}>
-                <View style={styles.planningOptionSectionHeader}>
-                  <AppText role="label" weight="semibold">
-                    {section.title}
-                  </AppText>
-                  <AppText role="caption" color={colors.text.secondary}>
-                    {section.caption}
-                  </AppText>
-                </View>
+            <View style={styles.planningModalContent}>
+              {(
+                [
+                  {
+                    group: 'contact' as const,
+                    title: 'Близость',
+                    caption: 'Выберите один вариант',
+                  },
+                  {
+                    group: 'desire' as const,
+                    title: 'Желание',
+                    caption: 'Необязательно',
+                  },
+                ] as const
+              ).map((section) => (
+                <View key={section.group} style={styles.planningOptionSection}>
+                  <View style={styles.planningOptionSectionHeader}>
+                    <AppText role="label" weight="semibold">
+                      {section.title}
+                    </AppText>
+                    <AppText role="caption" color={colors.text.secondary}>
+                      {section.caption}
+                    </AppText>
+                  </View>
 
-                <View style={styles.planningOptionList}>
-                  {planningIntimacyOptions
-                    .filter((option) => option.group === section.group)
-                    .map((option) => {
-                      const selected = selection[option.group] === option.id;
-                      return (
-                        <View
-                          key={option.id}
-                          style={[
-                            styles.planningOption,
-                            selected && styles.planningOptionSelected,
-                          ]}
-                        >
-                          <Pressable
-                            accessibilityRole="radio"
-                            accessibilityState={{ selected }}
-                            accessibilityLabel={option.label}
-                            onPress={() =>
-                              setSelection((current) => ({
-                                ...current,
-                                [option.group]:
-                                  current[option.group] === option.id
-                                    ? undefined
-                                : option.id,
-                              }))
-                            }
-                            style={StyleSheet.absoluteFillObject}
+                  <View style={styles.planningOptionList}>
+                    {planningIntimacyOptions
+                      .filter((option) => option.group === section.group)
+                      .map((option) => {
+                        const selected = selection[option.group] === option.id;
+                        return (
+                          <View
+                            key={option.id}
+                            style={[
+                              styles.planningOption,
+                              selected && styles.planningOptionSelected,
+                            ]}
                           >
-                            {({ pressed }) => (
-                              <View
-                               style={[
-                                  styles.planningOptionContent,
-                                  pressed && styles.planningActionPressed,
-                                ]}
-                              >
+                            <Pressable
+                              accessibilityRole="radio"
+                              accessibilityState={{ selected }}
+                              accessibilityLabel={option.label}
+                              onPress={() =>
+                                setSelection((current) => ({
+                                  ...current,
+                                  [option.group]:
+                                    current[option.group] === option.id
+                                      ? undefined
+                                      : option.id,
+                                }))
+                              }
+                              style={StyleSheet.absoluteFillObject}
+                            >
+                              {({ pressed }) => (
                                 <View
                                   style={[
-                                    styles.planningOptionIcon,
-                                    selected && styles.planningOptionIconSelected,
+                                    styles.planningOptionContent,
+                                    pressed && styles.planningActionPressed,
                                   ]}
                                 >
-                                  <AppText
-                                    weight="semibold"
+                                  <View
                                     style={[
-                                      styles.planningOptionGlyph,
-                                      selected && styles.planningOptionGlyphSelected,
+                                      styles.planningOptionIcon,
+                                      selected &&
+                                        styles.planningOptionIconSelected,
                                     ]}
                                   >
-                                    {option.glyph}
+                                    <AppText
+                                      weight="semibold"
+                                      style={[
+                                        styles.planningOptionGlyph,
+                                        selected &&
+                                          styles.planningOptionGlyphSelected,
+                                      ]}
+                                    >
+                                      {option.glyph}
+                                    </AppText>
+                                  </View>
+
+                                  <AppText
+                                    role="label"
+                                    weight="medium"
+                                    style={styles.planningOptionLabel}
+                                  >
+                                    {option.label}
                                   </AppText>
-                                </View>
 
-                                <AppText
-                                  role="label"
-                                  weight="medium"
-                                  style={styles.planningOptionLabel}
-                                >
-                                  {option.label}
-                                </AppText>
-
-                                <View
-                                  style={[
-                                    styles.planningOptionRadio,
-                                    selected && styles.planningOptionRadioSelected,
-                                  ]}
-                                >
-                                  {selected ? (
-                                    <View style={styles.planningOptionRadioDot} />
-                                  ) : null}
+                                  <View
+                                    style={[
+                                      styles.planningOptionRadio,
+                                      selected &&
+                                        styles.planningOptionRadioSelected,
+                                    ]}
+                                  >
+                                    {selected ? (
+                                      <View
+                                        style={styles.planningOptionRadioDot}
+                                      />
+                                    ) : null}
+                                  </View>
                                 </View>
-                              </View>
-                            )}
-                          </Pressable>
-                        </View>
-                      );
-                    })}
+                              )}
+                            </Pressable>
+                          </View>
+                        );
+                      })}
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
-
-        </View>
         </ScrollView>
         <View
           style={[
@@ -1172,7 +1224,8 @@ function PlanningIntimacyModal({
               <View
                 style={[
                   styles.planningModalSave,
-                  selectedLabels.length === 0 && styles.planningModalSaveDisabled,
+                  selectedLabels.length === 0 &&
+                    styles.planningModalSaveDisabled,
                 ]}
               >
                 <Pressable
@@ -1224,9 +1277,11 @@ function PlanningCycleBackground() {
   useEffect(() => {
     let mounted = true;
 
-    void AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
-      if (mounted) setMotionEnabled(!reduceMotion);
-    }).catch(() => undefined);
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((reduceMotion) => {
+        if (mounted) setMotionEnabled(!reduceMotion);
+      })
+      .catch(() => undefined);
 
     const subscription = AccessibilityInfo.addEventListener(
       'reduceMotionChanged',
@@ -1400,6 +1455,7 @@ function PlanningMonitoringScreen({
   onCalendarPress,
   onChartsPress,
   onIntimacyPress,
+  onNutritionPress,
   onSymptomsPress,
   onCheckupsPress,
 }: {
@@ -1407,66 +1463,49 @@ function PlanningMonitoringScreen({
   onCalendarPress: () => void;
   onChartsPress: () => void;
   onIntimacyPress: () => void;
+  onNutritionPress: () => void;
   onSymptomsPress: () => void;
   onCheckupsPress: () => void;
 }) {
-  const { journalEntries, labResults, profile, scanResults } = useHealthStore();
+  const { carePlanItems, journalEntries, profile } = useHealthStore();
   const today = new Date();
-  const cycleLength = profile?.cycleLengthDays ?? 28;
-  const fallbackPeriodStart = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate() - 11,
-  ).getTime();
-  const periodStartAt =
-    profile?.goal === 'planning' && profile.lastPeriodStartAt
-      ? profile.lastPeriodStartAt
-      : fallbackPeriodStart;
-  const dayMilliseconds = 24 * 60 * 60 * 1000;
-  const elapsedDays = Math.floor(
-    (new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() -
-      new Date(periodStartAt).setHours(0, 0, 0, 0)) /
-      dayMilliseconds,
-  );
-  const cycleDay =
-    ((elapsedDays % cycleLength) + cycleLength) % cycleLength + 1;
-  const ovulationDay = Math.max(10, cycleLength - 14);
-  const fertileStartDay = Math.max(1, ovulationDay - 5);
-  const fertileEndDay = Math.min(cycleLength, ovulationDay + 1);
-  const highProbability =
-    cycleDay >= fertileStartDay && cycleDay <= fertileEndDay;
-  const nearWindow =
-    cycleDay >= fertileStartDay - 2 && cycleDay <= fertileEndDay + 2;
-  const probabilityLabel = highProbability
-    ? 'Высокая'
-    : nearWindow
-      ? 'Средняя'
-      : 'Низкая';
-  const daysUntilOvulation =
-    ovulationDay >= cycleDay
-      ? ovulationDay - cycleDay
-      : cycleLength - cycleDay + ovulationDay;
-  const completedCycles = Math.floor(elapsedDays / cycleLength);
-  const currentCycleStart = new Date(periodStartAt);
-  currentCycleStart.setHours(12, 0, 0, 0);
-  currentCycleStart.setDate(
-    currentCycleStart.getDate() + completedCycles * cycleLength,
-  );
-  const fertileStart = new Date(currentCycleStart);
-  fertileStart.setHours(12, 0, 0, 0);
-  fertileStart.setDate(fertileStart.getDate() + fertileStartDay - 1);
-  const fertileEnd = new Date(currentCycleStart);
-  fertileEnd.setHours(12, 0, 0, 0);
-  fertileEnd.setDate(fertileEnd.getDate() + fertileEndDay - 1);
-  const todayStart = new Date().setHours(0, 0, 0, 0);
-  const journalCompleted = journalEntries.some(
-    (entry) => !entry.deletedAt && entry.occurredAt >= todayStart,
-  );
-  const completedCheckups = Math.min(
-    6,
-    labResults.filter((item) => !item.deletedAt).length +
-      scanResults.filter((item) => !item.deletedAt).length,
-  );
+  const cycleHistory = cycleHistoryFromHealthData(profile, journalEntries);
+  const cycleInsight = cycleHistory
+    ? cycleDayInsight(today, cycleHistory, today)
+    : undefined;
+  const forecastAvailable = Boolean(cycleInsight && !cycleInsight.delayDays);
+  const probabilityLabel = cycleInsight
+    ? cycleInsight.probability === 'high'
+      ? 'Высокая'
+      : cycleInsight.probability === 'medium'
+        ? 'Средняя'
+        : 'Низкая'
+    : undefined;
+  const fertileStart = cycleInsight
+    ? new Date(cycleInsight.fertileStartAt)
+    : undefined;
+  const fertileEnd = cycleInsight
+    ? new Date(cycleInsight.fertileEndAt)
+    : undefined;
+  const daysUntilOvulation = cycleInsight
+    ? Math.max(
+        0,
+        Math.round(
+          (new Date(cycleInsight.nextOvulationAt).setHours(0, 0, 0, 0) -
+            new Date(today).setHours(0, 0, 0, 0)) /
+            (24 * 60 * 60 * 1000),
+        ),
+      )
+    : undefined;
+  const journalProgress = journalProgressForDay(journalEntries);
+  const checkupProgress = carePlanProgress(carePlanItems);
+  const latestPeriodRun = cycleHistory?.periodRuns.at(-1);
+  const latestObservedCycleLength = cycleHistory?.observedCycleLengths.at(-1);
+  const displayedCycleLength =
+    latestObservedCycleLength ?? profile?.cycleLengthDays;
+  const cycleVariation = cycleHistory
+    ? cycleLengthVariation(cycleHistory)
+    : undefined;
 
   return (
     <View style={styles.planningCanvas}>
@@ -1520,22 +1559,37 @@ function PlanningMonitoringScreen({
 
       <View style={styles.planningForecast}>
         <ProjectText style={styles.planningCycleDay} weight="semibold">
-          {`${cycleDay}-й день цикла`}
+          {cycleInsight
+            ? `${cycleInsight.cycleDay}-й день цикла`
+            : 'Цикл пока не настроен'}
         </ProjectText>
         <ProjectText style={styles.planningProbability} weight="semibold">
-          {`${probabilityLabel} вероятность`}
+          {probabilityLabel
+            ? `${probabilityLabel} вероятность`
+            : 'Вероятность не рассчитана'}
         </ProjectText>
         <ProjectText style={styles.planningProbabilityCaption}>
           забеременеть
         </ProjectText>
         <View style={styles.planningForecastMeta}>
-          <ProjectText style={styles.planningForecastMetaText} weight="semibold">
-            {`Лучшие дни: ${formatPlanningDateRange(fertileStart, fertileEnd)}`}
+          <ProjectText
+            style={styles.planningForecastMetaText}
+            weight="semibold"
+          >
+            {forecastAvailable && fertileStart && fertileEnd
+              ? `Лучшие дни: ${formatPlanningDateRange(fertileStart, fertileEnd)}`
+              : cycleInsight?.delayDays
+                ? 'Отметьте новые месячные в календаре'
+                : 'Добавьте дату последних месячных'}
           </ProjectText>
           <ProjectText style={styles.planningForecastMetaText}>
-            {daysUntilOvulation === 0
-              ? 'Овуляция ожидается сегодня'
-              : `Овуляция ожидается через ${daysUntilOvulation} дн.`}
+            {forecastAvailable && daysUntilOvulation !== undefined
+              ? daysUntilOvulation === 0
+                ? 'Овуляция ожидается сегодня'
+                : `Овуляция ожидается через ${daysUntilOvulation} дн.`
+              : cycleInsight?.delayDays
+                ? `Ожидаемая дата месячных прошла ${cycleInsight.delayDays} дн. назад`
+                : 'После этого появится прогноз цикла'}
           </ProjectText>
         </View>
       </View>
@@ -1568,17 +1622,15 @@ function PlanningMonitoringScreen({
             />
             <PlanningQuickAction
               glyph={
-                <PlanningSymptomsIcon
-                  width={28}
-                  height={28}
-                  color="#EA4087"
-                />
+                <PlanningSymptomsIcon width={28} height={28} color="#EA4087" />
               }
               label="Симптомы"
               onPress={onSymptomsPress}
             />
             <PlanningQuickAction
-              glyph={<PlanningHeartIcon width={28} height={28} color="#EA4087" />}
+              glyph={
+                <PlanningHeartIcon width={28} height={28} color="#EA4087" />
+              }
               label="Близость"
               onPress={onIntimacyPress}
             />
@@ -1595,8 +1647,16 @@ function PlanningMonitoringScreen({
           <View style={styles.planningJournalArea}>
             <JournalAssessment
               variant="ring"
-              value={journalCompleted ? 24 : 16}
-              actionLabel={journalCompleted ? 'Готово' : 'Заполнить'}
+              value={journalProgress.completed}
+              total={journalProgress.total}
+              status={journalProgress.status}
+              actionLabel={
+                journalProgress.completed === journalProgress.total
+                  ? 'Готово'
+                  : journalProgress.completed
+                    ? 'Дополнить'
+                    : 'Заполнить'
+              }
               actionVariant="outline"
               onPress={onSymptomsPress}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
@@ -1606,13 +1666,18 @@ function PlanningMonitoringScreen({
           <View style={styles.planningCheckupsArea}>
             <JournalAssessment
               variant="fraction"
-              value={completedCheckups}
-              total={6}
+              value={checkupProgress.completed}
+              total={checkupProgress.total}
               title="Прохождение чекапов"
-              status="Средняя регулярность"
-              leftCaption={`Пройдено ${completedCheckups}`}
-              rightCaption="Всего 6"
-              actionLabel={completedCheckups >= 6 ? 'Готово' : 'Пройти'}
+              status={checkupProgress.status}
+              leftCaption={`Пройдено ${checkupProgress.completed}`}
+              rightCaption={`Всего ${checkupProgress.total}`}
+              actionLabel={
+                checkupProgress.total > 0 &&
+                checkupProgress.completed === checkupProgress.total
+                  ? 'Готово'
+                  : 'Открыть'
+              }
               actionVariant="outline"
               onPress={onCheckupsPress}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
@@ -1636,23 +1701,43 @@ function PlanningMonitoringScreen({
                     style={styles.planningCyclesMetricValue}
                     weight="semibold"
                   >
-                    {`${cycleLength} дней`}
+                    {displayedCycleLength
+                      ? `${displayedCycleLength} дней`
+                      : 'Пока нет данных'}
                   </ProjectText>
                 </View>
                 <View style={styles.planningCyclesStatus}>
-                  <View style={styles.planningCyclesStatusGood}>
+                  <View
+                    style={
+                      displayedCycleLength
+                        ? styles.planningCyclesStatusGood
+                        : styles.planningCyclesStatusPending
+                    }
+                  >
                     <ProjectText
-                      style={styles.planningCyclesStatusGoodGlyph}
+                      style={
+                        displayedCycleLength
+                          ? styles.planningCyclesStatusGoodGlyph
+                          : styles.planningCyclesStatusPendingGlyph
+                      }
                       weight="semibold"
                     >
-                      ✓
+                      {displayedCycleLength ? '✓' : 'i'}
                     </ProjectText>
                   </View>
                   <ProjectText
-                    style={styles.planningCyclesStatusLabel}
+                    style={
+                      displayedCycleLength
+                        ? styles.planningCyclesStatusLabel
+                        : styles.planningCyclesStatusPendingLabel
+                    }
                     weight="semibold"
                   >
-                    В норме
+                    {latestObservedCycleLength
+                      ? 'Журнал'
+                      : displayedCycleLength
+                        ? 'Профиль'
+                        : 'Наблюдаем'}
                   </ProjectText>
                 </View>
               </View>
@@ -1668,23 +1753,39 @@ function PlanningMonitoringScreen({
                     style={styles.planningCyclesMetricValue}
                     weight="semibold"
                   >
-                    4 дня
+                    {latestPeriodRun
+                      ? `${latestPeriodRun.lengthDays} дн.`
+                      : 'Пока нет данных'}
                   </ProjectText>
                 </View>
                 <View style={styles.planningCyclesStatus}>
-                  <View style={styles.planningCyclesStatusGood}>
+                  <View
+                    style={
+                      latestPeriodRun
+                        ? styles.planningCyclesStatusGood
+                        : styles.planningCyclesStatusPending
+                    }
+                  >
                     <ProjectText
-                      style={styles.planningCyclesStatusGoodGlyph}
+                      style={
+                        latestPeriodRun
+                          ? styles.planningCyclesStatusGoodGlyph
+                          : styles.planningCyclesStatusPendingGlyph
+                      }
                       weight="semibold"
                     >
-                      ✓
+                      {latestPeriodRun ? '✓' : 'i'}
                     </ProjectText>
                   </View>
                   <ProjectText
-                    style={styles.planningCyclesStatusLabel}
+                    style={
+                      latestPeriodRun
+                        ? styles.planningCyclesStatusLabel
+                        : styles.planningCyclesStatusPendingLabel
+                    }
                     weight="semibold"
                   >
-                    В норме
+                    {latestPeriodRun ? 'Журнал' : 'Наблюдаем'}
                   </ProjectText>
                 </View>
               </View>
@@ -1700,28 +1801,43 @@ function PlanningMonitoringScreen({
                     style={styles.planningCyclesMetricValueSmall}
                     weight="semibold"
                   >
-                    Пока нет данных
+                    {cycleVariation === undefined
+                      ? 'Нужно больше данных'
+                      : `${cycleVariation} дн.`}
                   </ProjectText>
                 </View>
                 <View style={styles.planningCyclesStatus}>
-                  <View style={styles.planningCyclesStatusPending}>
+                  <View
+                    style={
+                      cycleVariation === undefined
+                        ? styles.planningCyclesStatusPending
+                        : styles.planningCyclesStatusGood
+                    }
+                  >
                     <ProjectText
-                      style={styles.planningCyclesStatusPendingGlyph}
+                      style={
+                        cycleVariation === undefined
+                          ? styles.planningCyclesStatusPendingGlyph
+                          : styles.planningCyclesStatusGoodGlyph
+                      }
                       weight="semibold"
                     >
-                      i
+                      {cycleVariation === undefined ? 'i' : '✓'}
                     </ProjectText>
                   </View>
                   <ProjectText
-                    style={styles.planningCyclesStatusPendingLabel}
+                    style={
+                      cycleVariation === undefined
+                        ? styles.planningCyclesStatusPendingLabel
+                        : styles.planningCyclesStatusLabel
+                    }
                     weight="semibold"
                   >
-                    Наблюдаем
+                    {cycleVariation === undefined ? 'Наблюдаем' : 'Журнал'}
                   </ProjectText>
                 </View>
               </View>
             </View>
-
           </View>
 
           <View
@@ -1733,9 +1849,19 @@ function PlanningMonitoringScreen({
           />
 
           <View style={styles.planningCardsRow}>
-            <ImportantMascotCard />
-            <FeatureCard title={'Подбор\nпитания в 1-м\nтриместре'} />
-            <FeatureCard title={'7 Важных\nобследований\nи анализов'} />
+            <ImportantMascotCard onPress={onCheckupsPress} />
+            <FeatureCard
+              title={'Заполнить\nпитание\nза сегодня'}
+              onPress={onNutritionPress}
+            />
+            <FeatureCard
+              title={
+                checkupProgress.total
+                  ? `План наблюдения\nПунктов: ${checkupProgress.total}`
+                  : 'План наблюдения\nпока пуст'
+              }
+              onPress={onCheckupsPress}
+            />
           </View>
         </View>
       </ScrollView>
@@ -1772,6 +1898,7 @@ export function PlanningTodayScreenCatalogPreview() {
         onCalendarPress={() => setCalendarVisible(true)}
         onChartsPress={() => undefined}
         onIntimacyPress={() => setIntimacyVisible(true)}
+        onNutritionPress={() => setSymptomsDate(new Date())}
         onSymptomsPress={() => setSymptomsDate(new Date())}
         onCheckupsPress={() => undefined}
       />
@@ -1786,7 +1913,7 @@ export function PlanningTodayScreenCatalogPreview() {
       <JournalFlowModal
         visible={symptomsDate !== null}
         targetDate={symptomsDate ?? new Date()}
-        initialCategory="symptoms"
+        initialCategory="cycle"
         onClose={() => setSymptomsDate(null)}
         onComplete={async (entries) => {
           await saveJournalEntries(entries);
@@ -1820,6 +1947,8 @@ export function TodayScreenCatalogPreview() {
         onCalendarPress={() => undefined}
         onChartsPress={() => undefined}
         onJournalPress={() => undefined}
+        onNutritionPress={() => undefined}
+        onPregnancyDatePress={() => undefined}
         onCheckupsPress={() => undefined}
       />
     </FontReadyContext.Provider>
@@ -1828,8 +1957,15 @@ export function TodayScreenCatalogPreview() {
 
 export default function App() {
   const router = useRouter();
-  const { addJournalEntry, journalEntries, labResults, profile, scanResults } =
-    useHealthStore();
+  const {
+    addJournalEntry,
+    deleteRecord,
+    journalEntries,
+    labResults,
+    profile,
+    scanResults,
+    updateProfile,
+  } = useHealthStore();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [calendarVisible, setCalendarVisible] = useState(false);
@@ -1867,6 +2003,61 @@ export default function App() {
       ),
     [journalEntries],
   );
+  const savedPeriodDateKeys = useMemo(
+    () => periodDateKeysFromJournal(journalEntries),
+    [journalEntries],
+  );
+
+  const savePeriodDateKeys = async (nextDateKeys: ReadonlySet<string>) => {
+    const menstruationEntries = journalEntries.filter(
+      isMenstruationJournalEntry,
+    );
+    const currentDateKeys = new Set(
+      menstruationEntries.map((entry) => cycleDateKey(entry.occurredAt)),
+    );
+
+    for (const entry of menstruationEntries) {
+      if (!nextDateKeys.has(cycleDateKey(entry.occurredAt))) {
+        await deleteRecord('journalEntries', entry);
+      }
+    }
+
+    for (const key of nextDateKeys) {
+      if (currentDateKeys.has(key)) continue;
+      const date = cycleDateFromKey(key);
+      if (!date) continue;
+      await addJournalEntry({
+        occurredAt: date.getTime(),
+        kind: 'cycle',
+        label: 'Менструация',
+        textValue: 'Отмечено в календаре',
+      });
+    }
+
+    const recordedHistory = createCycleHistory({
+      cycleLengthDays: profile?.cycleLengthDays,
+      periodDateKeys: nextDateKeys,
+    });
+    const observedLengths = recordedHistory?.observedCycleLengths ?? [];
+    const latestRecordedPeriodStartAt =
+      recordedHistory?.periodRuns.at(-1)?.startAt;
+    const observedCycleLength = observedLengths.length
+      ? Math.round(
+          observedLengths.reduce((sum, length) => sum + length, 0) /
+            observedLengths.length,
+        )
+      : undefined;
+    if (latestRecordedPeriodStartAt || observedCycleLength) {
+      await updateProfile({
+        ...(latestRecordedPeriodStartAt
+          ? { lastPeriodStartAt: latestRecordedPeriodStartAt }
+          : undefined),
+        ...(observedCycleLength
+          ? { cycleLengthDays: observedCycleLength }
+          : undefined),
+      });
+    }
+  };
 
   const openJournalFlow = (
     date: Date,
@@ -1908,18 +2099,17 @@ export default function App() {
             height: DESIGN_HEIGHT * scale,
           }}
         >
-          <View
-            style={[styles.scaledCanvas, { transform: [{ scale }] }]}
-          >
-            {profile?.goal === 'planning' ? (
+          <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
+            {homeDashboardForGoal(profile?.goal) === 'cycle' ? (
               <PlanningMonitoringScreen
                 headerTop={headerTop}
                 onCalendarPress={() => setCalendarVisible(true)}
                 onChartsPress={() => setChartsVisible(true)}
                 onIntimacyPress={() => setPlanningIntimacyVisible(true)}
-                onSymptomsPress={() =>
-                  openJournalFlow(new Date(), 'symptoms')
+                onNutritionPress={() =>
+                  openJournalFlow(new Date(), 'nutrition')
                 }
+                onSymptomsPress={() => openJournalFlow(new Date(), 'cycle')}
                 onCheckupsPress={() => router.push('/analyses')}
               />
             ) : (
@@ -1928,10 +2118,16 @@ export default function App() {
                 onCalendarPress={() => setCalendarVisible(true)}
                 onChartsPress={() => setChartsVisible(true)}
                 onJournalPress={() =>
-                  openJournalFlow(
-                    new Date(),
-                    profile?.goal === 'pregnancy' ? 'symptoms' : 'cycle',
-                  )
+                  openJournalFlow(new Date(), 'cycle')
+                }
+                onNutritionPress={() =>
+                  openJournalFlow(new Date(), 'nutrition')
+                }
+                onPregnancyDatePress={() =>
+                  router.push({
+                    pathname: '/profile',
+                    params: { panel: 'personal' },
+                  })
                 }
                 onCheckupsPress={() => router.push('/analyses')}
               />
@@ -1941,9 +2137,13 @@ export default function App() {
         <CalendarPageModal
           visible={calendarVisible}
           onClose={() => setCalendarVisible(false)}
-          onAddSymptoms={(date) => openJournalFlow(date, 'symptoms')}
+          onAddSymptoms={(date) => openJournalFlow(date, 'cycle')}
           symptomDateKeys={symptomDateKeys}
           allowPeriodMarking={profile?.goal !== 'pregnancy'}
+          cycleLengthDays={profile?.cycleLengthDays}
+          lastPeriodStartAt={profile?.lastPeriodStartAt}
+          periodDateKeys={savedPeriodDateKeys}
+          onSavePeriodDateKeys={savePeriodDateKeys}
         />
         <JournalFlowModal
           visible={journalFlowDate !== null}
@@ -1967,6 +2167,13 @@ export default function App() {
         <HealthInsightsPage
           visible={chartsVisible}
           onClose={() => setChartsVisible(false)}
+          onExportPress={() => {
+            setChartsVisible(false);
+            router.push({
+              pathname: '/profile',
+              params: { panel: 'exports' },
+            });
+          }}
           profile={profile}
           journalEntries={journalEntries}
           labResults={labResults}
@@ -2150,6 +2357,45 @@ const styles = StyleSheet.create({
   weekTextSelected: {
     color: '#EA4087',
   },
+  pregnancyDateMissing: {
+    position: 'absolute',
+    zIndex: 3,
+    left: 32,
+    top: 28,
+    width: DESIGN_WIDTH - 64,
+    minHeight: 90,
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(234,64,135,0.14)',
+    ...shadows.card,
+  },
+  pregnancyDateMissingTitle: {
+    width: 245,
+    color: '#56162D',
+    fontSize: 16,
+    lineHeight: 19,
+  },
+  pregnancyDateMissingBody: {
+    marginTop: 4,
+    color: '#7D6870',
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  pregnancyDateMissingArrow: {
+    position: 'absolute',
+    right: 18,
+    top: 31,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F4C0D8',
+  },
   contentShape: {
     position: 'absolute',
     left: 0,
@@ -2226,19 +2472,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
-  featureCardAccent: {
-    backgroundColor: '#EA4087',
-  },
   featureCardSoft: {
     backgroundColor: '#FDECE5',
-  },
-  attentionValue: {
-    alignSelf: 'flex-start',
-    color: '#1fbb74',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 32,
-    lineHeight: 38,
-    letterSpacing: -0.64,
   },
   cardArrow: {
     width: 27,
@@ -2255,12 +2490,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 16.5,
     letterSpacing: -0.27,
-  },
-  featureTitleLight: {
-    color: '#ffffff',
-    fontFamily: FONT_SF_REGULAR,
-    fontSize: 14.2,
-    lineHeight: 17,
   },
   journalArea: {
     position: 'absolute',

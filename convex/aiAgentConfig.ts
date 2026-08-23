@@ -141,3 +141,11 @@ export function isAiAgentAutomationEnabled() {
     process.env.AI_AGENT_AUTOMATION_ENABLED?.trim().toLowerCase() === 'true'
   );
 }
+
+export function isAiAgentProviderConfigured() {
+  return Boolean(
+    process.env.YANDEX_AI_API_KEY?.trim() &&
+    process.env.YANDEX_AI_FOLDER_ID?.trim() &&
+    process.env.YANDEX_AI_MODEL?.trim(),
+  );
+}

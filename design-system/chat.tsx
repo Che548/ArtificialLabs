@@ -263,6 +263,7 @@ export function ChatHeader({
 
 export type ChatHistoryItem = {
   id: string;
+  lastMessageAt: number;
   title: string;
   pinned?: boolean;
 };
@@ -452,11 +453,7 @@ function ChatPopupMenu({
   );
 }
 
-export function ChatDeleteActionPreview({
-  onPress,
-}: {
-  onPress?: () => void;
-}) {
+export function ChatDeleteActionPreview({ onPress }: { onPress?: () => void }) {
   return (
     <ChatPopupMenu
       actions={[
@@ -521,30 +518,35 @@ function ChatHistoryActionMenu({
 }
 
 export function ChatHistoryPanel({
+  emptyText = 'У вас пока нет чатов',
   items,
   onSelect,
   onRename,
   onDelete,
   onPin,
   selectedId,
+  title = 'Недавнее',
   topInset = 0,
   width,
 }: {
+  emptyText?: string;
   items: ChatHistoryItem[];
   onSelect?: (item: ChatHistoryItem) => void;
   onRename?: (item: ChatHistoryItem) => void;
   onDelete?: (item: ChatHistoryItem) => void;
   onPin?: (item: ChatHistoryItem) => void;
   selectedId?: string;
+  title?: string;
   topInset?: number;
   width: number;
 }) {
-  const selectedIndex = Math.max(
-    0,
-    items.findIndex((item) => item.id === selectedId),
-  );
-  const selectionPosition = useRef(new Animated.Value(selectedIndex)).current;
-  const selectionOpacity = useRef(new Animated.Value(1)).current;
+  const selectedIndex = items.findIndex((item) => item.id === selectedId);
+  const selectionPosition = useRef(
+    new Animated.Value(Math.max(0, selectedIndex)),
+  ).current;
+  const selectionOpacity = useRef(
+    new Animated.Value(selectedIndex >= 0 ? 1 : 0),
+  ).current;
   const displayedSelectionIndex = useRef(selectedIndex);
   const selectionTransitionVersion = useRef(0);
   const [reduceSelectionMotion, setReduceSelectionMotion] = useState(false);
@@ -563,6 +565,13 @@ export function ChatHistoryPanel({
     const transitionVersion = selectionTransitionVersion.current + 1;
     selectionTransitionVersion.current = transitionVersion;
     selectionOpacity.stopAnimation();
+
+    if (selectedIndex < 0) {
+      displayedSelectionIndex.current = -1;
+      selectionPosition.setValue(0);
+      selectionOpacity.setValue(0);
+      return undefined;
+    }
 
     if (reduceSelectionMotion) {
       displayedSelectionIndex.current = selectedIndex;
@@ -629,7 +638,7 @@ export function ChatHistoryPanel({
       </Text>
 
       <AppText weight="semibold" style={styles.historyTitle}>
-        Недавнее
+        {title}
       </AppText>
 
       {items.length === 0 ? (
@@ -639,7 +648,7 @@ export function ChatHistoryPanel({
             role="body"
             style={styles.historyEmptyText}
           >
-            У вас пока нет чатов
+            {emptyText}
           </AppText>
         </View>
       ) : (

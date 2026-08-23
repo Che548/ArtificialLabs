@@ -3,7 +3,6 @@ import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -27,6 +26,10 @@ import type {
   LocalProfile,
   ScanResult,
 } from '../lib/health-types';
+import {
+  buildHealthInsightCycles,
+  type HealthInsightCycleSegment,
+} from '../lib/health-insights';
 import { AppText, GlassControl, SegmentedSwitcher } from './components';
 import { ProfileActionRow } from './profile';
 import BackIcon from '../assets/figma/calendar-page/back.svg';
@@ -50,12 +53,7 @@ type DayBucket = {
   scans: ScanResult[];
 };
 
-type CycleSegment = {
-  start: Date;
-  end: Date;
-  dailyIntensity: Map<string, number>;
-  cycleLength?: number;
-};
+type CycleSegment = HealthInsightCycleSegment;
 
 type CycleContext = {
   cycle: CycleSegment;
@@ -79,7 +77,6 @@ type AnalyteSeries = {
 const DAY = 24 * 60 * 60 * 1000;
 const PLOT_WIDTH = 330;
 const PLOT_HEIGHT = 126;
-const SHOW_DEMO_DATA = true;
 
 const labels = {
   basalTemperature: 'Базальная температура тела',
@@ -93,12 +90,6 @@ const labels = {
   activity: 'Физическая активность',
   dayFactors: 'Факторы дня',
 } as const;
-
-const intensityByText: Record<string, number> = {
-  'Слабая менструация': 1,
-  'Умеренная менструация': 2,
-  'Обильная менструация': 3,
-};
 
 const phaseMeta: Record<
   CyclePhase,
@@ -143,11 +134,6 @@ function dayKey(value: number | Date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
-function dateFromDayKey(key: string) {
-  const [year, month, day] = key.split('-').map(Number);
-  return new Date(year, month, day);
-}
-
 function parseLocalizedNumber(value?: string) {
   if (!value) return undefined;
   const normalized = value.replace(',', '.').match(/-?\d+(?:\.\d+)?/)?.[0];
@@ -188,175 +174,6 @@ function valueFromEntry(entry: JournalEntry) {
   return entry.numericValue ?? parseLocalizedNumber(entry.textValue);
 }
 
-function buildDemoHealthData() {
-  const now = Date.now();
-  const noon = startOfDay(now).getTime() + 12 * 60 * 60 * 1000;
-  const journalEntries: JournalEntry[] = [];
-  const labResults: LabResult[] = [];
-  const scanResults: ScanResult[] = [];
-  const add = (
-    daysAgo: number,
-    kind: JournalEntry['kind'],
-    label: string,
-    textValue?: string,
-  ) => {
-    const occurredAt = noon - daysAgo * DAY;
-    journalEntries.push({
-      localId: `demo-${daysAgo}-${kind}-${label}-${journalEntries.length}`,
-      occurredAt,
-      kind,
-      label,
-      textValue,
-      source: 'manual',
-      updatedAt: occurredAt,
-    });
-  };
-
-  // Four visible cycles make every cycle-based visual reviewable.
-  const starts = [109, 81, 53, 25];
-  starts.forEach((startDaysAgo) => {
-    [0, 1, 2, 3, 4].forEach((offset, index) => {
-      add(
-        startDaysAgo - offset,
-        'cycle',
-        labels.menstruation,
-        [
-          'Слабая менструация',
-          'Умеренная менструация',
-          'Обильная менструация',
-          'Умеренная менструация',
-          'Слабая менструация',
-        ][index],
-      );
-    });
-  });
-
-  for (let daysAgo = 117; daysAgo >= 0; daysAgo -= 1) {
-    const timelineDay = 117 - daysAgo;
-    const cycleDay = (timelineDay % 28) + 1;
-    if (daysAgo % 5 !== 1) {
-      add(
-        daysAgo,
-        'mood',
-        labels.mood,
-        cycleDay > 23
-          ? ['Тревога', 'Раздражение', 'Перепады настроения'][daysAgo % 3]
-          : ['Спокойствие', 'Радость', 'Игривость'][daysAgo % 3],
-      );
-    }
-    if (daysAgo % 4 !== 0) {
-      add(
-        daysAgo,
-        'energy',
-        labels.energy,
-        cycleDay > 23
-          ? ['Усталость', 'Сонливость', 'Мало энергии'][daysAgo % 3]
-          : 'Много энергии',
-      );
-    }
-    if (daysAgo % 3 === 0) {
-      add(
-        daysAgo,
-        'activity',
-        labels.activity,
-        ['Ходьба', 'Йога', 'Плавание', 'Бег'][daysAgo % 4],
-      );
-    }
-    if (cycleDay <= 4 && daysAgo % 2 === 0)
-      add(daysAgo, 'symptom', labels.pain, 'Внизу живота');
-    if (cycleDay >= 23 && daysAgo % 5 === 0)
-      add(daysAgo, 'symptom', labels.symptoms, 'Чувствительность груди');
-    if (daysAgo % 13 === 3)
-      add(daysAgo, 'symptom', labels.pain, 'Головная боль');
-    if (daysAgo % 2 === 0) {
-      const temperature =
-        36.38 + Math.sin(timelineDay / 5) * 0.045 + (cycleDay >= 15 ? 0.29 : 0);
-      const weight =
-        63.8 - timelineDay * 0.004 + Math.sin(timelineDay / 8) * 0.16;
-      const water = 1.35 + ((timelineDay * 7) % 8) * 0.13;
-      add(
-        daysAgo,
-        'measurement',
-        labels.basalTemperature,
-        temperature.toFixed(2),
-      );
-      add(daysAgo, 'measurement', labels.weight, weight.toFixed(1));
-      add(daysAgo, 'measurement', labels.water, water.toFixed(1));
-    }
-  }
-
-  [97, 95, 93, 69, 67, 65, 41, 39, 37, 13, 11, 9].forEach((daysAgo, index) => {
-    const capturedAt = noon - daysAgo * DAY + 3 * 60 * 60 * 1000;
-    scanResults.push({
-      localId: `demo-scan-${daysAgo}`,
-      testSystemKey: 'ovulation-strip',
-      capturedAt,
-      confirmedValue: index % 3 === 2 ? 'positive' : 'negative',
-      resultSource: 'manual',
-      confidence: 1,
-      qualityFlags: [],
-      algorithmVersion: 'manual-v1',
-      confirmedByUser: true,
-      hasLocalImage: false,
-      updatedAt: capturedAt,
-    });
-  });
-
-  [112, 84, 56, 28, 4].forEach((daysAgo, index) => {
-    const collectedAt = noon - daysAgo * DAY - 2 * 60 * 60 * 1000;
-    labResults.push({
-      localId: `demo-ferritin-${daysAgo}`,
-      catalogKey: 'ferritin',
-      title: 'Ферритин',
-      collectedAt,
-      status: index === 1 ? 'attention' : 'normal',
-      analytes: [
-        {
-          name: 'Ферритин',
-          value: [28, 25, 33, 38, 42][index].toString(),
-          unit: 'нг/мл',
-          reference: '15–150',
-        },
-      ],
-      hasLocalSourceDocument: false,
-      updatedAt: collectedAt,
-    });
-  });
-  [112, 56, 4].forEach((daysAgo, index) => {
-    const collectedAt = noon - daysAgo * DAY - 2 * 60 * 60 * 1000;
-    labResults.push({
-      localId: `demo-vitamin-d-${daysAgo}`,
-      catalogKey: 'vitamin-d',
-      title: 'Витамин D',
-      collectedAt,
-      status: 'normal',
-      analytes: [
-        {
-          name: 'Витамин D',
-          value: [24, 31, 37][index].toString(),
-          unit: 'нг/мл',
-          reference: '30–100',
-        },
-      ],
-      hasLocalSourceDocument: false,
-      updatedAt: collectedAt,
-    });
-  });
-
-  return {
-    journalEntries,
-    labResults,
-    scanResults,
-    profile: {
-      displayName: 'Александра',
-      goal: 'cycle' as const,
-      onboardingCompleted: true,
-      cycleLengthDays: 28,
-      updatedAt: now,
-    },
-  };
-}
-
 function buildBuckets(
   period: HealthInsightsPeriod,
   journalEntries: JournalEntry[],
@@ -386,51 +203,6 @@ function buildBuckets(
       byKey.get(dayKey(result.capturedAt))?.scans.push(result),
   );
   return buckets;
-}
-
-function buildCycles(entries: JournalEntry[], profile: LocalProfile | null) {
-  const intensityByDay = new Map<string, number>();
-  entries.forEach((entry) => {
-    if (entry.deletedAt || entry.label !== labels.menstruation) return;
-    const intensity = intensityByText[entry.textValue ?? ''];
-    if (!intensity) return;
-    const key = dayKey(entry.occurredAt);
-    intensityByDay.set(key, Math.max(intensityByDay.get(key) ?? 0, intensity));
-  });
-  const days = [...intensityByDay]
-    .map(([key, intensity]) => ({
-      key,
-      intensity,
-      date: dateFromDayKey(key),
-    }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
-  const cycles: CycleSegment[] = [];
-  days.forEach((day) => {
-    const current = cycles.at(-1);
-    if (!current || day.date.getTime() - current.end.getTime() > DAY * 1.5) {
-      cycles.push({
-        start: day.date,
-        end: day.date,
-        dailyIntensity: new Map([[day.key, day.intensity]]),
-      });
-      return;
-    }
-    current.end = day.date;
-    current.dailyIntensity.set(day.key, day.intensity);
-  });
-  cycles.forEach((cycle, index) => {
-    const next = cycles[index + 1];
-    if (!next) return;
-    const value = Math.round(
-      (next.start.getTime() - cycle.start.getTime()) / DAY,
-    );
-    if (value >= 21 && value <= 45) cycle.cycleLength = value;
-  });
-  if (!cycles.length && profile?.lastPeriodStartAt) {
-    const start = startOfDay(profile.lastPeriodStartAt);
-    cycles.push({ start, end: start, dailyIntensity: new Map() });
-  }
-  return cycles;
 }
 
 function phaseForCycleDay(
@@ -1140,7 +912,12 @@ function PatternsCard({
 }
 
 function MenstruationIntensityCard({ cycles }: { cycles: CycleSegment[] }) {
-  const rows = cycles.slice(-4).reverse();
+  const rows = cycles
+    .filter((cycle) =>
+      [...cycle.dailyIntensity.values()].some((intensity) => intensity > 0),
+    )
+    .slice(-4)
+    .reverse();
   if (!rows.length)
     return (
       <InsightCard title="Интенсивность менструации">
@@ -1819,6 +1596,7 @@ function AnalyteLabsCard({ labs }: { labs: LabResult[] }) {
 export function HealthInsightsDashboard({
   journalEntries,
   labResults,
+  onExportPress,
   period,
   profile,
   scanResults,
@@ -1826,23 +1604,19 @@ export function HealthInsightsDashboard({
 }: {
   journalEntries: JournalEntry[];
   labResults: LabResult[];
+  onExportPress: () => void;
   period: HealthInsightsPeriod;
   profile: LocalProfile | null;
   scanResults: ScanResult[];
   onPeriodChange: (period: HealthInsightsPeriod) => void;
 }) {
-  const demo = useMemo(() => buildDemoHealthData(), []);
-  const visibleEntries = SHOW_DEMO_DATA ? demo.journalEntries : journalEntries;
-  const visibleLabs = SHOW_DEMO_DATA ? demo.labResults : labResults;
-  const visibleScans = SHOW_DEMO_DATA ? demo.scanResults : scanResults;
-  const visibleProfile = SHOW_DEMO_DATA ? demo.profile : profile;
   const buckets = useMemo(
-    () => buildBuckets(period, visibleEntries, visibleLabs, visibleScans),
-    [period, visibleEntries, visibleLabs, visibleScans],
+    () => buildBuckets(period, journalEntries, labResults, scanResults),
+    [period, journalEntries, labResults, scanResults],
   );
   const cycles = useMemo(
-    () => buildCycles(visibleEntries, visibleProfile),
-    [visibleEntries, visibleProfile],
+    () => buildHealthInsightCycles(journalEntries, profile),
+    [journalEntries, profile],
   );
   return (
     <View style={styles.dashboard}>
@@ -1862,41 +1636,36 @@ export function HealthInsightsDashboard({
       <CycleHistoryCard cycles={cycles} />
       <MenstruationIntensityCard cycles={cycles} />
       <SymptomsByPhaseCard
-        entries={visibleEntries}
+        entries={journalEntries}
         cycles={cycles}
-        profile={visibleProfile}
+        profile={profile}
       />
       <BasalTemperatureCard
-        entries={visibleEntries}
+        entries={journalEntries}
         cycles={cycles}
-        profile={visibleProfile}
+        profile={profile}
       />
       <MoodEnergyByPhaseCard
-        entries={visibleEntries}
+        entries={journalEntries}
         cycles={cycles}
-        profile={visibleProfile}
+        profile={profile}
       />
       <OvulationTestsCard
-        scans={visibleScans}
+        scans={scanResults}
         cycles={cycles}
-        profile={visibleProfile}
+        profile={profile}
       />
       <LifestyleCard buckets={buckets} />
-      <AnalyteLabsCard labs={visibleLabs} />
+      <AnalyteLabsCard labs={labResults} />
       <PatternsCard
-        entries={visibleEntries}
+        entries={journalEntries}
         cycles={cycles}
-        profile={visibleProfile}
+        profile={profile}
       />
       <ProfileActionRow
         icon="square.and.arrow.up"
-        label="Подготовить экспорт"
-        onPress={() =>
-          Alert.alert(
-            'Экспорт данных',
-            'Файл с графиками и отчётами будет подготовлен после подтверждения состава данных.',
-          )
-        }
+        label="Открыть экспорт данных"
+        onPress={onExportPress}
       />
     </View>
   );
@@ -1907,6 +1676,7 @@ export function HealthInsightsPage({
   journalEntries,
   labResults,
   onClose,
+  onExportPress,
   profile,
   scanResults,
   visible,
@@ -1915,6 +1685,7 @@ export function HealthInsightsPage({
   journalEntries: JournalEntry[];
   labResults: LabResult[];
   onClose: () => void;
+  onExportPress: () => void;
   profile: LocalProfile | null;
   scanResults: ScanResult[];
   visible: boolean;
@@ -1942,6 +1713,7 @@ export function HealthInsightsPage({
         <HealthInsightsDashboard
           journalEntries={journalEntries}
           labResults={labResults}
+          onExportPress={onExportPress}
           period={period}
           profile={profile}
           scanResults={scanResults}

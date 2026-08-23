@@ -1,13 +1,14 @@
-import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
-import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ComponentType } from "react";
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentType } from 'react';
 import {
   AccessibilityInfo,
   Animated,
   Easing,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -16,36 +17,37 @@ import {
   TextInput,
   useWindowDimensions,
   View,
-} from "react-native";
-import type { TextStyle, ViewStyle } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Path } from "react-native-svg";
-import type { SvgProps } from "react-native-svg";
+} from 'react-native';
+import type { TextStyle, ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
+import type { SvgProps } from 'react-native-svg';
 
-import ContentShape from "../assets/figma/content-shape.svg";
-import BackIcon from "../assets/figma/journal-flow/back.svg";
-import ActivityIcon from "../assets/figma/journal-flow/icon-activity.svg";
-import CycleIcon from "../assets/figma/journal-flow/icon-cycle.svg";
-import EnergyIcon from "../assets/figma/journal-flow/icon-energy.svg";
-import MeasurementsIcon from "../assets/figma/journal-flow/icon-measurements.svg";
-import MoodIcon from "../assets/figma/journal-flow/icon-mood.svg";
-import NutritionIcon from "../assets/figma/journal-flow/icon-nutrition.svg";
-import SymptomsIcon from "../assets/figma/journal-flow/icon-symptoms.svg";
-import type { JournalKind } from "../lib/health-types";
+import ContentShape from '../assets/figma/content-shape.svg';
+import BackIcon from '../assets/figma/journal-flow/back.svg';
+import ActivityIcon from '../assets/figma/journal-flow/icon-activity.svg';
+import CycleIcon from '../assets/figma/journal-flow/icon-cycle.svg';
+import EnergyIcon from '../assets/figma/journal-flow/icon-energy.svg';
+import MeasurementsIcon from '../assets/figma/journal-flow/icon-measurements.svg';
+import MoodIcon from '../assets/figma/journal-flow/icon-mood.svg';
+import NutritionIcon from '../assets/figma/journal-flow/icon-nutrition.svg';
+import SymptomsIcon from '../assets/figma/journal-flow/icon-symptoms.svg';
+import type { JournalKind } from '../lib/health-types';
+import { toggleJournalOption } from '../lib/journal-options';
 import {
   deleteLocalSetting,
   loadLocalSetting,
   saveLocalSetting,
-} from "../lib/local-database";
-import LiquidGlassPetalView from "../modules/liquid-glass-petal";
-import { AppText, GlassControl, HeaderDateLabel } from "./components";
-import { colors, getHeaderTop, radii, shadows, sizes, spacing } from "./tokens";
+} from '../lib/local-database';
+import LiquidGlassPetalView from '../modules/liquid-glass-petal';
+import { AppText, GlassControl, HeaderDateLabel } from './components';
+import { colors, getHeaderTop, radii, shadows, sizes, spacing } from './tokens';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 // The custom native view uses real Liquid Glass on iOS 26 and a shaped
 // SwiftUI Material fallback on older iOS versions.
-const hasNativePetalGlass = Platform.OS === "ios";
+const hasNativePetalGlass = Platform.OS === 'ios';
 const PETAL_STRUCTURE_CENTER = { x: 201, y: 266 };
 const PETAL_RADIUS = 98;
 const PETAL_LABEL_RADIUS = 132;
@@ -53,25 +55,25 @@ const PETAL_WIDTH = 160;
 const PETAL_HEIGHT = 242;
 const PETAL_RENDER_SCALE_X = 0.72;
 const PETAL_RENDER_SCALE_Y = 0.68;
-const PETAL_ACTIVE_COLOR = "#EA4087";
-const PETAL_COMPLETED_COLOR = "#F2A8CB";
+const PETAL_ACTIVE_COLOR = '#EA4087';
+const PETAL_COMPLETED_COLOR = '#F2A8CB';
 const OPTIONS_VIEWPORT_HEIGHT = 146;
 const OPTIONS_EMPTY_VIEWPORT_HEIGHT = 168;
 const COMPACT_PROGRESS_FADE_PAGE_IDS = new Set([
-  "discharge",
-  "desire",
-  "other-symptoms",
-  "activity",
+  'discharge',
+  'desire',
+  'other-symptoms',
+  'activity',
 ]);
 
 export type JournalFlowCategory =
-  | "measurements"
-  | "cycle"
-  | "activity"
-  | "mood"
-  | "nutrition"
-  | "energy"
-  | "symptoms";
+  | 'measurements'
+  | 'cycle'
+  | 'activity'
+  | 'mood'
+  | 'nutrition'
+  | 'energy'
+  | 'symptoms';
 
 export type JournalFlowEntry = {
   kind: JournalKind;
@@ -95,7 +97,7 @@ type JournalFlowOptionVariantConfig = {
   selected: ViewStyle;
   idleText?: TextStyle;
   selectedText?: TextStyle;
-  marker?: "dot" | "check" | "ring";
+  marker?: 'dot' | 'check' | 'ring';
 };
 
 const activeFlowAccentColor = colors.brand.primary;
@@ -105,49 +107,111 @@ const journalFlowActionVariantConfig: Record<
   JournalFlowActionVariantConfig
 > = {
   1: {
-    back: { backgroundColor: "#ECEBEC", borderRadius: 18 },
+    back: { backgroundColor: '#ECEBEC', borderRadius: 18 },
     next: { backgroundColor: colors.brand.primary, borderRadius: 18 },
   },
   2: {
-    back: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#D8D3D5", borderRadius: 15 },
-    next: { backgroundColor: colors.surface.rose, borderWidth: 1, borderColor: "rgba(211,20,113,0.22)", borderRadius: 15 },
+    back: {
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: '#D8D3D5',
+      borderRadius: 15,
+    },
+    next: {
+      backgroundColor: colors.surface.rose,
+      borderWidth: 1,
+      borderColor: 'rgba(211,20,113,0.22)',
+      borderRadius: 15,
+    },
     nextText: { color: colors.brand.primary },
   },
   3: {
-    back: { backgroundColor: "#F2EFF0", borderRadius: 23 },
-    next: { backgroundColor: "#212123", borderRadius: 23 },
+    back: { backgroundColor: '#F2EFF0', borderRadius: 23 },
+    next: { backgroundColor: '#212123', borderRadius: 23 },
   },
   4: {
-    back: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#D8D3D5", borderRadius: 14 },
+    back: {
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: '#D8D3D5',
+      borderRadius: 14,
+    },
     next: { backgroundColor: colors.brand.success, borderRadius: 14 },
   },
   5: {
-    back: { backgroundColor: "#FFFFFF", borderRadius: 16, ...shadows.card },
-    next: { backgroundColor: activeFlowAccentColor, borderRadius: 16, shadowColor: activeFlowAccentColor, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.2, shadowRadius: 10 },
+    back: { backgroundColor: '#FFFFFF', borderRadius: 16, ...shadows.card },
+    next: {
+      backgroundColor: activeFlowAccentColor,
+      borderRadius: 16,
+      shadowColor: activeFlowAccentColor,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.2,
+      shadowRadius: 10,
+    },
   },
   6: {
-    row: { gap: 0, overflow: "hidden", borderRadius: 16, borderWidth: 1, borderColor: "#E2DDDF" },
-    back: { backgroundColor: "#FFFFFF", borderRightWidth: 1, borderRightColor: "#E2DDDF" },
+    row: {
+      gap: 0,
+      overflow: 'hidden',
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: '#E2DDDF',
+    },
+    back: {
+      backgroundColor: '#FFFFFF',
+      borderRightWidth: 1,
+      borderRightColor: '#E2DDDF',
+    },
     next: { backgroundColor: colors.brand.primary },
   },
   7: {
-    back: { backgroundColor: "#F5F2F3", borderRadius: 12 },
-    next: { backgroundColor: "#FCE8F1", borderWidth: 1, borderColor: "rgba(211,20,113,0.3)", borderRadius: 12 },
+    back: { backgroundColor: '#F5F2F3', borderRadius: 12 },
+    next: {
+      backgroundColor: '#FCE8F1',
+      borderWidth: 1,
+      borderColor: 'rgba(211,20,113,0.3)',
+      borderRadius: 12,
+    },
     nextText: { color: colors.brand.primary },
   },
   8: {
-    back: { backgroundColor: "#212123", borderRadius: 17 },
-    next: { backgroundColor: "#FFFFFF", borderWidth: 1.5, borderColor: colors.brand.primary, borderRadius: 17 },
-    backText: { color: "#FFFFFF" },
+    back: { backgroundColor: '#212123', borderRadius: 17 },
+    next: {
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1.5,
+      borderColor: colors.brand.primary,
+      borderRadius: 17,
+    },
+    backText: { color: '#FFFFFF' },
     nextText: { color: colors.brand.primary },
   },
   9: {
-    back: { backgroundColor: "#F1EFF0", borderRadius: 10, borderBottomWidth: 3, borderBottomColor: "#D7D1D3" },
-    next: { backgroundColor: colors.brand.burgundy, borderRadius: 10, borderBottomWidth: 3, borderBottomColor: "#5B102D" },
+    back: {
+      backgroundColor: '#F1EFF0',
+      borderRadius: 10,
+      borderBottomWidth: 3,
+      borderBottomColor: '#D7D1D3',
+    },
+    next: {
+      backgroundColor: colors.brand.burgundy,
+      borderRadius: 10,
+      borderBottomWidth: 3,
+      borderBottomColor: '#5B102D',
+    },
   },
   10: {
-    back: { backgroundColor: "rgba(255,255,255,0.62)", borderWidth: 1, borderColor: "rgba(255,255,255,0.9)", borderRadius: 20 },
-    next: { backgroundColor: "rgba(211,20,113,0.82)", borderWidth: 1, borderColor: "rgba(255,255,255,0.46)", borderRadius: 20 },
+    back: {
+      backgroundColor: 'rgba(255,255,255,0.62)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.9)',
+      borderRadius: 20,
+    },
+    next: {
+      backgroundColor: 'rgba(211,20,113,0.82)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.46)',
+      borderRadius: 20,
+    },
   },
 };
 
@@ -156,59 +220,149 @@ const journalFlowOptionVariantConfig: Record<
   JournalFlowOptionVariantConfig
 > = {
   1: {
-    idle: { backgroundColor: "#F4F1F2", borderColor: "#E6E1E3", borderRadius: 16 },
-    selected: { backgroundColor: colors.surface.rose, borderColor: "rgba(211,20,113,0.28)", borderRadius: 16 },
+    idle: {
+      backgroundColor: '#F4F1F2',
+      borderColor: '#E6E1E3',
+      borderRadius: 16,
+    },
+    selected: {
+      backgroundColor: colors.surface.rose,
+      borderColor: 'rgba(211,20,113,0.28)',
+      borderRadius: 16,
+    },
     selectedText: { color: colors.brand.primary },
   },
   2: {
-    idle: { backgroundColor: "#FFFFFF", borderColor: "#DCD6D8", borderRadius: 21 },
-    selected: { backgroundColor: "#FFFFFF", borderColor: colors.brand.primary, borderWidth: 1.5, borderRadius: 21 },
+    idle: {
+      backgroundColor: '#FFFFFF',
+      borderColor: '#DCD6D8',
+      borderRadius: 21,
+    },
+    selected: {
+      backgroundColor: '#FFFFFF',
+      borderColor: colors.brand.primary,
+      borderWidth: 1.5,
+      borderRadius: 21,
+    },
     selectedText: { color: colors.brand.primary },
   },
   3: {
-    idle: { backgroundColor: "#F3F0F1", borderColor: "transparent", borderRadius: 13 },
-    selected: { backgroundColor: colors.brand.primary, borderColor: colors.brand.primary, borderRadius: 13 },
-    selectedText: { color: "#FFFFFF" },
+    idle: {
+      backgroundColor: '#F3F0F1',
+      borderColor: 'transparent',
+      borderRadius: 13,
+    },
+    selected: {
+      backgroundColor: colors.brand.primary,
+      borderColor: colors.brand.primary,
+      borderRadius: 13,
+    },
+    selectedText: { color: '#FFFFFF' },
   },
   4: {
-    idle: { backgroundColor: "#F7F5F5", borderColor: "#E5E0E2", borderRadius: 21 },
-    selected: { backgroundColor: "#FCEAF2", borderColor: "rgba(211,20,113,0.3)", borderRadius: 21 },
+    idle: {
+      backgroundColor: '#F7F5F5',
+      borderColor: '#E5E0E2',
+      borderRadius: 21,
+    },
+    selected: {
+      backgroundColor: '#FCEAF2',
+      borderColor: 'rgba(211,20,113,0.3)',
+      borderRadius: 21,
+    },
     selectedText: { color: colors.brand.primary },
-    marker: "dot",
+    marker: 'dot',
   },
   5: {
-    idle: { backgroundColor: "#FFFFFF", borderColor: "#E3DDDF", borderRadius: 16 },
-    selected: { backgroundColor: colors.surface.rose, borderColor: "rgba(211,20,113,0.28)", borderRadius: 16 },
+    idle: {
+      backgroundColor: '#FFFFFF',
+      borderColor: '#E3DDDF',
+      borderRadius: 16,
+    },
+    selected: {
+      backgroundColor: colors.surface.rose,
+      borderColor: 'rgba(211,20,113,0.28)',
+      borderRadius: 16,
+    },
     selectedText: { color: colors.brand.primary },
-    marker: "check",
+    marker: 'check',
   },
   6: {
-    idle: { backgroundColor: "#F4F1F2", borderColor: "#E3DDDF", borderRadius: 12 },
-    selected: { backgroundColor: "#F4F1F2", borderColor: colors.brand.primary, borderRadius: 12 },
+    idle: {
+      backgroundColor: '#F4F1F2',
+      borderColor: '#E3DDDF',
+      borderRadius: 12,
+    },
+    selected: {
+      backgroundColor: '#F4F1F2',
+      borderColor: colors.brand.primary,
+      borderRadius: 12,
+    },
     selectedText: { color: colors.text.primary },
-    marker: "ring",
+    marker: 'ring',
   },
   7: {
-    idle: { backgroundColor: "#F3F1F1", borderColor: "transparent", borderRadius: 18 },
-    selected: { backgroundColor: "#E4F8EE", borderColor: "rgba(31,187,116,0.32)", borderRadius: 18 },
-    selectedText: { color: "#168452" },
-    marker: "check",
+    idle: {
+      backgroundColor: '#F3F1F1',
+      borderColor: 'transparent',
+      borderRadius: 18,
+    },
+    selected: {
+      backgroundColor: '#E4F8EE',
+      borderColor: 'rgba(31,187,116,0.32)',
+      borderRadius: 18,
+    },
+    selectedText: { color: '#168452' },
+    marker: 'check',
   },
   8: {
-    idle: { backgroundColor: "#FFFFFF", borderColor: "#E5E0E2", borderRadius: 10, borderBottomWidth: 3, borderBottomColor: "#DDD7D9" },
-    selected: { backgroundColor: "#FFFFFF", borderColor: "rgba(211,20,113,0.26)", borderRadius: 10, borderBottomWidth: 3, borderBottomColor: colors.brand.primary },
+    idle: {
+      backgroundColor: '#FFFFFF',
+      borderColor: '#E5E0E2',
+      borderRadius: 10,
+      borderBottomWidth: 3,
+      borderBottomColor: '#DDD7D9',
+    },
+    selected: {
+      backgroundColor: '#FFFFFF',
+      borderColor: 'rgba(211,20,113,0.26)',
+      borderRadius: 10,
+      borderBottomWidth: 3,
+      borderBottomColor: colors.brand.primary,
+    },
     selectedText: { color: colors.brand.primary },
   },
   9: {
-    idle: { backgroundColor: "#FFFFFF", borderColor: "transparent", borderRadius: 17, ...shadows.card },
-    selected: { backgroundColor: "#FFF4F8", borderColor: "rgba(211,20,113,0.24)", borderRadius: 17, shadowColor: colors.brand.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.16, shadowRadius: 9 },
+    idle: {
+      backgroundColor: '#FFFFFF',
+      borderColor: 'transparent',
+      borderRadius: 17,
+      ...shadows.card,
+    },
+    selected: {
+      backgroundColor: '#FFF4F8',
+      borderColor: 'rgba(211,20,113,0.24)',
+      borderRadius: 17,
+      shadowColor: colors.brand.primary,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.16,
+      shadowRadius: 9,
+    },
     selectedText: { color: colors.brand.primary },
   },
   10: {
-    idle: { backgroundColor: "rgba(255,255,255,0.58)", borderColor: "rgba(255,255,255,0.9)", borderRadius: 20 },
-    selected: { backgroundColor: "rgba(211,20,113,0.18)", borderColor: "rgba(211,20,113,0.34)", borderRadius: 20 },
+    idle: {
+      backgroundColor: 'rgba(255,255,255,0.58)',
+      borderColor: 'rgba(255,255,255,0.9)',
+      borderRadius: 20,
+    },
+    selected: {
+      backgroundColor: 'rgba(211,20,113,0.18)',
+      borderColor: 'rgba(211,20,113,0.34)',
+      borderRadius: 20,
+    },
     selectedText: { color: colors.brand.primary },
-    marker: "check",
+    marker: 'check',
   },
 };
 
@@ -228,7 +382,7 @@ export function JournalFlowActionPreview({
     <View style={[previewStyles.actionRow, config.row]}>
       <View style={[previewStyles.actionButton, config.back]}>
         <AppText role="label" weight="medium" style={config.backText}>
-          {decorated ? "‹  Назад" : "Назад"}
+          {decorated ? '‹  Назад' : 'Назад'}
         </AppText>
       </View>
       <View style={[previewStyles.actionButton, config.next]}>
@@ -238,7 +392,7 @@ export function JournalFlowActionPreview({
           color={colors.text.inverse}
           style={config.nextText}
         >
-          {decorated ? "Далее  ›" : "Далее"}
+          {decorated ? 'Далее  ›' : 'Далее'}
         </AppText>
       </View>
     </View>
@@ -254,11 +408,25 @@ export function JournalFlowOptionPreview({
 
   const marker = (selected: boolean) => {
     if (!config.marker) return null;
-    if (config.marker === "dot") {
-      return <View style={[previewStyles.optionDot, selected && previewStyles.optionDotSelected]} />;
+    if (config.marker === 'dot') {
+      return (
+        <View
+          style={[
+            previewStyles.optionDot,
+            selected && previewStyles.optionDotSelected,
+          ]}
+        />
+      );
     }
-    if (config.marker === "ring") {
-      return <View style={[previewStyles.optionRing, selected && previewStyles.optionRingSelected]} />;
+    if (config.marker === 'ring') {
+      return (
+        <View
+          style={[
+            previewStyles.optionRing,
+            selected && previewStyles.optionRingSelected,
+          ]}
+        />
+      );
     }
     return selected ? (
       <AppText role="caption" weight="semibold" color={colors.brand.primary}>
@@ -315,6 +483,7 @@ type JournalPage = {
   kind: JournalKind;
   title: string;
   options?: string[];
+  exclusiveOption?: string;
   input?: {
     placeholder: string;
     suffix?: string;
@@ -340,46 +509,46 @@ const categories: Record<JournalFlowCategory, CategoryConfig> = {
   measurements: {
     icon: MeasurementsIcon,
     iconRotation: 180,
-    label: "Показатели",
+    label: 'Показатели',
     petalStyle: { rotation: 154 },
     labelStyle: { width: 98 },
     pages: [
       {
-        id: "basal-temperature",
-        kind: "measurement",
-        title: "Базальная температура тела",
+        id: 'basal-temperature',
+        kind: 'measurement',
+        title: 'Базальная температура тела',
         input: {
-          placeholder: "Укажите температуру",
-          suffix: "°C",
-          actionLabel: "Посмотреть график",
+          placeholder: 'Укажите температуру',
+          suffix: '°C',
+          actionLabel: 'Посмотреть график',
         },
       },
       {
-        id: "measurements",
-        kind: "measurement",
-        title: "Вес",
+        id: 'measurements',
+        kind: 'measurement',
+        title: 'Вес',
         input: {
-          placeholder: "Укажите свой вес",
-          suffix: "кг",
-          actionLabel: "Посмотреть график",
+          placeholder: 'Укажите свой вес',
+          suffix: 'кг',
+          actionLabel: 'Посмотреть график',
         },
       },
       {
-        id: "water",
-        kind: "measurement",
-        title: "Вода",
+        id: 'water',
+        kind: 'measurement',
+        title: 'Вода',
         input: {
-          placeholder: "0",
-          suffix: "/2,25 л",
-          actionLabel: "Посмотреть график",
+          placeholder: '0',
+          suffix: '/2,25 л',
+          actionLabel: 'Посмотреть график',
         },
       },
       {
-        id: "notes",
-        kind: "note",
-        title: "Заметки",
+        id: 'notes',
+        kind: 'note',
+        title: 'Заметки',
         input: {
-          placeholder: "Дополнительные комментарии...",
+          placeholder: 'Дополнительные комментарии...',
           multiline: true,
         },
       },
@@ -388,45 +557,45 @@ const categories: Record<JournalFlowCategory, CategoryConfig> = {
   cycle: {
     icon: CycleIcon,
     iconRotation: 180,
-    label: "Цикл",
+    label: 'Цикл',
     petalStyle: { rotation: -155 },
     labelStyle: { width: 88 },
     pages: [
       {
-        id: "menstruation",
-        kind: "cycle",
-        title: "Менструация",
+        id: 'menstruation',
+        kind: 'cycle',
+        title: 'Менструация',
         options: [
-          "Нет менструации",
-          "Обильная менструация",
-          "Слабая менструация",
-          "Умеренная менструация",
+          'Нет менструации',
+          'Обильная менструация',
+          'Слабая менструация',
+          'Умеренная менструация',
         ],
       },
       {
-        id: "discharge",
-        kind: "cycle",
-        title: "Выделения",
+        id: 'discharge',
+        kind: 'cycle',
+        title: 'Выделения',
         options: [
-          "Кровомажущие",
-          "Выделений нет",
-          "Липкие",
-          "Кремообразные",
-          "Обильные",
-          "Нетипичные",
+          'Кровомажущие',
+          'Выделений нет',
+          'Липкие',
+          'Кремообразные',
+          'Обильные',
+          'Нетипичные',
         ],
       },
       {
-        id: "desire",
-        kind: "cycle",
-        title: "Секс и желание",
+        id: 'desire',
+        kind: 'cycle',
+        title: 'Секс и желание',
         options: [
-          "Секса не было",
-          "Секс с защитой",
-          "Сниженное желание",
-          "Повышенное желание",
-          "Секс без защиты",
-          "Мастурбация",
+          'Секса не было',
+          'Секс с защитой',
+          'Сниженное желание',
+          'Повышенное желание',
+          'Секс без защиты',
+          'Мастурбация',
         ],
       },
     ],
@@ -434,61 +603,64 @@ const categories: Record<JournalFlowCategory, CategoryConfig> = {
   activity: {
     icon: ActivityIcon,
     iconRotation: 180,
-    label: "Активность",
+    label: 'Активность',
     petalStyle: { rotation: 102 },
     labelStyle: { width: 110 },
     pages: [
       {
-        id: "activity",
-        kind: "activity",
-        title: "Физическая активность",
+        id: 'activity',
+        kind: 'activity',
+        title: 'Физическая активность',
         options: [
-          "Велосипед",
-          "Ходьба",
-          "Прочее",
-          "Аэробика",
-          "Тренировки не было",
-          "Йога",
-          "Плавание",
-          "Тренажёрный зал",
-          "Бег",
+          'Тренировки не было',
+          'Велосипед',
+          'Ходьба',
+          'Прочее',
+          'Аэробика',
+          'Йога',
+          'Плавание',
+          'Тренажёрный зал',
+          'Бег',
         ],
+        exclusiveOption: 'Тренировки не было',
       },
       {
-        id: "day-factors",
-        kind: "activity",
-        title: "Факторы дня",
+        id: 'day-factors',
+        kind: 'activity',
+        title: 'Факторы дня',
         options: [
-          "Стресс",
-          "Путешествие",
-          "Алкоголь",
-          "Болезнь или травма",
+          'Особых факторов не было',
+          'Стресс',
+          'Путешествие',
+          'Алкоголь',
+          'Болезнь или травма',
         ],
+        exclusiveOption: 'Особых факторов не было',
       },
     ],
   },
   mood: {
     icon: MoodIcon,
     iconRotation: 180,
-    label: "Настроение",
+    label: 'Настроение',
     petalStyle: { rotation: -103 },
     labelStyle: { width: 122 },
     pages: [
       {
-        id: "mood",
-        kind: "mood",
-        title: "Настроение",
+        id: 'mood',
+        kind: 'mood',
+        title: 'Настроение',
         options: [
-          "Спокойствие",
-          "Радость",
-          "Раздражение",
-          "Игривость",
-          "Перепады настроения",
-          "Тревога",
-          "Растерянность",
-          "Сильная самокритика",
-          "Чувство вины",
-          "Навязчивые мысли",
+          'Спокойствие',
+          'Радость',
+          'Раздражение',
+          'Игривость',
+          'Перепады настроения',
+          'Тревога',
+          'Растерянность',
+          'Сильная самокритика',
+          'Чувство вины',
+          'Навязчивые мысли',
         ],
       },
     ],
@@ -496,25 +668,25 @@ const categories: Record<JournalFlowCategory, CategoryConfig> = {
   nutrition: {
     icon: NutritionIcon,
     iconRotation: 180,
-    label: "Питание",
+    label: 'Питание',
     petalStyle: { rotation: 51 },
     labelStyle: { width: 96 },
     pages: [
       {
-        id: "nutrition",
-        kind: "nutrition",
-        title: "Питание и аппетит",
+        id: 'nutrition',
+        kind: 'nutrition',
+        title: 'Питание и аппетит',
         options: [
-          "Без изменений",
-          "Диарея",
-          "Тошнота",
-          "Изменение предпочтений",
-          "Изжога",
-          "Повышенный аппетит",
-          "Пониженный аппетит",
-          "Рвота",
-          "Вздутие",
-          "Запор",
+          'Без изменений',
+          'Диарея',
+          'Тошнота',
+          'Изменение предпочтений',
+          'Изжога',
+          'Повышенный аппетит',
+          'Пониженный аппетит',
+          'Рвота',
+          'Вздутие',
+          'Запор',
         ],
       },
     ],
@@ -522,22 +694,22 @@ const categories: Record<JournalFlowCategory, CategoryConfig> = {
   energy: {
     icon: EnergyIcon,
     iconRotation: 180,
-    label: "Энергия",
+    label: 'Энергия',
     petalStyle: { rotation: -52 },
     labelStyle: { width: 104 },
     pages: [
       {
-        id: "energy",
-        kind: "energy",
-        title: "Энергия и сон",
+        id: 'energy',
+        kind: 'energy',
+        title: 'Энергия и сон',
         options: [
-          "Много энергии",
-          "Мало энергии",
-          "Усталость",
-          "Сонливость",
-          "Тревога",
-          "Бессонница",
-          "Апатия",
+          'Много энергии',
+          'Мало энергии',
+          'Усталость',
+          'Сонливость',
+          'Тревога',
+          'Бессонница',
+          'Апатия',
         ],
       },
     ],
@@ -545,58 +717,62 @@ const categories: Record<JournalFlowCategory, CategoryConfig> = {
   symptoms: {
     icon: SymptomsIcon,
     iconRotation: 180,
-    label: "Симптомы",
+    label: 'Симптомы',
     petalStyle: { rotation: 0 },
     labelStyle: { width: 106 },
     pages: [
       {
-        id: "symptom-pain",
-        kind: "symptom",
-        title: "Боль",
+        id: 'symptom-pain',
+        kind: 'symptom',
+        title: 'Боль',
         options: [
-          "Внизу живота",
-          "В животе",
-          "В спине",
-          "Головная боль",
+          'Боли нет',
+          'Внизу живота',
+          'В животе',
+          'В спине',
+          'Головная боль',
         ],
+        exclusiveOption: 'Боли нет',
       },
       {
-        id: "other-symptoms",
-        kind: "symptom",
-        title: "Другие симптомы",
+        id: 'other-symptoms',
+        kind: 'symptom',
+        title: 'Другие симптомы',
         options: [
-          "Чувствительность груди",
-          "Выделения из сосков",
-          "Прыщи",
-          "Частое мочеиспускание",
-          "Судороги",
-          "Кровоточивость дёсен",
-          "Заложенность носа",
-          "Отёки лица или конечностей",
+          'Других симптомов нет',
+          'Чувствительность груди',
+          'Выделения из сосков',
+          'Прыщи',
+          'Частое мочеиспускание',
+          'Судороги',
+          'Кровоточивость дёсен',
+          'Заложенность носа',
+          'Отёки лица или конечностей',
         ],
+        exclusiveOption: 'Других симптомов нет',
       },
     ],
   },
 };
 
 const categoryOrder: JournalFlowCategory[] = [
-  "cycle",
-  "mood",
-  "energy",
-  "symptoms",
-  "nutrition",
-  "activity",
-  "measurements",
+  'cycle',
+  'mood',
+  'energy',
+  'symptoms',
+  'nutrition',
+  'activity',
+  'measurements',
 ];
 
 const categoryBackgroundSources: Record<JournalFlowCategory, number> = {
-  cycle: require("../assets/figma/journal-flow/background-cycle.png"),
-  mood: require("../assets/figma/journal-flow/background-mood.png"),
-  energy: require("../assets/figma/journal-flow/background-energy.png"),
-  symptoms: require("../assets/figma/journal-flow/background-symptoms.png"),
-  nutrition: require("../assets/figma/journal-flow/background-nutrition.png"),
-  activity: require("../assets/figma/journal-flow/background-activity.png"),
-  measurements: require("../assets/figma/journal-flow/background-measurements.png"),
+  cycle: require('../assets/figma/journal-flow/background-cycle.png'),
+  mood: require('../assets/figma/journal-flow/background-mood.png'),
+  energy: require('../assets/figma/journal-flow/background-energy.png'),
+  symptoms: require('../assets/figma/journal-flow/background-symptoms.png'),
+  nutrition: require('../assets/figma/journal-flow/background-nutrition.png'),
+  activity: require('../assets/figma/journal-flow/background-activity.png'),
+  measurements: require('../assets/figma/journal-flow/background-measurements.png'),
 };
 
 function sameDay(left: Date, right: Date) {
@@ -608,18 +784,18 @@ function sameDay(left: Date, right: Date) {
 }
 
 function sanitizeNumericInput(value: string) {
-  const cleaned = value.replace(/[^\d.,]/g, "");
+  const cleaned = value.replace(/[^\d.,]/g, '');
   const separatorIndex = cleaned.search(/[.,]/);
   if (separatorIndex < 0) return cleaned;
   return `${cleaned.slice(0, separatorIndex + 1)}${cleaned
     .slice(separatorIndex + 1)
-    .replace(/[.,]/g, "")}`;
+    .replace(/[.,]/g, '')}`;
 }
 
 function sanitizeNumericDraftInputs(values: Record<string, string>) {
   const nextValues = { ...values };
-  for (const pageId of ["basal-temperature", "measurements", "water"]) {
-    if (typeof nextValues[pageId] === "string") {
+  for (const pageId of ['basal-temperature', 'measurements', 'water']) {
+    if (typeof nextValues[pageId] === 'string') {
       nextValues[pageId] = sanitizeNumericInput(nextValues[pageId]);
     }
   }
@@ -672,20 +848,20 @@ function PetalGlass({
         <Path
           d="M40 96Q80-8 120 96L155 187C169 226 140 242 104 242H56C20 242-9 226 5 187L40 96Z"
           fill={
-            Platform.OS === "android"
+            Platform.OS === 'android'
               ? active
                 ? colors.brand.primary
                 : completed
                   ? colors.brand.burgundy
-                  : "#FFFCFD"
+                  : '#FFFCFD'
               : active
                 ? PETAL_ACTIVE_COLOR
                 : completed
                   ? PETAL_COMPLETED_COLOR
-                  : "#FFFFFF"
+                  : '#FFFFFF'
           }
           fillOpacity={
-            Platform.OS === "android"
+            Platform.OS === 'android'
               ? active
                 ? 0.9
                 : completed
@@ -698,23 +874,21 @@ function PetalGlass({
                   : 0.14
           }
           stroke={
-            Platform.OS === "android"
+            Platform.OS === 'android'
               ? active
-                ? "rgba(255,255,255,0.58)"
-                : "rgba(74,52,61,0.12)"
-              : "#FFFFFF"
+                ? 'rgba(255,255,255,0.58)'
+                : 'rgba(74,52,61,0.12)'
+              : '#FFFFFF'
           }
-          strokeOpacity={
-            Platform.OS === "android" ? 1 : active ? 0.56 : 0.34
-          }
-          strokeWidth={Platform.OS === "android" ? 1 : active ? 0.9 : 0.8}
+          strokeOpacity={Platform.OS === 'android' ? 1 : active ? 0.56 : 0.34}
+          strokeWidth={Platform.OS === 'android' ? 1 : active ? 0.9 : 0.8}
         />
       </Svg>
     </View>
   );
 }
 
-type PetalLabelState = "active" | "completed" | "inactive";
+type PetalLabelState = 'active' | 'completed' | 'inactive';
 
 function PetalLabel({
   category,
@@ -733,7 +907,7 @@ function PetalLabel({
     config.labelStyle.width,
   );
   const color =
-    Platform.OS === "android" && state === "inactive"
+    Platform.OS === 'android' && state === 'inactive'
       ? colors.text.primary
       : colors.text.inverse;
 
@@ -752,12 +926,9 @@ function PetalLabel({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={config.label}
-      accessibilityState={{ selected: state === "active" }}
+      accessibilityState={{ selected: state === 'active' }}
       onPress={() => onSelect(category)}
-      style={[
-        styles.petalLabel,
-        position,
-      ]}
+      style={[styles.petalLabel, position]}
     >
       <Animated.View
         pointerEvents="none"
@@ -779,16 +950,16 @@ function PetalLabel({
           },
         ]}
       >
-        {state !== "inactive" ? (
+        {state !== 'inactive' ? (
           <View
             style={[
               styles.petalStateMarker,
-              state === "active"
+              state === 'active'
                 ? styles.petalActiveMarker
                 : styles.petalCompletedMarker,
             ]}
           >
-            {state === "completed" ? (
+            {state === 'completed' ? (
               <AppText
                 role="caption"
                 weight="semibold"
@@ -879,7 +1050,9 @@ function JournalOptionChip({
             { opacity: selection },
           ]}
         />
-        <Animated.View style={[styles.optionTextLayer, { opacity: idleOpacity }]}>
+        <Animated.View
+          style={[styles.optionTextLayer, { opacity: idleOpacity }]}
+        >
           <AppText
             role="label"
             numberOfLines={1}
@@ -975,10 +1148,10 @@ function PetalWheel({
           category={category}
           state={
             index === activeIndex
-              ? "active"
+              ? 'active'
               : index < activeIndex
-                ? "completed"
-                : "inactive"
+                ? 'completed'
+                : 'inactive'
           }
           onSelect={onSelect}
         />
@@ -990,13 +1163,14 @@ function PetalWheel({
 export function JournalFlowModal({
   visible,
   targetDate = new Date(),
-  initialCategory = "cycle",
+  initialCategory = 'cycle',
   onClose,
   onComplete,
 }: JournalFlowModalProps) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [category, setCategory] = useState<JournalFlowCategory>(initialCategory);
+  const [category, setCategory] =
+    useState<JournalFlowCategory>(initialCategory);
   const [pageIndex, setPageIndex] = useState(0);
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -1018,13 +1192,13 @@ export function JournalFlowModal({
   const pages = categories[category].pages;
   const page = pages[pageIndex] ?? pages[0];
   const selectedOptions = selections[page.id] ?? [];
-  const rawInputValue = inputValues[page.id] ?? "";
+  const rawInputValue = inputValues[page.id] ?? '';
   const hasSelectedOptions = selectedOptions.length > 0;
   const usesCompactProgressFade = COMPACT_PROGRESS_FADE_PAGE_IDS.has(page.id);
   const usesActiveCompactProgressFade =
     usesCompactProgressFade && hasSelectedOptions;
-  const usesMoodBottomFade = page.id === "mood";
-  const usesNutritionBottomFade = page.id === "nutrition";
+  const usesMoodBottomFade = page.id === 'mood';
+  const usesNutritionBottomFade = page.id === 'nutrition';
   const optionsViewportHeight =
     (hasSelectedOptions
       ? OPTIONS_VIEWPORT_HEIGHT
@@ -1037,12 +1211,11 @@ export function JournalFlowModal({
         : 18
       : 0);
   const optionsScrollable =
-    page.id === "nutrition" ||
-    optionsContentHeight > optionsViewportHeight + 1;
+    page.id === 'nutrition' || optionsContentHeight > optionsViewportHeight + 1;
   const isNumericInput =
-    page.id === "basal-temperature" ||
-    page.id === "measurements" ||
-    page.id === "water";
+    page.id === 'basal-temperature' ||
+    page.id === 'measurements' ||
+    page.id === 'water';
   const inputValue = isNumericInput
     ? sanitizeNumericInput(rawInputValue)
     : rawInputValue;
@@ -1057,7 +1230,7 @@ export function JournalFlowModal({
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
     const subscription = AccessibilityInfo.addEventListener(
-      "reduceMotionChanged",
+      'reduceMotionChanged',
       setReduceMotion,
     );
     return () => subscription.remove();
@@ -1096,7 +1269,7 @@ export function JournalFlowModal({
   useEffect(() => {
     if (!isNumericInput) return;
     setInputValues((current) => {
-      const currentValue = current[page.id] ?? "";
+      const currentValue = current[page.id] ?? '';
       const sanitizedValue = sanitizeNumericInput(currentValue);
       if (currentValue === sanitizedValue) return current;
       return { ...current, [page.id]: sanitizedValue };
@@ -1124,16 +1297,9 @@ export function JournalFlowModal({
     void loadLocalSetting<JournalFlowDraft>(draftKey)
       .then((draft) => {
         if (cancelled) return;
-        if (
-          draft?.version === 1 &&
-          categoryOrder.includes(draft.category) &&
-          Number.isFinite(draft.pageIndex)
-        ) {
-          const restoredPages = categories[draft.category].pages;
-          setCategory(draft.category);
-          setPageIndex(
-            Math.max(0, Math.min(Math.trunc(draft.pageIndex), restoredPages.length - 1)),
-          );
+        if (draft?.version === 1) {
+          setCategory(initialCategory);
+          setPageIndex(0);
           setSelections(draft.selections ?? {});
           setInputValues(sanitizeNumericDraftInputs(draft.inputValues ?? {}));
         } else {
@@ -1307,9 +1473,10 @@ export function JournalFlowModal({
 
   const selectCategory = (nextCategory: JournalFlowCategory) => {
     if (nextCategory === category) return;
-    const direction = categoryOrder.indexOf(nextCategory) > categoryIndex ? 1 : -1;
+    const direction =
+      categoryOrder.indexOf(nextCategory) > categoryIndex ? 1 : -1;
     transitionTo(nextCategory, 0, direction);
-    if (Platform.OS !== "web") void Haptics.selectionAsync();
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
   };
 
   const toggleOption = (option: string) => {
@@ -1317,12 +1484,10 @@ export function JournalFlowModal({
       const values = current[page.id] ?? [];
       return {
         ...current,
-        [page.id]: values.includes(option)
-          ? values.filter((value) => value !== option)
-          : [...values, option],
+        [page.id]: toggleJournalOption(values, option, page.exclusiveOption),
       };
     });
-    if (Platform.OS !== "web") void Haptics.selectionAsync();
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
   };
 
   const closeFlow = async () => {
@@ -1336,7 +1501,7 @@ export function JournalFlowModal({
   const goBack = () => {
     if (pageIndex > 0) {
       transitionTo(category, pageIndex - 1, -1);
-      if (Platform.OS !== "web") void Haptics.selectionAsync();
+      if (Platform.OS !== 'web') void Haptics.selectionAsync();
       return;
     }
     if (categoryIndex > 0) {
@@ -1346,7 +1511,7 @@ export function JournalFlowModal({
         categories[previousCategory].pages.length - 1,
         -1,
       );
-      if (Platform.OS !== "web") void Haptics.selectionAsync();
+      if (Platform.OS !== 'web') void Haptics.selectionAsync();
       return;
     }
     void closeFlow();
@@ -1356,14 +1521,14 @@ export function JournalFlowModal({
     if (!canContinue || submitting) return;
     if (pageIndex < pages.length - 1) {
       transitionTo(category, pageIndex + 1, 1);
-      if (Platform.OS !== "web") void Haptics.selectionAsync();
+      if (Platform.OS !== 'web') void Haptics.selectionAsync();
       return;
     }
 
     if (!isFinalCategory) {
       const nextCategory = categoryOrder[categoryIndex + 1];
       transitionTo(nextCategory, 0, 1);
-      if (Platform.OS !== "web") void Haptics.selectionAsync();
+      if (Platform.OS !== 'web') void Haptics.selectionAsync();
       return;
     }
 
@@ -1371,8 +1536,10 @@ export function JournalFlowModal({
     try {
       await onComplete(allEntries);
       await deleteLocalSetting(draftKey);
-      if (Platform.OS !== "web") {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
       }
       onClose();
     } finally {
@@ -1388,14 +1555,20 @@ export function JournalFlowModal({
       onRequestClose={() => void closeFlow()}
     >
       <StatusBar style="dark" hidden={false} />
-      <View style={styles.modalRoot}>
-        <View style={{ width: DESIGN_WIDTH * scale, height: DESIGN_HEIGHT * scale }}>
+      <KeyboardAvoidingView
+        behavior="position"
+        contentContainerStyle={styles.keyboardAvoidingContent}
+        style={styles.modalRoot}
+      >
+        <View
+          style={{ width: DESIGN_WIDTH * scale, height: DESIGN_HEIGHT * scale }}
+        >
           <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
             <View style={styles.canvas}>
               <Image
                 source={categoryBackgroundSources[category]}
                 resizeMode="cover"
-                blurRadius={Platform.OS === "ios" ? 2.4 : 2}
+                blurRadius={Platform.OS === 'ios' ? 2.4 : 2}
                 style={styles.background}
               />
               <View pointerEvents="none" style={styles.backgroundScrim} />
@@ -1418,22 +1591,19 @@ export function JournalFlowModal({
                 </GlassControl>
 
                 <GlassControl
-                  accessibilityLabel={isToday ? "Сегодня" : "Выбранный день"}
+                  accessibilityLabel={isToday ? 'Сегодня' : 'Выбранный день'}
                   style={styles.headerDatePill}
                   tintColor={colors.surface.headerGlassWash}
                   washColor={colors.surface.headerGlassWash}
                 >
                   <HeaderDateLabel
                     date={targetDate}
-                    label={isToday ? "Сегодня" : "Выбранный день"}
+                    label={isToday ? 'Сегодня' : 'Выбранный день'}
                   />
                 </GlassControl>
               </View>
 
-              <PetalWheel
-                activeCategory={category}
-                onSelect={selectCategory}
-              />
+              <PetalWheel activeCategory={category} onSelect={selectCategory} />
 
               <ContentShape
                 pointerEvents="none"
@@ -1443,7 +1613,7 @@ export function JournalFlowModal({
               />
 
               <View
-                pointerEvents={draftReady ? "auto" : "none"}
+                pointerEvents={draftReady ? 'auto' : 'none'}
                 style={styles.contentPanel}
               >
                 <Animated.View
@@ -1455,266 +1625,285 @@ export function JournalFlowModal({
                     },
                   ]}
                 >
-                  <AppText role="heading" weight="medium" style={styles.pageTitle}>
+                  <AppText
+                    role="heading"
+                    weight="medium"
+                    style={styles.pageTitle}
+                  >
                     {page.title}
                   </AppText>
 
-                <Animated.View
-                  pointerEvents={hasSelectedOptions ? "auto" : "none"}
-                  style={[
-                    styles.selectedOptionsAnimatedContainer,
-                    {
-                      height: selectedRowVisibility.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [8, 48],
-                      }),
-                      opacity: selectedRowVisibility,
-                      transform: [
-                        {
-                          translateY: selectedRowVisibility.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [4, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <ScrollView
-                    horizontal
-                    alwaysBounceHorizontal
-                    directionalLockEnabled
-                    nestedScrollEnabled
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.selectedOptionsScroll}
-                    contentContainerStyle={styles.selectedOptionsRow}
-                  >
-                    {selectedOptions.map((option) => (
-                      <Pressable
-                        key={option}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Убрать ${option}`}
-                        onPress={() => toggleOption(option)}
-                        style={({ pressed }) => [
-                          styles.selectedOptionTouchTarget,
-                          pressed && styles.selectedOptionChipPressed,
-                        ]}
-                      >
-                        <View
-                          pointerEvents="none"
-                          style={styles.selectedOptionChip}
-                        >
-                          <AppText
-                            role="caption"
-                            numberOfLines={1}
-                            style={styles.selectedOptionText}
-                          >
-                            {`${option}  ×`}
-                          </AppText>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={["rgba(255,255,255,1)", "rgba(255,255,255,0)"]}
-                    locations={[0, 1]}
-                    start={{ x: 0, y: 0.5 }}
-                    end={{ x: 1, y: 0.5 }}
-                    style={[styles.selectedOptionsEdgeFade, styles.selectedOptionsEdgeFadeLeft]}
-                  />
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={["rgba(255,255,255,0)", "rgba(255,255,255,1)"]}
-                    locations={[0, 1]}
-                    start={{ x: 0, y: 0.5 }}
-                    end={{ x: 1, y: 0.5 }}
-                    style={[styles.selectedOptionsEdgeFade, styles.selectedOptionsEdgeFadeRight]}
-                  />
-                </Animated.View>
-
-                {page.options ? (
-                  <View
+                  <Animated.View
+                    pointerEvents={hasSelectedOptions ? 'auto' : 'none'}
                     style={[
-                      styles.optionsViewport,
-                      { height: optionsViewportHeight },
+                      styles.selectedOptionsAnimatedContainer,
+                      {
+                        height: selectedRowVisibility.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [8, 48],
+                        }),
+                        opacity: selectedRowVisibility,
+                        transform: [
+                          {
+                            translateY: selectedRowVisibility.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [4, 0],
+                            }),
+                          },
+                        ],
+                      },
                     ]}
                   >
                     <ScrollView
-                      key={page.id}
+                      horizontal
+                      alwaysBounceHorizontal
+                      directionalLockEnabled
                       nestedScrollEnabled
-                      bounces={optionsScrollable}
-                      scrollEnabled={optionsScrollable}
-                      showsVerticalScrollIndicator={false}
-                      scrollEventThrottle={16}
-                      style={[
-                        styles.optionsScroll,
-                        { height: optionsViewportHeight },
-                      ]}
-                      contentContainerStyle={[
-                        styles.optionsWrap,
-                        pages.length > 1 && styles.optionsWrapWithProgress,
-                      ]}
-                      onContentSizeChange={(_width, contentHeight) => {
-                        setOptionsContentHeight(contentHeight);
-                        setShowOptionsBottomFade(
-                          optionsScrollOffsetRef.current + optionsViewportHeight <
-                            contentHeight - 1,
-                        );
-                      }}
-                      onScroll={({ nativeEvent }) => {
-                        const { contentOffset, contentSize, layoutMeasurement } =
-                          nativeEvent;
-                        optionsScrollOffsetRef.current = contentOffset.y;
-                        setShowOptionsTopFade(contentOffset.y > 1);
-                        setShowOptionsBottomFade(
-                          contentOffset.y + layoutMeasurement.height <
-                            contentSize.height - 1,
-                        );
-                      }}
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.selectedOptionsScroll}
+                      contentContainerStyle={styles.selectedOptionsRow}
                     >
-                      {page.options.map((option) => {
-                        const selected = selectedOptions.includes(option);
-                        return (
-                          <JournalOptionChip
-                            key={option}
-                            label={option}
-                            selected={selected}
-                            reduceMotion={reduceMotion}
-                            twoColumn={page.id === "menstruation"}
-                            onPress={() => toggleOption(option)}
-                          />
-                        );
-                      })}
+                      {selectedOptions.map((option) => (
+                        <Pressable
+                          key={option}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Убрать ${option}`}
+                          onPress={() => toggleOption(option)}
+                          style={({ pressed }) => [
+                            styles.selectedOptionTouchTarget,
+                            pressed && styles.selectedOptionChipPressed,
+                          ]}
+                        >
+                          <View
+                            pointerEvents="none"
+                            style={styles.selectedOptionChip}
+                          >
+                            <AppText
+                              role="caption"
+                              numberOfLines={1}
+                              style={styles.selectedOptionText}
+                            >
+                              {`${option}  ×`}
+                            </AppText>
+                          </View>
+                        </Pressable>
+                      ))}
                     </ScrollView>
-                    {showOptionsTopFade ? (
-                      <LinearGradient
-                        pointerEvents="none"
-                        colors={["#FFFFFF", "rgba(255,255,255,0)"]}
-                        locations={[0, 1]}
-                        style={[styles.optionsEdgeFade, styles.optionsEdgeFadeTop]}
-                      />
-                    ) : null}
-                    {(showOptionsBottomFade ||
-                      (usesNutritionBottomFade &&
-                        optionsScrollOffsetRef.current <= 1)) &&
-                    !usesActiveCompactProgressFade ? (
-                      <LinearGradient
-                        pointerEvents="none"
-                        colors={
-                          usesMoodBottomFade || usesNutritionBottomFade
-                            ? [
-                                "rgba(255,255,255,0)",
-                                "rgba(255,255,255,0.2)",
-                                "rgba(255,255,255,0.7)",
-                                "#FFFFFF",
-                                "#FFFFFF",
-                              ]
-                            : usesActiveCompactProgressFade
-                            ? [
-                                "rgba(255,255,255,0)",
-                                "rgba(255,255,255,0.18)",
-                                "#FFFFFF",
-                              ]
-                            : usesCompactProgressFade
-                            ? [
-                                "rgba(255,255,255,0)",
-                                "rgba(255,255,255,0.12)",
-                                "rgba(255,255,255,0.42)",
-                              ]
-                            : pages.length > 1
-                            ? [
-                                "rgba(255,255,255,0)",
-                                "rgba(255,255,255,0.3)",
-                                "rgba(255,255,255,0.78)",
-                              ]
-                            : ["rgba(255,255,255,0)", "#FFFFFF"]
-                        }
-                        locations={
-                          usesMoodBottomFade || usesNutritionBottomFade
-                            ? [0, 0.42, 0.72, 0.86, 1]
-                            : usesActiveCompactProgressFade
-                            ? [0, 0.62, 1]
-                            : usesCompactProgressFade
-                            ? [0, 0.62, 1]
-                            : pages.length > 1
-                              ? [0, 0.58, 1]
-                              : [0, 1]
-                        }
-                        style={[
-                          styles.optionsEdgeFade,
-                          styles.optionsEdgeFadeBottom,
-                          !hasSelectedOptions &&
-                            styles.optionsEdgeFadeBottomCompact,
-                          pages.length > 1 &&
-                            styles.optionsEdgeFadeBottomWithProgress,
-                          usesCompactProgressFade &&
-                            !hasSelectedOptions &&
-                            styles.optionsEdgeFadeBottomTargeted,
-                          (usesMoodBottomFade || usesNutritionBottomFade) &&
-                            styles.optionsEdgeFadeBottomMood,
-                        ]}
-                      />
-                    ) : null}
-                  </View>
-                ) : page.input ? (
-                  <View style={styles.inputContent}>
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={['rgba(255,255,255,1)', 'rgba(255,255,255,0)']}
+                      locations={[0, 1]}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                      style={[
+                        styles.selectedOptionsEdgeFade,
+                        styles.selectedOptionsEdgeFadeLeft,
+                      ]}
+                    />
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']}
+                      locations={[0, 1]}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                      style={[
+                        styles.selectedOptionsEdgeFade,
+                        styles.selectedOptionsEdgeFadeRight,
+                      ]}
+                    />
+                  </Animated.View>
+
+                  {page.options ? (
                     <View
                       style={[
-                        styles.inputShell,
-                        page.input.multiline && styles.notesInputShell,
+                        styles.optionsViewport,
+                        { height: optionsViewportHeight },
                       ]}
                     >
-                      <TextInput
-                        accessibilityLabel={page.title}
-                        value={inputValue}
-                        onChangeText={(value) =>
-                          setInputValues((current) => ({
-                            ...current,
-                            [page.id]: isNumericInput
-                              ? sanitizeNumericInput(value)
-                              : value,
-                          }))
-                        }
-                        placeholder={page.input.placeholder}
-                        placeholderTextColor="#C9C7C8"
-                        keyboardType={
-                          isNumericInput ? "decimal-pad" : "default"
-                        }
-                        inputMode={isNumericInput ? "decimal" : undefined}
-                        autoCorrect={!isNumericInput}
-                        spellCheck={!isNumericInput}
-                        multiline={page.input.multiline}
-                        textAlignVertical={page.input.multiline ? "top" : "center"}
+                      <ScrollView
+                        key={page.id}
+                        nestedScrollEnabled
+                        bounces={optionsScrollable}
+                        scrollEnabled={optionsScrollable}
+                        showsVerticalScrollIndicator={false}
+                        scrollEventThrottle={16}
                         style={[
-                          styles.inputField,
-                          page.input.multiline && styles.notesInputField,
+                          styles.optionsScroll,
+                          { height: optionsViewportHeight },
                         ]}
-                      />
-                      {page.input.suffix ? (
-                        <AppText role="label" style={styles.inputSuffix}>
-                          {page.input.suffix}
+                        contentContainerStyle={[
+                          styles.optionsWrap,
+                          pages.length > 1 && styles.optionsWrapWithProgress,
+                        ]}
+                        onContentSizeChange={(_width, contentHeight) => {
+                          setOptionsContentHeight(contentHeight);
+                          setShowOptionsBottomFade(
+                            optionsScrollOffsetRef.current +
+                              optionsViewportHeight <
+                              contentHeight - 1,
+                          );
+                        }}
+                        onScroll={({ nativeEvent }) => {
+                          const {
+                            contentOffset,
+                            contentSize,
+                            layoutMeasurement,
+                          } = nativeEvent;
+                          optionsScrollOffsetRef.current = contentOffset.y;
+                          setShowOptionsTopFade(contentOffset.y > 1);
+                          setShowOptionsBottomFade(
+                            contentOffset.y + layoutMeasurement.height <
+                              contentSize.height - 1,
+                          );
+                        }}
+                      >
+                        {page.options.map((option) => {
+                          const selected = selectedOptions.includes(option);
+                          return (
+                            <JournalOptionChip
+                              key={option}
+                              label={option}
+                              selected={selected}
+                              reduceMotion={reduceMotion}
+                              twoColumn={page.id === 'menstruation'}
+                              onPress={() => toggleOption(option)}
+                            />
+                          );
+                        })}
+                      </ScrollView>
+                      {showOptionsTopFade ? (
+                        <LinearGradient
+                          pointerEvents="none"
+                          colors={['#FFFFFF', 'rgba(255,255,255,0)']}
+                          locations={[0, 1]}
+                          style={[
+                            styles.optionsEdgeFade,
+                            styles.optionsEdgeFadeTop,
+                          ]}
+                        />
+                      ) : null}
+                      {(showOptionsBottomFade ||
+                        (usesNutritionBottomFade &&
+                          optionsScrollOffsetRef.current <= 1)) &&
+                      !usesActiveCompactProgressFade ? (
+                        <LinearGradient
+                          pointerEvents="none"
+                          colors={
+                            usesMoodBottomFade || usesNutritionBottomFade
+                              ? [
+                                  'rgba(255,255,255,0)',
+                                  'rgba(255,255,255,0.2)',
+                                  'rgba(255,255,255,0.7)',
+                                  '#FFFFFF',
+                                  '#FFFFFF',
+                                ]
+                              : usesActiveCompactProgressFade
+                                ? [
+                                    'rgba(255,255,255,0)',
+                                    'rgba(255,255,255,0.18)',
+                                    '#FFFFFF',
+                                  ]
+                                : usesCompactProgressFade
+                                  ? [
+                                      'rgba(255,255,255,0)',
+                                      'rgba(255,255,255,0.12)',
+                                      'rgba(255,255,255,0.42)',
+                                    ]
+                                  : pages.length > 1
+                                    ? [
+                                        'rgba(255,255,255,0)',
+                                        'rgba(255,255,255,0.3)',
+                                        'rgba(255,255,255,0.78)',
+                                      ]
+                                    : ['rgba(255,255,255,0)', '#FFFFFF']
+                          }
+                          locations={
+                            usesMoodBottomFade || usesNutritionBottomFade
+                              ? [0, 0.42, 0.72, 0.86, 1]
+                              : usesActiveCompactProgressFade
+                                ? [0, 0.62, 1]
+                                : usesCompactProgressFade
+                                  ? [0, 0.62, 1]
+                                  : pages.length > 1
+                                    ? [0, 0.58, 1]
+                                    : [0, 1]
+                          }
+                          style={[
+                            styles.optionsEdgeFade,
+                            styles.optionsEdgeFadeBottom,
+                            !hasSelectedOptions &&
+                              styles.optionsEdgeFadeBottomCompact,
+                            pages.length > 1 &&
+                              styles.optionsEdgeFadeBottomWithProgress,
+                            usesCompactProgressFade &&
+                              !hasSelectedOptions &&
+                              styles.optionsEdgeFadeBottomTargeted,
+                            (usesMoodBottomFade || usesNutritionBottomFade) &&
+                              styles.optionsEdgeFadeBottomMood,
+                          ]}
+                        />
+                      ) : null}
+                    </View>
+                  ) : page.input ? (
+                    <View style={styles.inputContent}>
+                      <View
+                        style={[
+                          styles.inputShell,
+                          page.input.multiline && styles.notesInputShell,
+                        ]}
+                      >
+                        <TextInput
+                          accessibilityLabel={page.title}
+                          value={inputValue}
+                          onChangeText={(value) =>
+                            setInputValues((current) => ({
+                              ...current,
+                              [page.id]: isNumericInput
+                                ? sanitizeNumericInput(value)
+                                : value,
+                            }))
+                          }
+                          placeholder={page.input.placeholder}
+                          placeholderTextColor="#C9C7C8"
+                          keyboardType={
+                            isNumericInput ? 'decimal-pad' : 'default'
+                          }
+                          inputMode={isNumericInput ? 'decimal' : undefined}
+                          autoCorrect={!isNumericInput}
+                          spellCheck={!isNumericInput}
+                          multiline={page.input.multiline}
+                          textAlignVertical={
+                            page.input.multiline ? 'top' : 'center'
+                          }
+                          style={[
+                            styles.inputField,
+                            page.input.multiline && styles.notesInputField,
+                          ]}
+                        />
+                        {page.input.suffix ? (
+                          <AppText role="label" style={styles.inputSuffix}>
+                            {page.input.suffix}
+                          </AppText>
+                        ) : null}
+                      </View>
+                      {page.input.actionLabel ? (
+                        <AppText role="label" style={styles.inputActionLabel}>
+                          {page.input.actionLabel}
                         </AppText>
                       ) : null}
                     </View>
-                    {page.input.actionLabel ? (
-                      <AppText role="label" style={styles.inputActionLabel}>
-                        {page.input.actionLabel}
-                      </AppText>
-                    ) : null}
-                  </View>
-                ) : null}
+                  ) : null}
                 </Animated.View>
 
                 {usesActiveCompactProgressFade ? (
                   <LinearGradient
                     pointerEvents="none"
                     colors={[
-                      "rgba(255,255,255,0)",
-                      "rgba(255,255,255,0.2)",
-                      "rgba(255,255,255,0.7)",
-                      "#FFFFFF",
-                      "#FFFFFF",
+                      'rgba(255,255,255,0)',
+                      'rgba(255,255,255,0.2)',
+                      'rgba(255,255,255,0.7)',
+                      '#FFFFFF',
+                      '#FFFFFF',
                     ]}
                     locations={[0, 0.42, 0.72, 0.86, 1]}
                     style={styles.contentProgressFade}
@@ -1766,7 +1955,7 @@ export function JournalFlowModal({
                           weight="medium"
                           style={activeFlowBackStyle.backText}
                         >
-                          ‹  Назад
+                          ‹ Назад
                         </AppText>
                       </Pressable>
                     </View>
@@ -1775,13 +1964,16 @@ export function JournalFlowModal({
                         styles.primaryButton,
                         activeFlowNextStyle.next,
                         styles.actionButtonPill,
-                        (!canContinue || submitting) && styles.primaryButtonDisabled,
+                        (!canContinue || submitting) &&
+                          styles.primaryButtonDisabled,
                       ]}
                     >
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={isFinalStep ? "Сохранить" : "Далее"}
-                        accessibilityState={{ disabled: !canContinue || submitting }}
+                        accessibilityLabel={isFinalStep ? 'Сохранить' : 'Далее'}
+                        accessibilityState={{
+                          disabled: !canContinue || submitting,
+                        }}
                         disabled={!canContinue || submitting}
                         onPress={() => void goForward()}
                         style={({ pressed }) => [
@@ -1796,10 +1988,10 @@ export function JournalFlowModal({
                           style={activeFlowNextStyle.nextText}
                         >
                           {submitting
-                            ? "Сохраняем…"
+                            ? 'Сохраняем…'
                             : isFinalStep
-                              ? "Сохранить  ›"
-                              : "Далее  ›"}
+                              ? 'Сохранить  ›'
+                              : 'Далее  ›'}
                         </AppText>
                       </Pressable>
                     </View>
@@ -1809,7 +2001,7 @@ export function JournalFlowModal({
             </View>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1818,44 +2010,44 @@ const previewStyles = StyleSheet.create({
   actionRow: {
     width: 358,
     height: 46,
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 15,
   },
   actionButton: {
     flex: 1,
     height: 46,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   optionRow: {
     width: 358,
     height: 42,
-    flexDirection: "row",
-    justifyContent: "center",
+    flexDirection: 'row',
+    justifyContent: 'center',
     gap: 8,
   },
   optionChip: {
     height: 42,
     paddingHorizontal: 18,
     borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 7,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   optionText: {
     fontSize: 14,
     lineHeight: 16,
     letterSpacing: -0.24,
-    textAlign: "center",
+    textAlign: 'center',
   },
   optionDot: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: "#D7D1D3",
+    backgroundColor: '#D7D1D3',
   },
   optionDotSelected: {
     backgroundColor: colors.brand.primary,
@@ -1865,8 +2057,8 @@ const previewStyles = StyleSheet.create({
     height: 14,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: "#CFC8CB",
-    backgroundColor: "transparent",
+    borderColor: '#CFC8CB',
+    backgroundColor: 'transparent',
   },
   optionRingSelected: {
     borderWidth: 4,
@@ -1877,24 +2069,28 @@ const previewStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#31564A",
+    backgroundColor: '#31564A',
+  },
+  keyboardAvoidingContent: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scaledCanvas: {
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
-    transformOrigin: "top left",
+    transformOrigin: 'top left',
   },
   canvas: {
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
-    overflow: "hidden",
+    overflow: 'hidden',
     borderRadius: 40,
-    backgroundColor: "#31564A",
+    backgroundColor: '#31564A',
   },
   background: {
-    position: "absolute",
+    position: 'absolute',
     left: -13,
     top: -23,
     width: 517,
@@ -1902,16 +2098,16 @@ const styles = StyleSheet.create({
   },
   backgroundScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(19,43,38,0.06)",
+    backgroundColor: 'rgba(19,43,38,0.06)',
   },
   header: {
-    position: "absolute",
+    position: 'absolute',
     left: sizes.screenGutter,
     right: sizes.screenGutter,
     height: sizes.touch,
     zIndex: 20,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerCircle: {
     width: sizes.touch,
@@ -1919,17 +2115,17 @@ const styles = StyleSheet.create({
     borderRadius: sizes.touch / 2,
   },
   headerDatePill: {
-    position: "absolute",
+    position: 'absolute',
     left: (370 - 156) / 2,
     width: 156,
     height: sizes.touch,
     borderRadius: sizes.touch / 2,
   },
   backIcon: {
-    transform: [{ rotate: "180deg" }],
+    transform: [{ rotate: '180deg' }],
   },
   petalWheel: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     top: 66,
     width: DESIGN_WIDTH,
@@ -1937,14 +2133,14 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   petalPressable: {
-    position: "absolute",
+    position: 'absolute',
     width: PETAL_WIDTH,
     height: PETAL_HEIGHT,
   },
   petalInteraction: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   petalSvgCanvas: {
     width: PETAL_WIDTH,
@@ -1954,21 +2150,21 @@ const styles = StyleSheet.create({
     opacity: 0.78,
   },
   petalLabel: {
-    position: "absolute",
+    position: 'absolute',
     minHeight: 54,
     zIndex: 4,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   petalLabelContent: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 2,
   },
   petalStateMarker: {
-    position: "absolute",
-    left: "50%",
+    position: 'absolute',
+    left: '50%',
     zIndex: 2,
   },
   petalActiveMarker: {
@@ -1985,8 +2181,8 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     marginLeft: -7,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   petalCompletedMarkerText: {
     fontSize: 13,
@@ -1996,26 +2192,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 16,
     letterSpacing: -0.28,
-    textAlign: "center",
+    textAlign: 'center',
   },
   contentShape: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     top: 513,
     zIndex: 10,
   },
   contentPanel: {
-    position: "absolute",
+    position: 'absolute',
     left: sizes.screenGutter,
     right: sizes.screenGutter,
     top: 568,
     bottom: 16,
     zIndex: 11,
-    alignItems: "center",
+    alignItems: 'center',
   },
   pageContent: {
     width: DESIGN_WIDTH,
-    alignItems: "center",
+    alignItems: 'center',
     zIndex: 1,
   },
   pageTitle: {
@@ -2024,14 +2220,14 @@ const styles = StyleSheet.create({
     fontSize: 19,
     lineHeight: 22,
     letterSpacing: -0.38,
-    textAlign: "center",
+    textAlign: 'center',
   },
   optionsViewport: {
     width: 358,
     height: OPTIONS_VIEWPORT_HEIGHT,
     marginTop: 8,
-    position: "relative",
-    overflow: "hidden",
+    position: 'relative',
+    overflow: 'hidden',
   },
   optionsScroll: {
     width: 358,
@@ -2040,10 +2236,10 @@ const styles = StyleSheet.create({
   },
   optionsWrap: {
     width: 358,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
     columnGap: spacing.xs,
     rowGap: 10,
   },
@@ -2051,7 +2247,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   optionsEdgeFade: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
     height: 32,
@@ -2084,11 +2280,11 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     borderWidth: 1,
-    borderColor: "#E6E1E3",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    overflow: "hidden",
+    borderColor: '#E6E1E3',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   inputField: {
     flex: 1,
@@ -2108,7 +2304,7 @@ const styles = StyleSheet.create({
   },
   inputActionLabel: {
     marginTop: 6,
-    alignSelf: "flex-end",
+    alignSelf: 'flex-end',
     color: colors.text.primary,
     fontSize: 14,
     lineHeight: 18,
@@ -2116,7 +2312,7 @@ const styles = StyleSheet.create({
   notesInputShell: {
     height: 137,
     borderRadius: 20,
-    alignItems: "flex-start",
+    alignItems: 'flex-start',
   },
   notesInputField: {
     height: 137,
@@ -2125,7 +2321,7 @@ const styles = StyleSheet.create({
   },
   selectedOptionsAnimatedContainer: {
     width: DESIGN_WIDTH,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   selectedOptionsScroll: {
     width: DESIGN_WIDTH,
@@ -2137,11 +2333,11 @@ const styles = StyleSheet.create({
     minWidth: DESIGN_WIDTH,
     paddingHorizontal: 32,
     paddingVertical: 4,
-    alignItems: "center",
+    alignItems: 'center',
     gap: 12,
   },
   selectedOptionsEdgeFade: {
-    position: "absolute",
+    position: 'absolute',
     top: 8,
     width: 36,
     height: 32,
@@ -2161,18 +2357,18 @@ const styles = StyleSheet.create({
     height: 32,
     paddingHorizontal: 13,
     borderRadius: 16,
-    backgroundColor: "#F2F0F1",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    backgroundColor: '#F2F0F1',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   selectedOptionChipPressed: {
     opacity: 0.72,
     transform: [{ scale: 0.98 }],
   },
   selectedOptionText: {
-    color: "#423E40",
+    color: '#423E40',
     fontSize: 15,
     lineHeight: 18,
     letterSpacing: -0.18,
@@ -2191,12 +2387,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E6E1E3",
-    backgroundColor: "#F4F1F2",
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    borderColor: '#E6E1E3',
+    backgroundColor: '#F4F1F2',
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   twoColumnOption: {
     width: 175,
@@ -2207,21 +2403,21 @@ const styles = StyleSheet.create({
   },
   optionTextLayer: {
     zIndex: 2,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   optionSelectedTextLayer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 3,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 18,
   },
   twoColumnOptionSelectedTextLayer: {
     paddingHorizontal: 10,
   },
   optionSelected: {
-    borderColor: "rgba(211,20,113,0.28)",
+    borderColor: 'rgba(211,20,113,0.28)',
     backgroundColor: colors.surface.rose,
   },
   optionPressed: {
@@ -2231,10 +2427,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 16,
     letterSpacing: -0.24,
-    textAlign: "center",
+    textAlign: 'center',
   },
   panelFooter: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
@@ -2242,7 +2438,7 @@ const styles = StyleSheet.create({
     zIndex: 3,
   },
   contentProgressFade: {
-    position: "absolute",
+    position: 'absolute',
     left: -sizes.screenGutter,
     right: -sizes.screenGutter,
     bottom: 54,
@@ -2251,8 +2447,8 @@ const styles = StyleSheet.create({
   },
   progressRow: {
     width: 214,
-    alignSelf: "center",
-    flexDirection: "row",
+    alignSelf: 'center',
+    flexDirection: 'row',
     gap: 5,
     zIndex: 2,
   },
@@ -2260,16 +2456,16 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 2,
     borderRadius: 1,
-    backgroundColor: "#DFDFDF",
+    backgroundColor: '#DFDFDF',
   },
   progressSegmentActive: {
     backgroundColor: colors.brand.primary,
   },
   actionsRow: {
     width: 358,
-    alignSelf: "center",
+    alignSelf: 'center',
     height: 46,
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 15,
     zIndex: 2,
   },
@@ -2277,25 +2473,25 @@ const styles = StyleSheet.create({
     width: 171.5,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#EBEBEB",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    backgroundColor: '#EBEBEB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   primaryButton: {
     width: 171.5,
     height: 46,
     borderRadius: 23,
     backgroundColor: colors.brand.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
     ...shadows.floating,
   },
   actionPressable: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionButtonPill: {
     borderRadius: 23,

@@ -6,7 +6,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useConvexAuth, useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -37,11 +38,17 @@ import {
   sizes,
   spacing,
 } from '../design-system';
+import { api } from '../convex/_generated/api';
+import { useAgentAutomationState } from '../lib/agent-automation-manager';
 import { analysisCatalogByKey } from '../lib/analysis-catalog';
+import { useConnectivity } from '../lib/connectivity';
 import { useHealthStore } from '../lib/health-store';
 import type { CarePlanItem } from '../lib/health-types';
 import { persistLabDocument } from '../lib/local-files';
-import { calculateCompletionScore } from '../lib/product-insights';
+import {
+  calculateCompletionScore,
+  latestCarePlanDueAt,
+} from '../lib/product-insights';
 
 const bloodTubesImage = require('../assets/analyses/blood-tubes.png');
 const ultrasoundImage = require('../assets/analyses/ultrasound.png');
@@ -82,6 +89,53 @@ type PendingAnalysisAttachment = {
   name: string;
   uri: string;
 };
+
+function automationFailureStatus({
+  errorCode,
+  nextRetryAt,
+}: {
+  errorCode?: string;
+  nextRetryAt?: number;
+}) {
+  const retryText = nextRetryAt
+    ? ` Следующая попытка — ${new Intl.DateTimeFormat('ru-RU', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(nextRetryAt))}.`
+    : ' Новая проверка запустится после следующего подтверждённого изменения.';
+
+  switch (errorCode) {
+    case 'RATE_LIMITED':
+      return {
+        title: 'Проверка отложена из-за лимита',
+        description: `Данные сохранены, план не потерян.${retryText}`,
+      };
+    case 'PROVIDER_UNAVAILABLE':
+    case 'TRANSPORT_ERROR':
+      return {
+        title: 'Сервис плана временно недоступен',
+        description: `Последняя попытка не завершилась, но данные остались на устройстве.${retryText}`,
+      };
+    case 'CONTENT_FILTERED':
+      return {
+        title: 'План не удалось сформировать автоматически',
+        description:
+          'Сферка не смогла безопасно обработать текущий набор данных. Измените или дополните записи и попробуйте снова.',
+      };
+    case 'INVALID_AGENT_PLAN_PROPOSAL':
+    case 'INVALID_REQUEST':
+    case 'INVALID_TOOL_RESULT':
+      return {
+        title: 'Проверка завершилась без подходящего плана',
+        description: `Сферка отклонила неполный результат и ничего не изменила.${retryText}`,
+      };
+    default:
+      return {
+        title: 'Первая проверка пока не завершилась',
+        description: `Настройки приняты, последняя попытка завершилась ошибкой.${retryText}`,
+      };
+  }
+}
 
 const planImages: Record<string, ImageSourcePropType> = {
   'blood-tubes': bloodTubesImage,
@@ -171,6 +225,9 @@ function recommendationReasonLabel(reasonCode?: string) {
 
 export default function AnalysesScreen() {
   const { sourceId } = useLocalSearchParams<{ sourceId?: string }>();
+  const router = useRouter();
+  const { isAuthenticated } = useConvexAuth();
+  const { isKnown: connectionKnown, isOffline } = useConnectivity();
   const insets = useSafeAreaInsets();
   const headerTop = getHeaderTop(insets.top);
   const {
@@ -221,6 +278,97 @@ export default function AnalysesScreen() {
   const recommendationsEnabled =
     preferences.find((item) => !item.deletedAt)?.medicalRecommendations ===
     true;
+  const agentPreferences = preferences.find((item) => !item.deletedAt);
+  const agentStatus = useQuery(
+    api.agent.status,
+    isAuthenticated && !readOnly ? {} : 'skip',
+  );
+  const agentAutomationState = useAgentAutomationState();
+  const agentLastSuccessfulRunAt = agentPreferences?.agentLastSuccessfulRunAt;
+  const emptyPlanStatus = !recommendationsEnabled
+    ? {
+        title: 'Автономный план выключен',
+        description:
+          'Включите автономные рекомендации в профиле, если хотите получать персональный предварительный план.',
+      }
+    : isOffline
+      ? {
+          title: 'План ждёт подключения',
+          description:
+            'Данные остаются на устройстве. Проверка начнётся после восстановления стабильного соединения.',
+        }
+      : !connectionKnown || (isAuthenticated && !agentStatus)
+        ? {
+            title: 'Проверяем подключение и настройки',
+            description:
+              'Обычно это занимает несколько секунд. Экран обновится автоматически.',
+          }
+        : !isAuthenticated || readOnly
+          ? {
+              title: 'Обновление недоступно в этом режиме',
+              description:
+                'Персональный план создаётся только после входа в нативном приложении.',
+            }
+          : !agentStatus
+            ? {
+                title: 'Проверяем настройки Ассистента',
+                description:
+                  'Экран обновится автоматически после ответа сервера.',
+              }
+            : !agentStatus.enabled
+              ? {
+                  title: 'Ассистент временно выключен',
+                  description:
+                    'Сервис автономного плана отключён администратором. Локальные результаты остаются доступны.',
+                }
+              : !agentStatus.consentAccepted
+                ? {
+                    title: 'Нужно согласие для Ассистента',
+                    description:
+                      'Сначала включите Ассистента в чате и подтвердите категории данных, которые он сможет использовать.',
+                  }
+                : !agentStatus.automationEnabled
+                  ? {
+                      title: 'Автономные проверки недоступны',
+                      description:
+                        'Сервер временно не принимает фоновые проверки плана. Попробуйте позже.',
+                    }
+                  : !agentStatus.providerConfigured
+                    ? {
+                        title: 'Сервис плана не настроен',
+                        description:
+                          'Подключение к модели на сервере неполное. Локальные данные в безопасности; администратору нужно проверить настройки провайдера.',
+                      }
+                    : !agentStatus.automationAccepted
+                      ? {
+                          title: 'Настройка не подтверждена',
+                          description:
+                            'Выключите и снова включите автономные рекомендации в профиле.',
+                        }
+                      : agentAutomationState.phase === 'checking'
+                        ? {
+                            title: 'Проверяем план сейчас',
+                            description:
+                              'Сферка получила актуальные данные и ждёт ответ сервиса. Обычно это занимает меньше минуты.',
+                          }
+                        : agentAutomationState.phase === 'retrying' ||
+                            agentAutomationState.phase === 'failed'
+                          ? automationFailureStatus(agentAutomationState)
+                          : agentLastSuccessfulRunAt
+                            ? {
+                                title: 'План проверен — активных пунктов нет',
+                                description: `Последняя успешная проверка: ${new Intl.DateTimeFormat(
+                                  'ru-RU',
+                                  { dateStyle: 'medium', timeStyle: 'short' },
+                                ).format(
+                                  new Date(agentLastSuccessfulRunAt),
+                                )}. Новые подтверждённые данные запустят следующую проверку.`,
+                              }
+                            : {
+                                title: 'Готовим первую проверку плана',
+                                description:
+                                  'Она запускается после 30 секунд стабильного подключения. При временной ошибке Сферка повторит попытку с безопасной задержкой.',
+                              };
 
   useEffect(() => {
     if (!sourceId || handledSource.current === sourceId) return;
@@ -540,6 +688,9 @@ export default function AnalysesScreen() {
       ? plannedAnalyses.filter((item) => item.tab === 'upcoming')
       : plannedAnalyses.filter((item) => item.tab === 'current');
   const currentPlans = plannedAnalyses.filter((item) => item.tab === 'current');
+  const upcomingPlans = plannedAnalyses.filter(
+    (item) => item.tab === 'upcoming',
+  );
   const attentionScore = calculateCompletionScore(
     currentPlans.map((item) => item.carePlan.catalogKey),
     new Set(attachedResultsByPlan.keys()),
@@ -598,10 +749,14 @@ export default function AnalysesScreen() {
         </View>
 
         <AnalysisDeadlineSummary
+          currentDeadline={formatPlanDate(
+            latestCarePlanDueAt(currentPlans.map((item) => item.carePlan)),
+          )}
           currentCount={currentPlans.length}
-          upcomingCount={
-            plannedAnalyses.filter((item) => item.tab === 'upcoming').length
-          }
+          upcomingDeadline={formatPlanDate(
+            latestCarePlanDueAt(upcomingPlans.map((item) => item.carePlan)),
+          )}
+          upcomingCount={upcomingPlans.length}
           onCurrent={() => setActiveTab('current')}
           onUpcoming={() => setActiveTab('upcoming')}
           style={styles.summaryWrap}
@@ -636,12 +791,50 @@ export default function AnalysesScreen() {
                 />
               ))
             ) : (
-              <View style={styles.emptyState}>
-                <AppText role="body" weight="regular" style={styles.emptyTitle}>
-                  {recommendationsEnabled
-                    ? 'Сферка обновит план при стабильном подключении.'
-                    : 'Автономный план можно включить в профиле после согласия для Ассистента.'}
+              <View accessibilityLiveRegion="polite" style={styles.emptyState}>
+                {recommendationsEnabled &&
+                !isOffline &&
+                (!connectionKnown ||
+                  (isAuthenticated && !agentStatus) ||
+                  agentAutomationState.phase === 'checking') ? (
+                  <ActivityIndicator
+                    color={colors.brand.primary}
+                    style={styles.emptySpinner}
+                  />
+                ) : null}
+                <AppText
+                  role="body"
+                  weight="semibold"
+                  style={styles.emptyTitle}
+                >
+                  {emptyPlanStatus.title}
                 </AppText>
+                <AppText
+                  role="caption"
+                  color={colors.text.secondary}
+                  style={styles.emptyDescription}
+                >
+                  {emptyPlanStatus.description}
+                </AppText>
+                {!readOnly ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/profile',
+                        params: { panel: 'permissions' },
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.emptySettingsButton,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <AppText weight="semibold" color={colors.brand.primary}>
+                      Проверить настройки
+                    </AppText>
+                  </Pressable>
+                ) : null}
               </View>
             )}
           </View>
@@ -678,7 +871,22 @@ export default function AnalysesScreen() {
                         ? 'Требует внимания'
                         : 'Подтверждено'
                   }
-                  onView={() => undefined}
+                  onView={() =>
+                    Alert.alert(
+                      result.title,
+                      [
+                        `Дата сдачи: ${new Date(result.collectedAt).toLocaleDateString('ru-RU')}`,
+                        result.analytes.length
+                          ? result.analytes
+                              .map(
+                                (analyte) =>
+                                  `${analyte.name}: ${analyte.value}${analyte.unit ? ` ${analyte.unit}` : ''}`,
+                              )
+                              .join('\n')
+                          : 'Структурированные показатели не добавлены.',
+                      ].join('\n\n'),
+                    )
+                  }
                 />
               );
             })}
@@ -754,7 +962,17 @@ export default function AnalysesScreen() {
                       : undefined
                   }
                   statusLabel="Отмечено выполненным"
-                  onView={() => undefined}
+                  onView={() =>
+                    Alert.alert(
+                      item.title,
+                      [
+                        catalog?.specimen ?? item.description,
+                        `Выполнено: ${new Date(
+                          item.performedAt ?? item.updatedAt,
+                        ).toLocaleDateString('ru-RU')}`,
+                      ].join('\n\n'),
+                    )
+                  }
                 />
               );
             })}
@@ -781,9 +999,8 @@ export default function AnalysesScreen() {
 
       <View style={[styles.fixedHeader, { top: headerTop }]}>
         <AnalysisReferenceHeader
-          dateLabel="21 июля"
           onChart={() => setChartsVisible(true)}
-          onDate={() => undefined}
+          onDate={() => setActiveTab('current')}
           onCalendar={() => setActiveTab('upcoming')}
         />
       </View>
@@ -1400,6 +1617,13 @@ export default function AnalysesScreen() {
         visible={chartsVisible}
         initialPeriod="90"
         onClose={() => setChartsVisible(false)}
+        onExportPress={() => {
+          setChartsVisible(false);
+          router.push({
+            pathname: '/profile',
+            params: { panel: 'exports' },
+          });
+        }}
         profile={profile}
         journalEntries={journalEntries}
         labResults={labResults}
@@ -1456,6 +1680,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyTitle: { textAlign: 'center', fontSize: 17, lineHeight: 22 },
+  emptyDescription: {
+    marginTop: spacing.xs,
+    maxWidth: 310,
+    textAlign: 'center',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  emptySpinner: { marginBottom: spacing.sm },
+  emptySettingsButton: {
+    marginTop: spacing.md,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+    backgroundColor: '#FBE7F0',
+    paddingHorizontal: spacing.lg,
+  },
   analysisModalRoot: {
     flex: 1,
   },

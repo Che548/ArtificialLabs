@@ -890,7 +890,7 @@ export default function ScanScreen() {
       <JournalFlowModal
         visible={journalFlowDate !== null}
         targetDate={journalFlowDate ?? new Date()}
-        initialCategory="symptoms"
+        initialCategory="cycle"
         onClose={() => setJournalFlowDate(null)}
         onComplete={saveJournalFlow}
       />

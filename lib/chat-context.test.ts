@@ -5,6 +5,7 @@ import {
   buildChatTranscript,
   CHAT_CONTEXT_MAX_CHARACTERS,
   CHAT_CONTEXT_MAX_MESSAGES,
+  chatTimestampIsInPeriod,
   findUnansweredUserMessage,
 } from './chat-context';
 import type { ChatMessage } from './health-types';
@@ -89,4 +90,33 @@ test('findUnansweredUserMessage recognizes a conversation ending in a user turn'
     ),
     undefined,
   );
+});
+
+test('chat history periods use local calendar boundaries', () => {
+  const now = new Date(2026, 7, 23, 18).getTime();
+  assert.equal(
+    chatTimestampIsInPeriod(new Date(2026, 7, 23, 0).getTime(), 'today', now),
+    true,
+  );
+  assert.equal(
+    chatTimestampIsInPeriod(
+      new Date(2026, 7, 22, 23, 59).getTime(),
+      'today',
+      now,
+    ),
+    false,
+  );
+  assert.equal(
+    chatTimestampIsInPeriod(new Date(2026, 7, 17, 0).getTime(), '7-days', now),
+    true,
+  );
+  assert.equal(
+    chatTimestampIsInPeriod(
+      new Date(2026, 7, 16, 23, 59).getTime(),
+      '7-days',
+      now,
+    ),
+    false,
+  );
+  assert.equal(chatTimestampIsInPeriod(0, 'all', now), true);
 });

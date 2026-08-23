@@ -25,6 +25,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AddIcon from '../assets/figma/calendar-page/add.svg';
 import BackIcon from '../assets/figma/calendar-page/back.svg';
 import HeaderShape from '../assets/figma/calendar-page/header-shape.svg';
+import {
+  createCycleHistory,
+  cycleDayInsight,
+  type CycleHistory,
+} from '../lib/cycle-insights';
 import { AppText, LiquidGlassSurface, SegmentedSwitcher } from './components';
 import {
   androidShadows,
@@ -70,6 +75,7 @@ const FERTILE_DATE_KEYS = new Set(
   ),
 );
 const OVULATION_DATE_KEY = dateKey(new Date(2026, 6, 28));
+const EMPTY_PERIOD_DATE_KEYS = new Set<string>();
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const AnimatedHeaderShape = Animated.createAnimatedComponent(HeaderShape);
 
@@ -80,6 +86,12 @@ type CalendarPageModalProps = {
   onAddSymptoms?: (date: Date) => void;
   symptomDateKeys?: ReadonlySet<string>;
   allowPeriodMarking?: boolean;
+  cycleLengthDays?: number;
+  lastPeriodStartAt?: number;
+  periodDateKeys?: ReadonlySet<string>;
+  onSavePeriodDateKeys?: (
+    dateKeys: ReadonlySet<string>,
+  ) => void | Promise<void>;
 };
 
 type CalendarPageVariant = 'backup' | 'continuous';
@@ -134,12 +146,6 @@ type DayForecast = {
   description: string;
   kind: DayForecastKind;
   title: string;
-};
-
-type CalculatedCycle = {
-  cycleLength: number;
-  periodDates: ReadonlySet<string>;
-  startTimestamp: number;
 };
 
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
@@ -213,90 +219,58 @@ function getDayForecast(date: Date): DayForecast {
 
 function buildCalculatedCycle(
   periodDates: ReadonlySet<string>,
-): CalculatedCycle | null {
-  const timestamps = [...periodDates]
-    .map((key) => {
-      const [year, month, day] = key.split('-').map(Number);
-      return Date.UTC(year, month, day);
-    })
-    .sort((left, right) => left - right);
-
-  if (timestamps.length === 0) {
-    return null;
-  }
-
-  const periodStarts = timestamps.filter(
-    (timestamp) =>
-      !periodDates.has(dateKey(new Date(timestamp - DAY_IN_MILLISECONDS))),
-  );
-  const validCycleLengths = periodStarts
-    .slice(1)
-    .map((timestamp, index) =>
-      Math.round((timestamp - periodStarts[index]) / DAY_IN_MILLISECONDS),
-    )
-    .filter((length) => length >= 21 && length <= 45);
-  const cycleLength =
-    validCycleLengths.length > 0
-      ? Math.round(
-          validCycleLengths.reduce((sum, length) => sum + length, 0) /
-            validCycleLengths.length,
-        )
-      : 28;
-
-  return {
-    cycleLength,
-    periodDates,
-    startTimestamp: periodStarts[periodStarts.length - 1] ?? timestamps[0],
-  };
+  lastPeriodStartAt?: number,
+  cycleLengthDays?: number,
+) {
+  return createCycleHistory({
+    cycleLengthDays,
+    lastPeriodStartAt,
+    periodDateKeys: periodDates,
+  });
 }
 
 function getCalculatedDayForecast(
   date: Date,
-  cycle: CalculatedCycle,
+  cycle: CycleHistory,
 ): DayForecast {
-  const timestamp = dayTimestamp(date);
-  const difference = Math.floor(
-    (timestamp - cycle.startTimestamp) / DAY_IN_MILLISECONDS,
-  );
-  const cycleDay =
-    (((difference % cycle.cycleLength) + cycle.cycleLength) %
-      cycle.cycleLength) +
-    1;
-  const ovulationDay = Math.max(10, Math.min(21, cycle.cycleLength - 14));
-  const actualPeriod = cycle.periodDates.has(dateKey(date));
+  const insight = cycleDayInsight(date, cycle);
 
-  if (actualPeriod || cycleDay <= 5) {
+  if (insight.kind === 'menstruation') {
+    const actualPeriod = cycle.periodDateKeys.has(dateKey(date));
     return {
-      cycleDay,
+      cycleDay: insight.cycleDay,
       description: actualPeriod
         ? 'День менструации отмечен пользователем.'
-        : `Ожидается ${cycleDay}-й день менструации.`,
+        : `Ожидается ${insight.cycleDay}-й день менструации.`,
       kind: 'menstruation',
       title: 'Менструация',
     };
   }
 
-  if (cycleDay === ovulationDay) {
+  if (insight.kind === 'ovulation') {
     return {
-      cycleDay,
+      cycleDay: insight.cycleDay,
       description: 'Предполагаемый день овуляции по истории цикла.',
       kind: 'ovulation',
       title: 'Овуляция',
     };
   }
 
-  if (cycleDay >= ovulationDay - 5 && cycleDay <= ovulationDay + 1) {
+  if (insight.kind === 'fertile') {
     return {
-      cycleDay,
+      cycleDay: insight.cycleDay,
       description: 'Фертильное окно рассчитано по истории цикла.',
       kind: 'fertile',
-      title: 'Повышенная вероятность забеременеть',
+      title:
+        insight.probability === 'high'
+          ? 'Высокая вероятность забеременеть'
+          : 'Средняя вероятность забеременеть',
     };
   }
 
-  if (cycleDay >= cycle.cycleLength - 2) {
+  if (insight.kind === 'upcoming') {
     return {
-      cycleDay,
+      cycleDay: insight.cycleDay,
       description: 'Менструация ожидается в ближайшие несколько дней.',
       kind: 'upcoming',
       title: 'Ожидается менструация',
@@ -304,7 +278,7 @@ function getCalculatedDayForecast(
   }
 
   return {
-    cycleDay,
+    cycleDay: insight.cycleDay,
     description: 'Особых событий по прогнозу цикла не ожидается.',
     kind: 'neutral',
     title: 'Обычный день цикла',
@@ -1141,6 +1115,10 @@ function CalendarPageModalBase({
   onAddSymptoms,
   symptomDateKeys,
   allowPeriodMarking = true,
+  cycleLengthDays,
+  lastPeriodStartAt,
+  periodDateKeys: savedPeriodDateKeys = EMPTY_PERIOD_DATE_KEYS,
+  onSavePeriodDateKeys,
   variant,
 }: CalendarPageBaseProps) {
   const { width, height } = useWindowDimensions();
@@ -1148,6 +1126,7 @@ function CalendarPageModalBase({
   const monthListRef = useRef<FlatList<Date>>(null);
   const initialMonthPositionedRef = useRef(false);
   const protectedDayInteractionRef = useRef(false);
+  const periodSaveInFlightRef = useRef(false);
   const returnButtonProgress = useRef(new Animated.Value(0)).current;
   const daySheetProgress = useRef(new Animated.Value(0)).current;
   const viewProgress = useRef(new Animated.Value(0)).current;
@@ -1161,7 +1140,7 @@ function CalendarPageModalBase({
   const [dayDetailsVisible, setDayDetailsVisible] = useState(false);
   const [periodMarkingMode, setPeriodMarkingMode] = useState(false);
   const [periodDateKeys, setPeriodDateKeys] = useState<Set<string>>(
-    () => new Set(),
+    () => new Set(savedPeriodDateKeys),
   );
   const [periodDraftDateKeys, setPeriodDraftDateKeys] = useState<Set<string>>(
     () => new Set(),
@@ -1193,6 +1172,8 @@ function CalendarPageModalBase({
     setReturnDirection('up');
     setDayDetailsVisible(false);
     setPeriodMarkingMode(false);
+    setPeriodDateKeys(new Set(savedPeriodDateKeys));
+    setPeriodDraftDateKeys(new Set(savedPeriodDateKeys));
     setViewMode('month');
     initialMonthPositionedRef.current = false;
     returnButtonProgress.setValue(0);
@@ -1202,6 +1183,7 @@ function CalendarPageModalBase({
     daySheetProgress,
     initialDate,
     returnButtonProgress,
+    savedPeriodDateKeys,
     viewProgress,
     visible,
   ]);
@@ -1253,8 +1235,9 @@ function CalendarPageModalBase({
   );
   const detailsDate = selectedDate ?? initialDate;
   const calculatedCycle = useMemo(
-    () => buildCalculatedCycle(periodDateKeys),
-    [periodDateKeys],
+    () =>
+      buildCalculatedCycle(periodDateKeys, lastPeriodStartAt, cycleLengthDays),
+    [cycleLengthDays, lastPeriodStartAt, periodDateKeys],
   );
   const calculatedForecastForDate = useMemo(
     () =>
@@ -1296,27 +1279,29 @@ function CalendarPageModalBase({
   const selectedHeaderLabelColor = selectedHeaderIsColored
     ? 'rgba(255,255,255,0.82)'
     : '#5D5D5D';
-  const currentCycleDay = calculatedCycle
-    ? Math.floor(
-        (dayTimestamp(initialDate) - calculatedCycle.startTimestamp) /
-          DAY_IN_MILLISECONDS,
-      ) + 1
-    : 0;
-  const delayDays = calculatedCycle
-    ? Math.max(0, currentCycleDay - calculatedCycle.cycleLength)
-    : 0;
+  const todayInsight = calculatedCycle
+    ? cycleDayInsight(initialDate, calculatedCycle, initialDate)
+    : undefined;
+  const currentCycleDay = todayInsight?.cycleDay ?? 0;
+  const delayDays = todayInsight?.delayDays ?? 0;
   const fertilityLabel = !calculatedCycle
     ? '—'
     : delayDays > 0
       ? 'Низкая'
-      : todayForecast.kind === 'fertile' || todayForecast.kind === 'ovulation'
+      : todayInsight?.probability === 'high'
         ? 'Высокая'
-        : 'Низкая';
+        : todayInsight?.probability === 'medium'
+          ? 'Средняя'
+          : 'Низкая';
   const fertilityColor =
     fertilityLabel === 'Высокая' ? colors.brand.success : colors.text.secondary;
   const isTodayMenstruation = todayForecast.kind === 'menstruation';
+  const isTodayOvulation = todayForecast.kind === 'ovulation';
   const isTodayFertile =
     todayForecast.kind === 'fertile' || todayForecast.kind === 'ovulation';
+  const daysUntilPeriod = calculatedCycle
+    ? Math.max(0, calculatedCycle.cycleLengthDays - currentCycleDay + 1)
+    : 0;
   const hasLoggedSymptoms =
     symptomDateKeys?.has(dateKey(detailsDate)) ??
     (variant === 'backup' && SYMPTOM_LOG_DATE_KEYS.has(dateKey(detailsDate)));
@@ -1523,12 +1508,28 @@ function CalendarPageModalBase({
     }
   };
 
-  const savePeriodMarking = () => {
-    setPeriodDateKeys(new Set(periodDraftDateKeys));
-    setPeriodMarkingMode(false);
+  const savePeriodMarking = async () => {
+    if (periodSaveInFlightRef.current) return;
+    periodSaveInFlightRef.current = true;
+    const nextDateKeys = new Set(periodDraftDateKeys);
+    try {
+      await onSavePeriodDateKeys?.(nextDateKeys);
+      setPeriodDateKeys(nextDateKeys);
+      setPeriodMarkingMode(false);
 
-    if (Platform.OS !== 'web') {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
+      }
+    } catch (error) {
+      console.error('Saving period dates failed', error);
+      Alert.alert(
+        'Не удалось сохранить дни месячных',
+        'Попробуйте ещё раз. Уже сохранённые данные не изменены.',
+      );
+    } finally {
+      periodSaveInFlightRef.current = false;
     }
   };
 
@@ -2083,7 +2084,7 @@ function CalendarPageModalBase({
                       : isTodayFertile
                         ? '+'
                         : calculatedCycle
-                          ? delayDays
+                          ? delayDays || daysUntilPeriod
                           : '—'}
                   </AppText>
                   <AppText
@@ -2098,9 +2099,13 @@ function CalendarPageModalBase({
                   >
                     {isTodayMenstruation
                       ? 'Менструация'
-                      : isTodayFertile
+                      : isTodayOvulation
                         ? 'Овуляция'
-                        : 'Задержка'}
+                        : isTodayFertile
+                          ? 'Фертильное окно'
+                          : delayDays > 0
+                            ? 'Задержка'
+                            : 'До месячных'}
                   </AppText>
                 </View>
                 <View

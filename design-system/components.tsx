@@ -2167,7 +2167,7 @@ export function JournalAssessment({
   actionVariant = 'solid',
   onPress,
 }: JournalAssessmentProps) {
-  const percentage = Math.round((value / total) * 100);
+  const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
   const completedDays = Math.round((value / total) * 7);
   const completedLevels = Math.round((value / total) * 5);
   const completedCount = Math.min(total, Math.max(0, value));

@@ -22,16 +22,21 @@ const headerGlass = colors.surface.headerGlassWash;
 const headerWash = colors.surface.headerGlassWash;
 
 export function AnalysisReferenceHeader({
-  dateLabel = '21 июля',
+  date = new Date(),
   onCalendar,
   onChart,
   onDate,
 }: {
-  dateLabel?: string;
+  date?: Date;
   onCalendar?: () => void;
   onChart?: () => void;
   onDate?: () => void;
 }) {
+  const dateLabel = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+  }).format(date);
+
   return (
     <View style={styles.header}>
       <GlassControl
@@ -56,18 +61,18 @@ export function AnalysisReferenceHeader({
       </GlassControl>
 
       <GlassControl
-        accessibilityLabel={`Выбранная дата: ${dateLabel}`}
+        accessibilityLabel={`Показать текущие анализы. Сегодня ${dateLabel}`}
         elevated
         onPress={onDate}
         tintColor={headerGlass}
         washColor={headerWash}
         style={styles.headerDate}
       >
-        <HeaderDateLabel label="Сегодня" />
+        <HeaderDateLabel date={date} label="Сегодня" />
       </GlassControl>
 
       <GlassControl
-        accessibilityLabel="Открыть календарь анализов"
+        accessibilityLabel="Показать ближайшие анализы"
         elevated
         onPress={onCalendar}
         tintColor={headerGlass}
@@ -137,20 +142,23 @@ function analysisNoun(count: number) {
 
 function DeadlineCard({
   count,
-  duration,
+  deadline,
   onPress,
 }: {
   count: number;
-  duration: string;
+  deadline: string;
   onPress?: () => void;
 }) {
   const noun = analysisNoun(count);
   const displayNoun = noun.charAt(0).toUpperCase() + noun.slice(1);
+  const accessibilityLabel = count
+    ? `${count} ${noun} нужно сдать до ${deadline}`
+    : 'В этом разделе пока нет анализов';
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${count} ${noun} нужно сдать в течение ${duration}`}
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       style={styles.deadlineCard}
     >
@@ -163,8 +171,17 @@ function DeadlineCard({
           <ArrowUpRightIcon width={16} height={16} />
         </View>
         <Text numberOfLines={3} style={styles.deadlineCopy}>
-          {displayNoun} нужно{`\n`}сдать в течение{`\n`}
-          <Text style={styles.deadlineStrong}>{duration}</Text>
+          {count ? (
+            <>
+              {displayNoun} нужно{`\n`}сдать до{`\n`}
+              <Text style={styles.deadlineStrong}>{deadline}</Text>
+            </>
+          ) : (
+            <>
+              В этом разделе{`\n`}пока нет{`\n`}
+              <Text style={styles.deadlineStrong}>анализов</Text>
+            </>
+          )}
         </Text>
       </View>
     </Pressable>
@@ -172,28 +189,32 @@ function DeadlineCard({
 }
 
 export function AnalysisDeadlineSummary({
+  currentDeadline,
   currentCount,
   onCurrent,
   onUpcoming,
   style,
+  upcomingDeadline,
   upcomingCount,
 }: {
+  currentDeadline: string;
   currentCount: number;
   onCurrent?: () => void;
   onUpcoming?: () => void;
   style?: StyleProp<ViewStyle>;
+  upcomingDeadline: string;
   upcomingCount: number;
 }) {
   return (
     <View style={[styles.deadlineRow, style]}>
       <DeadlineCard
         count={currentCount}
-        duration="1 месяца"
+        deadline={currentDeadline}
         onPress={onCurrent}
       />
       <DeadlineCard
         count={upcomingCount}
-        duration="4 месяцев"
+        deadline={upcomingDeadline}
         onPress={onUpcoming}
       />
     </View>

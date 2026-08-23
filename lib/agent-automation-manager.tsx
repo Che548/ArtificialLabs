@@ -1,5 +1,6 @@
 import { useAction, useConvex, useConvexAuth, useQuery } from 'convex/react';
-import { useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import type { PropsWithChildren } from 'react';
 
 import { api } from '../convex/_generated/api';
 import { reconcileAgentBackgroundRegistration } from './agent-background';
@@ -8,6 +9,7 @@ import { useConnectivity } from './connectivity';
 import { useHealthStore } from './health-store';
 import { scheduleAgentPlanUpdateNotification } from './notifications';
 import {
+  loadLocalSnapshot,
   releaseLocalAgentRunLease,
   tryAcquireLocalAgentRunLease,
 } from './local-database';
@@ -18,7 +20,46 @@ import {
   mayScheduleAgentCatchUp,
 } from './agent-automation-policy';
 
-export function AgentAutomationManager() {
+export type AgentAutomationState = {
+  phase: 'waiting' | 'checking' | 'retrying' | 'succeeded' | 'failed';
+  errorCode?: string;
+  lastAttemptAt?: number;
+  nextRetryAt?: number;
+};
+
+const AgentAutomationStateContext = createContext<AgentAutomationState>({
+  phase: 'waiting',
+});
+
+export function useAgentAutomationState() {
+  return useContext(AgentAutomationStateContext);
+}
+
+type RetryableAgentError = Error & { retryAfterMs?: number };
+
+function agentError(error: unknown) {
+  if (error instanceof Error) {
+    const failure = error as RetryableAgentError;
+    if (
+      [
+        'AGENT_AUTOMATION_BUSY',
+        'CONSENT_REQUIRED',
+        'RATE_LIMITED',
+        'CONTENT_FILTERED',
+        'PROVIDER_UNAVAILABLE',
+        'INVALID_REQUEST',
+        'FEATURE_DISABLED',
+        'CONTINUATION_EXPIRED',
+        'INVALID_TOOL_RESULT',
+        'INVALID_AGENT_PLAN_PROPOSAL',
+      ].includes(failure.message)
+    )
+      return failure;
+  }
+  return new Error('TRANSPORT_ERROR') as RetryableAgentError;
+}
+
+export function AgentAutomationManager({ children }: PropsWithChildren) {
   const convex = useConvex();
   const { isAuthenticated } = useConvexAuth();
   const status = useQuery(api.agent.status, isAuthenticated ? {} : 'skip');
@@ -26,6 +67,7 @@ export function AgentAutomationManager() {
   const healthStore = useHealthStore();
   const {
     applyAgentPlanProposal,
+    accountDeletion,
     preferences,
     readOnly,
     recordAgentPlanRun,
@@ -35,14 +77,32 @@ export function AgentAutomationManager() {
   } = healthStore;
   const reviewPlan = useAction(api.agentPlan.review);
   const inFlight = useRef(false);
+  const [automationState, setAutomationState] = useState<AgentAutomationState>({
+    phase: 'waiting',
+  });
   const preference = preferences.find((item) => !item.deletedAt);
+  const planInputRevision = Math.max(
+    healthStore.profile?.updatedAt ?? 0,
+    ...[
+      ...healthStore.journalEntries,
+      ...healthStore.labResults,
+      ...healthStore.scanResults,
+      ...healthStore.medicalConditions,
+      ...healthStore.medications,
+      ...healthStore.allergyRisks,
+      ...healthStore.documents,
+      ...healthStore.chatMessages,
+      ...healthStore.carePlanItems,
+    ].map((item) => item.updatedAt),
+  );
   const enabled = Boolean(
     !readOnly &&
     ready &&
     isAuthenticated &&
-    !healthStore.accountDeletion.pendingDeletion &&
+    !accountDeletion.pendingDeletion &&
     status?.enabled &&
     status.automationEnabled &&
+    status.providerConfigured &&
     status.consentAccepted &&
     status.automationAccepted &&
     preference?.medicalRecommendations,
@@ -86,36 +146,49 @@ export function AgentAutomationManager() {
           if (
             !liveStatus.enabled ||
             !liveStatus.automationEnabled ||
+            !liveStatus.providerConfigured ||
             !liveStatus.consentAccepted ||
             !liveStatus.automationAccepted
           )
             return;
+          setAutomationState({ phase: 'checking' });
           await reconcileAgentPlan();
           let changed = false;
           const runAt = Date.now();
-          const dueTriggers = healthStore.agentTriggers.filter((trigger) =>
-            agentTriggerIsDue(healthStore, trigger, runAt),
+          // Reconciliation can create the first due trigger. Read the persisted
+          // snapshot instead of the render-time store object so the same run can
+          // act on it immediately.
+          const currentSnapshot = await loadLocalSnapshot();
+          const dueTriggers = currentSnapshot.agentTriggers.filter((trigger) =>
+            agentTriggerIsDue(currentSnapshot, trigger, runAt),
           );
           if (dueTriggers.length) {
             const result = await reviewPlan({
               requestId: `plan_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
               contextEnvelope: JSON.stringify(
-                buildAgentContextEnvelope(healthStore, runAt, {
+                buildAgentContextEnvelope(currentSnapshot, runAt, {
                   includeBodyMetrics: true,
                   includePlanningSignals: true,
                 }),
               ),
             });
-            if (!result.ok) throw new Error(result.code);
+            if (!result.ok) {
+              const failure = new Error(result.code) as RetryableAgentError;
+              failure.retryAfterMs = result.retryAfterMs;
+              throw failure;
+            }
             const proposalApplied = await applyAgentPlanProposal({
               recommendations: result.recommendations,
               model: result.model,
             });
             if (
               !proposalApplied &&
-              !carePlanHasRequiredRanges(healthStore.carePlanItems)
-            )
+              !carePlanHasRequiredRanges(
+                (await loadLocalSnapshot()).carePlanItems,
+              )
+            ) {
               throw new Error('INVALID_AGENT_PLAN_PROPOSAL');
+            }
             changed = proposalApplied || changed;
             const successfulAt = Date.now();
             await recordAgentPlanRun(
@@ -124,6 +197,12 @@ export function AgentAutomationManager() {
             );
             await savePreferences({ agentLastSuccessfulRunAt: successfulAt });
             await reconcileAgentPlan();
+            setAutomationState({
+              phase: 'succeeded',
+              lastAttemptAt: successfulAt,
+            });
+          } else {
+            setAutomationState({ phase: 'waiting' });
           }
           if (
             changed &&
@@ -136,9 +215,24 @@ export function AgentAutomationManager() {
           await releaseLocalAgentRunLease(runId);
         }
       })()
-        .catch(() => {
-          const delay = AGENT_RETRY_DELAYS_MS[retryIndex];
+        .catch((error: unknown) => {
+          const failure = agentError(error);
+          const policyDelay = AGENT_RETRY_DELAYS_MS[retryIndex];
           retryIndex += 1;
+          const delay =
+            policyDelay === undefined
+              ? undefined
+              : Math.max(policyDelay, failure.retryAfterMs ?? 0);
+          const attemptedAt = Date.now();
+          if (failure.message !== 'AGENT_AUTOMATION_BUSY') {
+            setAutomationState({
+              phase: delay === undefined ? 'failed' : 'retrying',
+              errorCode: failure.message,
+              lastAttemptAt: attemptedAt,
+              nextRetryAt:
+                delay === undefined ? undefined : attemptedAt + delay,
+            });
+          }
           if (!cancelled && delay !== undefined) timer = setTimeout(run, delay);
         })
         .finally(() => {
@@ -152,11 +246,12 @@ export function AgentAutomationManager() {
     };
   }, [
     applyAgentPlanProposal,
+    accountDeletion.pendingDeletion,
     convex,
     enabled,
-    healthStore,
     isKnown,
     isOffline,
+    planInputRevision,
     preference?.agentNotifications,
     preference?.agentLastSuccessfulRunAt,
     preference?.notificationsEnabled,
@@ -166,5 +261,9 @@ export function AgentAutomationManager() {
     savePreferences,
   ]);
 
-  return null;
+  return (
+    <AgentAutomationStateContext.Provider value={automationState}>
+      {children}
+    </AgentAutomationStateContext.Provider>
+  );
 }

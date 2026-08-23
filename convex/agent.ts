@@ -15,6 +15,7 @@ import {
   AI_AGENT_SCOPES,
   isAiAgentAutomationEnabled,
   isAiAgentFeatureEnabled,
+  isAiAgentProviderConfigured,
 } from './aiAgentConfig';
 import { requireActiveAccount, requireOwnedProfile } from './lib/access';
 import {
@@ -69,6 +70,7 @@ export const status = query({
     return {
       enabled: isAiAgentFeatureEnabled(),
       automationEnabled: isAiAgentAutomationEnabled(),
+      providerConfigured: isAiAgentProviderConfigured(),
       policyVersion: AI_AGENT_CONSENT_POLICY_VERSION,
       consentAccepted: hasCurrentConsent(consent),
       automationAccepted:

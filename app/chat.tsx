@@ -51,6 +51,8 @@ import {
 } from '../lib/agent-context';
 import {
   buildChatTranscript,
+  chatTimestampIsInPeriod,
+  type ChatHistoryPeriod,
   findUnansweredUserMessage,
 } from '../lib/chat-context';
 import {
@@ -254,6 +256,7 @@ export default function ChatScreen() {
   const [historyRendered, setHistoryRendered] = useState(false);
   const [surfaceResetKey, setSurfaceResetKey] = useState(0);
   const [recentChats, setRecentChats] = useState<ChatHistoryItem[]>([]);
+  const [historyPeriod, setHistoryPeriod] = useState<ChatHistoryPeriod>('all');
   const [selectedHistoryId, setSelectedHistoryId] = useState('');
   const [reduceMotion, setReduceMotion] = useState(false);
   const [generationState, setGenerationState] =
@@ -319,10 +322,28 @@ export default function ChatScreen() {
         .sort((left, right) => right.lastMessageAt - left.lastMessageAt)
         .map((conversation) => ({
           id: conversation.localId,
+          lastMessageAt: conversation.lastMessageAt,
           title: conversation.title,
         })),
     [chatConversations],
   );
+  const visibleRecentChats = useMemo(
+    () =>
+      recentChats.filter((chat) =>
+        chatTimestampIsInPeriod(chat.lastMessageAt, historyPeriod),
+      ),
+    [historyPeriod, recentChats],
+  );
+  const historyPanelTitle =
+    historyPeriod === 'today'
+      ? 'Сегодня'
+      : historyPeriod === '7-days'
+        ? 'За 7 дней'
+        : 'Недавнее';
+  const historyEmptyText =
+    historyPeriod === 'all'
+      ? 'У вас пока нет чатов'
+      : 'За выбранный период чатов нет';
 
   useEffect(() => {
     chatMessagesRef.current = chatMessages;
@@ -506,6 +527,33 @@ export default function ChatScreen() {
       easing: Easing.bezier(0.16, 1, 0.3, 1),
       useNativeDriver: false,
     }).start();
+  };
+
+  const chooseHistoryPeriod = () => {
+    void Haptics.selectionAsync();
+    Alert.alert('История чатов', 'За какой период показать разговоры?', [
+      {
+        text: 'Все чаты',
+        onPress: () => {
+          setHistoryPeriod('all');
+          openHistory();
+        },
+      },
+      {
+        text: '7 дней',
+        onPress: () => {
+          setHistoryPeriod('7-days');
+          openHistory();
+        },
+      },
+      {
+        text: 'Сегодня',
+        onPress: () => {
+          setHistoryPeriod('today');
+          openHistory();
+        },
+      },
+    ]);
   };
 
   const closeHistory = (onClosed?: () => void) => {
@@ -1276,12 +1324,14 @@ export default function ChatScreen() {
     >
       {historyRendered ? (
         <ChatHistoryPanel
-          items={recentChats}
+          emptyText={historyEmptyText}
+          items={visibleRecentChats}
           onDelete={deleteRecentChat}
           onPin={togglePinnedRecentChat}
           onRename={renameRecentChat}
           onSelect={openRecentChat}
           selectedId={selectedHistoryId}
+          title={historyPanelTitle}
           topInset={insets.top}
           width={historyPanelWidth}
         />
@@ -1305,12 +1355,7 @@ export default function ChatScreen() {
             activeMode={headerMode}
             onModeChange={changeMode}
             onHistory={openHistory}
-            onCalendar={() =>
-              Alert.alert(
-                'Календарь',
-                'Выбор даты для истории чата будет добавлен отдельным этапом.',
-              )
-            }
+            onCalendar={chooseHistoryPeriod}
           />
         </View>
 
@@ -1417,12 +1462,10 @@ export default function ChatScreen() {
               )
             }
           />
-          <AppText
-            numberOfLines={2}
-            role="caption"
-            style={styles.aiDisclaimer}
-          >
-            {'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'}
+          <AppText numberOfLines={2} role="caption" style={styles.aiDisclaimer}>
+            {
+              'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
+            }
           </AppText>
         </View>
 
@@ -1448,12 +1491,14 @@ export default function ChatScreen() {
         >
           {historyRendered ? (
             <ChatHistoryPanel
-              items={recentChats}
+              emptyText={historyEmptyText}
+              items={visibleRecentChats}
               onDelete={deleteRecentChat}
               onPin={togglePinnedRecentChat}
               onRename={renameRecentChat}
               onSelect={openRecentChat}
               selectedId={selectedHistoryId}
+              title={historyPanelTitle}
               topInset={insets.top}
               width={historyPanelWidth}
             />
@@ -1669,7 +1714,9 @@ export default function ChatScreen() {
                 role="caption"
                 style={styles.aiDisclaimer}
               >
-                {'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'}
+                {
+                  'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
+                }
               </AppText>
             </Animated.View>
             {historyRendered ? (

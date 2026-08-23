@@ -501,10 +501,11 @@ function NativeApp() {
     <HealthStoreProvider>
       <NotificationManagerProvider>
         <TelemetryManager />
-        <AgentAutomationManager />
-        <AppGate>
-          <Tabs />
-        </AppGate>
+        <AgentAutomationManager>
+          <AppGate>
+            <Tabs />
+          </AppGate>
+        </AgentAutomationManager>
       </NotificationManagerProvider>
     </HealthStoreProvider>
   );
