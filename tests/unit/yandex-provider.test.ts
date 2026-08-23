@@ -1,13 +1,16 @@
 import OpenAI from 'openai';
 import type { Responses } from 'openai/resources/responses/responses';
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
   createYandexClientOptions,
   createYandexResponseRequest,
+  generatePlanReviewWithYandex,
   mapYandexProviderError,
   parseYandexResponse,
+  validatePlanReviewResponse,
 } from '../../convex/ai/yandexProvider';
+import type { AgentPlanCatalogCandidate } from '../../convex/ai/yandexProvider';
 
 function response(
   overrides: Partial<Responses.Response> = {},
@@ -39,6 +42,74 @@ function response(
     ...overrides,
   };
 }
+
+const planCandidates: AgentPlanCatalogCandidate[] = Array.from(
+  { length: 6 },
+  (_, index) => ({
+    key: `catalog_${index + 1}`,
+    title: `Проверка ${index + 1}`,
+    category: 'Общее здоровье',
+    schedulingGuidance: 'Предварительно в указанный месяц',
+    purpose: 'Профилактическое наблюдение',
+    riskTier: 'low',
+    requiresClinician: false,
+    riskFlags: [],
+    constraints: [],
+  }),
+);
+
+const planContextEnvelope = JSON.stringify({
+  recentJournal: [],
+  confirmedTests: [
+    {
+      sourceRef: { localId: 'test_source_1' },
+    },
+  ],
+  carePlan: [],
+  planningSignals: [],
+});
+
+function validPlanArguments() {
+  const recommendation = (
+    catalogKey: string,
+    monthOffset: 0 | 1 | 2 | 3 | 4,
+  ) => ({
+    catalogKey,
+    monthOffset,
+    confidence: 0.8,
+    rationale: 'Предварительная рекомендация; срок требует подтверждения.',
+    evidenceSourceIds: [],
+  });
+  return {
+    current: [recommendation(planCandidates[0].key, 0)],
+    upcoming: planCandidates
+      .slice(1)
+      .map((candidate, index) =>
+        recommendation(candidate.key, ((index % 4) + 1) as 1 | 2 | 3 | 4),
+      ),
+  };
+}
+
+function planResponse(argumentsValue: unknown) {
+  return response({
+    output_text: '',
+    output: [
+      {
+        type: 'function_call',
+        call_id: 'call-1',
+        name: 'propose_care_plan',
+        arguments: JSON.stringify(argumentsValue),
+        status: 'completed',
+      },
+    ],
+  });
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('Yandex provider adapter', () => {
   test('builds a no-retry, no-logging server client configuration', () => {
@@ -152,5 +223,70 @@ describe('Yandex provider adapter', () => {
       code: 'RATE_LIMITED',
       retryAfterMs: 2000,
     });
+  });
+
+  test('identifies a plan cut off before its required tool call', () => {
+    expect(
+      validatePlanReviewResponse({
+        candidates: planCandidates,
+        contextEnvelope: planContextEnvelope,
+        response: response({
+          status: 'incomplete',
+          incomplete_details: { reason: 'max_output_tokens' },
+        }),
+      }),
+    ).toEqual({ ok: false, reason: 'TOOL_CALL_MISSING_OUTPUT_LIMIT' });
+  });
+
+  test('rejects current recommendations supported only by journal evidence', () => {
+    const plan = validPlanArguments();
+    plan.current[0].evidenceSourceIds = ['journal_source_1'];
+    expect(
+      validatePlanReviewResponse({
+        candidates: planCandidates,
+        contextEnvelope: JSON.stringify({
+          recentJournal: [{ sourceRef: { localId: 'journal_source_1' } }],
+          confirmedTests: [],
+          carePlan: [],
+          planningSignals: [],
+        }),
+        response: planResponse(plan),
+      }),
+    ).toEqual({ ok: false, reason: 'CURRENT_EVIDENCE' });
+  });
+
+  test('regenerates a malformed plan within the same provider review', async () => {
+    vi.stubEnv('YANDEX_AI_API_KEY', 'test-key');
+    vi.stubEnv('YANDEX_AI_FOLDER_ID', 'folder-1');
+    vi.stubEnv('YANDEX_AI_MODEL', 'deepseek-v4-flash/latest');
+    const bodies: string[] = [];
+    const generatedResponses = [
+      planResponse({ current: [], upcoming: [] }),
+      planResponse(validPlanArguments()),
+    ];
+    const fetchMock = vi.fn(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        bodies.push(String(init?.body ?? ''));
+        const next = generatedResponses.shift();
+        if (!next) throw new Error('Unexpected provider request');
+        return new Response(JSON.stringify(next), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await generatePlanReviewWithYandex({
+      candidates: planCandidates,
+      contextEnvelope: planContextEnvelope,
+      requestId: 'plan_test_regeneration',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(bodies[1]).toContain(
+      'PREVIOUS_OUTPUT_REJECTED: RECOMMENDATION_SCHEMA',
+    );
   });
 });

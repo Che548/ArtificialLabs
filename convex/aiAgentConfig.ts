@@ -22,9 +22,10 @@ export const AI_AGENT_LIMITS = {
   maxSteps: 3,
   continuationTtlMs: 2 * 60_000,
   maxContextClockSkewMs: 10 * 60_000,
-  // A plan response contains 6-15 strict structured recommendations. Reasoning
-  // models need enough headroom to emit the function call after deliberation.
-  maxPlanOutputTokens: 4_000,
+  // Hidden reasoning counts toward this budget. Leave enough room for the
+  // strict function call after deliberation; the plan prompt keeps the visible
+  // proposal itself to a compact 6-item default.
+  maxPlanOutputTokens: 6_500,
 } as const;
 
 export const AI_AGENT_AUTOMATION_RATE_LIMITS = {

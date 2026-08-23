@@ -23,13 +23,13 @@ import {
 } from './ai/agentContextValidation';
 
 const rateLimiter = new RateLimiter(components.rateLimiter, {
-  // V2 starts clean after the original bucket consumed quota for requests that
-  // could never reach an incompletely configured provider.
-  aiAgentPlanPerUserV2: {
+  // V3 starts clean after malformed/truncated model output consumed V2 quota
+  // without producing a plan the client could apply.
+  aiAgentPlanPerUserV3: {
     kind: 'token bucket',
     ...AI_AGENT_AUTOMATION_RATE_LIMITS.perUser,
   },
-  aiAgentPlanGlobalV2: {
+  aiAgentPlanGlobalV3: {
     kind: 'token bucket',
     ...AI_AGENT_AUTOMATION_RATE_LIMITS.global,
   },
@@ -114,7 +114,7 @@ export const review = action({
     const goal = contextGoal(context);
     if (!goal || goal !== access.goal)
       return { ok: false, code: 'INVALID_REQUEST' };
-    const perUser = await rateLimiter.limit(ctx, 'aiAgentPlanPerUserV2', {
+    const perUser = await rateLimiter.limit(ctx, 'aiAgentPlanPerUserV3', {
       key: userId,
     });
     if (!perUser.ok)
@@ -123,7 +123,7 @@ export const review = action({
         code: 'RATE_LIMITED',
         retryAfterMs: Math.max(0, perUser.retryAfter ?? 0),
       };
-    const global = await rateLimiter.limit(ctx, 'aiAgentPlanGlobalV2');
+    const global = await rateLimiter.limit(ctx, 'aiAgentPlanGlobalV3');
     if (!global.ok)
       return {
         ok: false,
@@ -145,7 +145,17 @@ export const review = action({
       contextEnvelope: args.contextEnvelope,
       requestId: args.requestId,
     });
-    if (!result.ok) return result;
+    if (!result.ok) {
+      // Provider-side format and availability failures are not user requests.
+      // Let foreground automation retry after its bounded delay instead of
+      // locking this user out for six hours.
+      if (
+        result.code === 'INVALID_REQUEST' ||
+        result.code === 'PROVIDER_UNAVAILABLE'
+      )
+        await rateLimiter.reset(ctx, 'aiAgentPlanPerUserV3', { key: userId });
+      return result;
+    }
     const currentAccess = await ctx.runQuery(internal.agent.generationAccess, {
       userId,
     });
@@ -187,11 +197,11 @@ export const reviewDueSynced = internalAction({
     let reviewed = 0;
     let applied = 0;
     for (const item of due) {
-      const perUser = await rateLimiter.limit(ctx, 'aiAgentPlanPerUserV2', {
+      const perUser = await rateLimiter.limit(ctx, 'aiAgentPlanPerUserV3', {
         key: item.userId,
       });
       if (!perUser.ok) continue;
-      const global = await rateLimiter.limit(ctx, 'aiAgentPlanGlobalV2');
+      const global = await rateLimiter.limit(ctx, 'aiAgentPlanGlobalV3');
       if (!global.ok) break;
       const requestId = `scheduled_${now}_${String(item.triggerId).slice(-12)}`;
       const result = await generatePlanReviewWithYandex({
@@ -210,7 +220,16 @@ export const reviewDueSynced = internalAction({
         requestId,
       });
       reviewed += 1;
-      if (!result.ok) continue;
+      if (!result.ok) {
+        if (
+          result.code === 'INVALID_REQUEST' ||
+          result.code === 'PROVIDER_UNAVAILABLE'
+        )
+          await rateLimiter.reset(ctx, 'aiAgentPlanPerUserV3', {
+            key: item.userId,
+          });
+        continue;
+      }
       const parsedContext = parseValidatedAgentContext(
         item.contextEnvelope,
         AI_AGENT_LIMITS.maxContextCharacters,

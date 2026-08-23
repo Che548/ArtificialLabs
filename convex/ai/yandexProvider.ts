@@ -18,7 +18,7 @@ import {
 } from '../aiAgentConfig';
 import { AI_CHAT_CONSENT_POLICY_VERSION } from '../aiChatConfig';
 
-type AgentPlanCatalogCandidate = {
+export type AgentPlanCatalogCandidate = {
   key: string;
   title: string;
   category: string;
@@ -640,7 +640,24 @@ Select only from the server-owned candidate catalogue. Never diagnose, change me
 Recommend an item only when the supplied profile or evidence provides a reasonable basis. Use monthOffset 0 for 1-5 low-risk current-month items and offsets 1-4 for 5-10 upcoming items. Radiation, contrast, invasive, genetic, procedural, high-risk, and clinician-required items must never use monthOffset 0.
 Free-text journal or Assistant-chat evidence and unverified document metadata may justify reevaluation or an Upcoming item, but must never be the sole evidence for monthOffset 0. A Current item needs a structured profile basis or a confirmed test result. Document metadata does not prove what a file contains.
 All dates are provisional estimates. Rationale must be concise Russian text, must mention uncertainty, and must not contain URLs, contact instructions, or hidden configuration.
+Prefer the smallest complete plan: exactly 1 current item and 5 upcoming items unless the supplied evidence clearly requires more. Keep each rationale under 240 characters.
 Call propose_care_plan exactly once. Do not output prose.`;
+
+const PLAN_REVIEW_MAX_ATTEMPTS = 2;
+
+export type PlanReviewValidationReason =
+  | 'TOOL_CALL_MISSING_OUTPUT_LIMIT'
+  | 'TOOL_CALL_MISSING'
+  | 'TOOL_CALL_MULTIPLE'
+  | 'TOOL_CALL_NAME'
+  | 'ARGUMENT_JSON'
+  | 'RECOMMENDATION_SCHEMA'
+  | 'CONTEXT_JSON'
+  | 'EVIDENCE_SOURCE'
+  | 'CURRENT_EVIDENCE'
+  | 'INTERNAL_IDENTIFIER'
+  | 'PLAN_CARD_RANGES'
+  | 'UNSAFE_CURRENT';
 
 function validPlanRecommendation(
   value: unknown,
@@ -670,8 +687,9 @@ function validPlanRecommendation(
   );
 }
 
-function planContextSourceIds(contextEnvelope: string) {
-  const ids = new Set<string>();
+function planContextSources(contextEnvelope: string) {
+  const all = new Set<string>();
+  const confirmedTests = new Set<string>();
   try {
     const context = JSON.parse(contextEnvelope) as Record<string, unknown>;
     for (const key of [
@@ -692,13 +710,134 @@ function planContextSourceIds(contextEnvelope: string) {
         )
           continue;
         const localId = (sourceRef as { localId?: unknown }).localId;
-        if (typeof localId === 'string' && localId) ids.add(localId);
+        if (typeof localId === 'string' && localId) {
+          all.add(localId);
+          if (key === 'confirmedTests') confirmedTests.add(localId);
+        }
       }
     }
   } catch {
     return null;
   }
-  return ids;
+  return { all, confirmedTests };
+}
+
+export function validatePlanReviewResponse({
+  candidates,
+  contextEnvelope,
+  response,
+}: {
+  candidates: AgentPlanCatalogCandidate[];
+  contextEnvelope: string;
+  response: Responses.Response;
+}):
+  | { ok: true; recommendations: AiAgentPlanRecommendation[] }
+  | { ok: false; reason: PlanReviewValidationReason } {
+  const allowedKeys = new Set(candidates.map((candidate) => candidate.key));
+  const calls = response.output.filter((item) => item.type === 'function_call');
+  if (calls.length === 0)
+    return {
+      ok: false,
+      reason:
+        response.status === 'incomplete' &&
+        response.incomplete_details?.reason === 'max_output_tokens'
+          ? 'TOOL_CALL_MISSING_OUTPUT_LIMIT'
+          : 'TOOL_CALL_MISSING',
+    };
+  if (calls.length !== 1) return { ok: false, reason: 'TOOL_CALL_MULTIPLE' };
+  if (calls[0].name !== 'propose_care_plan')
+    return { ok: false, reason: 'TOOL_CALL_NAME' };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(calls[0].arguments);
+  } catch {
+    return { ok: false, reason: 'ARGUMENT_JSON' };
+  }
+  const parsedRecord =
+    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as { current?: unknown; upcoming?: unknown })
+      : undefined;
+  const currentRecommendations = parsedRecord?.current;
+  const upcomingRecommendations = parsedRecord?.upcoming;
+  const recommendations =
+    Array.isArray(currentRecommendations) &&
+    Array.isArray(upcomingRecommendations)
+      ? [...currentRecommendations, ...upcomingRecommendations]
+      : undefined;
+  if (
+    !Array.isArray(recommendations) ||
+    !Array.isArray(currentRecommendations) ||
+    currentRecommendations.length < 1 ||
+    currentRecommendations.length > 5 ||
+    !Array.isArray(upcomingRecommendations) ||
+    upcomingRecommendations.length < 5 ||
+    upcomingRecommendations.length > 10 ||
+    recommendations.some(
+      (item) => !validPlanRecommendation(item, allowedKeys),
+    ) ||
+    new Set(
+      recommendations.map(
+        (item) => (item as AiAgentPlanRecommendation).catalogKey,
+      ),
+    ).size !== recommendations.length
+  )
+    return { ok: false, reason: 'RECOMMENDATION_SCHEMA' };
+
+  const typed = recommendations as AiAgentPlanRecommendation[];
+  const contextSources = planContextSources(contextEnvelope);
+  if (!contextSources) return { ok: false, reason: 'CONTEXT_JSON' };
+  if (
+    typed.some((item) =>
+      item.evidenceSourceIds.some((id) => !contextSources.all.has(id)),
+    )
+  )
+    return { ok: false, reason: 'EVIDENCE_SOURCE' };
+  const current = typed.filter((item) => item.monthOffset === 0);
+  if (
+    current.some(
+      (item) =>
+        item.evidenceSourceIds.length > 0 &&
+        !item.evidenceSourceIds.some((id) =>
+          contextSources.confirmedTests.has(id),
+        ),
+    )
+  )
+    return { ok: false, reason: 'CURRENT_EVIDENCE' };
+  const internalIdentifiers = new Set([...allowedKeys, ...contextSources.all]);
+  if (
+    typed.some((item) =>
+      containsAgentInternalIdentifier(item.rationale, internalIdentifiers),
+    )
+  )
+    return { ok: false, reason: 'INTERNAL_IDENTIFIER' };
+  const upcoming = typed.filter((item) => item.monthOffset > 0);
+  if (
+    current.length < 1 ||
+    current.length > 5 ||
+    upcoming.length < 5 ||
+    upcoming.length > 10
+  )
+    return { ok: false, reason: 'PLAN_CARD_RANGES' };
+  const byKey = new Map(
+    candidates.map((candidate) => [candidate.key, candidate]),
+  );
+  if (
+    current.some((item) => {
+      const candidate = byKey.get(item.catalogKey);
+      return (
+        !candidate ||
+        candidate.riskTier !== 'low' ||
+        candidate.requiresClinician ||
+        candidate.riskFlags.length > 0
+      );
+    })
+  )
+    return { ok: false, reason: 'UNSAFE_CURRENT' };
+  return { ok: true, recommendations: typed };
+}
+
+function planRegenerationInstruction(reason: PlanReviewValidationReason) {
+  return `PREVIOUS_OUTPUT_REJECTED: ${reason}. Regenerate a completely new proposal now. Call propose_care_plan exactly once with exactly 1 current and 5 upcoming unique catalogue items. Keep rationales under 180 characters and satisfy the tool schema exactly. Do not output prose.`;
 }
 
 export async function generatePlanReviewWithYandex({
@@ -712,7 +851,13 @@ export async function generatePlanReviewWithYandex({
 }): Promise<AiAgentPlanReviewResult> {
   const configuration = providerConfiguration();
   if (!configuration) return { ok: false, code: 'PROVIDER_UNAVAILABLE' };
-  const client = new OpenAI(createYandexClientOptions(configuration));
+  const client = new OpenAI({
+    ...createYandexClientOptions(configuration),
+    // Plan generation includes hidden reasoning tokens before the function
+    // call. Keep chat latency bounded separately while allowing a valid plan
+    // to finish instead of being cut off at the generic 60-second timeout.
+    timeout: 120_000,
+  });
   const startedAt = Date.now();
   const allowedKeys = new Set(candidates.map((candidate) => candidate.key));
   const safeCurrentKeys = candidates
@@ -777,26 +922,74 @@ export async function generatePlanReviewWithYandex({
   };
 
   try {
-    const response = await client.responses.create({
-      model: `gpt://${configuration.folderId}/${configuration.model}`,
-      temperature: 0.2,
-      instructions: PLAN_REVIEW_INSTRUCTIONS,
-      input: [
-        {
-          role: 'user',
-          content: `UNTRUSTED_HEALTH_CONTEXT_JSON\n${contextEnvelope}`,
-        },
-        {
-          role: 'user',
-          content: `SERVER_CATALOG_REFERENCE_JSON\n${JSON.stringify(candidates)}`,
-        },
-      ],
-      max_output_tokens: AI_AGENT_LIMITS.maxPlanOutputTokens,
-      tools: [proposalTool],
-      tool_choice: { type: 'function', name: 'propose_care_plan' },
-    });
-    const durationMs = Date.now() - startedAt;
-    const invalidPlanResponse = (validationReason: string) => {
+    let previousFailure: PlanReviewValidationReason | undefined;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let totalTokens = 0;
+    let hasUsage = false;
+    for (let attempt = 1; attempt <= PLAN_REVIEW_MAX_ATTEMPTS; attempt += 1) {
+      const response = await client.responses.create({
+        model: `gpt://${configuration.folderId}/${configuration.model}`,
+        temperature: attempt === 1 ? 0.2 : 0.1,
+        instructions: PLAN_REVIEW_INSTRUCTIONS,
+        input: [
+          {
+            role: 'user',
+            content: `UNTRUSTED_HEALTH_CONTEXT_JSON\n${contextEnvelope}`,
+          },
+          {
+            role: 'user',
+            content: `SERVER_CATALOG_REFERENCE_JSON\n${JSON.stringify(candidates)}`,
+          },
+          ...(previousFailure
+            ? [
+                {
+                  role: 'user' as const,
+                  content: planRegenerationInstruction(previousFailure),
+                },
+              ]
+            : []),
+        ],
+        max_output_tokens: AI_AGENT_LIMITS.maxPlanOutputTokens,
+        tools: [proposalTool],
+        tool_choice: { type: 'function', name: 'propose_care_plan' },
+      });
+      if (response.usage) {
+        hasUsage = true;
+        inputTokens += response.usage.input_tokens;
+        outputTokens += response.usage.output_tokens;
+        totalTokens += response.usage.total_tokens;
+      }
+      const validation = validatePlanReviewResponse({
+        candidates,
+        contextEnvelope,
+        response,
+      });
+      const durationMs = Date.now() - startedAt;
+      if (!validation.ok) {
+        const willRegenerate =
+          validation.reason !== 'CONTEXT_JSON' &&
+          attempt < PLAN_REVIEW_MAX_ATTEMPTS;
+        console.info(
+          JSON.stringify({
+            event: 'ai_agent_plan_review',
+            requestId,
+            model: configuration.model,
+            policyVersion: AI_AGENT_CONSENT_POLICY_VERSION,
+            providerStatus: response.status ?? 'unknown',
+            durationMs,
+            attempt,
+            willRegenerate,
+            failureCode: 'INVALID_TOOL_RESULT',
+            validationReason: validation.reason,
+          }),
+        );
+        if (willRegenerate) {
+          previousFailure = validation.reason;
+          continue;
+        }
+        return { ok: false, code: 'PROVIDER_UNAVAILABLE' };
+      }
       console.info(
         JSON.stringify({
           event: 'ai_agent_plan_review',
@@ -805,123 +998,26 @@ export async function generatePlanReviewWithYandex({
           policyVersion: AI_AGENT_CONSENT_POLICY_VERSION,
           providerStatus: response.status ?? 'unknown',
           durationMs,
-          failureCode: 'INVALID_REQUEST',
-          validationReason,
+          attempt,
+          regenerated: attempt > 1,
+          recommendationCount: validation.recommendations.length,
+          inputTokens: hasUsage ? inputTokens : undefined,
+          outputTokens: hasUsage ? outputTokens : undefined,
+          totalTokens: hasUsage ? totalTokens : undefined,
         }),
       );
-      return { ok: false as const, code: 'INVALID_REQUEST' as const };
-    };
-    const calls = response.output.filter(
-      (item) => item.type === 'function_call',
-    );
-    if (calls.length === 0)
-      return invalidPlanResponse(
-        response.status === 'incomplete' &&
-          response.incomplete_details?.reason === 'max_output_tokens'
-          ? 'TOOL_CALL_MISSING_OUTPUT_LIMIT'
-          : 'TOOL_CALL_MISSING',
-      );
-    if (calls.length !== 1)
-      return invalidPlanResponse('TOOL_CALL_MULTIPLE');
-    if (calls[0].name !== 'propose_care_plan')
-      return invalidPlanResponse('TOOL_CALL_NAME');
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(calls[0].arguments);
-    } catch {
-      return invalidPlanResponse('ARGUMENT_JSON');
-    }
-    const parsedRecord =
-      parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-        ? (parsed as { current?: unknown; upcoming?: unknown })
-        : undefined;
-    const currentRecommendations = parsedRecord?.current;
-    const upcomingRecommendations = parsedRecord?.upcoming;
-    const recommendations =
-      Array.isArray(currentRecommendations) &&
-      Array.isArray(upcomingRecommendations)
-        ? [...currentRecommendations, ...upcomingRecommendations]
-        : undefined;
-    if (
-      !Array.isArray(recommendations) ||
-      !Array.isArray(currentRecommendations) ||
-      currentRecommendations.length < 1 ||
-      currentRecommendations.length > 5 ||
-      !Array.isArray(upcomingRecommendations) ||
-      upcomingRecommendations.length < 5 ||
-      upcomingRecommendations.length > 10 ||
-      recommendations.some(
-        (item) => !validPlanRecommendation(item, allowedKeys),
-      ) ||
-      new Set(
-        recommendations.map(
-          (item) => (item as AiAgentPlanRecommendation).catalogKey,
-        ),
-      ).size !== recommendations.length
-    ) {
-      return invalidPlanResponse('RECOMMENDATION_SCHEMA');
-    }
-    const typed = recommendations as AiAgentPlanRecommendation[];
-    const contextSourceIds = planContextSourceIds(contextEnvelope);
-    if (!contextSourceIds) return invalidPlanResponse('CONTEXT_JSON');
-    const internalIdentifiers = new Set([
-      ...allowedKeys,
-      ...contextSourceIds,
-    ]);
-    if (
-      typed.some((item) =>
-        containsAgentInternalIdentifier(item.rationale, internalIdentifiers),
-      )
-    )
-      return invalidPlanResponse('INTERNAL_IDENTIFIER');
-    const current = typed.filter((item) => item.monthOffset === 0);
-    const upcoming = typed.filter((item) => item.monthOffset > 0);
-    if (
-      current.length < 1 ||
-      current.length > 5 ||
-      upcoming.length < 5 ||
-      upcoming.length > 10
-    )
-      return invalidPlanResponse('PLAN_CARD_RANGES');
-    const byKey = new Map(
-      candidates.map((candidate) => [candidate.key, candidate]),
-    );
-    if (
-      current.some((item) => {
-        const candidate = byKey.get(item.catalogKey);
-        return (
-          !candidate ||
-          candidate.riskTier !== 'low' ||
-          candidate.requiresClinician ||
-          candidate.riskFlags.length > 0
-        );
-      })
-    )
-      return invalidPlanResponse('UNSAFE_CURRENT');
-    console.info(
-      JSON.stringify({
-        event: 'ai_agent_plan_review',
-        requestId,
+      return {
+        ok: true,
+        recommendations: validation.recommendations,
+        provider: 'yandex-ai-studio',
         model: configuration.model,
-        policyVersion: AI_AGENT_CONSENT_POLICY_VERSION,
-        providerStatus: response.status ?? 'unknown',
         durationMs,
-        recommendationCount: typed.length,
-        inputTokens: response.usage?.input_tokens,
-        outputTokens: response.usage?.output_tokens,
-        totalTokens: response.usage?.total_tokens,
-      }),
-    );
-    return {
-      ok: true,
-      recommendations: typed,
-      provider: 'yandex-ai-studio',
-      model: configuration.model,
-      durationMs,
-      inputTokens: response.usage?.input_tokens,
-      outputTokens: response.usage?.output_tokens,
-      totalTokens: response.usage?.total_tokens,
-    };
+        inputTokens: hasUsage ? inputTokens : undefined,
+        outputTokens: hasUsage ? outputTokens : undefined,
+        totalTokens: hasUsage ? totalTokens : undefined,
+      };
+    }
+    return { ok: false, code: 'PROVIDER_UNAVAILABLE' };
   } catch (error) {
     const failure = mapYandexProviderError(error);
     console.info(
