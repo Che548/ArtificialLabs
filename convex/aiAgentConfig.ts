@@ -119,7 +119,7 @@ export type AiAgentPlanReviewResult =
   | {
       ok: true;
       recommendations: AiAgentPlanRecommendation[];
-      provider: 'yandex-ai-studio';
+      provider: 'yandex-ai-studio' | 'server-catalog';
       model: string;
       durationMs: number;
       inputTokens?: number;

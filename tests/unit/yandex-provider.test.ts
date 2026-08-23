@@ -289,4 +289,44 @@ describe('Yandex provider adapter', () => {
       'PREVIOUS_OUTPUT_REJECTED: RECOMMENDATION_SCHEMA',
     );
   });
+
+  test('uses a conservative server catalogue plan after two invalid generations', async () => {
+    vi.stubEnv('YANDEX_AI_API_KEY', 'test-key');
+    vi.stubEnv('YANDEX_AI_FOLDER_ID', 'folder-1');
+    vi.stubEnv('YANDEX_AI_MODEL', 'deepseek-v4-flash/latest');
+    const invalidResponse = planResponse({ current: [], upcoming: [] });
+    const generatedResponses = [invalidResponse, invalidResponse];
+    const fetchMock = vi.fn(async () => {
+      const next = generatedResponses.shift();
+      if (!next) throw new Error('Unexpected provider request');
+      return new Response(JSON.stringify(next), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await generatePlanReviewWithYandex({
+      candidates: planCandidates,
+      contextEnvelope: planContextEnvelope,
+      requestId: 'plan_test_catalog_fallback',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.provider).toBe('server-catalog');
+    expect(result.model).toBe('catalog-fallback-v1');
+    expect(result.recommendations).toHaveLength(6);
+    expect(
+      result.recommendations.filter(
+        (recommendation) => recommendation.monthOffset === 0,
+      ),
+    ).toHaveLength(1);
+    expect(
+      result.recommendations.every(
+        (recommendation) => recommendation.evidenceSourceIds.length === 0,
+      ),
+    ).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
