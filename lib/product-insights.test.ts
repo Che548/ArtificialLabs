@@ -30,18 +30,21 @@ test('journal progress counts distinct real sections for the selected day', () =
     source: 'manual' as const,
     updatedAt: now,
   };
-  const progress = journalProgressForDay([
-    { ...base, kind: 'mood', localId: 'mood', textValue: 'Спокойно' },
-    { ...base, kind: 'mood', localId: 'mood-2', textValue: 'Радость' },
-    { ...base, kind: 'energy', localId: 'energy', textValue: 'Много энергии' },
-    {
-      ...base,
-      kind: 'nutrition',
-      localId: 'deleted',
-      deletedAt: now,
-      textValue: 'Удалено',
-    },
-  ]);
+  const progress = journalProgressForDay(
+    [
+      { ...base, kind: 'mood', localId: 'mood', textValue: 'Спокойно' },
+      { ...base, kind: 'mood', localId: 'mood-2', textValue: 'Радость' },
+      { ...base, kind: 'energy', localId: 'energy', textValue: 'Много энергии' },
+      {
+        ...base,
+        kind: 'nutrition',
+        localId: 'deleted',
+        deletedAt: now,
+        textValue: 'Удалено',
+      },
+    ],
+    now,
+  );
 
   assert.equal(progress.completed, 2);
   assert.equal(progress.total, 7);
