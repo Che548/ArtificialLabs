@@ -29,8 +29,11 @@ export const AI_AGENT_LIMITS = {
 } as const;
 
 export const AI_AGENT_AUTOMATION_RATE_LIMITS = {
-  perUser: { rate: 1, period: 6 * 60 * 60_000, capacity: 1 },
-  global: { rate: 30, period: 60 * 60_000, capacity: 5 },
+  // Foreground and scheduled reviews use separate per-user buckets so the
+  // hourly cloud job cannot consume the phone's interactive planning quota.
+  foregroundPerUser: { rate: 6, period: 60 * 60_000, capacity: 3 },
+  scheduledPerUser: { rate: 1, period: 60 * 60_000, capacity: 1 },
+  global: { rate: 120, period: 60 * 60_000, capacity: 20 },
 } as const;
 
 export type AiAgentFailureCode =

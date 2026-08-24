@@ -11,6 +11,7 @@ import {
   validatePlanReviewResponse,
 } from '../../convex/ai/yandexProvider';
 import type { AgentPlanCatalogCandidate } from '../../convex/ai/yandexProvider';
+import { AI_AGENT_AUTOMATION_RATE_LIMITS } from '../../convex/aiAgentConfig';
 
 function response(
   overrides: Partial<Responses.Response> = {},
@@ -112,6 +113,22 @@ afterEach(() => {
 });
 
 describe('Yandex provider adapter', () => {
+  test('keeps interactive planning capacity above scheduled automation', () => {
+    expect(AI_AGENT_AUTOMATION_RATE_LIMITS).toEqual({
+      foregroundPerUser: {
+        rate: 6,
+        period: 60 * 60_000,
+        capacity: 3,
+      },
+      scheduledPerUser: {
+        rate: 1,
+        period: 60 * 60_000,
+        capacity: 1,
+      },
+      global: { rate: 120, period: 60 * 60_000, capacity: 20 },
+    });
+  });
+
   test('builds a no-retry, no-logging server client configuration', () => {
     expect(
       createYandexClientOptions({ apiKey: 'test-key', folderId: 'folder-1' }),
