@@ -2267,7 +2267,7 @@ export function ScanCorrectionScreen({
   const [selected, setSelected] = useState<number | null>(null);
 
   return (
-    <View style={styles.resultScreen}>
+    <View style={[styles.resultScreen, styles.correctionScreen]}>
       <FlowHeader
         leadingIcon={fromHistory ? 'back' : 'close'}
         light={false}
@@ -2326,7 +2326,12 @@ export function ScanCorrectionScreen({
               <View style={[styles.radio, active && styles.radioActive]}>
                 {active ? <View style={styles.radioDot} /> : null}
               </View>
-              <AppText role="label" weight="medium">
+              <AppText
+                role="label"
+                weight="medium"
+                numberOfLines={1}
+                style={styles.correctionOptionLabel}
+              >
                 {option}
               </AppText>
             </Pressable>
@@ -3258,6 +3263,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFF8F5',
   },
+  correctionScreen: {
+    backgroundColor: '#FFFFFF',
+  },
   resultHeading: {
     position: 'absolute',
     top: 126,
@@ -3549,6 +3557,7 @@ const styles = StyleSheet.create({
   radio: {
     width: 22,
     height: 22,
+    flexShrink: 0,
     borderRadius: 11,
     borderWidth: 1.5,
     borderColor: colors.state.disabled,
@@ -3563,6 +3572,9 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: colors.brand.primary,
+  },
+  correctionOptionLabel: {
+    flex: 1,
   },
   correctionActions: {
     position: 'absolute',
