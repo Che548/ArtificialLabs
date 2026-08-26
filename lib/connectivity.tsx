@@ -27,9 +27,8 @@ export function ConnectivityProvider({ children }: PropsWithChildren) {
       isOffline:
         network.isConnected === false ||
         network.isInternetReachable === false ||
-        (convexConnection.hasEverConnected &&
-          !convexConnection.isWebSocketConnected &&
-          convexConnection.connectionRetries > 0),
+        (!convexConnection.isWebSocketConnected &&
+          convexConnection.connectionRetries > 1),
     };
   }, [
     convexConnection.connectionRetries,

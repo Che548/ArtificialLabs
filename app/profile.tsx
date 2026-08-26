@@ -1,5 +1,5 @@
 import { useAuthActions } from '@convex-dev/auth/react';
-import { useConvexAuth, useMutation, useQuery } from 'convex/react';
+import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   cacheDirectory,
@@ -35,6 +35,7 @@ import ProfileIcon02 from '../assets/profile/settings-icons/2.svg';
 import ProfileIcon03 from '../assets/profile/settings-icons/3.svg';
 import ProfileIcon04 from '../assets/profile/settings-icons/4.svg';
 import ProfileIcon05 from '../assets/profile/settings-icons/5.svg';
+import ProfileIcon06 from '../assets/profile/settings-icons/6.svg';
 import ProfileIcon07 from '../assets/profile/settings-icons/7.svg';
 import ProfileIcon08 from '../assets/profile/settings-icons/8.svg';
 import ProfileIcon09 from '../assets/profile/settings-icons/9.svg';
@@ -210,6 +211,7 @@ export default function ProfileScreen() {
     allergyRisks,
     cloudSyncEnabled,
     cloudProfileReady,
+    hasLocalAuthSession,
     clearAllLocalData,
     clearAgentData,
     deleteRecord,
@@ -234,6 +236,7 @@ export default function ProfileScreen() {
     syncStatus,
     updateProfile,
     viewerEmail,
+    viewerPhone,
   } = useHealthStore();
   const aiChatStatus = useQuery(
     api.chat.status,
@@ -342,6 +345,9 @@ export default function ProfileScreen() {
   );
   const displayName =
     profile?.displayName?.trim() || viewerEmail?.split('@')[0] || 'Профиль';
+  const hasViewerIdentity = Boolean(
+    viewerEmail || viewerPhone || hasLocalAuthSession,
+  );
 
   const synchronize = async () => {
     setSyncMessage(undefined);
@@ -558,6 +564,7 @@ export default function ProfileScreen() {
             medicationCount={
               medications.filter((item) => !item.deletedAt).length
             }
+            programCount={visiblePrograms.length}
             onOpen={openSection}
           />
         </ScrollView>
@@ -682,11 +689,12 @@ export default function ProfileScreen() {
                 syncMessage,
                 syncNow: () => void synchronize(),
                 syncDisabled:
-                  !viewerEmail ||
+                  !hasViewerIdentity ||
                   !cloudSyncEnabled ||
                   accountDeletion.pendingDeletion,
                 syncStatus,
                 viewerEmail,
+                viewerPhone,
               })}
             </ProfileDetailScreen>
           )}
@@ -721,12 +729,14 @@ function ProfileOverview({
   conditionCount,
   documentCount,
   medicationCount,
+  programCount,
   onOpen,
 }: {
   allergyCount: number;
   conditionCount: number;
   documentCount: number;
   medicationCount: number;
+  programCount: number;
   onOpen: (section: ProfileSection) => void;
 }) {
   return (
@@ -779,8 +789,18 @@ function ProfileOverview({
           iconColor={profileTones.health.glyph}
           label="Документы"
           value={documentCount ? String(documentCount) : 'Нет документов'}
-          isLast
           onPress={() => onOpen('documents')}
+        />
+        <ProfileSettingsRow
+          icon="heart.text.square.fill"
+          iconAsset={ProfileIcon06}
+          fallback="П"
+          iconBackground={profileTones.health.tile}
+          iconColor={profileTones.health.glyph}
+          label="Программы"
+          value={programCount ? String(programCount) : 'Нет программ'}
+          isLast
+          onPress={() => onOpen('programs')}
         />
       </ProfileSettingsGroup>
 
@@ -1240,6 +1260,167 @@ function ProfileDetailScreen({
   );
 }
 
+function PhoneVerificationRow({
+  disabled,
+  onVerified,
+  phone,
+}: {
+  disabled: boolean;
+  onVerified: (phone: string) => Promise<void>;
+  phone?: string;
+}) {
+  const { signIn } = useAuthActions();
+  const getSmsStatus = useAction(api.smsAuth.status);
+  const [input, setInput] = useState('+7');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState<'phone' | 'code'>('phone');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string>();
+  const [retryAt, setRetryAt] = useState<number>();
+  const [remaining, setRemaining] = useState(3);
+  const [clock, setClock] = useState(Date.now());
+
+  useEffect(() => {
+    if (!retryAt || retryAt <= Date.now()) return undefined;
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [retryAt]);
+
+  if (phone) {
+    return (
+      <ProfileFieldRow
+        label="Телефон"
+        inputMode="tel"
+        defaultValue={phone}
+        disabled
+        isLast
+      />
+    );
+  }
+
+  const normalized = input.replace(/[^\d+]/g, '').slice(0, 12);
+  const verifiedValue = (() => {
+    const digits = normalized.replace(/\D/g, '');
+    return digits.length === 11 && (digits[0] === '7' || digits[0] === '8')
+      ? `+7${digits.slice(1)}`
+      : normalized;
+  })();
+  const requestCode = async () => {
+    if (busy || disabled || normalized.replace(/\D/g, '').length !== 11)
+      return;
+    setBusy(true);
+    setMessage(undefined);
+    try {
+      const form = new FormData();
+      form.append('phone', verifiedValue);
+      await signIn('phone', form);
+      const status = await getSmsStatus({ phone: verifiedValue });
+      setRemaining(status.remaining);
+      setRetryAt(status.retryAt ?? Date.now() + 5 * 60 * 1000);
+      setCode('');
+      setStep('code');
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : String(error);
+      setMessage(
+        raw.includes('SMS_RATE_LIMITED')
+          ? 'Лимит SMS на сегодня исчерпан.'
+          : raw.includes('SMS_COOLDOWN')
+            ? 'Повторная отправка пока недоступна.'
+            : 'SMS временно недоступны. Попробуйте позже.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (busy || !/^\d{6}$/.test(code)) return;
+    setBusy(true);
+    setMessage(undefined);
+    try {
+      const form = new FormData();
+      form.append('phone', verifiedValue);
+      form.append('code', code);
+      await signIn('phone', form);
+      await onVerified(verifiedValue);
+      setMessage('Телефон подтверждён.');
+    } catch {
+      setMessage('Код неверный или истёк. Запросите новый код.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={styles.phoneVerificationRow}>
+      <AppText role="label" color={colors.text.secondary}>
+        Телефон
+      </AppText>
+      <TextInput
+        accessibilityLabel="Российский номер телефона"
+        editable={!disabled && !busy && step === 'phone'}
+        inputMode="tel"
+        keyboardType="phone-pad"
+        onChangeText={(value) => setInput(value.replace(/[^\d+]/g, '').slice(0, 12))}
+        placeholder="+7 999 000-00-00"
+        placeholderTextColor="#989395"
+        style={styles.phoneVerificationInput}
+        value={input}
+      />
+      {step === 'code' ? (
+        <TextInput
+          accessibilityLabel="Код из SMS"
+          autoComplete="one-time-code"
+          keyboardType="number-pad"
+          maxLength={6}
+          onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="000000"
+          placeholderTextColor="#989395"
+          style={styles.phoneVerificationInput}
+          textContentType="oneTimeCode"
+          value={code}
+        />
+      ) : null}
+      {message ? (
+        <AppText role="caption" color={colors.text.secondary}>
+          {message}
+        </AppText>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        disabled={
+          busy ||
+          disabled ||
+          (step === 'code' && !/^\d{6}$/.test(code))
+        }
+        onPress={() => void (step === 'phone' ? requestCode() : verifyCode())}
+        style={({ pressed }) => [
+          styles.phoneVerificationButton,
+          (busy || disabled) && styles.phoneVerificationButtonDisabled,
+          pressed && styles.controlPressed,
+        ]}
+      >
+        <AppText role="label" color={colors.text.inverse} weight="semibold">
+          {busy ? 'Подождите…' : step === 'phone' ? 'Получить код' : 'Подтвердить'}
+        </AppText>
+      </Pressable>
+      {step === 'code' ? (
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy || Boolean(retryAt && retryAt > clock)}
+          onPress={() => void requestCode()}
+        >
+          <AppText role="caption" color={colors.text.secondary}>
+            {retryAt && retryAt > clock
+              ? `Повторно через ${Math.ceil((retryAt - clock) / 1000)} сек. Осталось: ${remaining}`
+              : `Запросить снова. Осталось: ${remaining}`}
+          </AppText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 function renderProfileSectionDirect({
   aiConsentAccepted,
   agentAutomationAccepted,
@@ -1301,6 +1482,7 @@ function renderProfileSectionDirect({
   syncDisabled,
   syncStatus,
   viewerEmail,
+  viewerPhone,
 }: {
   aiConsentAccepted: boolean;
   agentAutomationAccepted: boolean;
@@ -1389,7 +1571,10 @@ function renderProfileSectionDirect({
   syncDisabled: boolean;
   syncStatus: 'idle' | 'syncing' | 'offline' | 'error';
   viewerEmail?: string;
+  viewerPhone?: string;
 }) {
+  const hasViewerIdentity = Boolean(viewerEmail || viewerPhone);
+
   switch (section) {
     case 'account':
       return (
@@ -1402,16 +1587,10 @@ function renderProfileSectionDirect({
               placeholder="E-mail входа"
               disabled
             />
-            <ProfileFieldRow
-              label="Телефон"
-              inputMode="tel"
-              defaultValue={profile?.phone}
-              placeholder="Добавить"
+            <PhoneVerificationRow
               disabled={readOnly}
-              onSubmit={(phone) =>
-                void saveProfile({ phone: phone || undefined })
-              }
-              isLast
+              phone={viewerPhone}
+              onVerified={(phone) => saveProfile({ phone })}
             />
           </ProfileSettingsGroup>
 
@@ -1658,7 +1837,7 @@ function renderProfileSectionDirect({
               subtitle="Только структурированные данные"
               testID="e2e-cloud-sync-toggle"
               value={cloudSyncEnabled}
-              disabled={readOnly || !viewerEmail}
+              disabled={readOnly || !hasViewerIdentity}
               onChange={(enabled) => void setCloudSyncEnabled(enabled)}
             />
             <ProfileToggleRow
@@ -1771,6 +1950,7 @@ function renderProfileSectionDirect({
             onPress={openSystemSettings}
           />
           <ProfileActionRow
+            testID="e2e-sync-now"
             icon="arrow.triangle.2.circlepath"
             label={
               syncStatus === 'syncing'
@@ -1809,7 +1989,7 @@ function renderProfileSectionDirect({
             destructive
             icon="rectangle.portrait.and.arrow.right"
             label="Выйти из аккаунта"
-            disabled={readOnly || !viewerEmail}
+            disabled={readOnly || !hasViewerIdentity}
             onPress={signOut}
           />
         </>
@@ -1875,6 +2055,7 @@ function renderProfileSectionDirect({
             secondary
             icon="bell.badge.fill"
             label="Отправить тестовое уведомление"
+            testID="e2e-notification-test"
             disabled={notificationBusy || !notificationsEnabled}
             onPress={() => void sendTestNotification(notificationTone)}
           />
@@ -1901,7 +2082,7 @@ function renderProfileSectionDirect({
             destructive
             icon="trash.fill"
             label="Удалить аккаунт и все данные"
-            disabled={readOnly || !viewerEmail}
+            disabled={readOnly || !hasViewerIdentity}
             onPress={() =>
               Alert.alert(
                 'Удалить аккаунт?',
@@ -2279,7 +2460,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
         onRequestClose={reset}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
           style={styles.medicalEditorModalRoot}
         >
           <Animated.View
@@ -2411,6 +2592,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Сохранить"
+                testID="e2e-medical-save"
                 accessibilityState={{
                   disabled:
                     props.readOnly || !primary.trim() || !medicationDoseValid,
@@ -2655,6 +2837,34 @@ function ConfirmedAction({
 }
 
 const styles = StyleSheet.create({
+  phoneVerificationRow: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  phoneVerificationInput: {
+    minHeight: 48,
+    borderRadius: radii.md,
+    backgroundColor: '#F0EEF0',
+    color: colors.text.primary,
+    paddingHorizontal: spacing.md,
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 15,
+    includeFontPadding: false,
+  },
+  phoneVerificationButton: {
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.md,
+    backgroundColor: colors.brand.primary,
+  },
+  phoneVerificationButtonDisabled: {
+    opacity: 0.5,
+  },
+  controlPressed: {
+    opacity: 0.72,
+  },
   root: {
     flex: 1,
     backgroundColor: '#F3F1F2',

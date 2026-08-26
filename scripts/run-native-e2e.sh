@@ -12,6 +12,7 @@ fi
 ios_device="${E2E_IOS_DEVICE:-730B98A0-FC3B-45CA-AF3A-9896CEEC16AA}"
 android_device="${E2E_ANDROID_DEVICE:-emulator-5554}"
 android_avd="${E2E_ANDROID_AVD:-ArtificialLabs_API_36}"
+android_memory_mb="${E2E_ANDROID_MEMORY_MB:-3072}"
 sequential_simulators="${E2E_SEQUENTIAL_SIMULATORS:-0}"
 metro_port="${E2E_METRO_PORT:-8082}"
 convex_proxy_port="${E2E_CONVEX_PROXY_PORT:-3320}"
@@ -159,6 +160,7 @@ start_android_avd() {
     return 1
   fi
   "$emulator_bin" -avd "$android_avd" -no-snapshot-load -no-boot-anim \
+    -gpu host -memory "$android_memory_mb" \
     >"$E2E_REPORT_DIR/android-emulator.log" 2>&1 &
   android_emulator_pid="$!"
   for _ in {1..180}; do
@@ -259,7 +261,7 @@ curl --cacert "$e2e_cert_dir/localhost.crt" -fsS \
 
 if [[ -n "$scan_fixture_source" ]]; then
   import_fixture_source="$(mktemp "${TMPDIR:-/tmp}/artificiallabs-e2e-import.XXXXXX")"
-  node -e 'const fs=require("node:fs");const now=Date.now();fs.writeFileSync(process.argv[1],JSON.stringify({schema:"artificiallabs-health-archive",version:1,exportedAt:now,profile:null,entities:{journalEntries:[{localId:`e2e-import-${now}`,entryDate:now,symptoms:["E2E импорт"],notes:"Проверка JSON import",updatedAt:now}]}}))' "$import_fixture_source"
+  node scripts/create-native-e2e-import.cjs "$import_fixture_source"
   chmod 600 "$import_fixture_source"
   maestro --device "$ios_device" test .maestro/reset.yml
   ios_data_container="$(xcrun simctl get_app_container "$ios_device" com.anonymous.privateexpo data)"

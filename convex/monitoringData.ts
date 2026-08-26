@@ -15,6 +15,8 @@ export const recordServiceCheck = internalMutation({
     ),
     latencyMs: v.optional(v.number()),
     errorCode: v.optional(v.string()),
+    capacityUsed: v.optional(v.number()),
+    capacityTotal: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const checkedAt = Date.now();
@@ -23,6 +25,8 @@ export const recordServiceCheck = internalMutation({
       status: args.status,
       latencyMs: args.latencyMs,
       errorCode: args.errorCode?.slice(0, 80),
+      capacityUsed: args.capacityUsed,
+      capacityTotal: args.capacityTotal,
       checkedAt,
       expiresAt: checkedAt + 30 * DAY_MS,
     });
@@ -33,7 +37,7 @@ export const latest = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const services = ['convex-backend', 'convex-site'] as const;
+    const services = ['convex-backend', 'convex-site', 'sms-gateway'] as const;
     return await Promise.all(
       services.map(async (service) =>
         ctx.db

@@ -26,6 +26,46 @@ test('JSON archive strips all device-only URIs', () => {
   assert.equal(preview.records.documents?.[0]?.title, 'Заключение');
 });
 
+test('JSON archive round trips structured care plan history', () => {
+  const snapshot = createEmptySnapshot();
+  snapshot.carePlanItems.push({
+    localId: 'plan_1',
+    catalogKey: 'blood-count',
+    title: 'Общий анализ крови',
+    category: 'Исследования крови',
+    description: 'Кровь',
+    status: 'current',
+    riskTier: 'clinician',
+    scheduleBasis: 'user',
+    confidence: 1,
+    provisional: false,
+    requiresClinician: true,
+    evidenceRefs: [],
+    rationale: 'Пользовательский план',
+    policyVersion: 'test',
+    catalogVersion: 'test',
+    updatedAt: 2,
+  });
+  snapshot.recommendationEvents.push({
+    localId: 'event_1',
+    carePlanLocalId: 'plan_1',
+    type: 'created',
+    reasonCode: 'USER_IMPORT',
+    afterStatus: 'current',
+    evidenceRefs: [],
+    policyVersion: 'test',
+    occurredAt: 2,
+    updatedAt: 2,
+  });
+
+  const preview = parseImportPayload(createJsonArchive(snapshot));
+  assert.equal(preview.records.carePlanItems?.[0]?.localId, 'plan_1');
+  assert.equal(
+    preview.records.recommendationEvents?.[0]?.carePlanLocalId,
+    'plan_1',
+  );
+});
+
 test('CSV round trip preserves quoted content and stable ids', () => {
   const csv = createEntityCsv('journalEntries', [
     {

@@ -1,4 +1,4 @@
-import { ConvexAuthProvider } from '@convex-dev/auth/react';
+import { ConvexAuthProvider, useAuthToken } from '@convex-dev/auth/react';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useConvexAuth } from 'convex/react';
 import { useFonts } from 'expo-font';
@@ -231,17 +231,58 @@ type AndroidTabButtonProps = Omit<
 };
 
 function AndroidTabButton({
+  'aria-label': ariaLabel,
   accessibilityLabel,
   accessibilityState,
   children,
   style,
+  testID: providedTestID,
   ...pressableProps
 }: AndroidTabButtonProps) {
+  const navigationLabel = accessibilityLabel ?? ariaLabel;
+  const inferredTestID =
+    navigationLabel?.split(',')[0]?.trim() === 'Сферка'
+      ? 'e2e-tab-chat'
+      : navigationLabel?.split(',')[0]?.trim() === 'Анализы'
+        ? 'e2e-tab-analyses'
+        : navigationLabel?.split(',')[0]?.trim() === 'Сегодня'
+          ? 'e2e-tab-today'
+          : navigationLabel?.split(',')[0]?.trim() === 'Скан'
+            ? 'e2e-tab-scan'
+            : navigationLabel?.split(',')[0]?.trim() === 'Профиль'
+              ? 'e2e-tab-profile'
+              : undefined;
+  const testID = providedTestID ?? inferredTestID;
+  const tabLabel =
+    testID === 'e2e-tab-chat'
+      ? 'Сферка'
+      : testID === 'e2e-tab-analyses'
+        ? 'Анализы'
+        : testID === 'e2e-tab-today'
+          ? 'Сегодня'
+          : testID === 'e2e-tab-scan'
+            ? 'Скан'
+            : testID === 'e2e-tab-profile'
+              ? 'Профиль'
+              : navigationLabel?.split(',')[0]?.trim();
+  const fallbackTestID =
+    tabLabel === 'Сферка'
+      ? 'e2e-tab-chat'
+      : tabLabel === 'Анализы'
+        ? 'e2e-tab-analyses'
+        : tabLabel === 'Сегодня'
+          ? 'e2e-tab-today'
+          : tabLabel === 'Скан'
+            ? 'e2e-tab-scan'
+            : tabLabel === 'Профиль'
+              ? 'e2e-tab-profile'
+              : undefined;
+  const resolvedTestID = testID ?? fallbackTestID;
   const selected = Boolean(accessibilityState?.selected);
   const edgeOffset =
-    accessibilityLabel === 'Сферка'
+    tabLabel === 'Сферка'
       ? 7
-      : accessibilityLabel === 'Профиль'
+      : tabLabel === 'Профиль'
         ? -7
         : 0;
   const progress = useRef(new Animated.Value(selected ? 1 : 0)).current;
@@ -258,9 +299,11 @@ function AndroidTabButton({
   return (
     <Pressable
       {...pressableProps}
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={tabLabel ?? navigationLabel}
       accessibilityState={accessibilityState}
+      nativeID={resolvedTestID}
       style={style}
+      testID={resolvedTestID}
     >
       <View
         pointerEvents="none"
@@ -294,11 +337,18 @@ function AndroidTabButton({
 function AndroidTabs() {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 8);
+  const tabMetadata: Record<string, { label: string; testID: string }> = {
+    chat: { label: 'Сферка', testID: 'e2e-tab-chat' },
+    analyses: { label: 'Анализы', testID: 'e2e-tab-analyses' },
+    index: { label: 'Сегодня', testID: 'e2e-tab-today' },
+    scan: { label: 'Скан', testID: 'e2e-tab-scan' },
+    profile: { label: 'Профиль', testID: 'e2e-tab-profile' },
+  };
 
   return (
     <ThemeProvider value={DefaultTheme}>
       <RouterTabs
-        screenOptions={{
+        screenOptions={({ route }) => ({
           headerShown: false,
           animation: 'fade',
           transitionSpec: {
@@ -321,18 +371,26 @@ function AndroidTabs() {
             },
           ],
           tabBarItemStyle: styles.androidTabItem,
-          tabBarButton: ({ ref: _ref, ...props }) => (
-            <AndroidTabButton {...props} />
-          ),
+          tabBarButton: ({ ref: _ref, ...props }) => {
+            const metadata = tabMetadata[route.name];
+            return (
+              <AndroidTabButton
+                {...props}
+                accessibilityLabel={metadata?.label}
+                testID={metadata?.testID}
+              />
+            );
+          },
           tabBarIconStyle: styles.androidTabIconSlot,
           tabBarLabelStyle: styles.androidTabLabelSlot,
           tabBarBackground: () => <AndroidTabBarMaterial />,
-        }}
+        })}
       >
         <RouterTabs.Screen
           name="chat"
           options={{
             title: 'Сферка',
+            tabBarButtonTestID: 'e2e-tab-chat',
             tabBarItemStyle: [styles.androidTabItem, styles.androidFirstTab],
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="chat" />
@@ -346,6 +404,7 @@ function AndroidTabs() {
           name="analyses"
           options={{
             title: 'Анализы',
+            tabBarButtonTestID: 'e2e-tab-analyses',
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="analyses" />
             ),
@@ -358,6 +417,7 @@ function AndroidTabs() {
           name="index"
           options={{
             title: 'Сегодня',
+            tabBarButtonTestID: 'e2e-tab-today',
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="index" />
             ),
@@ -370,6 +430,7 @@ function AndroidTabs() {
           name="scan"
           options={{
             title: 'Скан',
+            tabBarButtonTestID: 'e2e-tab-scan',
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="scan" />
             ),
@@ -382,6 +443,7 @@ function AndroidTabs() {
           name="profile"
           options={{
             title: 'Профиль',
+            tabBarButtonTestID: 'e2e-tab-profile',
             tabBarItemStyle: [styles.androidTabItem, styles.androidLastTab],
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="profile" />
@@ -464,6 +526,7 @@ function WebDemo() {
 
 function NativeApp() {
   const { isAuthenticated, isLoading } = useConvexAuth();
+  const authToken = useAuthToken();
   const [devMode, setDevMode] = useState(false);
   const [authLoadingTimedOut, setAuthLoadingTimedOut] = useState(false);
 
@@ -493,7 +556,11 @@ function NativeApp() {
     return <LoadingAuth />;
   }
 
-  if (!isAuthenticated) {
+  // Convex confirms `isAuthenticated` only after a websocket handshake. Keep
+  // an already signed-in native user inside the encrypted local app when the
+  // backend is unreachable; an invalid token is still removed by Convex Auth
+  // as soon as the server can answer.
+  if (!isAuthenticated && !authToken) {
     return <AuthScreen onDevLogin={() => setDevMode(true)} />;
   }
 

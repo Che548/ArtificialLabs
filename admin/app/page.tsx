@@ -946,12 +946,15 @@ function Monitoring() {
       <section className="panel">
         <h2>Последние проверки</h2>
         <Table
-          headers={['Сервис', 'Статус', 'Latency', 'Время']}
+          headers={['Сервис', 'Статус', 'Capacity', 'Latency', 'Время']}
           rows={(latest ?? [])
             .filter(Boolean)
             .map((x) => [
               x!.service,
               <Status value={x!.status} />,
+              x!.capacityTotal !== undefined
+                ? `${x!.capacityUsed ?? 0}/${x!.capacityTotal}`
+                : '—',
               x!.latencyMs ? `${x!.latencyMs} ms` : '—',
               new Date(x!.checkedAt).toLocaleString('ru-RU'),
             ])}

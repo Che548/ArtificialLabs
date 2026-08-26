@@ -26,6 +26,9 @@ const entityNames: HealthEntityName[] = [
   'documents',
   'chatConversations',
   'chatMessages',
+  'carePlanItems',
+  'agentTriggers',
+  'recommendationEvents',
   'preferences',
 ];
 

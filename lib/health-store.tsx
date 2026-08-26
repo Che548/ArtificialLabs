@@ -113,7 +113,9 @@ type HealthStoreValue = HealthSnapshot & {
   serviceIssue?: ServiceIssue;
   cloudSyncEnabled: boolean;
   cloudProfileReady: boolean;
+  hasLocalAuthSession: boolean;
   viewerEmail?: string;
+  viewerPhone?: string;
   accountDeletion: AccountDeletion;
   completeOnboarding: (input: OnboardingInput) => Promise<void>;
   updateProfile: (
@@ -205,6 +207,10 @@ export function HealthStoreProvider({
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [serviceIssue, setServiceIssue] = useState<ServiceIssue>();
   const [cloudSyncEnabled, setCloudSyncEnabledState] = useState(false);
+  const [localDeletionPending, setLocalDeletionPending] = useState(false);
+  const [localDeletionDeadline, setLocalDeletionDeadline] = useState<
+    number | undefined
+  >();
   const syncSingleFlight = useRef(createSingleFlightRunner());
   const retryAttempt = useRef(0);
   const wasOffline = useRef(false);
@@ -231,14 +237,16 @@ export function HealthStoreProvider({
     remoteEnabled ? {} : 'skip',
   );
   const remoteProfile = viewer?.profile;
-  const accountDeletion: AccountDeletion = viewer?.accountState
-    ?.scheduledDeletionAt
-    ? {
-        pendingDeletion: true,
-        deletionRequestedAt: viewer.accountState.deletionRequestedAt,
-        scheduledDeletionAt: viewer.accountState.scheduledDeletionAt,
-      }
-    : { pendingDeletion: false };
+  const verifiedPhone = viewer?.verifiedPhone;
+  const accountDeletion: AccountDeletion =
+    localDeletionPending || viewer?.accountState?.scheduledDeletionAt
+      ? {
+          pendingDeletion: true,
+          deletionRequestedAt: viewer?.accountState?.deletionRequestedAt,
+          scheduledDeletionAt:
+            viewer?.accountState?.scheduledDeletionAt ?? localDeletionDeadline,
+        }
+      : { pendingDeletion: false };
   const canUseCloud = mayUseMedicalCloud({
     authenticated: remoteEnabled,
     consentedOnDevice: cloudSyncEnabled,
@@ -272,7 +280,12 @@ export function HealthStoreProvider({
       await clearLocalHealthData();
       await clearLocalHealthFiles();
       await deleteLocalSetting(DELETION_DEADLINE_SETTING);
+      setLocalDeletionPending(false);
+      setLocalDeletionDeadline(undefined);
       setCloudSyncEnabledState(false);
+    } else if (deadline) {
+      setLocalDeletionPending(true);
+      setLocalDeletionDeadline(deadline);
     }
   }, []);
 
@@ -296,6 +309,16 @@ export function HealthStoreProvider({
       await refresh();
     });
   }, [refresh, reloadDevicePreferences, viewer]);
+
+  useEffect(() => {
+    if (!viewer || !snapshot.profile || snapshot.profile.phone === verifiedPhone)
+      return;
+    void saveLocalProfile({
+      ...snapshot.profile,
+      phone: verifiedPhone,
+      updatedAt: Date.now(),
+    }).then(refresh);
+  }, [refresh, snapshot.profile, verifiedPhone, viewer]);
 
   useEffect(() => {
     if (!canUseCloud || !remoteProfile) return;
@@ -393,9 +416,13 @@ export function HealthStoreProvider({
       setSyncStatus('syncing');
       setServiceIssue(undefined);
       try {
+        const verifiedProfile = {
+          ...profile,
+          phone: verifiedPhone,
+        };
         await syncSingleFlight.current(() =>
           synchronizeMedicalCloud({
-            profile,
+            profile: verifiedProfile,
             consentedAt,
             saveProfile: (input) => saveRemoteProfile(input),
             loadPendingOutbox: pendingOutbox,
@@ -415,11 +442,11 @@ export function HealthStoreProvider({
         return false;
       }
     },
-    [saveRemoteProfile, syncRemoteBatch],
+    [saveRemoteProfile, syncRemoteBatch, verifiedPhone],
   );
 
   const syncNow = useCallback(async () => {
-    if (readOnly || !canUseCloud || !snapshot.profile) return false;
+    if (readOnly || !canUseCloud || !snapshot.profile || !viewer) return false;
     try {
       const preference =
         await loadLocalSetting<CloudSyncPreference>(CLOUD_SYNC_SETTING);
@@ -432,7 +459,7 @@ export function HealthStoreProvider({
       setSyncStatus('error');
       return false;
     }
-  }, [canUseCloud, prepareChatCloud, readOnly, snapshot.profile, synchronize]);
+  }, [canUseCloud, prepareChatCloud, readOnly, snapshot.profile, synchronize, viewer]);
 
   const flushCloudSyncRevocation = useCallback(async () => {
     if (!remoteEnabled || offlineRef.current || !viewer) return false;
@@ -686,18 +713,18 @@ export function HealthStoreProvider({
     ) => {
       const localId = input.localId ?? newLocalId(prefix);
       if (readOnly) return localId;
-      await writeRecord(entity, {
+      await saveLocalRecord(entity, {
         ...input,
         localId,
         updatedAt: Date.now(),
       } as HealthEntityMap[K]);
       if (entity !== 'documents') {
         await persistCarePlanReconciliation();
-        await refresh();
       }
+      await refresh();
       return localId;
     },
-    [readOnly, refresh, writeRecord],
+    [readOnly, refresh],
   );
 
   const saveConversation = useCallback(
@@ -957,8 +984,14 @@ export function HealthStoreProvider({
       setServiceIssue(classifyServiceIssue(undefined, true));
       return false;
     }
+    // Stop active-account queries before the mutation can invalidate them.
+    // Convex marks the account pending atomically, so waiting for the reactive
+    // viewer query here creates a short window where background queries throw.
+    setLocalDeletionPending(true);
+    setLocalDeletionDeadline(undefined);
     try {
       const state = await requestRemoteDeletion({});
+      setLocalDeletionDeadline(state.scheduledDeletionAt);
       await saveLocalSetting(
         DELETION_DEADLINE_SETTING,
         state.scheduledDeletionAt,
@@ -969,6 +1002,8 @@ export function HealthStoreProvider({
       await clearPendingChatOutbox();
       return true;
     } catch (error) {
+      setLocalDeletionPending(false);
+      setLocalDeletionDeadline(undefined);
       setServiceIssue(classifyServiceIssue(error, offlineRef.current));
       return false;
     }
@@ -983,6 +1018,8 @@ export function HealthStoreProvider({
     try {
       await restoreRemoteAccount({});
       await deleteLocalSetting(DELETION_DEADLINE_SETTING);
+      setLocalDeletionPending(false);
+      setLocalDeletionDeadline(undefined);
       setServiceIssue(undefined);
       await refresh();
       return true;
@@ -1051,7 +1088,9 @@ export function HealthStoreProvider({
       serviceIssue,
       cloudSyncEnabled,
       cloudProfileReady: Boolean(remoteProfile),
+      hasLocalAuthSession: Boolean(cachedUserId),
       viewerEmail: viewer?.email,
+      viewerPhone: verifiedPhone,
       accountDeletion,
       completeOnboarding,
       updateProfile,
@@ -1102,6 +1141,7 @@ export function HealthStoreProvider({
       serviceIssue,
       cloudSyncEnabled,
       remoteProfile,
+      cachedUserId,
       viewer?.email,
       accountDeletion,
       completeOnboarding,

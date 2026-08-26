@@ -1223,6 +1223,7 @@ export function ProfileActionRow({
   singleLineSubtitle = false,
   style,
   subtitle,
+  testID,
 }: {
   destructive?: boolean;
   disabled?: boolean;
@@ -1235,6 +1236,7 @@ export function ProfileActionRow({
   singleLineSubtitle?: boolean;
   style?: StyleProp<ViewStyle>;
   subtitle?: string;
+  testID?: string;
 }) {
   const foreground = destructive
     ? colors.state.error
@@ -1257,6 +1259,7 @@ export function ProfileActionRow({
         accessibilityLabel={label}
         disabled={disabled}
         onPress={onPress}
+        testID={testID}
         style={({ pressed }) => [
           styles.actionPressable,
           pressed && styles.actionPressedOverlay,

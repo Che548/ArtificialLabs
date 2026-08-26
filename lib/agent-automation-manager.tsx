@@ -62,7 +62,6 @@ function agentError(error: unknown) {
 export function AgentAutomationManager({ children }: PropsWithChildren) {
   const convex = useConvex();
   const { isAuthenticated } = useConvexAuth();
-  const status = useQuery(api.agent.status, isAuthenticated ? {} : 'skip');
   const { isKnown, isOffline } = useConnectivity();
   const healthStore = useHealthStore();
   const {
@@ -75,6 +74,10 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
     reconcileAgentPlan,
     savePreferences,
   } = healthStore;
+  const status = useQuery(
+    api.agent.status,
+    isAuthenticated && !accountDeletion.pendingDeletion ? {} : 'skip',
+  );
   const reviewPlan = useAction(api.agentPlan.review);
   const inFlight = useRef(false);
   const [automationState, setAutomationState] = useState<AgentAutomationState>({

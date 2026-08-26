@@ -42,6 +42,9 @@ appId: com.anonymous.privateexpo
 - assertVisible: 'Что может влиять на цикл?'
 - tapOn:
     id: 'e2e-onboarding-next'
+- assertVisible: 'Разрешения и данные'
+- tapOn:
+    id: 'e2e-onboarding-next'
 - assertVisible: 'Сегодня'
 - tapOn: 'Профиль'
 - scrollUntilVisible:

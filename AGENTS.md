@@ -37,6 +37,15 @@ EAS `projectId` plus valid APNs/FCM credentials; when they are absent the app
 must remain local-only and explain that state instead of failing. Never commit
 push tokens or provider credentials. Web does not request notification access.
 
+Phone authentication uses the standard Convex Auth `phone` provider and the
+private `sms-gateway` service in the Convex Docker network on `junk`. The
+gateway has no host port or FRP endpoint. `SMS_GATEWAY_SHARED_SECRET` and
+`SMS_RATE_LIMIT_HASH_SECRET` exist only in the Convex/junk environment; never
+log or commit them. SMS auth remains disabled unless `SMS_AUTH_ENABLED=1` and
+the public-client IP probe has confirmed that separate connections do not
+collapse to one proxy IP. Never log phone numbers, OTP values, request bodies,
+or raw IP addresses.
+
 ## E2E testing
 
 - `npm run e2e:backend` exercises the live self-hosted Auth and Convex contract

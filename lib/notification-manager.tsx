@@ -47,7 +47,9 @@ export function NotificationManagerProvider({
     readOnly,
     reminders,
     savePreferences,
+    hasLocalAuthSession,
     viewerEmail,
+    viewerPhone,
   } = useHealthStore();
   const registerToken = useMutation(api.notifications.registerToken);
   const setRemoteEnabled = useMutation(api.notifications.setEnabled);
@@ -55,6 +57,9 @@ export function NotificationManagerProvider({
   const [message, setMessage] = useState<string>();
   const stored = preferences.find((item) => !item.deletedAt);
   const tone = stored?.notificationTone ?? 'formal';
+  const hasViewerIdentity = Boolean(
+    viewerEmail || viewerPhone || hasLocalAuthSession,
+  );
 
   useEffect(() => {
     const subscription = addNotificationResponseListener((url) => {
@@ -84,7 +89,7 @@ export function NotificationManagerProvider({
     if (
       Platform.OS === 'web' ||
       !stored?.notificationsEnabled ||
-      !viewerEmail ||
+      !hasViewerIdentity ||
       readOnly
     )
       return;
@@ -101,7 +106,7 @@ export function NotificationManagerProvider({
     registerToken,
     setRemoteEnabled,
     stored?.notificationsEnabled,
-    viewerEmail,
+    hasViewerIdentity,
   ]);
 
   const setEnabled = useCallback(
@@ -112,7 +117,7 @@ export function NotificationManagerProvider({
         if (!enabled) {
           await savePreferences({ notificationsEnabled: false });
           await clearHealthNotifications();
-          if (viewerEmail && !readOnly) {
+          if (hasViewerIdentity && !readOnly) {
             void setRemoteEnabled({ enabled: false }).catch(() => undefined);
           }
           setMessage('Уведомления выключены. Локальные данные не изменены.');
@@ -151,7 +156,13 @@ export function NotificationManagerProvider({
         setBusy(false);
       }
     },
-    [readOnly, registerToken, savePreferences, setRemoteEnabled, viewerEmail],
+    [
+      hasViewerIdentity,
+      readOnly,
+      registerToken,
+      savePreferences,
+      setRemoteEnabled,
+    ],
   );
 
   const sendTest = useCallback(async (selectedTone: NotificationTone) => {

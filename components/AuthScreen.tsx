@@ -1,4 +1,5 @@
 import { useAuthActions } from '@convex-dev/auth/react';
+import { useAction } from 'convex/react';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -19,6 +20,7 @@ import {
 } from 'react-native';
 
 import { SegmentedSwitcher } from '../design-system/components';
+import { api } from '../convex/_generated/api';
 import { useConnectivity } from '../lib/connectivity';
 import { classifyServiceIssue } from '../lib/service-errors';
 
@@ -39,7 +41,37 @@ const e2eMode = process.env.EXPO_PUBLIC_E2E_MODE === '1';
 const e2eEmail = process.env.EXPO_PUBLIC_E2E_EMAIL;
 
 function normalizePhone(value: string) {
-  return value.replace(/[^\d+]/g, '').slice(0, 16);
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  if (value.trimStart().startsWith('+7')) {
+    return `+7${digits.slice(1, 11)}`;
+  }
+  if (digits.length > 10 && (digits[0] === '7' || digits[0] === '8')) {
+    return `${digits[0]}${digits.slice(1, 11)}`;
+  }
+  return digits.slice(0, 10);
+}
+
+function canonicalPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 10) return `+7${digits}`;
+  return digits.length === 11 && (digits[0] === '7' || digits[0] === '8')
+    ? `+7${digits.slice(1)}`
+    : value;
+}
+
+function phoneAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('SMS_COOLDOWN')) return 'Повторная отправка пока недоступна.';
+  if (message.includes('SMS_RATE_LIMITED')) return 'Лимит SMS на сегодня исчерпан.';
+  if (message.includes('SMS_PHONE_INVALID')) return 'Введите российский номер в формате +7.';
+  if (message.includes('SMS_UNAVAILABLE') || message.includes('SMS_IP_UNAVAILABLE')) {
+    return 'SMS временно недоступны. Попробуйте позже.';
+  }
+  if (message.includes('SMS_PHONE_ALREADY_IN_USE')) {
+    return 'Не удалось подтвердить номер.';
+  }
+  return 'Код неверный или истёк. Запросите новый код.';
 }
 
 function Checkbox({
@@ -147,6 +179,7 @@ export function AuthScreen({
   preview?: boolean;
 }) {
   const { signIn } = useAuthActions();
+  const getSmsStatus = useAction(api.smsAuth.status);
   const { isOffline } = useConnectivity();
   const window = useWindowDimensions();
   const [flow, setFlow] = useState<AuthFlow>('signUp');
@@ -157,6 +190,17 @@ export function AuthScreen({
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneStep, setPhoneStep] = useState<'phone' | 'code'>('phone');
+  const [phoneRetryAt, setPhoneRetryAt] = useState<number>();
+  const [phoneRemaining, setPhoneRemaining] = useState(3);
+  const [clock, setClock] = useState(Date.now());
+
+  useEffect(() => {
+    if (!phoneRetryAt || phoneRetryAt <= Date.now()) return undefined;
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [phoneRetryAt]);
 
   const normalizedIdentifier = identifier.trim();
   const validIdentifier =
@@ -164,10 +208,15 @@ export function AuthScreen({
       ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedIdentifier)
       : normalizedIdentifier.replace(/\D/g, '').length >= 10;
   const validPassword = password.length >= 8;
+  const validPhoneCode = /^\d{6}$/.test(phoneCode);
+  const legalAccepted =
+    flow === 'signIn' || (personalDataConsent && agreementAccepted);
   const canSubmit =
-    validIdentifier &&
-    validPassword &&
-    (flow === 'signIn' || (personalDataConsent && agreementAccepted));
+    channel === 'phone'
+      ? validIdentifier &&
+        legalAccepted &&
+        (phoneStep === 'phone' || validPhoneCode)
+      : validIdentifier && validPassword && legalAccepted;
   const submitDisabled = !canSubmit || submitting || (!preview && isOffline);
   const visibleError =
     error ??
@@ -182,11 +231,37 @@ export function AuthScreen({
     setChannel(nextChannel);
     setIdentifier('');
     setError(undefined);
+    setPhoneCode('');
+    setPhoneStep('phone');
+    setPhoneRetryAt(undefined);
   };
 
   const changeFlow = () => {
     setFlow((current) => (current === 'signUp' ? 'signIn' : 'signUp'));
     setError(undefined);
+    setPhoneCode('');
+    setPhoneStep('phone');
+  };
+
+  const requestPhoneCode = async () => {
+    const data = new FormData();
+    const phone = canonicalPhone(normalizedIdentifier);
+    data.append('phone', phone);
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await signIn('phone', data);
+      setPhoneStep('code');
+      setPhoneCode('');
+      const status = await getSmsStatus({ phone });
+      setPhoneRemaining(status.remaining);
+      setPhoneRetryAt(status.retryAt ?? Date.now() + 5 * 60 * 1000);
+    } catch (cause) {
+      console.error('Phone code request failed');
+      setError(phoneAuthError(cause));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const submit = async () => {
@@ -209,14 +284,27 @@ export function AuthScreen({
       return;
     }
 
+    const data = new FormData();
     if (channel === 'phone') {
-      setError(
-        'Вход и регистрация по телефону появятся после подключения SMS-подтверждения.',
-      );
+      if (phoneStep === 'phone') {
+        await requestPhoneCode();
+        return;
+      }
+      data.append('phone', canonicalPhone(normalizedIdentifier));
+      data.append('code', phoneCode);
+      setSubmitting(true);
+      try {
+        await signIn('phone', data);
+        onAuthenticated?.();
+      } catch (cause) {
+        console.error('Phone authentication failed');
+        setError(phoneAuthError(cause));
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
-    const data = new FormData();
     data.append('email', normalizedIdentifier.toLowerCase());
     data.append('password', password);
     data.append('flow', flow);
@@ -346,26 +434,56 @@ export function AuthScreen({
                 </View>
 
                 <View style={[styles.fieldGroup, styles.passwordField]}>
-                  <Text style={styles.fieldLabel}>Пароль</Text>
+                  <Text style={styles.fieldLabel}>
+                    {channel === 'phone' ? 'Код из SMS' : 'Пароль'}
+                  </Text>
                   <TextInput
                     testID="e2e-auth-password"
                     autoCapitalize="none"
-                    autoComplete={
+                    autoComplete={channel === 'phone' ? 'one-time-code' :
                       e2eMode
                         ? 'off'
                         : flow === 'signIn'
                           ? 'current-password'
                           : 'new-password'
                     }
-                    textContentType={e2eMode ? 'oneTimeCode' : undefined}
-                    onChangeText={setPassword}
-                    placeholder="Введите пароль"
+                    textContentType={channel === 'phone' || e2eMode ? 'oneTimeCode' : undefined}
+                    keyboardType={channel === 'phone' ? 'number-pad' : 'default'}
+                    editable={channel !== 'phone' || phoneStep === 'code'}
+                    maxLength={channel === 'phone' ? 6 : undefined}
+                    onChangeText={(value) =>
+                      channel === 'phone'
+                        ? setPhoneCode(value.replace(/\D/g, '').slice(0, 6))
+                        : setPassword(value)
+                    }
+                    placeholder={
+                      channel === 'phone'
+                        ? phoneStep === 'code'
+                          ? '000000'
+                          : 'Сначала получите код'
+                        : 'Введите пароль'
+                    }
                     placeholderTextColor="#8F8A90"
-                    secureTextEntry={!e2eMode}
+                    secureTextEntry={channel === 'email' && !e2eMode}
                     style={styles.input}
-                    value={password}
+                    value={channel === 'phone' ? phoneCode : password}
                   />
                 </View>
+
+                {channel === 'phone' && phoneStep === 'code' ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={submitting || Boolean(phoneRetryAt && phoneRetryAt > clock)}
+                    onPress={() => void requestPhoneCode()}
+                    style={styles.smsHint}
+                  >
+                    <Text style={styles.smsHintText}>
+                      {phoneRetryAt && phoneRetryAt > clock
+                        ? `Повторно через ${Math.ceil((phoneRetryAt - clock) / 1000)} сек. Осталось: ${phoneRemaining}`
+                        : `Запросить код снова. Осталось: ${phoneRemaining}`}
+                    </Text>
+                  </Pressable>
+                ) : null}
 
                 {flow === 'signUp' ? (
                   <View style={styles.consents}>
@@ -443,7 +561,13 @@ export function AuthScreen({
                         submitDisabled && styles.primaryButtonLabelDisabled,
                       ]}
                     >
-                      {flow === 'signUp' ? 'Далее' : 'Войти'}
+                      {channel === 'phone'
+                        ? phoneStep === 'phone'
+                          ? 'Получить код'
+                          : 'Подтвердить'
+                        : flow === 'signUp'
+                          ? 'Далее'
+                          : 'Войти'}
                     </Text>
                   )}
                 </Pressable>
@@ -689,6 +813,18 @@ const styles = StyleSheet.create({
   },
   errorTextSignIn: {
     top: 446,
+  },
+  smsHint: {
+    position: 'absolute',
+    left: 26,
+    top: 442,
+    width: 349,
+  },
+  smsHintText: {
+    color: '#6F6A70',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 12,
+    lineHeight: 16,
   },
   primaryButton: {
     position: 'absolute',

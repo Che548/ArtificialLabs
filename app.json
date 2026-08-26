@@ -62,6 +62,7 @@
         }
       ],
       "./plugins/with-camera-controls",
+      "./plugins/with-android-config-changes",
       [
         "expo-sqlite",
         {

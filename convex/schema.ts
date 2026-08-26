@@ -106,6 +106,24 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_user', ['userId']),
+  smsSendAttempts: defineTable({
+    requestId: v.string(),
+    phoneHash: v.string(),
+    ipHash: v.string(),
+    attemptedAt: v.number(),
+    expiresAt: v.number(),
+    outcome: v.union(
+      v.literal('reserved'),
+      v.literal('sent'),
+      v.literal('failed'),
+    ),
+    errorCode: v.optional(v.string()),
+    latencyMs: v.optional(v.number()),
+  })
+    .index('by_request', ['requestId'])
+    .index('by_phone_time', ['phoneHash', 'attemptedAt'])
+    .index('by_ip_time', ['ipHash', 'attemptedAt'])
+    .index('by_expiry', ['expiresAt']),
   accountStates: defineTable({
     userId: v.id('users'),
     deletionRequestedAt: v.optional(v.number()),
@@ -791,6 +809,8 @@ export default defineSchema({
     ),
     latencyMs: v.optional(v.number()),
     errorCode: v.optional(v.string()),
+    capacityUsed: v.optional(v.number()),
+    capacityTotal: v.optional(v.number()),
     checkedAt: v.number(),
     expiresAt: v.number(),
   })

@@ -2,6 +2,12 @@ name: Live Backend and Web E2E
 
 on:
   workflow_dispatch:
+    inputs:
+      live_sms:
+        description: Send one protected SMS to the repository-secret test number
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -22,6 +28,7 @@ jobs:
       E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
       CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
+      SMS_E2E_PHONE: ${{ secrets.SMS_E2E_PHONE }}
 
     steps:
       - name: Check out repository
@@ -48,6 +55,12 @@ jobs:
         run: |
           npm test
           npm run e2e:backend
+
+      - name: Verify live Tele2 SMS delivery
+        if: ${{ inputs.live_sms }}
+        run: |
+          test -n "$SMS_E2E_PHONE"
+          npm run e2e:sms
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium

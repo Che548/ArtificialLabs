@@ -49,8 +49,12 @@ appId: com.anonymous.privateexpo
 - assertVisible: 'Что может влиять на цикл?'
 - tapOn:
     id: 'e2e-onboarding-next'
+- assertVisible: 'Разрешения и данные'
+- tapOn:
+    id: 'e2e-onboarding-next'
 - assertVisible: 'Сегодня'
-- tapOn: 'Профиль'
+- tapOn:
+    id: 'e2e-tab-profile'
 - scrollUntilVisible:
     element:
       text: 'Разрешения и данные'
@@ -58,6 +62,13 @@ appId: com.anonymous.privateexpo
 - tapOn: 'Разрешения и данные'
 - tapOn:
     id: 'e2e-cloud-sync-toggle'
-- tapOn: 'Синхронизировать сейчас'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-sync-now'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-sync-now'
 - assertNotVisible: 'Произошла ошибка'
-- assertVisible: 'Синхронизировать сейчас'
+- assertVisible:
+    id: 'e2e-sync-now'

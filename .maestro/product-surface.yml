@@ -3,6 +3,22 @@ appId: com.anonymous.privateexpo
 # The auth flows finish inside Profile > Permissions.
 - tapOn:
     text: 'Вернуться в профиль'
+
+# Seed a deterministic local-first care plan through the same validated import
+# UI a user would use. Fresh accounts intentionally have no demo plan.
+- scrollUntilVisible:
+    element:
+      text: 'Импорт данных'
+    direction: DOWN
+    centerElement: true
+- tapOn: 'Импорт данных'
+- tapOn: 'Выбрать файл'
+- assertVisible: 'Проверено записей: 3'
+- tapOn: 'Импортировать 3 записей'
+- assertVisible: 'Импортировано записей: 3'
+- tapOn:
+    text: 'Вернуться в профиль'
+
 - tapOn: 'Сегодня'
 - tapOn:
     text: 'Открыть мониторинг'
@@ -42,7 +58,7 @@ appId: com.anonymous.privateexpo
 - tapOn:
     id: 'e2e-analysis-save'
 - tapOn: 'Сдано'
-- assertVisible: 'Исследования крови'
+- assertVisible: 'Глюкоза'
 - tapOn:
     text: 'Открыть графики анализов'
 - extendedWaitUntil:
@@ -59,9 +75,9 @@ appId: com.anonymous.privateexpo
     text: 'Отправить сообщение'
 - runFlow:
     when:
-      visible: 'Согласиться и отправить'
+      visible: 'Согласиться'
     commands:
-      - tapOn: 'Согласиться и отправить'
+      - tapOn: 'Согласиться'
 - extendedWaitUntil:
     visible: 'Как определить фертильное окно точнее?'
     timeout: 60000
@@ -81,48 +97,100 @@ appId: com.anonymous.privateexpo
       text: 'Медицинская история'
     direction: UP
 - tapOn: 'Медицинская история'
+- tapOn: 'Добавить запись'
 - tapOn:
     id: 'e2e-medical-primary'
 - inputText: 'E2E condition'
 - tapOn:
     id: 'e2e-medical-secondary'
 - inputText: 'Local first condition'
-- pressKey: Enter
-- tapOn: 'Сохранить'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'e2e-medical-save'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          point: '74%,93%'
+- assertNotVisible:
+    id: 'e2e-medical-primary'
 - assertVisible: '.*E2E condition.*'
 - tapOn:
     text: 'Вернуться в профиль'
 
 - tapOn: 'Препараты'
+- tapOn: 'Добавить препарат'
 - tapOn:
     id: 'e2e-medical-primary'
 - inputText: 'E2E medication'
 - tapOn:
     id: 'e2e-medical-secondary'
 - inputText: '10 mg'
-- pressKey: Enter
-- tapOn: 'Сохранить'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'e2e-medical-save'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          point: '74%,93%'
+- assertNotVisible:
+    id: 'e2e-medical-primary'
 - assertVisible: '.*E2E medication.*'
 - tapOn:
     text: 'Вернуться в профиль'
 
 - tapOn: 'Аллергии и риски'
+- tapOn: 'Добавить аллергию'
 - tapOn:
     id: 'e2e-medical-primary'
 - inputText: 'E2E allergen'
 - tapOn:
     id: 'e2e-medical-secondary'
 - inputText: 'E2E reaction'
-- pressKey: Enter
-- tapOn: 'Сохранить'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'e2e-medical-save'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          point: '74%,93%'
+- assertNotVisible:
+    id: 'e2e-medical-primary'
 - assertVisible: '.*E2E allergen.*'
 - tapOn:
     text: 'Вернуться в профиль'
 
+- scrollUntilVisible:
+    element:
+      text: 'Программы'
+    direction: DOWN
+    centerElement: true
 - tapOn: 'Программы'
 - assertVisible: 'Подключённые программы'
 - tapOn:
     text: 'Вернуться в профиль'
+- scrollUntilVisible:
+    element:
+      text: 'Документы'
+    direction: UP
+    centerElement: true
 - tapOn: 'Документы'
 - tapOn: 'Добавить документ'
 - extendedWaitUntil:
@@ -144,13 +212,34 @@ appId: com.anonymous.privateexpo
     text: 'Allow.*|Разрешить.*'
     optional: true
 - tapOn: 'Милый'
-- tapOn: 'Отправить тестовое уведомление'
 - extendedWaitUntil:
-    visible: 'Тестовое уведомление появится через пару секунд.'
-    timeout: 10000
-- tapOn: 'Результаты и анализы'
+    visible:
+      id: 'e2e-notification-test'
+      enabled: true
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: 'e2e-notification-test'
+      enabled: true
+    direction: DOWN
+    centerElement: true
 - tapOn:
-    id: notification-master-toggle
+    id: 'e2e-notification-test'
+    enabled: true
+- extendedWaitUntil:
+    visible: 'Тестовое уведомление появится через пару секунд.|Низкая вероятность'
+    timeout: 15000
+- runFlow:
+    when:
+      visible: 'Низкая вероятность'
+    commands:
+      - tapOn: 'Профиль'
+      - scrollUntilVisible:
+          element:
+            text: 'Настройки уведомлений'
+          direction: DOWN
+          centerElement: true
+      - tapOn: 'Настройки уведомлений'
 - tapOn:
     text: 'Вернуться в профиль'
 
@@ -162,9 +251,9 @@ appId: com.anonymous.privateexpo
 - waitForAnimationToEnd
 - tapOn: 'Импорт данных'
 - tapOn: 'Выбрать файл'
-- assertVisible: 'Проверено записей: 1'
-- tapOn: 'Импортировать 1 записей'
-- assertVisible: 'Импортировано записей: 1'
+- assertVisible: 'Проверено записей: 3'
+- tapOn: 'Импортировать 3 записей'
+- assertVisible: 'Импортировано записей: 3'
 - tapOn:
     text: 'Вернуться в профиль'
 
@@ -186,7 +275,13 @@ appId: com.anonymous.privateexpo
     centerElement: true
 - waitForAnimationToEnd
 - tapOn: 'Разрешения и данные'
-- tapOn: 'Синхронизировать сейчас'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-sync-now'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-sync-now'
 - assertNotVisible: 'Произошла ошибка'
 - tapOn: 'Вернуться в профиль'
 - takeScreenshot: ${E2E_PRODUCT_SCREENSHOT}

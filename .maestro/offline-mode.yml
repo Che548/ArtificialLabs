@@ -11,13 +11,15 @@ appId: com.anonymous.privateexpo
     direction: UP
     centerElement: true
 - tapOn: 'Медицинская история'
+- tapOn: 'Добавить запись'
 - tapOn:
     id: 'e2e-medical-primary'
 - inputText: 'E2E offline condition'
+- hideKeyboard
 - tapOn:
     id: 'e2e-medical-secondary'
 - inputText: 'Saved without network'
-- pressKey: Enter
+- hideKeyboard
 - tapOn: 'Сохранить'
 - assertVisible: '.*E2E offline condition.*'
 - takeScreenshot: ${E2E_OFFLINE_SCREENSHOT}

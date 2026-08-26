@@ -33,7 +33,14 @@ export const viewer = query({
         .withIndex('by_user', (q) => q.eq('userId', userId))
         .unique(),
     ]);
-    return { userId, email: user?.email, profile, accountState };
+    return {
+      userId,
+      email: user?.email,
+      verifiedPhone:
+        user?.phoneVerificationTime !== undefined ? user.phone : undefined,
+      profile,
+      accountState,
+    };
   },
 });
 
@@ -64,6 +71,13 @@ export const save = mutation({
     )
       throw new Error('INVALID_TIMEZONE_OFFSET');
     const userId = await requireActiveAccount(ctx);
+    const user = await ctx.db.get(userId);
+    if (
+      args.phone !== undefined &&
+      (user?.phoneVerificationTime === undefined || user.phone !== args.phone)
+    ) {
+      throw new Error('PHONE_NOT_VERIFIED');
+    }
     const existing = await ctx.db
       .query('profiles')
       .withIndex('by_user', (q) => q.eq('userId', userId))

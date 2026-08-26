@@ -13,6 +13,15 @@ appId: com.anonymous.privateexpo
 - extendedWaitUntil:
     visible: 'Синхронизировать сейчас'
     timeout: 120000
-- tapOn: 'Синхронизировать сейчас'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-sync-now'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-sync-now'
+- extendedWaitUntil:
+    visible: 'Данные синхронизированы'
+    timeout: 120000
 - assertNotVisible: 'Произошла ошибка'
 - takeScreenshot: ${E2E_RECONNECTED_SCREENSHOT}

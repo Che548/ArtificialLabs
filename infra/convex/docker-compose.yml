@@ -17,12 +17,29 @@ services:
       CONVEX_CLOUD_ORIGIN: ${CONVEX_CLOUD_ORIGIN:?CONVEX_CLOUD_ORIGIN is required}
       CONVEX_SITE_ORIGIN: ${CONVEX_SITE_ORIGIN:?CONVEX_SITE_ORIGIN is required}
       DISABLE_BEACON: "true"
+      SMS_GATEWAY_URL: http://sms-gateway:8080
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3210/version"]
       interval: 5s
       timeout: 5s
       start_period: 10s
       retries: 12
+
+  sms-gateway:
+    build:
+      context: ./sms-gateway
+    restart: unless-stopped
+    environment:
+      SMS_GATEWAY_SHARED_SECRET: ${SMS_GATEWAY_SHARED_SECRET:?SMS_GATEWAY_SHARED_SECRET is required}
+      MODEM_BASE_URL: http://192.168.241.17
+      MODEM_CAPACITY: "20"
+    volumes:
+      - sms_gateway_state:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   dashboard:
     image: ${CONVEX_DASHBOARD_IMAGE:?CONVEX_DASHBOARD_IMAGE is required}
@@ -39,3 +56,4 @@ services:
 
 volumes:
   data:
+  sms_gateway_state:

@@ -46,6 +46,20 @@ crons.hourly(
   {},
 );
 
+crons.hourly(
+  'purge expired SMS rate limits',
+  { minuteUTC: 27 },
+  internal.smsAuth.cleanupAttempts,
+  {},
+);
+
+crons.hourly(
+  'purge unverified phone accounts',
+  { minuteUTC: 57 },
+  internal.smsAuth.cleanupUnverifiedAccounts,
+  {},
+);
+
 crons.interval(
   'check admin services',
   { minutes: 5 },
