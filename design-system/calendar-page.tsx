@@ -92,6 +92,7 @@ type CalendarPageModalProps = {
   onSavePeriodDateKeys?: (
     dateKeys: ReadonlySet<string>,
   ) => void | Promise<void>;
+  pregnancyMode?: boolean;
 };
 
 type CalendarPageVariant = 'backup' | 'continuous';
@@ -156,6 +157,16 @@ const NO_CYCLE_FORECAST: DayForecast = {
   kind: 'neutral',
   title: 'Нет данных о цикле',
 };
+
+const PREGNANCY_FORECAST: DayForecast = {
+  cycleDay: 0,
+  description:
+    'Во время беременности прогнозы менструации и овуляции не отображаются.',
+  kind: 'neutral',
+  title: 'Беременность',
+};
+
+const EMPTY_DATE_KEYS: ReadonlySet<string> = new Set();
 
 export type CalendarSymptomStatusVariant =
   'banner' | 'compact' | 'footer' | 'inline' | 'side' | 'underDate';
@@ -1119,6 +1130,7 @@ function CalendarPageModalBase({
   lastPeriodStartAt,
   periodDateKeys: savedPeriodDateKeys = EMPTY_PERIOD_DATE_KEYS,
   onSavePeriodDateKeys,
+  pregnancyMode = false,
   variant,
 }: CalendarPageBaseProps) {
   const { width, height } = useWindowDimensions();
@@ -1189,6 +1201,15 @@ function CalendarPageModalBase({
   ]);
 
   useEffect(() => {
+    if (!pregnancyMode) {
+      return;
+    }
+
+    setPeriodMarkingMode(false);
+    setPeriodDraftDateKeys(new Set());
+  }, [pregnancyMode]);
+
+  useEffect(() => {
     const target = viewMode === 'year' ? 1 : 0;
 
     viewProgress.stopAnimation();
@@ -1234,10 +1255,24 @@ function CalendarPageModalBase({
     [initialDate],
   );
   const detailsDate = selectedDate ?? initialDate;
+  const visiblePeriodDateKeys = pregnancyMode
+    ? EMPTY_DATE_KEYS
+    : periodDateKeys;
   const calculatedCycle = useMemo(
     () =>
-      buildCalculatedCycle(periodDateKeys, lastPeriodStartAt, cycleLengthDays),
-    [cycleLengthDays, lastPeriodStartAt, periodDateKeys],
+      pregnancyMode
+        ? null
+        : buildCalculatedCycle(
+            visiblePeriodDateKeys,
+            lastPeriodStartAt,
+            cycleLengthDays,
+          ),
+    [
+      cycleLengthDays,
+      lastPeriodStartAt,
+      pregnancyMode,
+      visiblePeriodDateKeys,
+    ],
   );
   const calculatedForecastForDate = useMemo(
     () =>
@@ -1256,12 +1291,16 @@ function CalendarPageModalBase({
   const headerDate = dayTitle(
     variant === 'continuous' ? initialDate : detailsDate,
   );
-  const selectedForecast = calculatedCycle
-    ? getCalculatedDayForecast(detailsDate, calculatedCycle)
-    : NO_CYCLE_FORECAST;
-  const todayForecast = calculatedCycle
-    ? getCalculatedDayForecast(initialDate, calculatedCycle)
-    : NO_CYCLE_FORECAST;
+  const selectedForecast = pregnancyMode
+    ? PREGNANCY_FORECAST
+    : calculatedCycle
+      ? getCalculatedDayForecast(detailsDate, calculatedCycle)
+      : NO_CYCLE_FORECAST;
+  const todayForecast = pregnancyMode
+    ? PREGNANCY_FORECAST
+    : calculatedCycle
+      ? getCalculatedDayForecast(initialDate, calculatedCycle)
+      : NO_CYCLE_FORECAST;
   const headerForecast = selectedDate ? selectedForecast : todayForecast;
   const selectedHeaderIsFertile =
     headerForecast.kind === 'fertile' || headerForecast.kind === 'ovulation';
@@ -1305,6 +1344,7 @@ function CalendarPageModalBase({
   const hasLoggedSymptoms =
     symptomDateKeys?.has(dateKey(detailsDate)) ??
     (variant === 'backup' && SYMPTOM_LOG_DATE_KEYS.has(dateKey(detailsDate)));
+  const canMarkPeriod = allowPeriodMarking && !pregnancyMode;
   const sheetBottom = Math.max(6, insets.bottom / scale - 4);
   const returnButtonBottom = sheetBottom + DAY_DETAILS_HEIGHT + spacing.sm;
   const viewabilityConfig = useRef({
@@ -1488,10 +1528,10 @@ function CalendarPageModalBase({
   };
 
   const enterPeriodMarkingMode = () => {
-    if (!allowPeriodMarking) return;
+    if (!canMarkPeriod) return;
     setSelectedDate(null);
     setDayDetailsVisible(false);
-    setPeriodDraftDateKeys(new Set(periodDateKeys));
+    setPeriodDraftDateKeys(new Set(visiblePeriodDateKeys));
     setPeriodMarkingMode(true);
 
     if (Platform.OS !== 'web') {
@@ -1863,9 +1903,11 @@ function CalendarPageModalBase({
                                 protectedDayInteractionRef.current = true;
                               }}
                               periodDateKeys={
-                                periodMarkingMode
-                                  ? periodDraftDateKeys
-                                  : periodDateKeys
+                                pregnancyMode
+                                  ? EMPTY_DATE_KEYS
+                                  : periodMarkingMode
+                                    ? periodDraftDateKeys
+                                    : visiblePeriodDateKeys
                               }
                               periodSelectionMode={periodMarkingMode}
                               selectOnPressIn={!periodMarkingMode}
@@ -1897,9 +1939,10 @@ function CalendarPageModalBase({
                         periodMarkingMode && styles.periodMarkingScrollContent,
                       ]}
                       extraData={{
-                        periodDateKeys,
+                        periodDateKeys: visiblePeriodDateKeys,
                         periodDraftDateKeys,
                         periodMarkingMode,
+                        pregnancyMode,
                         selectedDate,
                       }}
                     />
@@ -1930,7 +1973,7 @@ function CalendarPageModalBase({
                           currentDate={initialDate}
                           forecastForDate={yearForecastForDate}
                           onSelectDate={selectDateFromYear}
-                          periodDateKeys={periodDateKeys}
+                          periodDateKeys={visiblePeriodDateKeys}
                           selectedDate={selectedDate}
                           year={year}
                         />
@@ -1951,7 +1994,11 @@ function CalendarPageModalBase({
                         { top: headerTop + (calculatedCycle ? 86 : 62) },
                       ]}
                       contentContainerStyle={styles.yearScrollContent}
-                      extraData={{ periodDateKeys, selectedDate }}
+                      extraData={{
+                        periodDateKeys: visiblePeriodDateKeys,
+                        pregnancyMode,
+                        selectedDate,
+                      }}
                     />
                   </Animated.View>
                 </>
@@ -2053,6 +2100,7 @@ function CalendarPageModalBase({
                 </View>
               )}
 
+              {!pregnancyMode ? (
               <Animated.View
                 pointerEvents="none"
                 style={[
@@ -2163,6 +2211,7 @@ function CalendarPageModalBase({
                   </AppText>
                 </View>
               </Animated.View>
+              ) : null}
 
               {variant === 'continuous' && viewMode === 'month' ? (
                 <>
@@ -2214,7 +2263,7 @@ function CalendarPageModalBase({
                     </CalendarGlassControl>
                   </Animated.View>
 
-                  {!dayDetailsVisible && allowPeriodMarking ? (
+                  {!dayDetailsVisible && canMarkPeriod ? (
                     <View
                       style={[
                         styles.periodEntryButtonWrap,

@@ -338,6 +338,7 @@ export default function ScanScreen() {
     addScanResult,
     journalEntries,
     preferences,
+    profile,
     scanResults,
   } = useHealthStore();
   const { width, height } = useWindowDimensions();
@@ -877,6 +878,7 @@ export default function ScanScreen() {
 
       <CalendarPageModal
         visible={calendarVisible}
+        pregnancyMode={profile?.goal === 'pregnancy'}
         initialDate={
           linkedJournalEntry
             ? new Date(linkedJournalEntry.occurredAt)

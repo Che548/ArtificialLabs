@@ -2144,6 +2144,7 @@ export default function App() {
           lastPeriodStartAt={profile?.lastPeriodStartAt}
           periodDateKeys={savedPeriodDateKeys}
           onSavePeriodDateKeys={savePeriodDateKeys}
+          pregnancyMode={profile?.goal === 'pregnancy'}
         />
         <JournalFlowModal
           visible={journalFlowDate !== null}
