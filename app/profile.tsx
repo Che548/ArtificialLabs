@@ -1396,29 +1396,29 @@ function PhoneVerificationRow({
       disabled={actionDisabled}
       onPress={() => void (step === 'phone' ? requestCode() : verifyCode())}
       style={({ pressed }) => [
-        styles.phoneVerificationButton,
-        Platform.OS === 'android' && styles.phoneVerificationButtonInline,
         actionDisabled && styles.phoneVerificationButtonDisabled,
         pressed && !actionDisabled && styles.controlPressed,
       ]}
     >
-      <AppText
-        numberOfLines={1}
-        role="label"
-        color={colors.text.inverse}
-        weight="semibold"
-        style={
-          Platform.OS === 'android'
-            ? styles.phoneVerificationButtonText
-            : undefined
-        }
-      >
-        {busy
-          ? 'Подождите…'
-          : step === 'phone'
-            ? 'Получить код'
-            : 'Подтвердить'}
-      </AppText>
+      <View style={styles.phoneVerificationButton} pointerEvents="none">
+        <AppText
+          numberOfLines={1}
+          role="label"
+          color={colors.text.inverse}
+          weight="semibold"
+          style={
+            Platform.OS === 'android'
+              ? styles.phoneVerificationButtonText
+              : undefined
+          }
+        >
+          {busy
+            ? 'Подождите…'
+            : step === 'phone'
+              ? 'Получить код'
+              : 'Подтвердить'}
+        </AppText>
+      </View>
     </Pressable>
   );
 
@@ -1446,7 +1446,6 @@ function PhoneVerificationRow({
           ]}
           value={input}
         />
-        {Platform.OS === 'android' && step === 'phone' ? actionButton : null}
       </View>
       {step === 'code' ? (
         <View style={styles.phoneVerificationInputRow}>
@@ -1469,7 +1468,6 @@ function PhoneVerificationRow({
             ]}
             value={code}
           />
-          {Platform.OS === 'android' ? actionButton : null}
         </View>
       ) : null}
       {message ? (
@@ -1477,7 +1475,7 @@ function PhoneVerificationRow({
           {message}
         </AppText>
       ) : null}
-      {Platform.OS !== 'android' ? actionButton : null}
+      {actionButton}
       {step === 'code' ? (
         <Pressable
           accessibilityRole="button"
@@ -2936,16 +2934,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   phoneVerificationButton: {
+    width: '100%',
     minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.md,
     backgroundColor: colors.brand.primary,
-  },
-  phoneVerificationButtonInline: {
-    width: 132,
-    minHeight: 48,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
   phoneVerificationButtonText: {
     fontSize: 13,
