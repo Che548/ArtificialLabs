@@ -6,8 +6,16 @@ function short(value: string | null | undefined, fallback: string) {
   return value && value !== 'development' ? value.slice(0, 8) : fallback;
 }
 
+function activeManifest() {
+  const updatesManifest = Updates.manifest as Record<string, unknown> | null;
+  if (updatesManifest && Object.keys(updatesManifest).length > 0) {
+    return updatesManifest;
+  }
+  return Constants.manifest2 as Record<string, unknown> | null;
+}
+
 function manifestCommit() {
-  const manifest = Updates.manifest as Record<string, unknown> | null;
+  const manifest = activeManifest();
   const metadata = manifest?.metadata as Record<string, unknown> | undefined;
   if (typeof metadata?.sourceCommit === 'string') return metadata.sourceCommit;
   const extra = manifest?.extra as Record<string, unknown> | undefined;
@@ -19,12 +27,12 @@ function manifestCommit() {
 }
 
 function manifestUpdateId() {
-  const manifest = Updates.manifest as Record<string, unknown> | null;
+  const manifest = activeManifest();
   return typeof manifest?.id === 'string' ? manifest.id : undefined;
 }
 
 function manifestCreatedAt() {
-  const manifest = Updates.manifest as Record<string, unknown> | null;
+  const manifest = activeManifest();
   if (typeof manifest?.createdAt !== 'string') return undefined;
   const timestamp = Date.parse(manifest.createdAt);
   return Number.isFinite(timestamp) ? timestamp : undefined;
