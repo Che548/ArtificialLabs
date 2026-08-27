@@ -4,6 +4,16 @@ import base from './app.json';
 
 const baseConfig = base.expo as ExpoConfig;
 const e2eMode = process.env.EXPO_PUBLIC_E2E_MODE === '1';
+const updatesBaseUrl = (
+  process.env.EXPO_PUBLIC_E2E_OTA_URL ??
+  'https://artificiallabs-updates.bebra42.ru'
+).replace(/\/$/, '');
+const localOtaE2E = /^http:\/\/(127\.0\.0\.1|localhost|10\.0\.2\.2)(?::|\/|$)/.test(
+  updatesBaseUrl,
+);
+const otaCertificate =
+  process.env.EXPO_OTA_CODE_SIGNING_CERTIFICATE ??
+  './certs/ota-certificate.pem';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -11,15 +21,26 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     ...baseConfig.ios,
     buildNumber: baseConfig.ios?.buildNumber ?? '1',
+    infoPlist: {
+      ...(baseConfig.ios?.infoPlist ?? {}),
+      ...(localOtaE2E
+        ? {
+            NSAppTransportSecurity: {
+              NSAllowsLocalNetworking: true,
+            },
+          }
+        : {}),
+    },
   },
   android: {
     ...baseConfig.android,
     versionCode: baseConfig.android?.versionCode ?? 1,
+    ...(localOtaE2E ? { usesCleartextTraffic: true } : {}),
   },
   runtimeVersion: { policy: 'fingerprint' },
   updates: {
     enabled: true,
-    url: 'https://artificiallabs-updates.bebra42.ru/api/manifest',
+    url: `${updatesBaseUrl}/api/manifest`,
     requestHeaders: {
       'expo-channel-name': 'production',
     },
@@ -28,7 +49,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ...(e2eMode
       ? {}
       : {
-          codeSigningCertificate: './certs/ota-certificate.pem',
+          codeSigningCertificate: otaCertificate,
           codeSigningMetadata: {
             keyid: 'main',
             alg: 'rsa-v1_5-sha256',
@@ -37,6 +58,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     ...(baseConfig.extra ?? {}),
-    updatesHealthUrl: 'https://artificiallabs-updates.bebra42.ru/health',
+    updatesHealthUrl: `${updatesBaseUrl}/health`,
   },
 });
