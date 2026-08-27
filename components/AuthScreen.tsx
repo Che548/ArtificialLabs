@@ -22,6 +22,7 @@ import {
 import { SegmentedSwitcher } from '../design-system/components';
 import { api } from '../convex/_generated/api';
 import { useConnectivity } from '../lib/connectivity';
+import { otpAutofillProps } from '../lib/otp-autofill';
 import { classifyServiceIssue } from '../lib/service-errors';
 
 type AuthChannel = 'email' | 'phone';
@@ -195,12 +196,19 @@ export function AuthScreen({
   const [phoneRetryAt, setPhoneRetryAt] = useState<number>();
   const [phoneRemaining, setPhoneRemaining] = useState(3);
   const [clock, setClock] = useState(Date.now());
+  const phoneCodeInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (!phoneRetryAt || phoneRetryAt <= Date.now()) return undefined;
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [phoneRetryAt]);
+
+  useEffect(() => {
+    if (phoneStep !== 'code' || submitting) return undefined;
+    const frame = requestAnimationFrame(() => phoneCodeInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [phoneStep, submitting]);
 
   const normalizedIdentifier = identifier.trim();
   const validIdentifier =
@@ -439,15 +447,20 @@ export function AuthScreen({
                   </Text>
                   <TextInput
                     testID="e2e-auth-password"
+                    ref={phoneCodeInputRef}
                     autoCapitalize="none"
-                    autoComplete={channel === 'phone' ? 'one-time-code' :
-                      e2eMode
-                        ? 'off'
-                        : flow === 'signIn'
-                          ? 'current-password'
-                          : 'new-password'
-                    }
-                    textContentType={channel === 'phone' || e2eMode ? 'oneTimeCode' : undefined}
+                    {...(channel === 'phone'
+                      ? otpAutofillProps(Platform.OS)
+                      : {
+                          autoComplete: e2eMode
+                            ? ('off' as const)
+                            : flow === 'signIn'
+                              ? ('current-password' as const)
+                              : ('new-password' as const),
+                          textContentType: e2eMode
+                            ? ('oneTimeCode' as const)
+                            : undefined,
+                        })}
                     keyboardType={channel === 'phone' ? 'number-pad' : 'default'}
                     editable={channel !== 'phone' || phoneStep === 'code'}
                     maxLength={channel === 'phone' ? 6 : undefined}

@@ -16,6 +16,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -82,6 +83,7 @@ import {
 } from '../lib/data-transfer';
 import { persistLabDocument } from '../lib/local-files';
 import { clearPendingTelemetryEvents } from '../lib/local-database';
+import { otpAutofillProps } from '../lib/otp-autofill';
 import type { ServiceIssue } from '../lib/service-errors';
 import type {
   AllergyRisk,
@@ -1279,12 +1281,19 @@ function PhoneVerificationRow({
   const [retryAt, setRetryAt] = useState<number>();
   const [remaining, setRemaining] = useState(3);
   const [clock, setClock] = useState(Date.now());
+  const codeInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (!retryAt || retryAt <= Date.now()) return undefined;
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [retryAt]);
+
+  useEffect(() => {
+    if (step !== 'code' || busy) return undefined;
+    const frame = requestAnimationFrame(() => codeInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [busy, step]);
 
   if (phone) {
     return (
@@ -1301,13 +1310,19 @@ function PhoneVerificationRow({
   const normalized = input.replace(/[^\d+]/g, '').slice(0, 12);
   const verifiedValue = (() => {
     const digits = normalized.replace(/\D/g, '');
+    if (digits.length === 10 && digits[0] === '9') return `+7${digits}`;
     return digits.length === 11 && (digits[0] === '7' || digits[0] === '8')
       ? `+7${digits.slice(1)}`
       : normalized;
   })();
+  const validPhone = /^\+79\d{9}$/.test(verifiedValue);
   const requestCode = async () => {
-    if (busy || disabled || normalized.replace(/\D/g, '').length !== 11)
+    if (busy || disabled) return;
+    if (!validPhone) {
+      setMessage('Введите российский номер: +7 и ещё 10 цифр.');
       return;
+    }
+    Keyboard.dismiss();
     setBusy(true);
     setMessage(undefined);
     try {
@@ -1335,6 +1350,7 @@ function PhoneVerificationRow({
 
   const verifyCode = async () => {
     if (busy || !/^\d{6}$/.test(code)) return;
+    Keyboard.dismiss();
     setBusy(true);
     setMessage(undefined);
     try {
@@ -1351,59 +1367,96 @@ function PhoneVerificationRow({
     }
   };
 
+  const actionDisabled =
+    busy || disabled || (step === 'code' && !/^\d{6}$/.test(code));
+  const actionButton = (
+    <Pressable
+      accessibilityRole="button"
+      disabled={actionDisabled}
+      onPress={() => void (step === 'phone' ? requestCode() : verifyCode())}
+      style={({ pressed }) => [
+        styles.phoneVerificationButton,
+        Platform.OS === 'android' && styles.phoneVerificationButtonInline,
+        actionDisabled && styles.phoneVerificationButtonDisabled,
+        pressed && !actionDisabled && styles.controlPressed,
+      ]}
+    >
+      <AppText
+        numberOfLines={1}
+        role="label"
+        color={colors.text.inverse}
+        weight="semibold"
+        style={
+          Platform.OS === 'android'
+            ? styles.phoneVerificationButtonText
+            : undefined
+        }
+      >
+        {busy
+          ? 'Подождите…'
+          : step === 'phone'
+            ? 'Получить код'
+            : 'Подтвердить'}
+      </AppText>
+    </Pressable>
+  );
+
   return (
     <View style={styles.phoneVerificationRow}>
       <AppText role="label" color={colors.text.secondary}>
         Телефон
       </AppText>
-      <TextInput
-        accessibilityLabel="Российский номер телефона"
-        editable={!disabled && !busy && step === 'phone'}
-        inputMode="tel"
-        keyboardType="phone-pad"
-        onChangeText={(value) => setInput(value.replace(/[^\d+]/g, '').slice(0, 12))}
-        placeholder="+7 999 000-00-00"
-        placeholderTextColor="#989395"
-        style={styles.phoneVerificationInput}
-        value={input}
-      />
-      {step === 'code' ? (
+      <View style={styles.phoneVerificationInputRow}>
         <TextInput
-          accessibilityLabel="Код из SMS"
-          autoComplete="one-time-code"
-          keyboardType="number-pad"
-          maxLength={6}
-          onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
-          placeholder="000000"
+          accessibilityLabel="Российский номер телефона"
+          editable={!disabled && !busy && step === 'phone'}
+          inputMode="tel"
+          keyboardType="phone-pad"
+          onChangeText={(value) =>
+            setInput(value.replace(/[^\d+]/g, '').slice(0, 12))
+          }
+          onSubmitEditing={() => void requestCode()}
+          placeholder="+7 999 000-00-00"
           placeholderTextColor="#989395"
-          style={styles.phoneVerificationInput}
-          textContentType="oneTimeCode"
-          value={code}
+          returnKeyType="send"
+          style={[
+            styles.phoneVerificationInput,
+            styles.phoneVerificationInputFlex,
+          ]}
+          value={input}
         />
+        {Platform.OS === 'android' && step === 'phone' ? actionButton : null}
+      </View>
+      {step === 'code' ? (
+        <View style={styles.phoneVerificationInputRow}>
+          <TextInput
+            ref={codeInputRef}
+            accessibilityLabel="Код из SMS"
+            {...otpAutofillProps(Platform.OS)}
+            keyboardType="number-pad"
+            maxLength={6}
+            onChangeText={(value) =>
+              setCode(value.replace(/\D/g, '').slice(0, 6))
+            }
+            onSubmitEditing={() => void verifyCode()}
+            placeholder="000000"
+            placeholderTextColor="#989395"
+            returnKeyType="done"
+            style={[
+              styles.phoneVerificationInput,
+              styles.phoneVerificationInputFlex,
+            ]}
+            value={code}
+          />
+          {Platform.OS === 'android' ? actionButton : null}
+        </View>
       ) : null}
       {message ? (
         <AppText role="caption" color={colors.text.secondary}>
           {message}
         </AppText>
       ) : null}
-      <Pressable
-        accessibilityRole="button"
-        disabled={
-          busy ||
-          disabled ||
-          (step === 'code' && !/^\d{6}$/.test(code))
-        }
-        onPress={() => void (step === 'phone' ? requestCode() : verifyCode())}
-        style={({ pressed }) => [
-          styles.phoneVerificationButton,
-          (busy || disabled) && styles.phoneVerificationButtonDisabled,
-          pressed && styles.controlPressed,
-        ]}
-      >
-        <AppText role="label" color={colors.text.inverse} weight="semibold">
-          {busy ? 'Подождите…' : step === 'phone' ? 'Получить код' : 'Подтвердить'}
-        </AppText>
-      </Pressable>
+      {Platform.OS !== 'android' ? actionButton : null}
       {step === 'code' ? (
         <Pressable
           accessibilityRole="button"
@@ -2852,12 +2905,29 @@ const styles = StyleSheet.create({
     fontSize: 15,
     includeFontPadding: false,
   },
+  phoneVerificationInputRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing.sm,
+  },
+  phoneVerificationInputFlex: {
+    minWidth: 0,
+    flex: 1,
+  },
   phoneVerificationButton: {
     minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.md,
     backgroundColor: colors.brand.primary,
+  },
+  phoneVerificationButtonInline: {
+    width: 132,
+    minHeight: 48,
+    paddingHorizontal: spacing.sm,
+  },
+  phoneVerificationButtonText: {
+    fontSize: 13,
   },
   phoneVerificationButtonDisabled: {
     opacity: 0.5,
