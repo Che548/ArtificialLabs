@@ -156,12 +156,15 @@ configuration on `junk` and in protected GitHub Actions secrets. Never copy
 them into the app, Git, logs, Docker build arguments or artifacts. Keep
 anti-bricking enabled.
 
-The profile footer always shows app/build, commit and update identifiers. Its
-triple-tap diagnostics menu is restricted to `__DEV__` or internal builds with
-`EXPO_PUBLIC_ENABLE_DEV_MENU=1`. Diagnostics must remain aggregate-only and
-local: never show or transmit medical values, payloads, paths, identity, keys,
-tokens or raw errors. `PRAGMA quick_check` is manual-only; do not automatically
-run repair, `VACUUM`, checkpoint or deletion.
+The profile footer always shows app/build, commit and update identifiers. Three
+taps within two seconds open diagnostics in every native build, including
+production, and the Production/Preview selector remains available there.
+Diagnostics must remain aggregate-only and local: server CPU/RAM, databases,
+logs, shell access and admin operations are out of scope; never show or transmit
+medical values, payloads, paths, identity, keys, tokens or raw errors. Only
+coarse public `/version` and `/health` probes are allowed. `PRAGMA quick_check`
+is manual-only; do not automatically run repair, `VACUUM`, checkpoint or
+deletion.
 
 Adding `expo-updates` or changing the diagnostics native module requires a new
 native store/internal build. OTA cannot add or change native code for an

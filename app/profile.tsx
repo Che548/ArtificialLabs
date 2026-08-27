@@ -104,6 +104,7 @@ import type { NotificationTone } from '../shared/notification-copy';
 import DesignSystemScreen from './design-system';
 import { DiagnosticsScreen } from '../components/DiagnosticsScreen';
 import { getAppVersionInfo } from '../lib/app-version';
+import { registerDiagnosticsTap } from '../lib/diagnostics-access';
 import { useUpdateManager } from '../lib/update-manager';
 
 const e2eDocumentFixtureUri =
@@ -371,12 +372,9 @@ export default function ProfileScreen() {
   };
 
   const handleVersionPress = () => {
-    if (!__DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_MENU !== '1') return;
-    const now = Date.now();
-    const recent = [...footerTaps.current.filter((time) => now - time <= 2000), now];
-    footerTaps.current = recent;
-    if (recent.length >= 3) {
-      footerTaps.current = [];
+    const result = registerDiagnosticsTap(footerTaps.current, Date.now());
+    footerTaps.current = result.taps;
+    if (result.shouldOpen) {
       setDiagnosticsVisible(true);
     }
   };
