@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
+import { readFile, unlink } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 
@@ -91,9 +92,17 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
   let ussdSendCount = 0;
   let healthCount = 0;
   let pollCount = 0;
+  let messagePollCount = 0;
+  let prunedCount = 0;
   const encode = (value) => Array.from(value)
     .map((character) => character.codePointAt(0).toString(16).padStart(4, '0'))
     .join('');
+  let incoming = Array.from({ length: 18 }, (_, index) => ({
+    id: `old-${18 - index}`,
+    tag: '1',
+    content: encode(`Сервисное сообщение ${18 - index}`),
+  }));
+  let balanceDelivered = false;
   const modem = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://modem');
     response.setHeader('content-type', 'application/json');
@@ -108,7 +117,28 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
       return;
     }
     if (request.method === 'GET' && url.searchParams.get('cmd') === 'ussd_data_info') {
-      response.end(JSON.stringify({ ussd_data_info: encode('Осталось 237 SMS') }));
+      response.end(JSON.stringify({
+        ussd_data_info: encode('Запрос принят. Информация направлена в SMS.'),
+      }));
+      return;
+    }
+    if (request.method === 'GET' && url.searchParams.get('cmd') === 'sms_cmd_status_info') {
+      response.end(JSON.stringify({ sms_cmd_status_result: '3' }));
+      return;
+    }
+    if (request.method === 'GET' && url.searchParams.get('cmd') === 'sms_data_total') {
+      messagePollCount += 1;
+      if (ussdSendCount > 0 && !balanceDelivered) {
+        incoming = [{
+          id: 'operator-balance-1',
+          tag: '1',
+          content: encode(
+            'Остаток пакетов: 200 SMS, неиспользованные остатки с прошлого периода: 192 SMS.',
+          ),
+        }, ...incoming];
+        balanceDelivered = true;
+      }
+      response.end(JSON.stringify({ messages: incoming }));
       return;
     }
     const chunks = [];
@@ -119,7 +149,14 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
       form.get('USSD_operator') === 'ussd_send'
     ) {
       ussdSendCount += 1;
-      assert.equal(form.get('USSD_send_number'), '*155*0#');
+      assert.equal(form.get('USSD_send_number'), '*255*0#');
+    }
+    if (form.get('goformId') === 'DELETE_SMS') {
+      const ids = String(form.get('msg_id') ?? '')
+        .split(';')
+        .filter(Boolean);
+      prunedCount += ids.length;
+      incoming = incoming.filter((message) => !ids.includes(message.id));
     }
     response.end(JSON.stringify({ result: 'success' }));
   });
@@ -128,8 +165,13 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
   process.env.MODEM_BASE_URL = `http://127.0.0.1:${modemPort}`;
   process.env.SMS_GATEWAY_SHARED_SECRET = 'test-shared-secret';
   process.env.STATE_FILE = `/tmp/artificiallabs-sms-gateway-balance-${process.pid}.json`;
+  process.env.INCOMING_ARCHIVE_FILE =
+    `/tmp/artificiallabs-sms-gateway-incoming-${process.pid}.ndjson`;
+  await unlink(process.env.INCOMING_ARCHIVE_FILE).catch(() => undefined);
   const { createGatewayServer, testing } = await import(`./server.mjs?balance=${Date.now()}`);
   assert.equal(testing.parseRemainingSms('SMS: 1 234 из 1500'), 1234);
+  assert.equal(testing.parseRemainingSms('200 SMS и 192 SMS'), 392);
+  assert.equal(testing.isTariffBalanceMessage('Остаток пакетов: 200 SMS'), true);
   assert.equal(testing.parseRemainingSms('Нет данных о пакете'), undefined);
   assert.equal(testing.tariffSmsUnavailable('Запрос неправильный.'), true);
   const gateway = createGatewayServer();
@@ -158,14 +200,23 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
   };
   const first = await signedRequest('balance-request-1');
   assert.equal(first.status, 200);
-  assert.deepEqual(await first.json(), { ok: true, remainingSms: 237 });
+  assert.deepEqual(await first.json(), { ok: true, remainingSms: 392 });
   const second = await signedRequest('balance-request-2');
   assert.equal(second.status, 429);
   assert.equal((await second.json()).code, 'SMS_BALANCE_COOLDOWN');
   assert.equal(ussdSendCount, 1);
+  const archived = (await readFile(process.env.INCOMING_ARCHIVE_FILE, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.equal(archived.length, 19);
+  assert.equal(archived.at(-1).message.id, 'operator-balance-1');
+  assert.equal(prunedCount, 3);
+  assert.equal(incoming.length, 16);
 
   await Promise.all([
     new Promise((resolve) => gateway.close(resolve)),
     new Promise((resolve) => modem.close(resolve)),
   ]);
+  await unlink(process.env.INCOMING_ARCHIVE_FILE).catch(() => undefined);
 });

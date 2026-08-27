@@ -1,19 +1,22 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile, chmod } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rename, writeFile, chmod } from 'node:fs/promises';
 import { createServer, request as httpRequest } from 'node:http';
 import { dirname } from 'node:path';
 
 const PORT = Number(process.env.PORT ?? 8080);
 const MODEM_BASE_URL = process.env.MODEM_BASE_URL ?? 'http://192.168.241.17';
 const STATE_FILE = process.env.STATE_FILE ?? '/data/idempotency.json';
+const INCOMING_ARCHIVE_FILE =
+  process.env.INCOMING_ARCHIVE_FILE ?? '/data/incoming-sms-archive.ndjson';
 const SHARED_SECRET = process.env.SMS_GATEWAY_SHARED_SECRET ?? '';
 const MAX_BODY_BYTES = 2048;
 const REPLAY_WINDOW_MS = 60_000;
 const IDEMPOTENCY_TTL_MS = 48 * 60 * 60 * 1000;
 const TARIFF_REFRESH_MS = 24 * 60 * 60 * 1000;
 const USSD_TIMEOUT_MS = 30_000;
-const TARIFF_BALANCE_USSD = process.env.SMS_BALANCE_USSD_CODE ?? '*155*0#';
+const TARIFF_BALANCE_USSD = process.env.SMS_BALANCE_USSD_CODE ?? '*255*0#';
 const MODEM_CAPACITY = Number(process.env.MODEM_CAPACITY ?? 20);
+const MODEM_INCOMING_TARGET = Number(process.env.MODEM_INCOMING_TARGET ?? 16);
 
 function json(response, status, value) {
   const body = JSON.stringify(value);
@@ -102,8 +105,60 @@ async function listMessages(tags = '10') {
   return Array.isArray(payload.messages) ? payload.messages : [];
 }
 
+function incomingFingerprint(message) {
+  return createHmac('sha256', SHARED_SECRET)
+    .update(
+      JSON.stringify([
+        message.id ?? '',
+        message.date ?? '',
+        message.number ?? '',
+        message.content ?? '',
+      ]),
+    )
+    .digest('hex');
+}
+
+async function archiveAndTrimIncoming(messages) {
+  const incoming = messages.filter((message) => String(message.tag ?? '1') === '1');
+  const fresh = incoming
+    .map((message) => ({ fingerprint: incomingFingerprint(message), message }))
+    .filter(({ fingerprint }) => !state.archivedIncoming[fingerprint]);
+  if (fresh.length > 0) {
+    await mkdir(dirname(INCOMING_ARCHIVE_FILE), { recursive: true, mode: 0o700 });
+    const archivedAt = Date.now();
+    await appendFile(
+      INCOMING_ARCHIVE_FILE,
+      `${fresh
+        .map(({ fingerprint, message }) =>
+          JSON.stringify({ fingerprint, archivedAt, message }),
+        )
+        .join('\n')}\n`,
+      { encoding: 'utf8', mode: 0o600 },
+    );
+    await chmod(INCOMING_ARCHIVE_FILE, 0o600);
+    for (const { fingerprint } of fresh) {
+      state.archivedIncoming[fingerprint] = archivedAt;
+    }
+    await queueStateWrite();
+  }
+  const target = Number.isSafeInteger(MODEM_INCOMING_TARGET)
+    ? Math.min(Math.max(MODEM_INCOMING_TARGET, 1), MODEM_CAPACITY - 1)
+    : 16;
+  const stale = incoming.slice(target).filter((message) => message.id);
+  if (stale.length === 0) return incoming;
+  const accepted = await modemPost({
+    goformId: 'DELETE_SMS',
+    msg_id: `${stale.map((message) => message.id).join(';')};`,
+    notCallback: 'true',
+  });
+  if (accepted.result !== 'success' || !(await pollCommand(6))) {
+    throw new Error('SMS_STORAGE_CLEANUP_FAILED');
+  }
+  return incoming.slice(0, target);
+}
+
 async function capacity() {
-  const messages = await listMessages('10');
+  const messages = await archiveAndTrimIncoming(await listMessages('10'));
   return { total: MODEM_CAPACITY, used: messages.length, free: Math.max(0, MODEM_CAPACITY - messages.length) };
 }
 
@@ -127,19 +182,33 @@ function decodeUssdData(value) {
 
 function parseRemainingSms(value) {
   const text = decodeUssdData(value).replace(/[\u00a0\u202f]/g, ' ');
-  const patterns = [
+  const afterValues = [
+    ...text.matchAll(/(\d[\d ]{0,12})\s*(?:sms|смс)\b/giu),
+  ].map((match) => Number(match[1].replace(/\s/g, '')));
+  const beforeMatch = text.match(
     /(?:sms|смс)\s*(?:остаток|осталось|доступно)?\s*[:=\-]?\s*(\d[\d ]{0,12})/iu,
-    /(\d[\d ]{0,12})\s*(?:sms|смс)\b/iu,
-  ];
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    const count = Number(match[1].replace(/\s/g, ''));
-    if (Number.isSafeInteger(count) && count >= 0 && count <= 1_000_000_000) {
-      return count;
-    }
+  );
+  const values = afterValues.length > 0
+    ? afterValues
+    : beforeMatch
+      ? [Number(beforeMatch[1].replace(/\s/g, ''))]
+      : [];
+  if (
+    values.length > 0 &&
+    values.every(
+      (count) =>
+        Number.isSafeInteger(count) && count >= 0 && count <= 1_000_000_000,
+    )
+  ) {
+    const total = values.reduce((sum, count) => sum + count, 0);
+    if (Number.isSafeInteger(total) && total <= 1_000_000_000) return total;
   }
   return undefined;
+}
+
+function isTariffBalanceMessage(value) {
+  const text = decodeUssdData(value);
+  return /остаток\s+пакет/iu.test(text) && /(?:sms|смс)/iu.test(text);
 }
 
 function tariffSmsUnavailable(value) {
@@ -158,6 +227,13 @@ async function cancelUssd() {
 }
 
 async function tariffBalance() {
+  const existingMessages = await archiveAndTrimIncoming(await listMessages('10'));
+  if (existingMessages.length >= MODEM_CAPACITY) {
+    return { ok: false, code: 'SMS_BALANCE_UNAVAILABLE' };
+  }
+  const existingMessageIds = new Set(
+    existingMessages.map((message) => String(message.id ?? '')),
+  );
   const accepted = await modemPost({
     goformId: 'USSD_PROCESS',
     USSD_operator: 'ussd_send',
@@ -178,14 +254,11 @@ async function tariffBalance() {
         // requested command name or the older `ussd_data` alias.
         const responseValue = response.ussd_data_info ?? response.ussd_data;
         const remainingSms = parseRemainingSms(responseValue);
-        return remainingSms === undefined
-          ? {
-              ok: false,
-              code: tariffSmsUnavailable(responseValue)
-                ? 'SMS_BALANCE_NOT_INCLUDED'
-                : 'SMS_BALANCE_UNPARSEABLE',
-            }
-          : { ok: true, remainingSms };
+        if (remainingSms !== undefined) return { ok: true, remainingSms };
+        if (tariffSmsUnavailable(responseValue)) {
+          return { ok: false, code: 'SMS_BALANCE_NOT_INCLUDED' };
+        }
+        break;
       }
       if (['1', '2', '3', '4', '10', '41', '99', 'unknown'].includes(flag)) {
         return {
@@ -194,6 +267,19 @@ async function tariffBalance() {
             ? 'SMS_BALANCE_TIMEOUT'
             : 'SMS_BALANCE_UNAVAILABLE',
         };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
+    while (Date.now() < deadline) {
+      const messages = await listMessages('10');
+      for (const message of messages) {
+        if (existingMessageIds.has(String(message.id ?? ''))) continue;
+        if (!isTariffBalanceMessage(message.content)) continue;
+        const remainingSms = parseRemainingSms(message.content);
+        if (remainingSms !== undefined) {
+          await archiveAndTrimIncoming(messages);
+          return { ok: true, remainingSms };
+        }
       }
       await new Promise((resolve) => setTimeout(resolve, 1_000));
     }
@@ -248,7 +334,12 @@ async function sendSms({ phone, code }) {
   return { ok: true, cleaned };
 }
 
-let state = { requests: {}, balanceRequests: {}, tariffLastAttemptAt: 0 };
+let state = {
+  requests: {},
+  balanceRequests: {},
+  archivedIncoming: {},
+  tariffLastAttemptAt: 0,
+};
 let stateWrite = Promise.resolve();
 const inFlight = new Map();
 
@@ -261,6 +352,10 @@ async function loadState() {
         balanceRequests:
           parsed.balanceRequests && typeof parsed.balanceRequests === 'object'
             ? parsed.balanceRequests
+            : {},
+        archivedIncoming:
+          parsed.archivedIncoming && typeof parsed.archivedIncoming === 'object'
+            ? parsed.archivedIncoming
             : {},
         tariffLastAttemptAt: Number(parsed.tariffLastAttemptAt) || 0,
       };
@@ -427,6 +522,7 @@ export const testing = {
   encodeUnicode,
   modemTime,
   parseRemainingSms,
+  isTariffBalanceMessage,
   tariffSmsUnavailable,
   validSignature,
 };
