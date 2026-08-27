@@ -108,6 +108,9 @@ export const requestSmsTariffRefresh = mutation({
   args: { requestId: v.string() },
   handler: async (ctx, args) => {
     const { userId } = await requireAdmin(ctx);
+    if (!/^[A-Za-z0-9:_-]{8,120}$/.test(args.requestId)) {
+      throw new Error('INVALID_REQUEST_ID');
+    }
     const now = Date.now();
     const current = await ctx.db
       .query('smsTariffBalance')
@@ -124,7 +127,7 @@ export const requestSmsTariffRefresh = mutation({
       status: 'checking' as const,
       lastAttemptAt: now,
       nextAllowedAt: now + DAY_MS,
-      lastRequestId: args.requestId.slice(0, 120),
+      lastRequestId: args.requestId,
       errorCode: undefined,
       updatedAt: now,
     };
