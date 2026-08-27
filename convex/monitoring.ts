@@ -12,6 +12,7 @@ const SAFE_BALANCE_ERRORS = new Set([
   'SMS_BALANCE_UNAVAILABLE',
   'SMS_BALANCE_TIMEOUT',
   'SMS_BALANCE_UNPARSEABLE',
+  'SMS_BALANCE_NOT_INCLUDED',
 ]);
 
 export const checkServices = internalAction({

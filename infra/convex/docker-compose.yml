@@ -33,7 +33,7 @@ services:
       SMS_GATEWAY_SHARED_SECRET: ${SMS_GATEWAY_SHARED_SECRET:?SMS_GATEWAY_SHARED_SECRET is required}
       MODEM_BASE_URL: http://192.168.241.17
       MODEM_CAPACITY: "20"
-      SMS_BALANCE_USSD_CODE: "${SMS_BALANCE_USSD_CODE:-*105#}"
+      SMS_BALANCE_USSD_CODE: "${SMS_BALANCE_USSD_CODE:-*155*0#}"
     volumes:
       - sms_gateway_state:/data
     healthcheck:

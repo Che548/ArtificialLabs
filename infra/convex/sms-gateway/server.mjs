@@ -12,7 +12,7 @@ const REPLAY_WINDOW_MS = 60_000;
 const IDEMPOTENCY_TTL_MS = 48 * 60 * 60 * 1000;
 const TARIFF_REFRESH_MS = 24 * 60 * 60 * 1000;
 const USSD_TIMEOUT_MS = 30_000;
-const TARIFF_BALANCE_USSD = process.env.SMS_BALANCE_USSD_CODE ?? '*105#';
+const TARIFF_BALANCE_USSD = process.env.SMS_BALANCE_USSD_CODE ?? '*155*0#';
 const MODEM_CAPACITY = Number(process.env.MODEM_CAPACITY ?? 20);
 
 function json(response, status, value) {
@@ -142,6 +142,13 @@ function parseRemainingSms(value) {
   return undefined;
 }
 
+function tariffSmsUnavailable(value) {
+  const text = decodeUssdData(value).toLocaleLowerCase('ru-RU');
+  return /запрос\s+неправильн|управлени[ея]\s+тарифом|личн(?:ый|ом)\s+кабинет/iu.test(
+    text,
+  );
+}
+
 async function cancelUssd() {
   await modemPost({
     goformId: 'USSD_PROCESS',
@@ -169,11 +176,15 @@ async function tariffBalance() {
         const response = await modemGet({ cmd: 'ussd_data_info' });
         // ZTE firmware variants expose the same value under either the
         // requested command name or the older `ussd_data` alias.
-        const remainingSms = parseRemainingSms(
-          response.ussd_data_info ?? response.ussd_data,
-        );
+        const responseValue = response.ussd_data_info ?? response.ussd_data;
+        const remainingSms = parseRemainingSms(responseValue);
         return remainingSms === undefined
-          ? { ok: false, code: 'SMS_BALANCE_UNPARSEABLE' }
+          ? {
+              ok: false,
+              code: tariffSmsUnavailable(responseValue)
+                ? 'SMS_BALANCE_NOT_INCLUDED'
+                : 'SMS_BALANCE_UNPARSEABLE',
+            }
           : { ok: true, remainingSms };
       }
       if (['1', '2', '3', '4', '10', '41', '99', 'unknown'].includes(flag)) {
@@ -416,5 +427,6 @@ export const testing = {
   encodeUnicode,
   modemTime,
   parseRemainingSms,
+  tariffSmsUnavailable,
   validSignature,
 };

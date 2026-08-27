@@ -119,7 +119,7 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
       form.get('USSD_operator') === 'ussd_send'
     ) {
       ussdSendCount += 1;
-      assert.equal(form.get('USSD_send_number'), '*105#');
+      assert.equal(form.get('USSD_send_number'), '*155*0#');
     }
     response.end(JSON.stringify({ result: 'success' }));
   });
@@ -131,6 +131,7 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
   const { createGatewayServer, testing } = await import(`./server.mjs?balance=${Date.now()}`);
   assert.equal(testing.parseRemainingSms('SMS: 1 234 из 1500'), 1234);
   assert.equal(testing.parseRemainingSms('Нет данных о пакете'), undefined);
+  assert.equal(testing.tariffSmsUnavailable('Запрос неправильный.'), true);
   const gateway = createGatewayServer();
   const gatewayPort = await listen(gateway);
 

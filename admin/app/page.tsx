@@ -980,6 +980,8 @@ const smsBalanceErrors: Record<string, string> = {
   SMS_BALANCE_UNAVAILABLE: 'Модем или оператор сейчас недоступен',
   SMS_BALANCE_TIMEOUT: 'T2 не ответил за отведённое время',
   SMS_BALANCE_UNPARSEABLE: 'Ответ T2 получен, но остаток SMS не распознан',
+  SMS_BALANCE_NOT_INCLUDED:
+    'T2 не предоставляет остаток SMS для тарифа этой SIM',
 };
 
 function SmsTariffBalance() {
@@ -1069,7 +1071,7 @@ function SmsTariffBalance() {
       </div>
       <p className="sms-explanation">
         Это остаток пакета SMS у оператора, а не занятое место в памяти модема.
-        USSD *105# выполняется только по этой кнопке и не чаще одного раза за 24
+        USSD *155*0# выполняется только по этой кнопке и не чаще одного раза за 24
         часа для всей админки. Остальные показатели рассчитаны из запросов
         Convex и не подтверждают доставку сообщения на телефон.
       </p>
