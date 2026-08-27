@@ -37,7 +37,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     ...baseConfig.android,
     versionCode: baseConfig.android?.versionCode ?? 1,
-    ...(localOtaE2E ? { usesCleartextTraffic: true } : {}),
   },
   runtimeVersion: { policy: 'fingerprint' },
   updates: {

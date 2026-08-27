@@ -19,16 +19,24 @@ export function ConnectivityProvider({ children }: PropsWithChildren) {
   const network = useNetworkState();
   const convexConnection = useConvexConnectionState();
   const value = useMemo<ConnectivityValue>(() => {
+    // A hermetic Android E2E client reaches Convex through `adb reverse` even
+    // when the emulator cannot validate its synthetic internet connection.
+    // Keep the production connectivity path unchanged.
+    const usesReversedE2EBackend =
+      Platform.OS === 'android' &&
+      process.env.EXPO_PUBLIC_E2E_MODE === '1' &&
+      Boolean(process.env.EXPO_PUBLIC_E2E_ANDROID_CONVEX_URL);
     const isKnown =
       typeof network.isConnected === 'boolean' ||
       typeof network.isInternetReachable === 'boolean';
     return {
       isKnown,
-      isOffline:
-        network.isConnected === false ||
-        network.isInternetReachable === false ||
-        (!convexConnection.isWebSocketConnected &&
-          convexConnection.connectionRetries > 1),
+      isOffline: usesReversedE2EBackend
+        ? false
+        : network.isConnected === false ||
+          network.isInternetReachable === false ||
+          (!convexConnection.isWebSocketConnected &&
+            convexConnection.connectionRetries > 1),
     };
   }, [
     convexConnection.connectionRetries,

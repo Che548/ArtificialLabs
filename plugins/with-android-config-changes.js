@@ -12,6 +12,16 @@ const {
  */
 function withAndroidConfigChanges(config) {
   const withManifest = withAndroidManifest(config, (androidConfig) => {
+    const application = androidConfig.modResults.manifest.application?.[0];
+    if (
+      application &&
+      process.env.EXPO_PUBLIC_E2E_MODE === '1' &&
+      /^http:\/\/(127\.0\.0\.1|localhost|10\.0\.2\.2)(?::|\/|$)/.test(
+        process.env.EXPO_PUBLIC_E2E_OTA_URL ?? '',
+      )
+    ) {
+      application.$['android:usesCleartextTraffic'] = 'true';
+    }
     const mainActivity = AndroidConfig.Manifest.getMainActivityOrThrow(
       androidConfig.modResults,
     );
