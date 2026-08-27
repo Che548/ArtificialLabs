@@ -14,6 +14,8 @@ const localOtaE2E = /^http:\/\/(127\.0\.0\.1|localhost|10\.0\.2\.2)(?::|\/|$)/.t
 const otaCertificate =
   process.env.EXPO_OTA_CODE_SIGNING_CERTIFICATE ??
   './certs/ota-certificate.pem';
+const signedUpdatesEnabled =
+  !e2eMode || Boolean(process.env.EXPO_OTA_CODE_SIGNING_CERTIFICATE);
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -46,15 +48,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     checkAutomatically: 'ON_ERROR_RECOVERY',
     fallbackToCacheTimeout: 0,
-    ...(e2eMode
-      ? {}
-      : {
+    ...(signedUpdatesEnabled
+      ? {
           codeSigningCertificate: otaCertificate,
           codeSigningMetadata: {
             keyid: 'main',
             alg: 'rsa-v1_5-sha256',
           },
-        }),
+        }
+      : {}),
   },
   extra: {
     ...(baseConfig.extra ?? {}),

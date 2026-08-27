@@ -158,4 +158,7 @@ async function main() {
   else throw new Error(`Unknown native account command: ${command}`);
 }
 
-void main();
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : 'Native E2E helper failed');
+  process.exitCode = 1;
+});
