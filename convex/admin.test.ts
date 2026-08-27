@@ -156,4 +156,48 @@ describe('admin access and audit', () => {
     expect(asset).toMatchObject({ status: 'validated', size: 2 });
     expect(asset?.checksum).toMatch(/^[a-f0-9]{64}$/);
   });
+
+  test('keeps the T2 tariff balance admin-only and globally rate limited', async () => {
+    const t = convexTest(schema, modules);
+    const admin = await user(t, 'sms-monitor-admin@example.test');
+    const ordinary = await user(t, 'sms-monitor-user@example.test');
+    await t.mutation(internal.admin.bootstrapByEmail, {
+      email: 'sms-monitor-admin@example.test',
+    });
+    await expect(
+      ordinary.client.query(api.monitoringData.smsOverview, {}),
+    ).rejects.toThrow('ADMIN_REQUIRED');
+    const first = await admin.client.mutation(
+      api.monitoringData.requestSmsTariffRefresh,
+      { requestId: 'tariff-refresh-1' },
+    );
+    expect(first).toMatchObject({ accepted: true, status: 'checking' });
+    const second = await admin.client.mutation(
+      api.monitoringData.requestSmsTariffRefresh,
+      { requestId: 'tariff-refresh-2' },
+    );
+    expect(second).toMatchObject({ accepted: false, status: 'checking' });
+    await t.mutation(internal.monitoringData.finishSmsTariffRefresh, {
+      requestId: 'tariff-refresh-1',
+      actorUserId: admin.userId,
+      remainingSms: 237,
+    });
+    const overview = await admin.client.query(
+      api.monitoringData.smsOverview,
+      {},
+    );
+    expect(overview.balance).toMatchObject({
+      status: 'ready',
+      remainingSms: 237,
+    });
+    const staleFinish = await t.mutation(
+      internal.monitoringData.finishSmsTariffRefresh,
+      {
+        requestId: 'tariff-refresh-2',
+        actorUserId: admin.userId,
+        remainingSms: 999,
+      },
+    );
+    expect(staleFinish).toBe(false);
+  });
 });

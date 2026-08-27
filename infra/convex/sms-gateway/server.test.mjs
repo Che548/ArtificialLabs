@@ -86,3 +86,85 @@ test('rejects missing signatures without contacting the modem', async () => {
   assert.equal(response.status, 401);
   await new Promise((resolve) => gateway.close(resolve));
 });
+
+test('reads the T2 tariff SMS remainder once and enforces the daily gateway cooldown', async () => {
+  let ussdSendCount = 0;
+  let healthCount = 0;
+  let pollCount = 0;
+  const encode = (value) => Array.from(value)
+    .map((character) => character.codePointAt(0).toString(16).padStart(4, '0'))
+    .join('');
+  const modem = createServer(async (request, response) => {
+    const url = new URL(request.url, 'http://modem');
+    response.setHeader('content-type', 'application/json');
+    if (request.method === 'GET' && url.searchParams.get('cmd') === 'network_type,signalbar') {
+      healthCount += 1;
+      response.end(JSON.stringify({ network_type: 'LTE', signalbar: '4' }));
+      return;
+    }
+    if (request.method === 'GET' && url.searchParams.get('cmd') === 'ussd_write_flag') {
+      pollCount += 1;
+      response.end(JSON.stringify({ ussd_write_flag: pollCount > 1 ? '16' : '15' }));
+      return;
+    }
+    if (request.method === 'GET' && url.searchParams.get('cmd') === 'ussd_data_info') {
+      response.end(JSON.stringify({ ussd_data: encode('Осталось 237 SMS') }));
+      return;
+    }
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const form = new URLSearchParams(Buffer.concat(chunks).toString());
+    if (
+      form.get('goformId') === 'USSD_PROCESS' &&
+      form.get('USSD_operator') === 'ussd_send'
+    ) {
+      ussdSendCount += 1;
+      assert.equal(form.get('USSD_send_number'), '*105#');
+    }
+    response.end(JSON.stringify({ result: 'success' }));
+  });
+  const modemPort = await listen(modem);
+  process.env.NODE_ENV = 'test';
+  process.env.MODEM_BASE_URL = `http://127.0.0.1:${modemPort}`;
+  process.env.SMS_GATEWAY_SHARED_SECRET = 'test-shared-secret';
+  process.env.STATE_FILE = `/tmp/artificiallabs-sms-gateway-balance-${process.pid}.json`;
+  const { createGatewayServer, testing } = await import(`./server.mjs?balance=${Date.now()}`);
+  assert.equal(testing.parseRemainingSms('SMS: 1 234 из 1500'), 1234);
+  assert.equal(testing.parseRemainingSms('Нет данных о пакете'), undefined);
+  const gateway = createGatewayServer();
+  const gatewayPort = await listen(gateway);
+
+  const health = await fetch(`http://127.0.0.1:${gatewayPort}/health`);
+  assert.equal(health.status, 200);
+  assert.equal(healthCount, 1);
+
+  const signedRequest = (requestId) => {
+    const body = JSON.stringify({ requestId });
+    const timestamp = String(Date.now());
+    const signature = createHmac('sha256', 'test-shared-secret')
+      .update(`${timestamp}\n${requestId}\n${body}`)
+      .digest('hex');
+    return fetch(`http://127.0.0.1:${gatewayPort}/v1/tariff-balance`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-sms-timestamp': timestamp,
+        'x-sms-request-id': requestId,
+        'x-sms-signature': signature,
+      },
+      body,
+    });
+  };
+  const first = await signedRequest('balance-request-1');
+  assert.equal(first.status, 200);
+  assert.deepEqual(await first.json(), { ok: true, remainingSms: 237 });
+  const second = await signedRequest('balance-request-2');
+  assert.equal(second.status, 429);
+  assert.equal((await second.json()).code, 'SMS_BALANCE_COOLDOWN');
+  assert.equal(ussdSendCount, 1);
+
+  await Promise.all([
+    new Promise((resolve) => gateway.close(resolve)),
+    new Promise((resolve) => modem.close(resolve)),
+  ]);
+});

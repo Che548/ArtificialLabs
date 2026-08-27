@@ -1,9 +1,18 @@
 import { v } from 'convex/values';
 
-import { internalMutation, query } from './_generated/server';
-import { requireAdmin } from './lib/adminAccess';
+import { internal } from './_generated/api';
+import { internalMutation, mutation, query } from './_generated/server';
+import { requireAdmin, writeAdminAudit } from './lib/adminAccess';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const TARIFF_BALANCE_KEY = 't2-primary' as const;
+const SAFE_BALANCE_ERRORS = new Set([
+  'SMS_BALANCE_COOLDOWN',
+  'SMS_BALANCE_UNAVAILABLE',
+  'SMS_BALANCE_TIMEOUT',
+  'SMS_BALANCE_UNPARSEABLE',
+]);
+const utcDay = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
 
 export const recordServiceCheck = internalMutation({
   args: {
@@ -47,6 +56,151 @@ export const latest = query({
           .first(),
       ),
     );
+  },
+});
+
+export const smsOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const [balance, aggregate] = await Promise.all([
+      ctx.db
+        .query('smsTariffBalance')
+        .withIndex('by_key', (q) => q.eq('key', TARIFF_BALANCE_KEY))
+        .unique(),
+      ctx.db
+        .query('smsDailyAggregates')
+        .withIndex('by_day', (q) => q.eq('day', utcDay(Date.now())))
+        .unique(),
+    ]);
+    const requested = aggregate?.requested ?? 0;
+    const sent = aggregate?.sent ?? 0;
+    return {
+      balance: balance
+        ? {
+            status: balance.status,
+            remainingSms: balance.remainingSms,
+            lastAttemptAt: balance.lastAttemptAt,
+            lastSuccessAt: balance.lastSuccessAt,
+            nextAllowedAt: balance.nextAllowedAt,
+            errorCode: balance.errorCode,
+          }
+        : {
+            status: 'idle' as const,
+            remainingSms: undefined,
+            lastAttemptAt: undefined,
+            lastSuccessAt: undefined,
+            nextAllowedAt: undefined,
+            errorCode: undefined,
+          },
+      todayUtc: {
+        day: utcDay(Date.now()),
+        requested,
+        sent,
+        failed: aggregate?.failed ?? 0,
+        successPercent: requested > 0 ? Math.round((sent / requested) * 100) : null,
+      },
+    };
+  },
+});
+
+export const requestSmsTariffRefresh = mutation({
+  args: { requestId: v.string() },
+  handler: async (ctx, args) => {
+    const { userId } = await requireAdmin(ctx);
+    const now = Date.now();
+    const current = await ctx.db
+      .query('smsTariffBalance')
+      .withIndex('by_key', (q) => q.eq('key', TARIFF_BALANCE_KEY))
+      .unique();
+    if (current?.nextAllowedAt && current.nextAllowedAt > now) {
+      return {
+        accepted: false as const,
+        status: current.status,
+        nextAllowedAt: current.nextAllowedAt,
+      };
+    }
+    const patch = {
+      status: 'checking' as const,
+      lastAttemptAt: now,
+      nextAllowedAt: now + DAY_MS,
+      lastRequestId: args.requestId.slice(0, 120),
+      errorCode: undefined,
+      updatedAt: now,
+    };
+    if (current) await ctx.db.patch(current._id, patch);
+    else {
+      await ctx.db.insert('smsTariffBalance', {
+        key: TARIFF_BALANCE_KEY,
+        ...patch,
+      });
+    }
+    await writeAdminAudit(ctx, {
+      actorUserId: userId,
+      action: 'sms.tariff_balance.request',
+      entityType: 'sms_tariff_balance',
+      entityId: TARIFF_BALANCE_KEY,
+      summary: 'Запрошено ручное обновление остатка SMS по тарифу T2',
+      requestId: args.requestId,
+      occurredAt: now,
+    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.monitoring.refreshSmsTariffBalance,
+      { requestId: args.requestId, actorUserId: userId },
+    );
+    return {
+      accepted: true as const,
+      status: 'checking' as const,
+      nextAllowedAt: now + DAY_MS,
+    };
+  },
+});
+
+export const finishSmsTariffRefresh = internalMutation({
+  args: {
+    requestId: v.string(),
+    actorUserId: v.id('users'),
+    remainingSms: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const current = await ctx.db
+      .query('smsTariffBalance')
+      .withIndex('by_key', (q) => q.eq('key', TARIFF_BALANCE_KEY))
+      .unique();
+    if (!current || current.lastRequestId !== args.requestId) return false;
+    const now = Date.now();
+    const success =
+      args.remainingSms !== undefined &&
+      Number.isSafeInteger(args.remainingSms) &&
+      args.remainingSms >= 0;
+    const errorCode = success
+      ? undefined
+      : args.errorCode && SAFE_BALANCE_ERRORS.has(args.errorCode)
+        ? args.errorCode
+        : 'SMS_BALANCE_UNAVAILABLE';
+    await ctx.db.patch(current._id, {
+      status: success ? 'ready' : 'error',
+      remainingSms: success ? args.remainingSms : current.remainingSms,
+      lastSuccessAt: success ? now : current.lastSuccessAt,
+      errorCode,
+      updatedAt: now,
+    });
+    await writeAdminAudit(ctx, {
+      actorUserId: args.actorUserId,
+      action: success
+        ? 'sms.tariff_balance.updated'
+        : 'sms.tariff_balance.failed',
+      entityType: 'sms_tariff_balance',
+      entityId: TARIFF_BALANCE_KEY,
+      summary: success
+        ? 'Остаток SMS по тарифу T2 обновлён'
+        : `Обновление остатка SMS завершилось ошибкой ${errorCode}`,
+      requestId: args.requestId,
+      occurredAt: now,
+    });
+    return true;
   },
 });
 

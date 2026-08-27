@@ -2,8 +2,17 @@
 
 import { internal } from './_generated/api';
 import { internalAction } from './_generated/server';
+import { v } from 'convex/values';
+import { hmacSha256 } from './lib/sms';
 
 const CHECK_TIMEOUT_MS = 5_000;
+const BALANCE_TIMEOUT_MS = 35_000;
+const SAFE_BALANCE_ERRORS = new Set([
+  'SMS_BALANCE_COOLDOWN',
+  'SMS_BALANCE_UNAVAILABLE',
+  'SMS_BALANCE_TIMEOUT',
+  'SMS_BALANCE_UNPARSEABLE',
+]);
 
 export const checkServices = internalAction({
   args: {},
@@ -55,5 +64,65 @@ export const checkServices = internalAction({
       });
     }
     return { checked: targets.length };
+  },
+});
+
+export const refreshSmsTariffBalance = internalAction({
+  args: { requestId: v.string(), actorUserId: v.id('users') },
+  handler: async (ctx, args): Promise<void> => {
+    const gatewayUrl = process.env.SMS_GATEWAY_URL ?? 'http://sms-gateway:8080';
+    const sharedSecret = process.env.SMS_GATEWAY_SHARED_SECRET;
+    let remainingSms: number | undefined;
+    let errorCode: string | undefined;
+    if (!sharedSecret) {
+      errorCode = 'SMS_BALANCE_UNAVAILABLE';
+    } else {
+      const timestamp = String(Date.now());
+      const body = JSON.stringify({ requestId: args.requestId });
+      const signature = await hmacSha256(
+        sharedSecret,
+        `${timestamp}\n${args.requestId}\n${body}`,
+      );
+      try {
+        const response = await fetch(`${gatewayUrl}/v1/tariff-balance`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-sms-timestamp': timestamp,
+            'x-sms-request-id': args.requestId,
+            'x-sms-signature': signature,
+          },
+          body,
+          signal: AbortSignal.timeout(BALANCE_TIMEOUT_MS),
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; remainingSms?: number; code?: string }
+          | null;
+        if (
+          response.ok &&
+          payload?.ok === true &&
+          Number.isSafeInteger(payload.remainingSms) &&
+          (payload.remainingSms ?? -1) >= 0
+        ) {
+          remainingSms = payload.remainingSms;
+        } else {
+          errorCode =
+            payload?.code && SAFE_BALANCE_ERRORS.has(payload.code)
+              ? payload.code
+              : 'SMS_BALANCE_UNAVAILABLE';
+        }
+      } catch (error) {
+        errorCode =
+          error instanceof Error && error.name === 'TimeoutError'
+            ? 'SMS_BALANCE_TIMEOUT'
+            : 'SMS_BALANCE_UNAVAILABLE';
+      }
+    }
+    await ctx.runMutation(internal.monitoringData.finishSmsTariffRefresh, {
+      requestId: args.requestId,
+      actorUserId: args.actorUserId,
+      remainingSms,
+      errorCode,
+    });
   },
 });

@@ -6,6 +6,7 @@ import {
   internalMutation,
   internalQuery,
 } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
 import {
   evaluateSmsLimit,
   hmacSha256,
@@ -21,6 +22,34 @@ const SAFE_GATEWAY_ERRORS = new Set([
   'SMS_GATEWAY_TIMEOUT',
   'SMS_GATEWAY_REJECTED',
 ]);
+
+const utcDay = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
+
+async function incrementDailyAggregate(
+  ctx: MutationCtx,
+  timestamp: number,
+  field: 'requested' | 'sent' | 'failed',
+) {
+  const day = utcDay(timestamp);
+  const existing = await ctx.db
+    .query('smsDailyAggregates')
+    .withIndex('by_day', (q) => q.eq('day', day))
+    .unique();
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      [field]: existing[field] + 1,
+      updatedAt: timestamp,
+    });
+    return;
+  }
+  await ctx.db.insert('smsDailyAggregates', {
+    day,
+    requested: field === 'requested' ? 1 : 0,
+    sent: field === 'sent' ? 1 : 0,
+    failed: field === 'failed' ? 1 : 0,
+    updatedAt: timestamp,
+  });
+}
 
 function requiredSecret(name: string) {
   const value = process.env[name];
@@ -80,6 +109,7 @@ export const reserve = internalMutation({
       expiresAt: args.now + SMS_RETENTION_MS,
       outcome: 'reserved',
     });
+    await incrementDailyAggregate(ctx, args.now, 'requested');
     return {
       allowed: true as const,
       duplicate: false as const,
@@ -97,11 +127,19 @@ export const finish = internalMutation({
     latencyMs: v.number(),
   },
   handler: async (ctx, args) => {
+    const attempt = await ctx.db.get(args.attemptId);
+    if (!attempt || attempt.outcome !== 'reserved') return false;
     await ctx.db.patch(args.attemptId, {
       outcome: args.sent ? 'sent' : 'failed',
       errorCode: args.errorCode,
       latencyMs: Math.max(0, Math.round(args.latencyMs)),
     });
+    await incrementDailyAggregate(
+      ctx,
+      attempt.attemptedAt,
+      args.sent ? 'sent' : 'failed',
+    );
+    return true;
   },
 });
 

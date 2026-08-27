@@ -943,18 +943,16 @@ function Monitoring() {
           <LiveConvexStatus />
         </div>
       </section>
+      <SmsTariffBalance />
       <section className="panel">
         <h2>Последние проверки</h2>
         <Table
-          headers={['Сервис', 'Статус', 'Capacity', 'Latency', 'Время']}
+          headers={['Сервис', 'Статус', 'Latency', 'Время']}
           rows={(latest ?? [])
             .filter(Boolean)
             .map((x) => [
               x!.service,
               <Status value={x!.status} />,
-              x!.capacityTotal !== undefined
-                ? `${x!.capacityUsed ?? 0}/${x!.capacityTotal}`
-                : '—',
               x!.latencyMs ? `${x!.latencyMs} ms` : '—',
               new Date(x!.checkedAt).toLocaleString('ru-RU'),
             ])}
@@ -974,6 +972,109 @@ function Monitoring() {
         />
       </section>
     </>
+  );
+}
+
+const smsBalanceErrors: Record<string, string> = {
+  SMS_BALANCE_COOLDOWN: 'Повторная проверка пока недоступна',
+  SMS_BALANCE_UNAVAILABLE: 'Модем или оператор сейчас недоступен',
+  SMS_BALANCE_TIMEOUT: 'T2 не ответил за отведённое время',
+  SMS_BALANCE_UNPARSEABLE: 'Ответ T2 получен, но остаток SMS не распознан',
+};
+
+function SmsTariffBalance() {
+  const overview = useQuery(api.monitoringData.smsOverview, {});
+  const refresh = useMutation(api.monitoringData.requestSmsTariffRefresh);
+  const [now, setNow] = useState(Date.now());
+  const [message, setMessage] = useState<string>();
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const balance = overview?.balance;
+  const nextAllowedAt = balance?.nextAllowedAt;
+  const checking = balance?.status === 'checking';
+  const coolingDown = Boolean(nextAllowedAt && nextAllowedAt > now);
+  const disabled = overview === undefined || checking || coolingDown;
+  const requestRefresh = async () => {
+    setMessage(undefined);
+    try {
+      const result = await refresh({ requestId: requestId() });
+      setMessage(
+        result.accepted
+          ? 'Запрос отправлен. Результат появится здесь автоматически.'
+          : `Следующая проверка доступна ${new Date(result.nextAllowedAt).toLocaleString('ru-RU')}.`,
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : 'Не удалось запустить проверку',
+      );
+    }
+  };
+  const balanceStatus = !balance || balance.status === 'idle'
+    ? 'Остаток ещё не проверялся'
+    : balance.status === 'checking'
+      ? 'Запрашиваем данные у T2…'
+      : balance.status === 'error'
+        ? smsBalanceErrors[balance.errorCode ?? ''] ?? 'Не удалось обновить остаток'
+        : 'Данные получены от T2';
+  return (
+    <section className="panel sms-balance-panel">
+      <div className="sms-balance-head">
+        <div>
+          <h2>Остаток SMS по тарифу T2</h2>
+          <p className="muted">{balanceStatus}</p>
+        </div>
+        <button
+          className="primary"
+          disabled={disabled}
+          onClick={() => void requestRefresh()}
+        >
+          {checking ? 'Проверяем…' : 'Обновить остаток'}
+        </button>
+      </div>
+      <div className="sms-balance-grid">
+        <div className="sms-balance-value">
+          <span>По тарифу</span>
+          <strong>
+            {balance?.remainingSms !== undefined
+              ? balance.remainingSms.toLocaleString('ru-RU')
+              : '—'}
+          </strong>
+          <small>SMS осталось</small>
+        </div>
+        <Metric label="Запросы OTP сегодня (UTC)" value={overview?.todayUtc.requested ?? 0} />
+        <Metric label="Отправлено gateway" value={overview?.todayUtc.sent ?? 0} />
+        <Metric label="Ошибки отправки" value={overview?.todayUtc.failed ?? 0} />
+      </div>
+      <div className="sms-balance-meta">
+        <span>
+          Последнее успешное обновление:{' '}
+          {balance?.lastSuccessAt
+            ? new Date(balance.lastSuccessAt).toLocaleString('ru-RU')
+            : 'никогда'}
+        </span>
+        <span>
+          Следующая ручная проверка:{' '}
+          {nextAllowedAt && nextAllowedAt > now
+            ? new Date(nextAllowedAt).toLocaleString('ru-RU')
+            : 'доступна сейчас'}
+        </span>
+        <span>
+          Успешность сегодня:{' '}
+          {overview?.todayUtc.successPercent === null || overview === undefined
+            ? '—'
+            : `${overview.todayUtc.successPercent}%`}
+        </span>
+      </div>
+      <p className="sms-explanation">
+        Это остаток пакета SMS у оператора, а не занятое место в памяти модема.
+        USSD *105# выполняется только по этой кнопке и не чаще одного раза за 24
+        часа для всей админки. Остальные показатели рассчитаны из запросов
+        Convex и не подтверждают доставку сообщения на телефон.
+      </p>
+      {message && <p className="muted sms-message">{message}</p>}
+    </section>
   );
 }
 

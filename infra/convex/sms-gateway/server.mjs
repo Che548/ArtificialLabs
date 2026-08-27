@@ -10,6 +10,9 @@ const SHARED_SECRET = process.env.SMS_GATEWAY_SHARED_SECRET ?? '';
 const MAX_BODY_BYTES = 2048;
 const REPLAY_WINDOW_MS = 60_000;
 const IDEMPOTENCY_TTL_MS = 48 * 60 * 60 * 1000;
+const TARIFF_REFRESH_MS = 24 * 60 * 60 * 1000;
+const USSD_TIMEOUT_MS = 30_000;
+const TARIFF_BALANCE_USSD = process.env.SMS_BALANCE_USSD_CODE ?? '*105#';
 const MODEM_CAPACITY = Number(process.env.MODEM_CAPACITY ?? 20);
 
 function json(response, status, value) {
@@ -104,6 +107,87 @@ async function capacity() {
   return { total: MODEM_CAPACITY, used: messages.length, free: Math.max(0, MODEM_CAPACITY - messages.length) };
 }
 
+async function modemHealth() {
+  const status = await modemGet({
+    cmd: 'network_type,signalbar',
+    multi_data: '1',
+  });
+  return Boolean(status && typeof status === 'object');
+}
+
+function decodeUssdData(value) {
+  const text = String(value ?? '').trim();
+  if (!/^(?:[0-9a-fA-F]{4})+$/.test(text)) return text;
+  let decoded = '';
+  for (let index = 0; index < text.length; index += 4) {
+    decoded += String.fromCharCode(Number.parseInt(text.slice(index, index + 4), 16));
+  }
+  return decoded.replace(/\0/g, '').trim();
+}
+
+function parseRemainingSms(value) {
+  const text = decodeUssdData(value).replace(/[\u00a0\u202f]/g, ' ');
+  const patterns = [
+    /(?:sms|смс)\s*(?:остаток|осталось|доступно)?\s*[:=\-]?\s*(\d[\d ]{0,12})/iu,
+    /(\d[\d ]{0,12})\s*(?:sms|смс)\b/iu,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const count = Number(match[1].replace(/\s/g, ''));
+    if (Number.isSafeInteger(count) && count >= 0 && count <= 1_000_000_000) {
+      return count;
+    }
+  }
+  return undefined;
+}
+
+async function cancelUssd() {
+  await modemPost({
+    goformId: 'USSD_PROCESS',
+    USSD_operator: 'ussd_cancel',
+    notCallback: 'true',
+  }).catch(() => undefined);
+}
+
+async function tariffBalance() {
+  const accepted = await modemPost({
+    goformId: 'USSD_PROCESS',
+    USSD_operator: 'ussd_send',
+    USSD_send_number: TARIFF_BALANCE_USSD,
+    notCallback: 'true',
+  });
+  if (accepted.result !== 'success') {
+    return { ok: false, code: 'SMS_BALANCE_UNAVAILABLE' };
+  }
+  try {
+    const deadline = Date.now() + USSD_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const status = await modemGet({ cmd: 'ussd_write_flag' });
+      const flag = String(status.ussd_write_flag ?? '');
+      if (flag === '16') {
+        const response = await modemGet({ cmd: 'ussd_data_info' });
+        const remainingSms = parseRemainingSms(response.ussd_data);
+        return remainingSms === undefined
+          ? { ok: false, code: 'SMS_BALANCE_UNPARSEABLE' }
+          : { ok: true, remainingSms };
+      }
+      if (['1', '2', '3', '4', '10', '41', '99', 'unknown'].includes(flag)) {
+        return {
+          ok: false,
+          code: ['3', '4'].includes(flag)
+            ? 'SMS_BALANCE_TIMEOUT'
+            : 'SMS_BALANCE_UNAVAILABLE',
+        };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
+    return { ok: false, code: 'SMS_BALANCE_TIMEOUT' };
+  } finally {
+    await cancelUssd();
+  }
+}
+
 async function pollCommand(smsCmd, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -149,20 +233,32 @@ async function sendSms({ phone, code }) {
   return { ok: true, cleaned };
 }
 
-let state = { requests: {} };
+let state = { requests: {}, balanceRequests: {}, tariffLastAttemptAt: 0 };
 let stateWrite = Promise.resolve();
 const inFlight = new Map();
 
 async function loadState() {
   try {
     const parsed = JSON.parse(await readFile(STATE_FILE, 'utf8'));
-    if (parsed && typeof parsed.requests === 'object') state = parsed;
+    if (parsed && typeof parsed.requests === 'object') {
+      state = {
+        requests: parsed.requests,
+        balanceRequests:
+          parsed.balanceRequests && typeof parsed.balanceRequests === 'object'
+            ? parsed.balanceRequests
+            : {},
+        tariffLastAttemptAt: Number(parsed.tariffLastAttemptAt) || 0,
+      };
+    }
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
   }
   const cutoff = Date.now() - IDEMPOTENCY_TTL_MS;
   state.requests = Object.fromEntries(
     Object.entries(state.requests).filter(([, entry]) => entry.at > cutoff),
+  );
+  state.balanceRequests = Object.fromEntries(
+    Object.entries(state.balanceRequests).filter(([, entry]) => entry.at > cutoff),
   );
 }
 
@@ -206,17 +302,17 @@ export function createGatewayServer() {
   return createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/health') {
       try {
-        const storage = await capacity();
-        json(response, storage.free > 0 ? 200 : 503, {
-          ready: storage.free > 0,
-          capacity: storage,
-        });
+        const ready = await modemHealth();
+        json(response, ready ? 200 : 503, { ready });
       } catch {
         json(response, 503, { ready: false, code: 'SMS_UNAVAILABLE' });
       }
       return;
     }
-    if (request.method !== 'POST' || request.url !== '/v1/sms') {
+    const isSmsRequest = request.method === 'POST' && request.url === '/v1/sms';
+    const isBalanceRequest =
+      request.method === 'POST' && request.url === '/v1/tariff-balance';
+    if (!isSmsRequest && !isBalanceRequest) {
       json(response, 404, { ok: false, code: 'NOT_FOUND' });
       return;
     }
@@ -228,6 +324,47 @@ export function createGatewayServer() {
       }
       const input = JSON.parse(rawBody);
       const requestId = String(request.headers['x-sms-request-id']);
+      if (isBalanceRequest) {
+        if (input.requestId !== requestId) {
+          json(response, 400, { ok: false, code: 'INVALID_REQUEST' });
+          return;
+        }
+        const previous = state.balanceRequests[requestId];
+        if (previous) {
+          json(response, previous.ok ? 200 : 503, previous.response);
+          return;
+        }
+        const now = Date.now();
+        const nextAllowedAt = state.tariffLastAttemptAt + TARIFF_REFRESH_MS;
+        if (nextAllowedAt > now) {
+          json(response, 429, {
+            ok: false,
+            code: 'SMS_BALANCE_COOLDOWN',
+            nextAllowedAt,
+          });
+          return;
+        }
+        state.tariffLastAttemptAt = now;
+        await queueStateWrite();
+        const result = await tariffBalance().catch(() => ({
+          ok: false,
+          code: 'SMS_BALANCE_UNAVAILABLE',
+        }));
+        const safeResponse = result.ok && 'remainingSms' in result
+          ? { ok: true, remainingSms: result.remainingSms }
+          : {
+              ok: false,
+              code: ('code' in result && result.code) || 'SMS_BALANCE_UNAVAILABLE',
+            };
+        state.balanceRequests[requestId] = {
+          at: now,
+          ok: result.ok,
+          response: safeResponse,
+        };
+        await queueStateWrite();
+        json(response, result.ok ? 200 : 503, safeResponse);
+        return;
+      }
       if (
         input.requestId !== requestId ||
         !/^\+79\d{9}$/.test(input.phone) ||
@@ -270,4 +407,10 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-export const testing = { encodeUnicode, modemTime, validSignature };
+export const testing = {
+  decodeUssdData,
+  encodeUnicode,
+  modemTime,
+  parseRemainingSms,
+  validSignature,
+};

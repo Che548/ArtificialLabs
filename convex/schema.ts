@@ -124,6 +124,29 @@ export default defineSchema({
     .index('by_phone_time', ['phoneHash', 'attemptedAt'])
     .index('by_ip_time', ['ipHash', 'attemptedAt'])
     .index('by_expiry', ['expiresAt']),
+  smsDailyAggregates: defineTable({
+    day: v.string(),
+    requested: v.number(),
+    sent: v.number(),
+    failed: v.number(),
+    updatedAt: v.number(),
+  }).index('by_day', ['day']),
+  smsTariffBalance: defineTable({
+    key: v.literal('t2-primary'),
+    status: v.union(
+      v.literal('idle'),
+      v.literal('checking'),
+      v.literal('ready'),
+      v.literal('error'),
+    ),
+    remainingSms: v.optional(v.number()),
+    lastAttemptAt: v.optional(v.number()),
+    lastSuccessAt: v.optional(v.number()),
+    nextAllowedAt: v.optional(v.number()),
+    lastRequestId: v.optional(v.string()),
+    errorCode: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_key', ['key']),
   accountStates: defineTable({
     userId: v.id('users'),
     deletionRequestedAt: v.optional(v.number()),

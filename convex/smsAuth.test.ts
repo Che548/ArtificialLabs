@@ -25,6 +25,22 @@ describe('SMS authentication storage', () => {
       latencyMs: 10,
     });
     await expect(
+      t.mutation(internal.smsAuth.finish, {
+        attemptId: first.attemptId,
+        sent: true,
+        latencyMs: 12,
+      }),
+    ).resolves.toBe(false);
+    const daily = await t.run((ctx) =>
+      ctx.db
+        .query('smsDailyAggregates')
+        .withIndex('by_day', (q) =>
+          q.eq('day', new Date(now).toISOString().slice(0, 10)),
+        )
+        .unique(),
+    );
+    expect(daily).toMatchObject({ requested: 1, sent: 0, failed: 1 });
+    await expect(
       t.mutation(internal.smsAuth.reserve, {
         requestId: 'two',
         phoneHash: 'phone-a',

@@ -46,6 +46,12 @@ the public-client IP probe has confirmed that separate connections do not
 collapse to one proxy IP. Never log phone numbers, OTP values, request bodies,
 or raw IP addresses.
 
+The Admin Monitoring page may request the T2 tariff SMS remainder through the
+private gateway with `*105#`. This is a global manual-only operation with a
+rolling 24-hour cooldown enforced by both Convex and the gateway. Routine
+health checks and E2E must never trigger USSD. Store only the parsed remaining
+SMS count and safe status metadata; never persist or log the raw USSD reply.
+
 ## E2E testing
 
 - `npm run e2e:backend` exercises the live self-hosted Auth and Convex contract
