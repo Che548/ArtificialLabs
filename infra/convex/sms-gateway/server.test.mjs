@@ -165,6 +165,7 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
   process.env.MODEM_BASE_URL = `http://127.0.0.1:${modemPort}`;
   process.env.SMS_GATEWAY_SHARED_SECRET = 'test-shared-secret';
   process.env.STATE_FILE = `/tmp/artificiallabs-sms-gateway-balance-${process.pid}.json`;
+  process.env.SMS_BALANCE_SETTLE_MS = '0';
   process.env.INCOMING_ARCHIVE_FILE =
     `/tmp/artificiallabs-sms-gateway-incoming-${process.pid}.ndjson`;
   await unlink(process.env.INCOMING_ARCHIVE_FILE).catch(() => undefined);

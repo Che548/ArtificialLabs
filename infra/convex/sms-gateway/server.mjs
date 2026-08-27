@@ -14,6 +14,9 @@ const REPLAY_WINDOW_MS = 60_000;
 const IDEMPOTENCY_TTL_MS = 48 * 60 * 60 * 1000;
 const TARIFF_REFRESH_MS = 24 * 60 * 60 * 1000;
 const USSD_TIMEOUT_MS = 30_000;
+const BALANCE_MESSAGE_SETTLE_MS = Number(
+  process.env.SMS_BALANCE_SETTLE_MS ?? 3_000,
+);
 const TARIFF_BALANCE_USSD = process.env.SMS_BALANCE_USSD_CODE ?? '*255*0#';
 const MODEM_CAPACITY = Number(process.env.MODEM_CAPACITY ?? 20);
 const MODEM_INCOMING_TARGET = Number(process.env.MODEM_INCOMING_TARGET ?? 16);
@@ -245,6 +248,8 @@ async function tariffBalance() {
   }
   try {
     const deadline = Date.now() + USSD_TIMEOUT_MS;
+    let balanceCandidateKey;
+    let balanceCandidateSince = 0;
     while (Date.now() < deadline) {
       const status = await modemGet({ cmd: 'ussd_write_flag' });
       const flag = String(status.ussd_write_flag ?? '');
@@ -275,6 +280,15 @@ async function tariffBalance() {
       for (const message of messages) {
         if (existingMessageIds.has(String(message.id ?? ''))) continue;
         if (!isTariffBalanceMessage(message.content)) continue;
+        const candidateKey = `${message.id ?? ''}:${message.content ?? ''}`;
+        if (candidateKey !== balanceCandidateKey) {
+          balanceCandidateKey = candidateKey;
+          balanceCandidateSince = Date.now();
+          continue;
+        }
+        if (Date.now() - balanceCandidateSince < BALANCE_MESSAGE_SETTLE_MS) {
+          continue;
+        }
         const remainingSms = parseRemainingSms(message.content);
         if (remainingSms !== undefined) {
           await archiveAndTrimIncoming(messages);
