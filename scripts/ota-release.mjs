@@ -72,6 +72,9 @@ function runtimeFor(platform, env) {
 }
 
 async function publishPlatform(platform, channel) {
+  if (platform === 'ios' && process.platform !== 'darwin') {
+    throw new Error('iOS OTA publishing must run on macOS so its fingerprint matches the native build');
+  }
   const exportDir = fs.mkdtempSync(path.join(os.tmpdir(), `artificiallabs-ota-${platform}-`));
   const commit = process.env.GITHUB_SHA ?? run('git', ['rev-parse', 'HEAD']).trim();
   const env = { ...process.env, EXPO_PUBLIC_GIT_COMMIT: commit };
