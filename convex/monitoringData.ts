@@ -76,11 +76,21 @@ export const smsOverview = query({
     ]);
     const requested = aggregate?.requested ?? 0;
     const sent = aggregate?.sent ?? 0;
+    const successfulSendsSinceRefresh =
+      balance?.successfulSendsSinceRefresh ?? 0;
     return {
       balance: balance
         ? {
             status: balance.status,
             remainingSms: balance.remainingSms,
+            estimatedRemainingSms:
+              balance.remainingSms === undefined
+                ? undefined
+                : Math.max(
+                    0,
+                    balance.remainingSms - successfulSendsSinceRefresh,
+                  ),
+            successfulSendsSinceRefresh,
             lastAttemptAt: balance.lastAttemptAt,
             lastSuccessAt: balance.lastSuccessAt,
             nextAllowedAt: balance.nextAllowedAt,
@@ -89,6 +99,8 @@ export const smsOverview = query({
         : {
             status: 'idle' as const,
             remainingSms: undefined,
+            estimatedRemainingSms: undefined,
+            successfulSendsSinceRefresh: 0,
             lastAttemptAt: undefined,
             lastSuccessAt: undefined,
             nextAllowedAt: undefined,
@@ -187,6 +199,9 @@ export const finishSmsTariffRefresh = internalMutation({
     await ctx.db.patch(current._id, {
       status: success ? 'ready' : 'error',
       remainingSms: success ? args.remainingSms : current.remainingSms,
+      successfulSendsSinceRefresh: success
+        ? 0
+        : current.successfulSendsSinceRefresh,
       lastSuccessAt: success ? now : current.lastSuccessAt,
       errorCode,
       updatedAt: now,
@@ -203,6 +218,31 @@ export const finishSmsTariffRefresh = internalMutation({
         : `Обновление остатка SMS завершилось ошибкой ${errorCode}`,
       requestId: args.requestId,
       occurredAt: now,
+    });
+    return true;
+  },
+});
+
+export const initializeSuccessfulSendsSinceRefresh = internalMutation({
+  args: { count: v.number() },
+  handler: async (ctx, args) => {
+    if (!Number.isSafeInteger(args.count) || args.count < 0) {
+      throw new Error('INVALID_SMS_SEND_COUNT');
+    }
+    const current = await ctx.db
+      .query('smsTariffBalance')
+      .withIndex('by_key', (q) => q.eq('key', TARIFF_BALANCE_KEY))
+      .unique();
+    if (
+      !current ||
+      current.lastSuccessAt === undefined ||
+      current.successfulSendsSinceRefresh !== undefined
+    ) {
+      return false;
+    }
+    await ctx.db.patch(current._id, {
+      successfulSendsSinceRefresh: args.count,
+      updatedAt: Date.now(),
     });
     return true;
   },

@@ -140,6 +140,19 @@ export const finish = internalMutation({
       attempt.attemptedAt,
       args.sent ? 'sent' : 'failed',
     );
+    if (args.sent) {
+      const balance = await ctx.db
+        .query('smsTariffBalance')
+        .withIndex('by_key', (q) => q.eq('key', 't2-primary'))
+        .unique();
+      if (balance?.lastSuccessAt !== undefined) {
+        await ctx.db.patch(balance._id, {
+          successfulSendsSinceRefresh:
+            (balance.successfulSendsSinceRefresh ?? 0) + 1,
+          updatedAt: Math.max(balance.updatedAt, attempt.attemptedAt),
+        });
+      }
+    }
     return true;
   },
 });

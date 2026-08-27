@@ -1037,13 +1037,16 @@ function SmsTariffBalance() {
       </div>
       <div className="sms-balance-grid">
         <div className="sms-balance-value">
-          <span>По тарифу</span>
+          <span>Расчётный остаток сейчас</span>
           <strong>
-            {balance?.remainingSms !== undefined
-              ? balance.remainingSms.toLocaleString('ru-RU')
+            {balance?.estimatedRemainingSms !== undefined
+              ? balance.estimatedRemainingSms.toLocaleString('ru-RU')
               : '—'}
           </strong>
-          <small>SMS осталось</small>
+          <small>
+            T2 подтвердил {balance?.remainingSms?.toLocaleString('ru-RU') ?? '—'};
+            после проверки отправлено {balance?.successfulSendsSinceRefresh ?? 0}
+          </small>
         </div>
         <Metric label="Запросы OTP сегодня (UTC)" value={overview?.todayUtc.requested ?? 0} />
         <Metric label="Отправлено gateway" value={overview?.todayUtc.sent ?? 0} />
@@ -1070,10 +1073,11 @@ function SmsTariffBalance() {
         </span>
       </div>
       <p className="sms-explanation">
-        Это остаток пакета SMS у оператора, а не занятое место в памяти модема.
-        USSD *255*0# выполняется только по этой кнопке и не чаще одного раза за 24
-        часа для всей админки. Остальные показатели рассчитаны из запросов
-        Convex и не подтверждают доставку сообщения на телефон.
+        Крупное число — расчёт: последний подтверждённый T2 остаток минус
+        успешные отправки gateway после проверки. USSD *255*0# выполняется только
+        по этой кнопке и не чаще одного раза за 24 часа для всей админки. Это не
+        занятое место в памяти модема; расчёт не подтверждает доставку сообщения
+        на телефон.
       </p>
       {message && <p className="muted sms-message">{message}</p>}
     </section>

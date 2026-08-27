@@ -149,6 +149,7 @@ export default defineSchema({
       v.literal('error'),
     ),
     remainingSms: v.optional(v.number()),
+    successfulSendsSinceRefresh: v.optional(v.number()),
     lastAttemptAt: v.optional(v.number()),
     lastSuccessAt: v.optional(v.number()),
     nextAllowedAt: v.optional(v.number()),

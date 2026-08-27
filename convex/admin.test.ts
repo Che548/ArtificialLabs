@@ -182,6 +182,22 @@ describe('admin access and audit', () => {
       actorUserId: admin.userId,
       remainingSms: 237,
     });
+    await t.run(async (ctx) => {
+      const balance = await ctx.db
+        .query('smsTariffBalance')
+        .withIndex('by_key', (q) => q.eq('key', 't2-primary'))
+        .unique();
+      if (!balance) throw new Error('Tariff balance missing');
+      await ctx.db.patch(balance._id, {
+        successfulSendsSinceRefresh: undefined,
+      });
+    });
+    await expect(
+      t.mutation(
+        internal.monitoringData.initializeSuccessfulSendsSinceRefresh,
+        { count: 0 },
+      ),
+    ).resolves.toBe(true);
     const overview = await admin.client.query(
       api.monitoringData.smsOverview,
       {},
@@ -189,6 +205,31 @@ describe('admin access and audit', () => {
     expect(overview.balance).toMatchObject({
       status: 'ready',
       remainingSms: 237,
+      estimatedRemainingSms: 237,
+      successfulSendsSinceRefresh: 0,
+    });
+    const attempt = await t.mutation(internal.smsAuth.reserve, {
+      requestId: 'sms-after-tariff-refresh',
+      phoneHash: 'phone-after-refresh',
+      ipHash: 'ip-after-refresh',
+      now: Date.now(),
+    });
+    if (!attempt.allowed || !attempt.attemptId) {
+      throw new Error('SMS reservation failed');
+    }
+    await t.mutation(internal.smsAuth.finish, {
+      attemptId: attempt.attemptId,
+      sent: true,
+      latencyMs: 12,
+    });
+    await expect(
+      admin.client.query(api.monitoringData.smsOverview, {}),
+    ).resolves.toMatchObject({
+      balance: {
+        remainingSms: 237,
+        estimatedRemainingSms: 236,
+        successfulSendsSinceRefresh: 1,
+      },
     });
     const staleFinish = await t.mutation(
       internal.monitoringData.finishSmsTariffRefresh,
