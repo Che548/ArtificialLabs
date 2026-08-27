@@ -18,6 +18,18 @@ function manifestCommit() {
     : undefined;
 }
 
+function manifestUpdateId() {
+  const manifest = Updates.manifest as Record<string, unknown> | null;
+  return typeof manifest?.id === 'string' ? manifest.id : undefined;
+}
+
+function manifestCreatedAt() {
+  const manifest = Updates.manifest as Record<string, unknown> | null;
+  if (typeof manifest?.createdAt !== 'string') return undefined;
+  const timestamp = Date.parse(manifest.createdAt);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
 export function getAppVersionInfo() {
   const gitCommit = manifestCommit() ?? process.env.EXPO_PUBLIC_GIT_COMMIT;
   return {
@@ -26,8 +38,10 @@ export function getAppVersionInfo() {
     buildNumber: Application.nativeBuildVersion ?? 'dev',
     gitCommit: short(gitCommit, 'local'),
     runtimeVersion: Updates.runtimeVersion ?? 'development',
-    updateId: Updates.isEmbeddedLaunch ? 'embedded' : short(Updates.updateId, 'unknown'),
+    updateId: Updates.isEmbeddedLaunch
+      ? 'embedded'
+      : short(Updates.updateId ?? manifestUpdateId(), 'unknown'),
     isEmbedded: Updates.isEmbeddedLaunch,
-    updateCreatedAt: Updates.createdAt?.getTime(),
+    updateCreatedAt: Updates.createdAt?.getTime() ?? manifestCreatedAt(),
   };
 }

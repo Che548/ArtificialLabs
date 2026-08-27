@@ -84,3 +84,15 @@ test('manifest signatures verify with the matching public certificate key', () =
     false,
   );
 });
+
+test('the bundled OTA certificate is restricted to code signing', () => {
+  const certificatePath = path.resolve(
+    import.meta.dirname,
+    '../../../certs/ota-certificate.pem',
+  );
+  const certificate = new crypto.X509Certificate(
+    fs.readFileSync(certificatePath),
+  );
+  assert.equal(certificate.ca, false);
+  assert.deepEqual(certificate.keyUsage, ['1.3.6.1.5.5.7.3.3']);
+});
