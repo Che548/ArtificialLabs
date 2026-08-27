@@ -167,7 +167,11 @@ async function tariffBalance() {
       const flag = String(status.ussd_write_flag ?? '');
       if (flag === '16') {
         const response = await modemGet({ cmd: 'ussd_data_info' });
-        const remainingSms = parseRemainingSms(response.ussd_data);
+        // ZTE firmware variants expose the same value under either the
+        // requested command name or the older `ussd_data` alias.
+        const remainingSms = parseRemainingSms(
+          response.ussd_data_info ?? response.ussd_data,
+        );
         return remainingSms === undefined
           ? { ok: false, code: 'SMS_BALANCE_UNPARSEABLE' }
           : { ok: true, remainingSms };

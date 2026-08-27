@@ -108,7 +108,7 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
       return;
     }
     if (request.method === 'GET' && url.searchParams.get('cmd') === 'ussd_data_info') {
-      response.end(JSON.stringify({ ussd_data: encode('Осталось 237 SMS') }));
+      response.end(JSON.stringify({ ussd_data_info: encode('Осталось 237 SMS') }));
       return;
     }
     const chunks = [];
