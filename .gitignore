@@ -56,6 +56,10 @@ __pycache__/
 *.pem
 !certs/ota-certificate.pem
 
+# Local Obsidian state; documentation notes are versioned
+/docs/artificial-labs/.obsidian/
+/docs/artificial-labs/.DS_Store
+
 # local env files
 .env
 .env*.local
