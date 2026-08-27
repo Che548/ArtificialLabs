@@ -756,9 +756,11 @@ function ProfileVersionFooter({ onPress }: { onPress: () => void }) {
   return (
     <Pressable
       accessibilityHint="Сведения о версии приложения"
+      accessibilityLabel="Версия приложения"
       accessibilityRole="button"
       onPress={onPress}
       style={styles.versionFooter}
+      testID="app-version-footer"
     >
       <AppText role="caption" color={colors.text.secondary}>
         {`v${version.appVersion} (${version.buildNumber}) · ${version.gitCommit} · ${version.updateId}`}

@@ -20,8 +20,12 @@ on:
         description: Verified preview Android update ID (promotion only)
         required: false
         type: string
-      runtime_version:
-        description: Exact runtimeVersion (rollback only)
+      ios_runtime_version:
+        description: Exact iOS runtimeVersion (rollback only)
+        required: false
+        type: string
+      android_runtime_version:
+        description: Exact Android runtimeVersion (rollback only)
         required: false
         type: string
 
@@ -66,5 +70,6 @@ jobs:
         if: startsWith(inputs.operation, 'rollback-')
         env:
           ROLLBACK_CHANNEL: ${{ inputs.operation == 'rollback-preview' && 'preview' || 'production' }}
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
-        run: node scripts/ota-release.mjs rollback --channel="$ROLLBACK_CHANNEL" --runtime="$RUNTIME_VERSION"
+          IOS_RUNTIME_VERSION: ${{ inputs.ios_runtime_version }}
+          ANDROID_RUNTIME_VERSION: ${{ inputs.android_runtime_version }}
+        run: node scripts/ota-release.mjs rollback --channel="$ROLLBACK_CHANNEL" --ios-runtime="$IOS_RUNTIME_VERSION" --android-runtime="$ANDROID_RUNTIME_VERSION"

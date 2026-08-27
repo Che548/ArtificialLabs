@@ -339,8 +339,8 @@ if [[ "$sequential_simulators" -ne 1 ]]; then
   prepare_android_client 1 || true
 fi
 
-ios_dev_url="private-expo://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A${metro_port}"
-android_dev_url="private-expo://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A${metro_port}"
+ios_dev_url="exp+private-expo://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A${metro_port}"
+android_dev_url="exp+private-expo://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A${metro_port}"
 if [[ -z "$scan_fixture_source" ]]; then
   maestro --device "$ios_device" test .maestro/reset.yml
 fi

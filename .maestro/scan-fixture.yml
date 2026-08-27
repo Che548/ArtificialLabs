@@ -2,6 +2,12 @@ appId: com.anonymous.privateexpo
 ---
 - runFlow:
     when:
+      visible: 'Диагностика'
+    commands:
+      - tapOn: 'Готово'
+      - waitForAnimationToEnd
+- runFlow:
+    when:
       visible: 'Закрыть историю чатов'
     commands:
       - tapOn: 'Закрыть историю чатов'

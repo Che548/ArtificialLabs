@@ -6,3 +6,9 @@ appId: com.anonymous.privateexpo
 - tapOn:
     text: "Close"
     optional: true
+- runFlow:
+    when:
+      visible: 'http://localhost:.*'
+    commands:
+      - tapOn: 'http://localhost:.*'
+      - waitForAnimationToEnd

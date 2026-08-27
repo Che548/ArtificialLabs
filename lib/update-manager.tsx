@@ -197,7 +197,7 @@ function UpdateReadyBanner() {
   }, [manager.state]);
   if (manager.state !== 'ready' || dismissed || Platform.OS === 'web') return null;
   return (
-    <View style={[styles.banner, { bottom: Math.max(insets.bottom, 12) + 76 }]}>
+    <View testID="ota-update-ready" style={[styles.banner, { bottom: Math.max(insets.bottom, 12) + 76 }]}>
       <View style={styles.copy}>
         <Text style={styles.title}>Обновление готово</Text>
         <Text style={styles.message}>
@@ -206,13 +206,14 @@ function UpdateReadyBanner() {
             : 'Можно применить сейчас или при следующем холодном запуске.'}
         </Text>
       </View>
-      <Pressable onPress={() => setDismissed(true)} style={styles.secondary}>
+      <Pressable onPress={() => setDismissed(true)} style={styles.secondary} testID="ota-update-later">
         <Text style={styles.secondaryText}>Позже</Text>
       </Pressable>
       <Pressable
         disabled={manager.isRestartBlocked}
         onPress={() => void manager.restart()}
         style={[styles.primary, manager.isRestartBlocked && styles.disabled]}
+        testID="ota-update-restart"
       >
         <Text style={styles.primaryText}>Перезапустить</Text>
       </Pressable>

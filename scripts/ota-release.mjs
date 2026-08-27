@@ -124,12 +124,15 @@ if (command === 'publish') {
   console.log(JSON.stringify(await post('/internal/promote', { updateId: args.ios, channel: 'production' })));
   console.log(JSON.stringify(await post('/internal/promote', { updateId: args.android, channel: 'production' })));
 } else if (command === 'rollback') {
-  if (!args.runtime || !args.channel) throw new Error('--runtime and --channel are required');
+  if (!args['ios-runtime'] || !args['android-runtime'] || !args.channel) {
+    throw new Error('--ios-runtime, --android-runtime and --channel are required');
+  }
+  const runtimes = { ios: args['ios-runtime'], android: args['android-runtime'] };
   for (const platform of ['ios', 'android']) {
     console.log(JSON.stringify(await post('/internal/rollback', {
       channel: args.channel,
       platform,
-      runtimeVersion: args.runtime,
+      runtimeVersion: runtimes[platform],
     })));
   }
 } else {

@@ -158,8 +158,8 @@ export function DiagnosticsScreen({ visible, onClose }: { visible: boolean; onCl
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={styles.root}>
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-          <Text style={styles.heading}>Диагностика</Text>
-          <Pressable accessibilityRole="button" onPress={onClose} style={styles.close}>
+          <Text style={styles.heading} testID="diagnostics-title">Диагностика</Text>
+          <Pressable accessibilityRole="button" onPress={onClose} style={styles.close} testID="diagnostics-close">
             <Text style={styles.closeText}>Готово</Text>
           </Pressable>
         </View>
@@ -175,12 +175,12 @@ export function DiagnosticsScreen({ visible, onClose }: { visible: boolean; onCl
           <Section title="Канал">
             <View style={styles.channelRow}>
               {(['production', 'preview'] as UpdateChannel[]).map((channel) => (
-                <Pressable key={channel} onPress={() => void changeChannel(channel)} style={[styles.channel, updates.channel === channel && styles.channelActive]}>
+                <Pressable key={channel} onPress={() => void changeChannel(channel)} style={[styles.channel, updates.channel === channel && styles.channelActive]} testID={`ota-channel-${channel}`}>
                   <Text style={[styles.channelText, updates.channel === channel && styles.channelTextActive]}>{channel === 'production' ? 'Production' : 'Preview'}</Text>
                 </Pressable>
               ))}
             </View>
-            <Row label="Updates" value={updates.state} />
+            <Row label="Updates" value={updates.state} testID="ota-update-state" />
           </Section>
           <Section title="Устройство">
             <Row label="Платформа" value={`${Platform.OS} ${Platform.Version}`} />
@@ -236,8 +236,8 @@ export function DiagnosticsScreen({ visible, onClose }: { visible: boolean; onCl
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{children}</View>;
 }
-function Row({ label, value }: { label: string; value: string }) {
-  return <View style={styles.row}><Text style={styles.label}>{label}</Text><Text selectable style={styles.value}>{value}</Text></View>;
+function Row({ label, value, testID }: { label: string; value: string; testID?: string }) {
+  return <View style={styles.row} testID={testID}><Text style={styles.label}>{label}</Text><Text selectable style={styles.value}>{value}</Text></View>;
 }
 function Action({ title, disabled, onPress }: { title: string; disabled?: boolean; onPress: () => void }) {
   return <Pressable disabled={disabled} onPress={onPress} style={[styles.action, disabled && styles.disabled]}><Text style={styles.actionText}>{title}</Text></Pressable>;
