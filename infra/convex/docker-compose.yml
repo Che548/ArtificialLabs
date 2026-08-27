@@ -36,6 +36,8 @@ services:
       MODEM_INCOMING_TARGET: "${MODEM_INCOMING_TARGET:-16}"
       INCOMING_ARCHIVE_FILE: /data/incoming-sms-archive.ndjson
       SMS_BALANCE_USSD_CODE: "${SMS_BALANCE_USSD_CODE:-*255*0#}"
+      SMS_IOS_DOMAIN: "${SMS_IOS_DOMAIN:-artificiallabs.bebra42.ru}"
+      SMS_ANDROID_APP_HASH: "${SMS_ANDROID_APP_HASH:-Y4QO6pOIVxj}"
     volumes:
       - sms_gateway_state:/data
     healthcheck:

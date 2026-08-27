@@ -46,6 +46,17 @@ the public-client IP probe has confirmed that separate connections do not
 collapse to one proxy IP. Never log phone numbers, OTP values, request bodies,
 or raw IP addresses.
 
+OTP messages use an ASCII-only, platform-specific format so each request stays
+within one SMS. Before the standard Convex Phone provider sends a code, native
+clients store a short-lived HMAC-only platform hint: iOS receives a final
+`@artificiallabs.bebra42.ru #code` line and Android receives the SMS Retriever
+hash as its final line. The app starts the permissionless Android retriever
+before requesting the SMS. Whenever the
+Android package name or production signing certificate changes, recompute
+`SMS_ANDROID_APP_HASH`; never reuse a hash from a different signature. The iOS
+Associated Domains entitlement and the public AASA file must remain aligned
+with Team ID `2675845GP5` and bundle ID `com.anonymous.privateexpo`.
+
 The gateway archives every incoming modem SMS once in the private persistent
 `/data/incoming-sms-archive.ndjson` file (`0600`) using an HMAC fingerprint for
 deduplication. Before OTP or tariff operations it keeps only the newest 16 of

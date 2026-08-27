@@ -54,6 +54,13 @@ crons.hourly(
 );
 
 crons.hourly(
+  'purge expired SMS delivery hints',
+  { minuteUTC: 43 },
+  internal.smsAuth.cleanupDeliveryHints,
+  {},
+);
+
+crons.hourly(
   'purge unverified phone accounts',
   { minuteUTC: 57 },
   internal.smsAuth.cleanupUnverifiedAccounts,

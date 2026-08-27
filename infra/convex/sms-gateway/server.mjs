@@ -327,10 +327,31 @@ async function deleteOwnOutgoing(phone, encodedMessage) {
   return accepted.result === 'success' && (await pollCommand(6));
 }
 
-async function sendSms({ phone, code }) {
+function formatOtpMessage(code, platform, iosDomain, androidAppHash) {
+  if (platform === 'ios') {
+    return `Sfera code: ${code}\n@${iosDomain} #${code}`;
+  }
+  if (platform === 'android') {
+    return `<#> Sfera code: ${code}\n${androidAppHash}`;
+  }
+  return `Sfera code: ${code}`;
+}
+
+async function sendSms({ phone, code, platform }) {
   const storage = await capacity();
   if (storage.free < 1) return { ok: false, code: 'SMS_UNAVAILABLE' };
-  const message = `ArtificialLabs: код входа ${code}. Никому не сообщайте. Код действует 5 минут.`;
+  const iosDomain = process.env.SMS_IOS_DOMAIN ?? 'artificiallabs.bebra42.ru';
+  const androidAppHash = process.env.SMS_ANDROID_APP_HASH ?? 'Y4QO6pOIVxj';
+  if (
+    !/^[a-z0-9.-]+$/i.test(iosDomain) ||
+    !/^[A-Za-z0-9+/]{11}$/.test(androidAppHash)
+  ) {
+    return { ok: false, code: 'SMS_UNAVAILABLE' };
+  }
+  const message = formatOtpMessage(code, platform, iosDomain, androidAppHash);
+  if (Buffer.byteLength(message, 'utf8') > 140) {
+    return { ok: false, code: 'SMS_UNAVAILABLE' };
+  }
   const encodedMessage = encodeUnicode(message);
   const accepted = await modemPost({
     goformId: 'SEND_SMS',
@@ -539,4 +560,5 @@ export const testing = {
   isTariffBalanceMessage,
   tariffSmsUnavailable,
   validSignature,
+  formatOtpMessage,
 };

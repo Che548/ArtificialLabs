@@ -52,6 +52,7 @@ test('accepts one signed request, replays it idempotently, and deletes only its 
     phone: '+79990000000',
     code: '123456',
     expiration: Date.now() + 300_000,
+    platform: 'android',
   });
   const timestamp = String(Date.now());
   const signature = createHmac('sha256', 'test-shared-secret')
@@ -71,10 +72,44 @@ test('accepts one signed request, replays it idempotently, and deletes only its 
   assert.equal((await request()).status, 200);
   assert.equal(sendCount, 1);
   assert.equal(deleteCount, 1);
+  const decodedMessage = String.fromCodePoint(
+    ...String(outgoing.content)
+      .match(/.{4}/g)
+      .map((unit) => Number.parseInt(unit, 16)),
+  );
+  assert.equal(
+    decodedMessage,
+    '<#> Sfera code: 123456\nY4QO6pOIVxj',
+  );
+  assert.ok(Buffer.byteLength(decodedMessage, 'utf8') <= 140);
   await Promise.all([
     new Promise((resolve) => gateway.close(resolve)),
     new Promise((resolve) => modem.close(resolve)),
   ]);
+});
+
+test('formats one strict ASCII SMS for each native platform', async () => {
+  process.env.NODE_ENV = 'test';
+  const { testing } = await import(`./server.mjs?formats=${Date.now()}`);
+  const ios = testing.formatOtpMessage(
+    '123456',
+    'ios',
+    'artificiallabs.bebra42.ru',
+    'Y4QO6pOIVxj',
+  );
+  const android = testing.formatOtpMessage(
+    '123456',
+    'android',
+    'artificiallabs.bebra42.ru',
+    'Y4QO6pOIVxj',
+  );
+  assert.equal(
+    ios,
+    'Sfera code: 123456\n@artificiallabs.bebra42.ru #123456',
+  );
+  assert.equal(android, '<#> Sfera code: 123456\nY4QO6pOIVxj');
+  assert.ok(Buffer.byteLength(ios, 'utf8') <= 140);
+  assert.ok(Buffer.byteLength(android, 'utf8') <= 140);
 });
 
 test('rejects missing signatures without contacting the modem', async () => {

@@ -85,6 +85,10 @@ import { persistLabDocument } from '../lib/local-files';
 import { clearPendingTelemetryEvents } from '../lib/local-database';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import type { ServiceIssue } from '../lib/service-errors';
+import {
+  listenForSmsOtp,
+  startSmsRetriever,
+} from '../lib/sms-otp-retriever';
 import type {
   AllergyRisk,
   HealthDocument,
@@ -1273,6 +1277,7 @@ function PhoneVerificationRow({
 }) {
   const { signIn } = useAuthActions();
   const getSmsStatus = useAction(api.smsAuth.status);
+  const prepareSmsDelivery = useAction(api.smsAuth.prepareDelivery);
   const [input, setInput] = useState('+7');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'phone' | 'code'>('phone');
@@ -1294,6 +1299,15 @@ function PhoneVerificationRow({
     const frame = requestAnimationFrame(() => codeInputRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [busy, step]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const subscription = listenForSmsOtp((nextCode) => {
+      setCode(nextCode);
+      setStep('code');
+    });
+    return () => subscription?.remove();
+  }, []);
 
   if (phone) {
     return (
@@ -1325,14 +1339,21 @@ function PhoneVerificationRow({
     Keyboard.dismiss();
     setBusy(true);
     setMessage(undefined);
+    setCode('');
     try {
+      await startSmsRetriever();
+      if (Platform.OS === 'ios' || Platform.OS === 'android') {
+        await prepareSmsDelivery({
+          phone: verifiedValue,
+          platform: Platform.OS,
+        });
+      }
       const form = new FormData();
       form.append('phone', verifiedValue);
       await signIn('phone', form);
       const status = await getSmsStatus({ phone: verifiedValue });
       setRemaining(status.remaining);
       setRetryAt(status.retryAt ?? Date.now() + 5 * 60 * 1000);
-      setCode('');
       setStep('code');
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error);

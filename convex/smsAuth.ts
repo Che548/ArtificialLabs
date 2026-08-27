@@ -22,6 +22,7 @@ const SAFE_GATEWAY_ERRORS = new Set([
   'SMS_GATEWAY_TIMEOUT',
   'SMS_GATEWAY_REJECTED',
 ]);
+const SMS_DELIVERY_HINT_TTL_MS = 2 * 60 * 1000;
 
 const utcDay = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
 
@@ -188,6 +189,66 @@ export const status = action({
   },
 });
 
+export const storeDeliveryHint = internalMutation({
+  args: {
+    phoneHash: v.string(),
+    ipHash: v.string(),
+    platform: v.union(v.literal('ios'), v.literal('android')),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('smsDeliveryHints')
+      .withIndex('by_phone_ip_time', (q) =>
+        q.eq('phoneHash', args.phoneHash).eq('ipHash', args.ipHash),
+      )
+      .take(5);
+    for (const row of existing) await ctx.db.delete(row._id);
+    await ctx.db.insert('smsDeliveryHints', {
+      phoneHash: args.phoneHash,
+      ipHash: args.ipHash,
+      platform: args.platform,
+      createdAt: args.now,
+      expiresAt: args.now + SMS_DELIVERY_HINT_TTL_MS,
+    });
+  },
+});
+
+export const prepareDelivery = action({
+  args: {
+    phone: v.string(),
+    platform: v.union(v.literal('ios'), v.literal('android')),
+  },
+  handler: async (ctx, args) => {
+    const metadata = await ctx.meta.getRequestMetadata();
+    const phone = normalizeRussianPhone(args.phone);
+    const ip = normalizeClientIp(metadata.ip);
+    const hashes = await requestHashes(phone, ip);
+    await ctx.runMutation(internal.smsAuth.storeDeliveryHint, {
+      ...hashes,
+      platform: args.platform,
+      now: Date.now(),
+    });
+    return true;
+  },
+});
+
+export const consumeDeliveryHint = internalMutation({
+  args: { phoneHash: v.string(), ipHash: v.string(), now: v.number() },
+  handler: async (ctx, args) => {
+    const hint = await ctx.db
+      .query('smsDeliveryHints')
+      .withIndex('by_phone_ip_time', (q) =>
+        q.eq('phoneHash', args.phoneHash).eq('ipHash', args.ipHash),
+      )
+      .order('desc')
+      .first();
+    if (!hint) return null;
+    await ctx.db.delete(hint._id);
+    return hint.expiresAt >= args.now ? hint.platform : null;
+  },
+});
+
 export async function sendPhoneVerification(
   ctx: any,
   phoneInput: string,
@@ -202,6 +263,10 @@ export async function sendPhoneVerification(
   const ip = normalizeClientIp(metadata.ip);
   const hashes = await requestHashes(phone, ip);
   const now = Date.now();
+  const platform = await ctx.runMutation(
+    internal.smsAuth.consumeDeliveryHint,
+    { ...hashes, now },
+  );
   const reservation = await ctx.runMutation(internal.smsAuth.reserve, {
     requestId: metadata.requestId,
     ...hashes,
@@ -224,6 +289,7 @@ export async function sendPhoneVerification(
       expires.getTime(),
       now + SMS_CODE_TTL_SECONDS * 1000,
     ),
+    platform,
   });
   const timestamp = String(now);
   const signature = await hmacSha256(
@@ -279,6 +345,21 @@ export const cleanupAttempts = internalMutation({
     for (const row of expired) await ctx.db.delete(row._id);
     if (expired.length === 100) {
       await ctx.scheduler.runAfter(0, internal.smsAuth.cleanupAttempts, {});
+    }
+    return expired.length;
+  },
+});
+
+export const cleanupDeliveryHints = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const expired = await ctx.db
+      .query('smsDeliveryHints')
+      .withIndex('by_expiry', (q) => q.lt('expiresAt', Date.now()))
+      .take(100);
+    for (const row of expired) await ctx.db.delete(row._id);
+    if (expired.length === 100) {
+      await ctx.scheduler.runAfter(0, internal.smsAuth.cleanupDeliveryHints, {});
     }
     return expired.length;
   },

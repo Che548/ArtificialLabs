@@ -124,6 +124,15 @@ export default defineSchema({
     .index('by_phone_time', ['phoneHash', 'attemptedAt'])
     .index('by_ip_time', ['ipHash', 'attemptedAt'])
     .index('by_expiry', ['expiresAt']),
+  smsDeliveryHints: defineTable({
+    phoneHash: v.string(),
+    ipHash: v.string(),
+    platform: v.union(v.literal('ios'), v.literal('android')),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_phone_ip_time', ['phoneHash', 'ipHash', 'createdAt'])
+    .index('by_expiry', ['expiresAt']),
   smsDailyAggregates: defineTable({
     day: v.string(),
     requested: v.number(),

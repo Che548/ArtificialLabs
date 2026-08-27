@@ -24,6 +24,10 @@ import { api } from '../convex/_generated/api';
 import { useConnectivity } from '../lib/connectivity';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import { classifyServiceIssue } from '../lib/service-errors';
+import {
+  listenForSmsOtp,
+  startSmsRetriever,
+} from '../lib/sms-otp-retriever';
 
 type AuthChannel = 'email' | 'phone';
 type AuthFlow = 'signIn' | 'signUp';
@@ -181,6 +185,7 @@ export function AuthScreen({
 }) {
   const { signIn } = useAuthActions();
   const getSmsStatus = useAction(api.smsAuth.status);
+  const prepareSmsDelivery = useAction(api.smsAuth.prepareDelivery);
   const { isOffline } = useConnectivity();
   const window = useWindowDimensions();
   const [flow, setFlow] = useState<AuthFlow>('signUp');
@@ -209,6 +214,15 @@ export function AuthScreen({
     const frame = requestAnimationFrame(() => phoneCodeInputRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [phoneStep, submitting]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const subscription = listenForSmsOtp((code) => {
+      setPhoneCode(code);
+      setPhoneStep('code');
+    });
+    return () => subscription?.remove();
+  }, []);
 
   const normalizedIdentifier = identifier.trim();
   const validIdentifier =
@@ -257,10 +271,14 @@ export function AuthScreen({
     data.append('phone', phone);
     setSubmitting(true);
     setError(undefined);
+    setPhoneCode('');
     try {
+      await startSmsRetriever();
+      if (Platform.OS === 'ios' || Platform.OS === 'android') {
+        await prepareSmsDelivery({ phone, platform: Platform.OS });
+      }
       await signIn('phone', data);
       setPhoneStep('code');
-      setPhoneCode('');
       const status = await getSmsStatus({ phone });
       setPhoneRemaining(status.remaining);
       setPhoneRetryAt(status.retryAt ?? Date.now() + 5 * 60 * 1000);

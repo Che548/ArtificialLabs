@@ -7,6 +7,45 @@ import schema from './schema';
 const modules = import.meta.glob('./**/*.ts');
 
 describe('SMS authentication storage', () => {
+  test('consumes a fresh platform hint once and rejects an expired hint', async () => {
+    const t = convexTest(schema, modules);
+    const now = 1_800_000_000_000;
+    await t.mutation(internal.smsAuth.storeDeliveryHint, {
+      phoneHash: 'phone-platform',
+      ipHash: 'ip-platform',
+      platform: 'ios',
+      now,
+    });
+    await expect(
+      t.mutation(internal.smsAuth.consumeDeliveryHint, {
+        phoneHash: 'phone-platform',
+        ipHash: 'ip-platform',
+        now: now + 1_000,
+      }),
+    ).resolves.toBe('ios');
+    await expect(
+      t.mutation(internal.smsAuth.consumeDeliveryHint, {
+        phoneHash: 'phone-platform',
+        ipHash: 'ip-platform',
+        now: now + 2_000,
+      }),
+    ).resolves.toBeNull();
+
+    await t.mutation(internal.smsAuth.storeDeliveryHint, {
+      phoneHash: 'phone-platform',
+      ipHash: 'ip-platform',
+      platform: 'android',
+      now,
+    });
+    await expect(
+      t.mutation(internal.smsAuth.consumeDeliveryHint, {
+        phoneHash: 'phone-platform',
+        ipHash: 'ip-platform',
+        now: now + 3 * 60_000,
+      }),
+    ).resolves.toBeNull();
+  });
+
   test('reserves quotas independently and charges failed gateway attempts', async () => {
     const t = convexTest(schema, modules);
     const now = 1_800_000_000_000;

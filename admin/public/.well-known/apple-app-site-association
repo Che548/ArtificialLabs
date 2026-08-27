@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["2675845GP5.com.anonymous.privateexpo"],
+        "components": [{ "/": "/*" }]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["2675845GP5.com.anonymous.privateexpo"]
+  }
+}

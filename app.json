@@ -10,7 +10,11 @@
     "backgroundColor": "#FDECE5",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.privateexpo"
+      "bundleIdentifier": "com.anonymous.privateexpo",
+      "associatedDomains": [
+        "webcredentials:artificiallabs.bebra42.ru",
+        "applinks:artificiallabs.bebra42.ru"
+      ]
     },
     "android": {
       "adaptiveIcon": {
