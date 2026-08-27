@@ -1,4 +1,5 @@
 import * as Crypto from 'expo-crypto';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 
@@ -18,6 +19,7 @@ import type {
 } from './telemetry-types';
 import { createEmptySnapshot } from './health-types';
 import { createChatTombstones } from './chat-deletion';
+import { sanitizeCloudRecord, utf8ByteLength } from './cloud-sync';
 import {
   isAllowedAgentTriggerMutation,
   isAllowedCarePlanMutation,
@@ -861,4 +863,79 @@ export async function clearPendingTelemetryEvents() {
   await withWriteTransaction(async (db) => {
     await db.runAsync('DELETE FROM telemetry_outbox');
   });
+}
+
+export type LocalStorageDiagnostics = {
+  databaseBytes: number;
+  walBytes: number;
+  shmBytes: number;
+  pageCount: number;
+  freelistCount: number;
+  recordCounts: Record<string, number>;
+  outboxCount: number;
+  nextBatchCount: number;
+  remainingBatches: number;
+  uploadEstimateBytes: number;
+  telemetryCount: number;
+  telemetryBytes: number;
+  telemetryMaxAttempts: number;
+  lastSuccessfulSyncAt?: number;
+};
+
+export async function loadLocalStorageDiagnostics(): Promise<LocalStorageDiagnostics> {
+  const db = await database();
+  const [page, freelist, outbox, telemetry, sync, recordRows] = await Promise.all([
+    db.getFirstAsync<{ page_count: number }>('PRAGMA page_count'),
+    db.getFirstAsync<{ freelist_count: number }>('PRAGMA freelist_count'),
+    db.getAllAsync<{ entity: HealthEntityName; payload: string }>(
+      'SELECT entity, payload FROM outbox ORDER BY id',
+    ),
+    db.getFirstAsync<{ count: number; bytes: number; maxAttempts: number }>(
+      'SELECT COUNT(*) count, COALESCE(SUM(length(CAST(payload AS BLOB))), 0) bytes, COALESCE(MAX(attempts), 0) maxAttempts FROM telemetry_outbox',
+    ),
+    db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM settings WHERE key = 'lastSuccessfulSyncAt.v1'",
+    ),
+    db.getAllAsync<{ entity: string; count: number }>(
+      'SELECT entity, COUNT(*) count FROM records GROUP BY entity',
+    ),
+  ]);
+  let uploadEstimateBytes = 0;
+  for (const row of outbox) {
+    const sanitized = sanitizeCloudRecord(
+      row.entity,
+      JSON.parse(row.payload) as Record<string, unknown>,
+    );
+    uploadEstimateBytes += utf8ByteLength(JSON.stringify(sanitized));
+  }
+  const fileSize = async (uri: string) => {
+    const result = await FileSystem.getInfoAsync(uri);
+    return result.exists && !result.isDirectory ? result.size ?? 0 : 0;
+  };
+  const databaseUri = `${FileSystem.documentDirectory}SQLite/${DATABASE_NAME}`;
+  return {
+    databaseBytes: await fileSize(databaseUri),
+    walBytes: await fileSize(`${databaseUri}-wal`),
+    shmBytes: await fileSize(`${databaseUri}-shm`),
+    pageCount: page?.page_count ?? 0,
+    freelistCount: freelist?.freelist_count ?? 0,
+    recordCounts: Object.fromEntries(
+      recordRows.map((row) => [row.entity, row.count]),
+    ),
+    outboxCount: outbox.length,
+    nextBatchCount: Math.min(outbox.length, 100),
+    remainingBatches: Math.ceil(outbox.length / 100),
+    uploadEstimateBytes,
+    telemetryCount: telemetry?.count ?? 0,
+    telemetryBytes: telemetry?.bytes ?? 0,
+    telemetryMaxAttempts: telemetry?.maxAttempts ?? 0,
+    lastSuccessfulSyncAt: sync ? Number(JSON.parse(sync.value)) : undefined,
+  };
+}
+
+export async function quickCheckLocalDatabase() {
+  const db = await database();
+  const rows = await db.getAllAsync<Record<string, string>>('PRAGMA quick_check');
+  const values = rows.flatMap((row) => Object.values(row));
+  return values.length === 1 && values[0] === 'ok' ? 'ok' : 'failed';
 }

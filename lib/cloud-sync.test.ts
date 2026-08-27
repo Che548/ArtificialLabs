@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   createSingleFlightRunner,
   synchronizeMedicalCloud,
+  utf8ByteLength,
   type CloudOutboxRow,
 } from './cloud-sync';
 import type { LocalProfile } from './health-types';
@@ -28,6 +29,12 @@ const row: CloudOutboxRow = {
     updatedAt: 100,
   },
 };
+
+test('counts upload estimates as UTF-8 bytes', () => {
+  assert.equal(utf8ByteLength('ASCII'), 5);
+  assert.equal(utf8ByteLength('сфера'), Buffer.byteLength('сфера', 'utf8'));
+  assert.equal(utf8ByteLength('🩷'), Buffer.byteLength('🩷', 'utf8'));
+});
 
 test('syncs profile before outbox and acknowledges only accepted rows', async () => {
   const calls: string[] = [];

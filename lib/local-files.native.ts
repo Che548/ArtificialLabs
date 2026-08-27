@@ -68,3 +68,31 @@ export async function clearLocalHealthFiles() {
     });
   }
 }
+
+async function folderDiagnostics(folder: string) {
+  if (!FileSystem.documentDirectory) return { count: 0, bytes: 0 };
+  const directory = `${FileSystem.documentDirectory}${folder}/`;
+  const directoryInfo = await FileSystem.getInfoAsync(directory);
+  if (!directoryInfo.exists || !directoryInfo.isDirectory)
+    return { count: 0, bytes: 0 };
+  const names = await FileSystem.readDirectoryAsync(directory);
+  let count = 0;
+  let bytes = 0;
+  for (const name of names) {
+    const info = await FileSystem.getInfoAsync(`${directory}${name}`);
+    if (info.exists && !info.isDirectory) {
+      count += 1;
+      bytes += info.size ?? 0;
+    }
+  }
+  return { count, bytes };
+}
+
+export async function loadLocalFileDiagnostics() {
+  const [scanImages, labDocuments, chatAttachments] = await Promise.all([
+    folderDiagnostics('scan-images'),
+    folderDiagnostics('lab-documents'),
+    folderDiagnostics('chat-attachments'),
+  ]);
+  return { scanImages, labDocuments, chatAttachments };
+}

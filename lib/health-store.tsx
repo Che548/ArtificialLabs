@@ -86,6 +86,7 @@ import { reconcileAgentBackgroundRegistration } from './agent-background';
 
 const backendApi = api;
 const CLOUD_SYNC_SETTING = 'cloudSyncPreference.v1';
+export const LAST_SUCCESSFUL_SYNC_SETTING = 'lastSuccessfulSyncAt.v1';
 const AGENT_DATA_CLEARED_AT_SETTING = 'agentDataClearedAt.v1';
 const DELETION_DEADLINE_SETTING = 'accountDeletionDeadline.v1';
 
@@ -430,6 +431,7 @@ export function HealthStoreProvider({
             acknowledge: acknowledgeOutbox,
           }),
         );
+        await saveLocalSetting(LAST_SUCCESSFUL_SYNC_SETTING, Date.now());
         retryAttempt.current = 0;
         setSyncStatus('idle');
         return true;

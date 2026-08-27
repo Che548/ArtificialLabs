@@ -1,0 +1,70 @@
+name: Expo OTA
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Operation
+        required: true
+        type: choice
+        options:
+          - publish-preview
+          - promote-production
+          - rollback-preview
+          - rollback-production
+      ios_update_id:
+        description: Verified preview iOS update ID (promotion only)
+        required: false
+        type: string
+      android_update_id:
+        description: Verified preview Android update ID (promotion only)
+        required: false
+        type: string
+      runtime_version:
+        description: Exact runtimeVersion (rollback only)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: artificiallabs-ota
+  cancel-in-progress: false
+
+jobs:
+  ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OTA_PUBLISH_SECRET: ${{ secrets.OTA_PUBLISH_SECRET }}
+      OTA_SERVER_URL: https://artificiallabs-updates.bebra42.ru
+      EXPO_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
+      EXPO_PUBLIC_CONVEX_SITE_URL: https://artificiallabs-convex-site.bebra42.ru
+    steps:
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Expo OTA operations are allowed only from main."
+          exit 1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Publish preview from main
+        if: inputs.operation == 'publish-preview'
+        run: node scripts/ota-release.mjs publish --channel=preview
+      - name: Promote verified preview releases
+        if: inputs.operation == 'promote-production'
+        env:
+          IOS_UPDATE_ID: ${{ inputs.ios_update_id }}
+          ANDROID_UPDATE_ID: ${{ inputs.android_update_id }}
+        run: node scripts/ota-release.mjs promote --ios="$IOS_UPDATE_ID" --android="$ANDROID_UPDATE_ID"
+      - name: Roll back channel
+        if: startsWith(inputs.operation, 'rollback-')
+        env:
+          ROLLBACK_CHANNEL: ${{ inputs.operation == 'rollback-preview' && 'preview' || 'production' }}
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+        run: node scripts/ota-release.mjs rollback --channel="$ROLLBACK_CHANNEL" --runtime="$RUNTIME_VERSION"

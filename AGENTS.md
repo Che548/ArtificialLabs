@@ -134,6 +134,39 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
 SQLCipher and camera changes require a native development/release build; Expo
 Go is not sufficient for verification after native plugin changes.
 
+## Expo OTA updates
+
+The app uses a self-hosted Expo Updates Protocol v1 service on `junk`:
+
+- Manifest and health: `https://artificiallabs-updates.bebra42.ru/api/manifest`
+  and `/health`.
+- The container listens only on `127.0.0.1:8094`; FRP tunnel
+  `artificiallabs_updates` is the only public ingress.
+- Releases are isolated by exact platform, fingerprint runtime version and
+  `preview`/`production` channel. The default client channel is `production`.
+
+`.github/workflows/ota.yml` is manual-only and must be selected on `main`.
+`publish-preview` always exports the current `main`; never publish new bundle
+bytes directly to production. Promote the verified iOS and Android update IDs
+to production without rebuilding. Rollback only changes the channel pointer.
+
+The committed certificate in `certs/ota-certificate.pem` is public. The matching
+RSA private key and `OTA_PUBLISH_SECRET` exist only in the `0600` deployment
+configuration on `junk` and in protected GitHub Actions secrets. Never copy
+them into the app, Git, logs, Docker build arguments or artifacts. Keep
+anti-bricking enabled.
+
+The profile footer always shows app/build, commit and update identifiers. Its
+triple-tap diagnostics menu is restricted to `__DEV__` or internal builds with
+`EXPO_PUBLIC_ENABLE_DEV_MENU=1`. Diagnostics must remain aggregate-only and
+local: never show or transmit medical values, payloads, paths, identity, keys,
+tokens or raw errors. `PRAGMA quick_check` is manual-only; do not automatically
+run repair, `VACUUM`, checkpoint or deletion.
+
+Adding `expo-updates` or changing the diagnostics native module requires a new
+native store/internal build. OTA cannot add or change native code for an
+already-installed runtime.
+
 # Web deployment
 
 GitHub Actions builds the static `admin/out` export into

@@ -271,3 +271,23 @@ export async function loadPendingTelemetryEvents(_limit = 50) {
 export async function acknowledgeTelemetryEvents(_eventIds: string[]) {}
 export async function markTelemetryAttempt(_eventIds: string[]) {}
 export async function clearPendingTelemetryEvents() {}
+export async function loadLocalStorageDiagnostics() {
+  return {
+    databaseBytes: 0,
+    walBytes: 0,
+    shmBytes: 0,
+    pageCount: 0,
+    freelistCount: 0,
+    recordCounts: {},
+    outboxCount: 0,
+    nextBatchCount: 0,
+    remainingBatches: 0,
+    uploadEstimateBytes: 0,
+    telemetryCount: 0,
+    telemetryBytes: 0,
+    telemetryMaxAttempts: 0,
+  };
+}
+export async function quickCheckLocalDatabase() {
+  return 'unavailable';
+}

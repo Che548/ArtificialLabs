@@ -102,6 +102,8 @@ import type {
 } from '../lib/health-types';
 import type { NotificationTone } from '../shared/notification-copy';
 import DesignSystemScreen from './design-system';
+import { DiagnosticsScreen } from '../components/DiagnosticsScreen';
+import { getAppVersionInfo } from '../lib/app-version';
 
 const e2eDocumentFixtureUri =
   __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
@@ -265,6 +267,8 @@ export default function ProfileScreen() {
   const [medicalRecommendations, setMedicalRecommendations] = useState(false);
   const [agentNotifications, setAgentNotifications] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string>();
+  const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
+  const footerTaps = useRef<number[]>([]);
   const [reducePageMotion, setReducePageMotion] = useState(false);
   const sectionProgress = useRef(new Animated.Value(0)).current;
   const signOutInFlight = useRef(false);
@@ -361,6 +365,17 @@ export default function ProfileScreen() {
       setSyncMessage('Данные синхронизированы');
     } else {
       setSyncMessage('Не удалось синхронизировать данные');
+    }
+  };
+
+  const handleVersionPress = () => {
+    if (!__DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_MENU !== '1') return;
+    const now = Date.now();
+    const recent = [...footerTaps.current.filter((time) => now - time <= 2000), now];
+    footerTaps.current = recent;
+    if (recent.length >= 3) {
+      footerTaps.current = [];
+      setDiagnosticsVisible(true);
     }
   };
 
@@ -573,6 +588,7 @@ export default function ProfileScreen() {
             programCount={visiblePrograms.length}
             onOpen={openSection}
           />
+          <ProfileVersionFooter onPress={handleVersionPress} />
         </ScrollView>
       </Animated.View>
 
@@ -726,7 +742,28 @@ export default function ProfileScreen() {
       >
         <ScanConceptsLab onClose={closeSection} />
       </Modal>
+
+      <DiagnosticsScreen
+        visible={diagnosticsVisible}
+        onClose={() => setDiagnosticsVisible(false)}
+      />
     </View>
+  );
+}
+
+function ProfileVersionFooter({ onPress }: { onPress: () => void }) {
+  const version = getAppVersionInfo();
+  return (
+    <Pressable
+      accessibilityHint="Сведения о версии приложения"
+      accessibilityRole="button"
+      onPress={onPress}
+      style={styles.versionFooter}
+    >
+      <AppText role="caption" color={colors.text.secondary}>
+        {`v${version.appVersion} (${version.buildNumber}) · ${version.gitCommit} · ${version.updateId}`}
+      </AppText>
+    </Pressable>
   );
 }
 
@@ -2974,6 +3011,12 @@ const styles = StyleSheet.create({
   },
   overview: {
     gap: spacing.lg,
+  },
+  versionFooter: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    opacity: 0.72,
   },
   detailHeader: {
     position: 'absolute',

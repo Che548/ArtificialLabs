@@ -30,6 +30,7 @@ import { HealthStoreProvider } from '../lib/health-store';
 import { NotificationManagerProvider } from '../lib/notification-manager';
 import { TelemetryManager } from '../lib/telemetry-manager';
 import { authTokenStorage } from '../lib/secure-storage';
+import { UpdateManagerProvider } from '../lib/update-manager';
 import {
   androidMaterials,
   androidTabBarBaseStyle,
@@ -598,9 +599,11 @@ export default function TabLayout() {
       shouldHandleCode={false}
     >
       <ConnectivityProvider>
-        <StatusBar style="dark" hidden={false} />
-        {webDemo ? <WebDemo /> : <NativeApp />}
-        <ConnectivityBanner />
+        <UpdateManagerProvider>
+          <StatusBar style="dark" hidden={false} />
+          {webDemo ? <WebDemo /> : <NativeApp />}
+          <ConnectivityBanner />
+        </UpdateManagerProvider>
       </ConnectivityProvider>
     </ConvexAuthProvider>
   );

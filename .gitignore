@@ -35,6 +35,7 @@ yarn-error.*
 output/e2e/
 output/pdf/
 output/playwright/
+output/builds/
 .maestro/runtime/
 .playwright-cli/
 /tmp/
@@ -53,12 +54,15 @@ __pycache__/
 # macOS
 .DS_Store
 *.pem
+!certs/ota-certificate.pem
 
 # local env files
 .env
 .env*.local
 infra/convex/.env
 infra/web/.env
+infra/updates/.env
+infra/updates/secrets/
 
 # typescript
 *.tsbuildinfo
