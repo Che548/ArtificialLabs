@@ -104,6 +104,7 @@ import type { NotificationTone } from '../shared/notification-copy';
 import DesignSystemScreen from './design-system';
 import { DiagnosticsScreen } from '../components/DiagnosticsScreen';
 import { getAppVersionInfo } from '../lib/app-version';
+import { useUpdateManager } from '../lib/update-manager';
 
 const e2eDocumentFixtureUri =
   __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
@@ -214,6 +215,7 @@ export default function ProfileScreen() {
   const clearRemoteAgentData = useMutation(api.agent.clearMyData);
   const setAnalyticsConsent = useMutation(api.telemetry.setConsent);
   const notificationManager = useNotificationManager();
+  const updateManager = useUpdateManager();
   const {
     accountDeletion,
     allergyRisks,
@@ -588,7 +590,11 @@ export default function ProfileScreen() {
             programCount={visiblePrograms.length}
             onOpen={openSection}
           />
-          <ProfileVersionFooter onPress={handleVersionPress} />
+          <ProfileVersionFooter
+            onPress={handleVersionPress}
+            updateCreatedAt={updateManager.currentUpdateCreatedAt}
+            updateId={updateManager.currentUpdateId}
+          />
         </ScrollView>
       </Animated.View>
 
@@ -751,8 +757,16 @@ export default function ProfileScreen() {
   );
 }
 
-function ProfileVersionFooter({ onPress }: { onPress: () => void }) {
-  const version = getAppVersionInfo();
+function ProfileVersionFooter({
+  onPress,
+  updateCreatedAt,
+  updateId,
+}: {
+  onPress: () => void;
+  updateCreatedAt?: number;
+  updateId?: string;
+}) {
+  const version = getAppVersionInfo({ updateCreatedAt, updateId });
   return (
     <Pressable
       accessibilityHint="Сведения о версии приложения"

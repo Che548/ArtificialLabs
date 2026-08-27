@@ -33,6 +33,8 @@ export type UpdateState =
 type UpdateManagerValue = {
   channel: UpdateChannel;
   state: UpdateState;
+  currentUpdateId?: string;
+  currentUpdateCreatedAt?: number;
   safeErrorCode?: string;
   isRestartBlocked: boolean;
   checkNow: () => Promise<boolean>;
@@ -41,6 +43,8 @@ type UpdateManagerValue = {
 };
 
 const CHANNEL_SETTING = 'artificiallabs.ota-channel.v1';
+const APPLIED_UPDATE_SETTING = 'artificiallabs.ota-applied.v1';
+const PENDING_UPDATE_SETTING = 'artificiallabs.ota-pending.v1';
 const UpdateManagerContext = createContext<UpdateManagerValue | undefined>(
   undefined,
 );
@@ -54,6 +58,42 @@ function safeUpdateError(error: unknown) {
     return 'UPDATES_OFFLINE';
   if (message.includes('runtime')) return 'UPDATES_INCOMPATIBLE';
   return 'UPDATES_FAILED';
+}
+
+type StoredUpdateMetadata = {
+  id: string;
+  runtimeVersion: string;
+  createdAt?: number;
+};
+
+function updateMetadata(manifest: unknown): StoredUpdateMetadata | undefined {
+  if (!manifest || typeof manifest !== 'object') return undefined;
+  const value = manifest as Record<string, unknown>;
+  if (typeof value.id !== 'string' || !Updates.runtimeVersion) return undefined;
+  const createdAt =
+    typeof value.createdAt === 'string' ? Date.parse(value.createdAt) : NaN;
+  return {
+    id: value.id,
+    runtimeVersion: Updates.runtimeVersion,
+    ...(Number.isFinite(createdAt) ? { createdAt } : {}),
+  };
+}
+
+function parseStoredUpdate(value: string | null) {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as Partial<StoredUpdateMetadata>;
+    if (
+      typeof parsed.id === 'string' &&
+      typeof parsed.runtimeVersion === 'string' &&
+      parsed.runtimeVersion === Updates.runtimeVersion
+    ) {
+      return parsed as StoredUpdateMetadata;
+    }
+  } catch {
+    // Corrupt diagnostics metadata must not affect update startup.
+  }
+  return undefined;
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs = 10_000) {
@@ -77,6 +117,7 @@ export function UpdateManagerProvider({ children }: PropsWithChildren) {
     Platform.OS === 'web' || !Updates.isEnabled ? 'disabled' : 'current',
   );
   const [safeErrorCode, setSafeErrorCode] = useState<string>();
+  const [currentUpdate, setCurrentUpdate] = useState<StoredUpdateMetadata>();
   const checking = useRef<Promise<boolean> | undefined>(undefined);
   const isRestartBlocked = pathname === '/scan' || pathname.startsWith('/scan/');
 
@@ -105,6 +146,18 @@ export function UpdateManagerProvider({ children }: PropsWithChildren) {
         setState('downloading');
         const fetched = await withTimeout(Updates.fetchUpdateAsync(), 60_000);
         const ready = 'isNew' in fetched ? fetched.isNew : true;
+        const metadata =
+          'manifest' in fetched ? updateMetadata(fetched.manifest) : undefined;
+        if (ready && metadata) {
+          try {
+            await SecureStore.setItemAsync(
+              PENDING_UPDATE_SETTING,
+              JSON.stringify(metadata),
+            );
+          } catch {
+            setSafeErrorCode('UPDATES_METADATA_NOT_SAVED');
+          }
+        }
         setState(ready ? 'ready' : 'current');
         return ready;
       } catch (error) {
@@ -134,6 +187,14 @@ export function UpdateManagerProvider({ children }: PropsWithChildren) {
 
   const restart = useCallback(async () => {
     if (state !== 'ready' || isRestartBlocked) return false;
+    try {
+      const pending = await SecureStore.getItemAsync(PENDING_UPDATE_SETTING);
+      if (pending) {
+        await SecureStore.setItemAsync(APPLIED_UPDATE_SETTING, pending);
+      }
+    } catch {
+      setSafeErrorCode('UPDATES_METADATA_NOT_SAVED');
+    }
     await Updates.reloadAsync();
     return true;
   }, [isRestartBlocked, state]);
@@ -149,6 +210,16 @@ export function UpdateManagerProvider({ children }: PropsWithChildren) {
       }
       const next = stored === 'preview' ? 'preview' : 'production';
       applyChannel(next);
+      if (!Updates.isEmbeddedLaunch) {
+        try {
+          const applied = parseStoredUpdate(
+            await SecureStore.getItemAsync(APPLIED_UPDATE_SETTING),
+          );
+          setCurrentUpdate(applied);
+        } catch {
+          setSafeErrorCode('UPDATES_METADATA_NOT_LOADED');
+        }
+      }
       void checkNow();
     })();
   }, [applyChannel, checkNow]);
@@ -165,13 +236,25 @@ export function UpdateManagerProvider({ children }: PropsWithChildren) {
     () => ({
       channel,
       state,
+      currentUpdateId: currentUpdate?.id,
+      currentUpdateCreatedAt: currentUpdate?.createdAt,
       safeErrorCode,
       isRestartBlocked,
       checkNow,
       restart,
       setChannel,
     }),
-    [channel, checkNow, isRestartBlocked, restart, safeErrorCode, setChannel, state],
+    [
+      channel,
+      checkNow,
+      currentUpdate?.createdAt,
+      currentUpdate?.id,
+      isRestartBlocked,
+      restart,
+      safeErrorCode,
+      setChannel,
+      state,
+    ],
   );
 
   return (

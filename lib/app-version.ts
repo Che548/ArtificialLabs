@@ -38,7 +38,9 @@ function manifestCreatedAt() {
   return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
-export function getAppVersionInfo() {
+export function getAppVersionInfo(
+  persisted?: { updateId?: string; updateCreatedAt?: number },
+) {
   const gitCommit = manifestCommit() ?? process.env.EXPO_PUBLIC_GIT_COMMIT;
   return {
     appVersion:
@@ -48,8 +50,14 @@ export function getAppVersionInfo() {
     runtimeVersion: Updates.runtimeVersion ?? 'development',
     updateId: Updates.isEmbeddedLaunch
       ? 'embedded'
-      : short(Updates.updateId ?? manifestUpdateId(), 'unknown'),
+      : short(
+          Updates.updateId ?? manifestUpdateId() ?? persisted?.updateId,
+          'unknown',
+        ),
     isEmbedded: Updates.isEmbeddedLaunch,
-    updateCreatedAt: Updates.createdAt?.getTime() ?? manifestCreatedAt(),
+    updateCreatedAt:
+      Updates.createdAt?.getTime() ??
+      manifestCreatedAt() ??
+      persisted?.updateCreatedAt,
   };
 }

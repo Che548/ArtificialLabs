@@ -82,7 +82,10 @@ export function DiagnosticsScreen({ visible, onClose }: { visible: boolean; onCl
   >(undefined);
   const loopExpectedAt = useRef(Date.now());
   const eventLoopDelayMs = useRef(0);
-  const version = getAppVersionInfo();
+  const version = getAppVersionInfo({
+    updateCreatedAt: updates.currentUpdateCreatedAt,
+    updateId: updates.currentUpdateId,
+  });
 
   const refresh = useCallback(async () => {
     if (!visible || Platform.OS === 'web' || refreshInFlight.current) return;
