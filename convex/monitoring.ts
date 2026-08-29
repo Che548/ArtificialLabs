@@ -4,6 +4,7 @@ import { internal } from './_generated/api';
 import { internalAction } from './_generated/server';
 import { v } from 'convex/values';
 import { hmacSha256 } from './lib/sms';
+import { retrieveResendUsage } from './lib/resendUsage';
 
 const CHECK_TIMEOUT_MS = 5_000;
 const BALANCE_TIMEOUT_MS = 35_000;
@@ -43,9 +44,9 @@ export const checkServices = internalAction({
         status = response.ok ? 'healthy' : 'degraded';
         if (!response.ok) errorCode = `HTTP_${response.status}`;
         if (target.service === 'sms-gateway') {
-          const payload = (await response.json().catch(() => null)) as
-            | { capacity?: { used?: number; total?: number } }
-            | null;
+          const payload = (await response.json().catch(() => null)) as {
+            capacity?: { used?: number; total?: number };
+          } | null;
           capacityUsed = payload?.capacity?.used;
           capacityTotal = payload?.capacity?.total;
         }
@@ -97,14 +98,12 @@ export const refreshSmsTariffBalance = internalAction({
           body,
           signal: AbortSignal.timeout(BALANCE_TIMEOUT_MS),
         });
-        const payload = (await response.json().catch(() => null)) as
-          | {
-              ok?: boolean;
-              remainingSms?: number;
-              code?: string;
-              nextAllowedAt?: number;
-            }
-          | null;
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          remainingSms?: number;
+          code?: string;
+          nextAllowedAt?: number;
+        } | null;
         if (
           response.ok &&
           payload?.ok === true &&
@@ -139,5 +138,43 @@ export const refreshSmsTariffBalance = internalAction({
       errorCode,
       nextAllowedAt,
     });
+  },
+});
+
+export const refreshResendUsage = internalAction({
+  args: {
+    requestId: v.string(),
+    actorUserId: v.optional(v.id('users')),
+  },
+  handler: async (ctx, args) => {
+    const result = await retrieveResendUsage(process.env.RESEND_API_KEY);
+    await ctx.runMutation(internal.monitoringData.finishResendUsageRefresh, {
+      requestId: args.requestId,
+      actorUserId: args.actorUserId,
+      snapshot: result.snapshot,
+      errorCode: result.errorCode,
+      now: Date.now(),
+    });
+  },
+});
+
+export const refreshResendUsageScheduled = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const requestId = `resend-cron-${now}`;
+    const accepted = await ctx.runMutation(
+      internal.monitoringData.beginScheduledResendUsageRefresh,
+      { requestId, now },
+    );
+    if (!accepted) return { refreshed: false };
+    const result = await retrieveResendUsage(process.env.RESEND_API_KEY);
+    await ctx.runMutation(internal.monitoringData.finishResendUsageRefresh, {
+      requestId,
+      snapshot: result.snapshot,
+      errorCode: result.errorCode,
+      now: Date.now(),
+    });
+    return { refreshed: result.snapshot !== undefined };
   },
 });

@@ -5,6 +5,10 @@ import { internalMutation, mutation, query } from './_generated/server';
 import { requireAdmin, writeAdminAudit } from './lib/adminAccess';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const RESEND_REFRESH_COOLDOWN_MS = 60 * 1000;
+const RESEND_USAGE_KEY = 'primary' as const;
+const DEFAULT_RESEND_DAILY_LIMIT = 100;
+const DEFAULT_RESEND_MONTHLY_LIMIT = 3_000;
 const TARIFF_BALANCE_KEY = 't2-primary' as const;
 const SAFE_BALANCE_ERRORS = new Set([
   'SMS_BALANCE_COOLDOWN',
@@ -13,7 +17,13 @@ const SAFE_BALANCE_ERRORS = new Set([
   'SMS_BALANCE_UNPARSEABLE',
   'SMS_BALANCE_NOT_INCLUDED',
 ]);
-const utcDay = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
+const utcDay = (timestamp: number) =>
+  new Date(timestamp).toISOString().slice(0, 10);
+
+const quotaPercent = (used: number | undefined, limit: number | undefined) =>
+  used === undefined || limit === undefined || limit <= 0
+    ? null
+    : Math.min(100, Math.round((used / limit) * 100));
 
 export const recordServiceCheck = internalMutation({
   args: {
@@ -111,9 +121,242 @@ export const smsOverview = query({
         requested,
         sent,
         failed: aggregate?.failed ?? 0,
-        successPercent: requested > 0 ? Math.round((sent / requested) * 100) : null,
+        successPercent:
+          requested > 0 ? Math.round((sent / requested) * 100) : null,
       },
     };
+  },
+});
+
+export const emailOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const usage = await ctx.db
+      .query('resendUsage')
+      .withIndex('by_key', (q) => q.eq('key', RESEND_USAGE_KEY))
+      .unique();
+    const dailyLimit = usage?.dailyLimit ?? DEFAULT_RESEND_DAILY_LIMIT;
+    const monthlyLimit = usage?.monthlyLimit ?? DEFAULT_RESEND_MONTHLY_LIMIT;
+    return {
+      status: usage?.status ?? ('idle' as const),
+      source: usage?.source,
+      daily: {
+        used: usage?.dailyUsed,
+        limit: dailyLimit,
+        remaining:
+          usage?.dailyUsed === undefined
+            ? undefined
+            : Math.max(0, dailyLimit - usage.dailyUsed),
+        sent: usage?.dailySent,
+        received: usage?.dailyReceived,
+        resetsAt: usage?.dailyResetsAt,
+        percent: quotaPercent(usage?.dailyUsed, dailyLimit),
+      },
+      monthly: {
+        used: usage?.monthlyUsed,
+        limit: monthlyLimit,
+        remaining:
+          usage?.monthlyUsed === undefined
+            ? undefined
+            : Math.max(0, monthlyLimit - usage.monthlyUsed),
+        sent: usage?.monthlySent,
+        received: usage?.monthlyReceived,
+        resetsAt: usage?.monthlyResetsAt,
+        percent: quotaPercent(usage?.monthlyUsed, monthlyLimit),
+      },
+      lastAttemptAt: usage?.lastAttemptAt,
+      lastSuccessAt: usage?.lastSuccessAt,
+      nextAllowedAt: usage?.nextAllowedAt,
+      errorCode: usage?.errorCode,
+    };
+  },
+});
+
+export const requestResendUsageRefresh = mutation({
+  args: { requestId: v.string() },
+  handler: async (ctx, args) => {
+    const { userId } = await requireAdmin(ctx);
+    if (!/^[A-Za-z0-9:_-]{8,120}$/.test(args.requestId)) {
+      throw new Error('INVALID_REQUEST_ID');
+    }
+    const now = Date.now();
+    const current = await ctx.db
+      .query('resendUsage')
+      .withIndex('by_key', (q) => q.eq('key', RESEND_USAGE_KEY))
+      .unique();
+    if (current?.nextAllowedAt && current.nextAllowedAt > now) {
+      return {
+        accepted: false as const,
+        status: current.status,
+        nextAllowedAt: current.nextAllowedAt,
+      };
+    }
+    const patch = {
+      status: 'checking' as const,
+      lastAttemptAt: now,
+      nextAllowedAt: now + RESEND_REFRESH_COOLDOWN_MS,
+      lastRequestId: args.requestId,
+      errorCode: undefined,
+      updatedAt: now,
+    };
+    if (current) await ctx.db.patch(current._id, patch);
+    else {
+      await ctx.db.insert('resendUsage', {
+        key: RESEND_USAGE_KEY,
+        ...patch,
+      });
+    }
+    await writeAdminAudit(ctx, {
+      actorUserId: userId,
+      action: 'resend.usage.request',
+      entityType: 'resend_usage',
+      entityId: RESEND_USAGE_KEY,
+      summary: 'Запрошено ручное обновление квот Resend',
+      requestId: args.requestId,
+      occurredAt: now,
+    });
+    await ctx.scheduler.runAfter(0, internal.monitoring.refreshResendUsage, {
+      requestId: args.requestId,
+      actorUserId: userId,
+    });
+    return {
+      accepted: true as const,
+      status: 'checking' as const,
+      nextAllowedAt: now + RESEND_REFRESH_COOLDOWN_MS,
+    };
+  },
+});
+
+export const beginScheduledResendUsageRefresh = internalMutation({
+  args: { requestId: v.string(), now: v.number() },
+  handler: async (ctx, args) => {
+    const current = await ctx.db
+      .query('resendUsage')
+      .withIndex('by_key', (q) => q.eq('key', RESEND_USAGE_KEY))
+      .unique();
+    if (current?.nextAllowedAt && current.nextAllowedAt > args.now)
+      return false;
+    const patch = {
+      status: 'checking' as const,
+      lastAttemptAt: args.now,
+      nextAllowedAt: args.now + RESEND_REFRESH_COOLDOWN_MS,
+      lastRequestId: args.requestId,
+      errorCode: undefined,
+      updatedAt: args.now,
+    };
+    if (current) await ctx.db.patch(current._id, patch);
+    else {
+      await ctx.db.insert('resendUsage', {
+        key: RESEND_USAGE_KEY,
+        ...patch,
+      });
+    }
+    return true;
+  },
+});
+
+const quotaSnapshotArgs = {
+  dailyUsed: v.number(),
+  dailyLimit: v.number(),
+  dailySent: v.optional(v.number()),
+  dailyReceived: v.optional(v.number()),
+  dailyResetsAt: v.optional(v.number()),
+  monthlyUsed: v.number(),
+  monthlyLimit: v.number(),
+  monthlySent: v.optional(v.number()),
+  monthlyReceived: v.optional(v.number()),
+  monthlyResetsAt: v.optional(v.number()),
+};
+
+export const finishResendUsageRefresh = internalMutation({
+  args: {
+    requestId: v.string(),
+    actorUserId: v.optional(v.id('users')),
+    snapshot: v.optional(v.object(quotaSnapshotArgs)),
+    errorCode: v.optional(v.string()),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const current = await ctx.db
+      .query('resendUsage')
+      .withIndex('by_key', (q) => q.eq('key', RESEND_USAGE_KEY))
+      .unique();
+    if (!current || current.lastRequestId !== args.requestId) return false;
+    const success = args.snapshot !== undefined;
+    const errorCode = success
+      ? undefined
+      : (args.errorCode ?? 'RESEND_USAGE_UNAVAILABLE').slice(0, 80);
+    await ctx.db.patch(current._id, {
+      status: success ? 'ready' : 'error',
+      source: success ? 'usage_api' : current.source,
+      ...(args.snapshot ?? {}),
+      lastSuccessAt: success ? args.now : current.lastSuccessAt,
+      errorCode,
+      updatedAt: args.now,
+    });
+    if (args.actorUserId) {
+      await writeAdminAudit(ctx, {
+        actorUserId: args.actorUserId,
+        action: success ? 'resend.usage.updated' : 'resend.usage.failed',
+        entityType: 'resend_usage',
+        entityId: RESEND_USAGE_KEY,
+        summary: success
+          ? 'Квоты Resend обновлены'
+          : `Обновление квот Resend завершилось ошибкой ${errorCode}`,
+        requestId: args.requestId,
+        occurredAt: args.now,
+      });
+    }
+    return true;
+  },
+});
+
+export const recordResendQuotaHeaders = internalMutation({
+  args: {
+    dailyUsed: v.optional(v.number()),
+    dailyLimit: v.optional(v.number()),
+    monthlyUsed: v.optional(v.number()),
+    monthlyLimit: v.optional(v.number()),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    if (args.dailyUsed === undefined && args.monthlyUsed === undefined) {
+      return false;
+    }
+    const current = await ctx.db
+      .query('resendUsage')
+      .withIndex('by_key', (q) => q.eq('key', RESEND_USAGE_KEY))
+      .unique();
+    const patch = {
+      status: 'ready' as const,
+      source: 'response_headers' as const,
+      dailyUsed: args.dailyUsed ?? current?.dailyUsed,
+      dailyLimit:
+        args.dailyLimit ?? current?.dailyLimit ?? DEFAULT_RESEND_DAILY_LIMIT,
+      dailySent: undefined,
+      dailyReceived: undefined,
+      dailyResetsAt: undefined,
+      monthlyUsed: args.monthlyUsed ?? current?.monthlyUsed,
+      monthlyLimit:
+        args.monthlyLimit ??
+        current?.monthlyLimit ??
+        DEFAULT_RESEND_MONTHLY_LIMIT,
+      monthlySent: undefined,
+      monthlyReceived: undefined,
+      monthlyResetsAt: undefined,
+      lastSuccessAt: args.now,
+      errorCode: undefined,
+      updatedAt: args.now,
+    };
+    if (current) await ctx.db.patch(current._id, patch);
+    else {
+      await ctx.db.insert('resendUsage', {
+        key: RESEND_USAGE_KEY,
+        ...patch,
+      });
+    }
+    return true;
   },
 });
 

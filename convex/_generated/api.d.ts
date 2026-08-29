@@ -29,6 +29,7 @@ import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as lib_access from "../lib/access.js";
 import type * as lib_adminAccess from "../lib/adminAccess.js";
+import type * as lib_resendUsage from "../lib/resendUsage.js";
 import type * as lib_sms from "../lib/sms.js";
 import type * as monitoring from "../monitoring.js";
 import type * as monitoringData from "../monitoringData.js";
@@ -69,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/access": typeof lib_access;
   "lib/adminAccess": typeof lib_adminAccess;
+  "lib/resendUsage": typeof lib_resendUsage;
   "lib/sms": typeof lib_sms;
   monitoring: typeof monitoring;
   monitoringData: typeof monitoringData;

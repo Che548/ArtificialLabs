@@ -14,6 +14,7 @@ import {
   normalizeClientIp,
   normalizeRussianPhone,
 } from './lib/sms';
+import { parseResendQuotaHeader } from './lib/resendUsage';
 import { sendSmsCode } from './smsAuth';
 
 const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
@@ -228,7 +229,21 @@ async function sendRecoveryEmail(
     }),
     signal: AbortSignal.timeout(12_000),
   });
-  if (!response.ok) throw new ConvexError('RECOVERY_UNAVAILABLE');
+  const daily = parseResendQuotaHeader(
+    response.headers.get('x-resend-daily-quota'),
+  );
+  const monthly = parseResendQuotaHeader(
+    response.headers.get('x-resend-monthly-quota'),
+  );
+  return {
+    ok: response.ok,
+    quota: {
+      dailyUsed: daily.used,
+      dailyLimit: daily.limit,
+      monthlyUsed: monthly.used,
+      monthlyLimit: monthly.limit,
+    },
+  };
 }
 
 export const request = action({
@@ -286,7 +301,16 @@ export const request = action({
     if (target) {
       try {
         if (channel === 'email') {
-          await sendRecoveryEmail(identifier, code, metadata.requestId);
+          const delivery = await sendRecoveryEmail(
+            identifier,
+            code,
+            metadata.requestId,
+          );
+          await ctx.runMutation(
+            internal.monitoringData.recordResendQuotaHeaders,
+            { ...delivery.quota, now: Date.now() },
+          );
+          if (!delivery.ok) throw new ConvexError('RECOVERY_UNAVAILABLE');
         } else {
           await sendSmsCode(ctx, identifier, code, new Date(expiresAt), {
             platform: args.platform,

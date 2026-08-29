@@ -944,6 +944,7 @@ function Monitoring() {
         </div>
       </section>
       <SmsTariffBalance />
+      <ResendUsage />
       <section className="panel">
         <h2>Последние проверки</h2>
         <Table
@@ -972,6 +973,164 @@ function Monitoring() {
         />
       </section>
     </>
+  );
+}
+
+const resendUsageErrors: Record<string, string> = {
+  RESEND_NOT_CONFIGURED: 'Resend не настроен на backend',
+  RESEND_USAGE_FORBIDDEN: 'Usage API недоступен для текущего API key',
+  RESEND_RATE_LIMITED: 'Resend временно ограничил запросы',
+  RESEND_USAGE_TIMEOUT: 'Resend не ответил за отведённое время',
+  RESEND_USAGE_INVALID_RESPONSE: 'Resend вернул неподдерживаемый формат',
+  RESEND_USAGE_UNAVAILABLE: 'Resend Usage API сейчас недоступен',
+};
+
+function ResendQuota({
+  title,
+  quota,
+}: {
+  title: string;
+  quota:
+    | {
+        used?: number;
+        limit: number;
+        remaining?: number;
+        sent?: number;
+        received?: number;
+        resetsAt?: number;
+        percent: number | null;
+      }
+    | undefined;
+}) {
+  const used = quota?.used;
+  const limit = quota?.limit ?? 0;
+  return (
+    <div className="resend-quota">
+      <div className="resend-quota-title">
+        <span>{title}</span>
+        <strong>
+          {used === undefined ? '—' : used.toLocaleString('ru-RU')} /{' '}
+          {limit.toLocaleString('ru-RU')}
+        </strong>
+      </div>
+      <div
+        className="resend-progress"
+        role="progressbar"
+        aria-label={title}
+        aria-valuenow={quota?.percent ?? 0}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <span style={{ width: `${quota?.percent ?? 0}%` }} />
+      </div>
+      <div className="resend-quota-details">
+        <span>
+          Осталось:{' '}
+          {quota?.remaining === undefined
+            ? '—'
+            : quota.remaining.toLocaleString('ru-RU')}
+        </span>
+        <span>Отправлено: {quota?.sent?.toLocaleString('ru-RU') ?? '—'}</span>
+        <span>Получено: {quota?.received?.toLocaleString('ru-RU') ?? '—'}</span>
+        <span>
+          Сброс:{' '}
+          {quota?.resetsAt
+            ? new Date(quota.resetsAt).toLocaleString('ru-RU')
+            : '—'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ResendUsage() {
+  const overview = useQuery(api.monitoringData.emailOverview, {});
+  const refresh = useMutation(api.monitoringData.requestResendUsageRefresh);
+  const [now, setNow] = useState(Date.now());
+  const [message, setMessage] = useState<string>();
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const checking = overview?.status === 'checking';
+  const nextAllowedAt = overview?.nextAllowedAt;
+  const coolingDown = Boolean(nextAllowedAt && nextAllowedAt > now);
+  const requestRefresh = async () => {
+    setMessage(undefined);
+    if (coolingDown && nextAllowedAt) {
+      setMessage(
+        `Повторное обновление доступно ${new Date(nextAllowedAt).toLocaleString('ru-RU')}.`,
+      );
+      return;
+    }
+    try {
+      const result = await refresh({ requestId: requestId() });
+      setMessage(
+        result.accepted
+          ? 'Запрос отправлен. Значения обновятся автоматически.'
+          : `Повторное обновление доступно ${new Date(result.nextAllowedAt).toLocaleString('ru-RU')}.`,
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : 'Не удалось обновить квоты',
+      );
+    }
+  };
+  const status =
+    overview === undefined || overview.status === 'idle'
+      ? 'Квоты ещё не запрашивались'
+      : overview.status === 'checking'
+        ? 'Получаем данные Resend…'
+        : overview.status === 'error'
+          ? (resendUsageErrors[overview.errorCode ?? ''] ??
+            'Не удалось обновить квоты')
+          : 'Данные получены';
+  const source =
+    overview?.source === 'usage_api'
+      ? 'Resend Usage API'
+      : overview?.source === 'response_headers'
+        ? 'quota headers последнего письма'
+        : '—';
+  return (
+    <section className="panel resend-usage-panel">
+      <div className="sms-balance-head">
+        <div>
+          <h2>Квоты Resend</h2>
+          <p className="muted">{status}</p>
+        </div>
+        <button
+          className="primary"
+          disabled={overview === undefined || checking}
+          onClick={() => void requestRefresh()}
+        >
+          {checking ? 'Обновляем…' : 'Обновить квоты'}
+        </button>
+      </div>
+      <div className="resend-quota-grid">
+        <ResendQuota title="За 24 часа" quota={overview?.daily} />
+        <ResendQuota title="За месяц" quota={overview?.monthly} />
+      </div>
+      <div className="sms-balance-meta">
+        <span>Источник: {source}</span>
+        <span>
+          Последнее успешное обновление:{' '}
+          {overview?.lastSuccessAt
+            ? new Date(overview.lastSuccessAt).toLocaleString('ru-RU')
+            : 'никогда'}
+        </span>
+      </div>
+      <p className="sms-explanation">
+        Это квоты команды Resend, включая отправленные и входящие письма. Они не
+        являются пользовательским лимитом восстановления пароля. При
+        недоступности beta Usage API сохраняется последний успешный снимок или
+        используются quota headers реальной отправки.
+      </p>
+      {message && (
+        <p className="muted sms-message" role="status" aria-live="polite">
+          {message}
+        </p>
+      )}
+    </section>
   );
 }
 
