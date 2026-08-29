@@ -5,7 +5,6 @@ import { internalMutation, mutation, query } from './_generated/server';
 import { requireAdmin, writeAdminAudit } from './lib/adminAccess';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const RESEND_REFRESH_COOLDOWN_MS = 60 * 1000;
 const RESEND_USAGE_KEY = 'primary' as const;
 const DEFAULT_RESEND_DAILY_LIMIT = 100;
 const DEFAULT_RESEND_MONTHLY_LIMIT = 3_000;
@@ -138,9 +137,11 @@ export const emailOverview = query({
       .unique();
     const dailyLimit = usage?.dailyLimit ?? DEFAULT_RESEND_DAILY_LIMIT;
     const monthlyLimit = usage?.monthlyLimit ?? DEFAULT_RESEND_MONTHLY_LIMIT;
+    const hasUsage =
+      usage?.dailyUsed !== undefined || usage?.monthlyUsed !== undefined;
     return {
-      status: usage?.status ?? ('idle' as const),
-      source: usage?.source,
+      status: hasUsage ? ('ready' as const) : ('idle' as const),
+      source: usage?.source === 'response_headers' ? usage.source : undefined,
       daily: {
         used: usage?.dailyUsed,
         limit: dailyLimit,
@@ -165,150 +166,8 @@ export const emailOverview = query({
         resetsAt: usage?.monthlyResetsAt,
         percent: quotaPercent(usage?.monthlyUsed, monthlyLimit),
       },
-      lastAttemptAt: usage?.lastAttemptAt,
       lastSuccessAt: usage?.lastSuccessAt,
-      nextAllowedAt: usage?.nextAllowedAt,
-      errorCode: usage?.errorCode,
     };
-  },
-});
-
-export const requestResendUsageRefresh = mutation({
-  args: { requestId: v.string() },
-  handler: async (ctx, args) => {
-    const { userId } = await requireAdmin(ctx);
-    if (!/^[A-Za-z0-9:_-]{8,120}$/.test(args.requestId)) {
-      throw new Error('INVALID_REQUEST_ID');
-    }
-    const now = Date.now();
-    const current = await ctx.db
-      .query('resendUsage')
-      .withIndex('by_key', (q) => q.eq('key', RESEND_USAGE_KEY))
-      .unique();
-    if (current?.nextAllowedAt && current.nextAllowedAt > now) {
-      return {
-        accepted: false as const,
-        status: current.status,
-        nextAllowedAt: current.nextAllowedAt,
-      };
-    }
-    const patch = {
-      status: 'checking' as const,
-      lastAttemptAt: now,
-      nextAllowedAt: now + RESEND_REFRESH_COOLDOWN_MS,
-      lastRequestId: args.requestId,
-      errorCode: undefined,
-      updatedAt: now,
-    };
-    if (current) await ctx.db.patch(current._id, patch);
-    else {
-      await ctx.db.insert('resendUsage', {
-        key: RESEND_USAGE_KEY,
-        ...patch,
-      });
-    }
-    await writeAdminAudit(ctx, {
-      actorUserId: userId,
-      action: 'resend.usage.request',
-      entityType: 'resend_usage',
-      entityId: RESEND_USAGE_KEY,
-      summary: 'Запрошено ручное обновление квот Resend',
-      requestId: args.requestId,
-      occurredAt: now,
-    });
-    await ctx.scheduler.runAfter(0, internal.monitoring.refreshResendUsage, {
-      requestId: args.requestId,
-      actorUserId: userId,
-    });
-    return {
-      accepted: true as const,
-      status: 'checking' as const,
-      nextAllowedAt: now + RESEND_REFRESH_COOLDOWN_MS,
-    };
-  },
-});
-
-export const beginScheduledResendUsageRefresh = internalMutation({
-  args: { requestId: v.string(), now: v.number() },
-  handler: async (ctx, args) => {
-    const current = await ctx.db
-      .query('resendUsage')
-      .withIndex('by_key', (q) => q.eq('key', RESEND_USAGE_KEY))
-      .unique();
-    if (current?.nextAllowedAt && current.nextAllowedAt > args.now)
-      return false;
-    const patch = {
-      status: 'checking' as const,
-      lastAttemptAt: args.now,
-      nextAllowedAt: args.now + RESEND_REFRESH_COOLDOWN_MS,
-      lastRequestId: args.requestId,
-      errorCode: undefined,
-      updatedAt: args.now,
-    };
-    if (current) await ctx.db.patch(current._id, patch);
-    else {
-      await ctx.db.insert('resendUsage', {
-        key: RESEND_USAGE_KEY,
-        ...patch,
-      });
-    }
-    return true;
-  },
-});
-
-const quotaSnapshotArgs = {
-  dailyUsed: v.number(),
-  dailyLimit: v.number(),
-  dailySent: v.optional(v.number()),
-  dailyReceived: v.optional(v.number()),
-  dailyResetsAt: v.optional(v.number()),
-  monthlyUsed: v.number(),
-  monthlyLimit: v.number(),
-  monthlySent: v.optional(v.number()),
-  monthlyReceived: v.optional(v.number()),
-  monthlyResetsAt: v.optional(v.number()),
-};
-
-export const finishResendUsageRefresh = internalMutation({
-  args: {
-    requestId: v.string(),
-    actorUserId: v.optional(v.id('users')),
-    snapshot: v.optional(v.object(quotaSnapshotArgs)),
-    errorCode: v.optional(v.string()),
-    now: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const current = await ctx.db
-      .query('resendUsage')
-      .withIndex('by_key', (q) => q.eq('key', RESEND_USAGE_KEY))
-      .unique();
-    if (!current || current.lastRequestId !== args.requestId) return false;
-    const success = args.snapshot !== undefined;
-    const errorCode = success
-      ? undefined
-      : (args.errorCode ?? 'RESEND_USAGE_UNAVAILABLE').slice(0, 80);
-    await ctx.db.patch(current._id, {
-      status: success ? 'ready' : 'error',
-      source: success ? 'usage_api' : current.source,
-      ...(args.snapshot ?? {}),
-      lastSuccessAt: success ? args.now : current.lastSuccessAt,
-      errorCode,
-      updatedAt: args.now,
-    });
-    if (args.actorUserId) {
-      await writeAdminAudit(ctx, {
-        actorUserId: args.actorUserId,
-        action: success ? 'resend.usage.updated' : 'resend.usage.failed',
-        entityType: 'resend_usage',
-        entityId: RESEND_USAGE_KEY,
-        summary: success
-          ? 'Квоты Resend обновлены'
-          : `Обновление квот Resend завершилось ошибкой ${errorCode}`,
-        requestId: args.requestId,
-        occurredAt: args.now,
-      });
-    }
-    return true;
   },
 });
 

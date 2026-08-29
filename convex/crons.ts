@@ -40,13 +40,6 @@ crons.hourly(
 );
 
 crons.hourly(
-  'refresh Resend usage',
-  { minuteUTC: 23 },
-  internal.monitoring.refreshResendUsageScheduled,
-  {},
-);
-
-crons.hourly(
   'purge expired telemetry',
   { minuteUTC: 37 },
   internal.telemetry.cleanupExpired,
