@@ -63,7 +63,7 @@ test('admin can open every bounded workspace section', async ({ page }) => {
         page.getByRole('heading', { name: 'Остаток SMS по тарифу T2' }),
       ).toBeVisible();
       await expect(
-        page.getByText('Это остаток пакета SMS у оператора'),
+        page.getByText(/Крупное число — расчёт/),
       ).toBeVisible();
       await expect(
         page.getByRole('button', { name: /Обновить остаток|Проверяем/ }),
@@ -71,5 +71,5 @@ test('admin can open every bounded workspace section', async ({ page }) => {
     }
   }
   await page.goto('/kit/');
-  await expect(page.getByText('Foundations', { exact: true })).toBeVisible();
+  await expect(page.getByText('Foundation', { exact: true })).toBeVisible();
 });

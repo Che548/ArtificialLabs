@@ -1,11 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from './_generated/api';
-import {
-  action,
-  internalMutation,
-  internalQuery,
-} from './_generated/server';
+import { action, internalMutation, internalQuery } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import {
   evaluateSmsLimit,
@@ -13,6 +9,7 @@ import {
   normalizeClientIp,
   normalizeRussianPhone,
   SMS_CODE_TTL_SECONDS,
+  SMS_MAX_SENDS,
   SMS_RETENTION_MS,
   SMS_WINDOW_MS,
 } from './lib/sms';
@@ -24,7 +21,8 @@ const SAFE_GATEWAY_ERRORS = new Set([
 ]);
 const SMS_DELIVERY_HINT_TTL_MS = 2 * 60 * 1000;
 
-const utcDay = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
+const utcDay = (timestamp: number) =>
+  new Date(timestamp).toISOString().slice(0, 10);
 
 async function incrementDailyAggregate(
   ctx: MutationCtx,
@@ -79,7 +77,11 @@ export const reserve = internalMutation({
       .withIndex('by_request', (q) => q.eq('requestId', args.requestId))
       .unique();
     if (duplicate) {
-      return { allowed: false as const, duplicate: true as const, remaining: 0 };
+      return {
+        allowed: false as const,
+        duplicate: true as const,
+        remaining: 0,
+      };
     }
     const since = args.now - SMS_WINDOW_MS;
     const [phoneRows, ipRows] = await Promise.all([
@@ -88,13 +90,13 @@ export const reserve = internalMutation({
         .withIndex('by_phone_time', (q) =>
           q.eq('phoneHash', args.phoneHash).gt('attemptedAt', since),
         )
-        .take(3),
+        .take(SMS_MAX_SENDS),
       ctx.db
         .query('smsSendAttempts')
         .withIndex('by_ip_time', (q) =>
           q.eq('ipHash', args.ipHash).gt('attemptedAt', since),
         )
-        .take(3),
+        .take(SMS_MAX_SENDS),
     ]);
     const state = evaluateSmsLimit(
       phoneRows.map((row) => row.attemptedAt),
@@ -167,13 +169,13 @@ export const statusInternal = internalQuery({
         .withIndex('by_phone_time', (q) =>
           q.eq('phoneHash', args.phoneHash).gt('attemptedAt', since),
         )
-        .take(3),
+        .take(SMS_MAX_SENDS),
       ctx.db
         .query('smsSendAttempts')
         .withIndex('by_ip_time', (q) =>
           q.eq('ipHash', args.ipHash).gt('attemptedAt', since),
         )
-        .take(3),
+        .take(SMS_MAX_SENDS),
     ]);
     return evaluateSmsLimit(
       phoneRows.map((row) => row.attemptedAt),
@@ -185,9 +187,11 @@ export const statusInternal = internalQuery({
 
 export const status = action({
   args: { phone: v.string() },
-  handler: async (ctx, args): Promise<{
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
     allowed: boolean;
-    remaining: number;
     retryAt?: number;
     reason?: 'SMS_COOLDOWN' | 'SMS_RATE_LIMITED';
   }> => {
@@ -195,10 +199,15 @@ export const status = action({
     const phone = normalizeRussianPhone(args.phone);
     const ip = normalizeClientIp(metadata.ip);
     const hashes = await requestHashes(phone, ip);
-    return await ctx.runQuery(internal.smsAuth.statusInternal, {
+    const status = await ctx.runQuery(internal.smsAuth.statusInternal, {
       ...hashes,
       now: Date.now(),
     });
+    return {
+      allowed: status.allowed,
+      retryAt: status.retryAt,
+      reason: status.reason,
+    };
   },
 });
 
@@ -262,11 +271,15 @@ export const consumeDeliveryHint = internalMutation({
   },
 });
 
-export async function sendPhoneVerification(
+export async function sendSmsCode(
   ctx: any,
   phoneInput: string,
   code: string,
   expires: Date,
+  options?: {
+    platform?: 'ios' | 'android';
+    purpose?: 'phone-verification' | 'password-recovery';
+  },
 ) {
   if (process.env.SMS_AUTH_ENABLED !== '1') {
     throw new ConvexError('SMS_UNAVAILABLE');
@@ -276,10 +289,12 @@ export async function sendPhoneVerification(
   const ip = normalizeClientIp(metadata.ip);
   const hashes = await requestHashes(phone, ip);
   const now = Date.now();
-  const platform = await ctx.runMutation(
-    internal.smsAuth.consumeDeliveryHint,
-    { ...hashes, now },
-  );
+  const platform =
+    options?.platform ??
+    (await ctx.runMutation(internal.smsAuth.consumeDeliveryHint, {
+      ...hashes,
+      now,
+    }));
   const reservation = await ctx.runMutation(internal.smsAuth.reserve, {
     requestId: metadata.requestId,
     ...hashes,
@@ -290,7 +305,6 @@ export async function sendPhoneVerification(
     throw new ConvexError({
       code: reservation.reason,
       retryAt: reservation.retryAt,
-      remaining: reservation.remaining,
     });
   }
 
@@ -298,11 +312,9 @@ export async function sendPhoneVerification(
     requestId: metadata.requestId,
     phone,
     code,
-    expiration: Math.min(
-      expires.getTime(),
-      now + SMS_CODE_TTL_SECONDS * 1000,
-    ),
+    expiration: Math.min(expires.getTime(), now + SMS_CODE_TTL_SECONDS * 1000),
     platform,
+    purpose: options?.purpose ?? 'phone-verification',
   });
   const timestamp = String(now);
   const signature = await hmacSha256(
@@ -325,9 +337,10 @@ export async function sendPhoneVerification(
       body,
       signal: AbortSignal.timeout(12_000),
     });
-    const payload = (await response.json().catch(() => null)) as
-      | { ok?: boolean; code?: string }
-      | null;
+    const payload = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      code?: string;
+    } | null;
     sent = response.ok && payload?.ok === true;
     if (!sent) {
       errorCode =
@@ -345,7 +358,18 @@ export async function sendPhoneVerification(
     latencyMs: Date.now() - startedAt,
   });
   if (!sent) throw new ConvexError(errorCode ?? 'SMS_UNAVAILABLE');
-  return { remaining: reservation.remaining };
+  return true;
+}
+
+export async function sendPhoneVerification(
+  ctx: any,
+  phoneInput: string,
+  code: string,
+  expires: Date,
+) {
+  return await sendSmsCode(ctx, phoneInput, code, expires, {
+    purpose: 'phone-verification',
+  });
 }
 
 export const cleanupAttempts = internalMutation({
@@ -372,7 +396,11 @@ export const cleanupDeliveryHints = internalMutation({
       .take(100);
     for (const row of expired) await ctx.db.delete(row._id);
     if (expired.length === 100) {
-      await ctx.scheduler.runAfter(0, internal.smsAuth.cleanupDeliveryHints, {});
+      await ctx.scheduler.runAfter(
+        0,
+        internal.smsAuth.cleanupDeliveryHints,
+        {},
+      );
     }
     return expired.length;
   },

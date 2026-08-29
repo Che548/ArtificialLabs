@@ -21,13 +21,11 @@ import {
 
 import { SegmentedSwitcher } from '../design-system/components';
 import { api } from '../convex/_generated/api';
+import type { Id } from '../convex/_generated/dataModel';
 import { useConnectivity } from '../lib/connectivity';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import { classifyServiceIssue } from '../lib/service-errors';
-import {
-  listenForSmsOtp,
-  startSmsRetriever,
-} from '../lib/sms-otp-retriever';
+import { listenForSmsOtp, startSmsRetriever } from '../lib/sms-otp-retriever';
 
 type AuthChannel = 'email' | 'phone';
 type AuthFlow = 'signIn' | 'signUp';
@@ -65,18 +63,24 @@ function canonicalPhone(value: string) {
     : value;
 }
 
-function phoneAuthError(error: unknown) {
+function recoveryError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  if (message.includes('SMS_COOLDOWN')) return 'Повторная отправка пока недоступна.';
-  if (message.includes('SMS_RATE_LIMITED')) return 'Лимит SMS на сегодня исчерпан.';
-  if (message.includes('SMS_PHONE_INVALID')) return 'Введите российский номер в формате +7.';
-  if (message.includes('SMS_UNAVAILABLE') || message.includes('SMS_IP_UNAVAILABLE')) {
-    return 'SMS временно недоступны. Попробуйте позже.';
+  if (message.includes('RECOVERY_RATE_LIMITED')) {
+    return 'Слишком много попыток. Попробуйте позже.';
   }
-  if (message.includes('SMS_PHONE_ALREADY_IN_USE')) {
-    return 'Не удалось подтвердить номер.';
+  if (message.includes('RECOVERY_IDENTIFIER_INVALID')) {
+    return 'Введите корректную почту или российский номер.';
   }
-  return 'Код неверный или истёк. Запросите новый код.';
+  if (message.includes('RECOVERY_PHONE_ACCOUNT_NOT_FOUND')) {
+    return 'Аккаунт с таким номером не найден.';
+  }
+  if (message.includes('RECOVERY_PASSWORD_INVALID')) {
+    return 'Пароль должен содержать не менее 8 символов.';
+  }
+  if (message.includes('RECOVERY_CODE_INVALID_OR_EXPIRED')) {
+    return 'Код неверный или истёк. Запросите новый код.';
+  }
+  return 'Восстановление временно недоступно. Попробуйте позже.';
 }
 
 function Checkbox({
@@ -184,22 +188,28 @@ export function AuthScreen({
   preview?: boolean;
 }) {
   const { signIn } = useAuthActions();
-  const getSmsStatus = useAction(api.smsAuth.status);
-  const prepareSmsDelivery = useAction(api.smsAuth.prepareDelivery);
+  const requestPasswordRecovery = useAction(api.passwordRecovery.request);
+  const completePasswordRecovery = useAction(api.passwordRecovery.complete);
   const { isOffline } = useConnectivity();
   const window = useWindowDimensions();
   const [flow, setFlow] = useState<AuthFlow>('signUp');
   const [channel, setChannel] = useState<AuthChannel>('email');
   const [identifier, setIdentifier] = useState(e2eMode ? (e2eEmail ?? '') : '');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [personalDataConsent, setPersonalDataConsent] = useState(false);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
-  const [phoneCode, setPhoneCode] = useState('');
-  const [phoneStep, setPhoneStep] = useState<'phone' | 'code'>('phone');
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [recoveryStep, setRecoveryStep] = useState<'identifier' | 'code'>(
+    'identifier',
+  );
+  const [recoveryChallengeId, setRecoveryChallengeId] =
+    useState<Id<'passwordRecoveryChallenges'>>();
+  const [recoveryExpiresAt, setRecoveryExpiresAt] = useState<number>();
   const [phoneRetryAt, setPhoneRetryAt] = useState<number>();
-  const [phoneRemaining, setPhoneRemaining] = useState(3);
   const [clock, setClock] = useState(Date.now());
   const phoneCodeInputRef = useRef<TextInput>(null);
 
@@ -210,19 +220,21 @@ export function AuthScreen({
   }, [phoneRetryAt]);
 
   useEffect(() => {
-    if (phoneStep !== 'code' || submitting) return undefined;
-    const frame = requestAnimationFrame(() => phoneCodeInputRef.current?.focus());
+    if (!recoveryMode || recoveryStep !== 'code' || submitting)
+      return undefined;
+    const frame = requestAnimationFrame(() =>
+      phoneCodeInputRef.current?.focus(),
+    );
     return () => cancelAnimationFrame(frame);
-  }, [phoneStep, submitting]);
+  }, [recoveryMode, recoveryStep, submitting]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
     const subscription = listenForSmsOtp((code) => {
-      setPhoneCode(code);
-      setPhoneStep('code');
+      if (recoveryMode && channel === 'phone') setRecoveryCode(code);
     });
     return () => subscription?.remove();
-  }, []);
+  }, [channel, recoveryMode]);
 
   const normalizedIdentifier = identifier.trim();
   const validIdentifier =
@@ -230,15 +242,17 @@ export function AuthScreen({
       ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedIdentifier)
       : normalizedIdentifier.replace(/\D/g, '').length >= 10;
   const validPassword = password.length >= 8;
-  const validPhoneCode = /^\d{6}$/.test(phoneCode);
+  const validRecoveryCode = /^\d{6}$/.test(recoveryCode);
   const legalAccepted =
     flow === 'signIn' || (personalDataConsent && agreementAccepted);
-  const canSubmit =
-    channel === 'phone'
-      ? validIdentifier &&
-        legalAccepted &&
-        (phoneStep === 'phone' || validPhoneCode)
-      : validIdentifier && validPassword && legalAccepted;
+  const canSubmit = recoveryMode
+    ? recoveryStep === 'identifier'
+      ? validIdentifier
+      : validRecoveryCode &&
+        validPassword &&
+        password === passwordConfirmation &&
+        Boolean(recoveryChallengeId)
+    : validIdentifier && validPassword && legalAccepted;
   const submitDisabled = !canSubmit || submitting || (!preview && isOffline);
   const visibleError =
     error ??
@@ -253,38 +267,98 @@ export function AuthScreen({
     setChannel(nextChannel);
     setIdentifier('');
     setError(undefined);
-    setPhoneCode('');
-    setPhoneStep('phone');
+    setRecoveryCode('');
+    setRecoveryStep('identifier');
+    setRecoveryChallengeId(undefined);
     setPhoneRetryAt(undefined);
   };
 
   const changeFlow = () => {
     setFlow((current) => (current === 'signUp' ? 'signIn' : 'signUp'));
+    setChannel('email');
+    setRecoveryMode(false);
     setError(undefined);
-    setPhoneCode('');
-    setPhoneStep('phone');
+    setRecoveryCode('');
+    setRecoveryStep('identifier');
+    setRecoveryChallengeId(undefined);
   };
 
-  const requestPhoneCode = async () => {
-    const data = new FormData();
-    const phone = canonicalPhone(normalizedIdentifier);
-    data.append('phone', phone);
+  const beginRecovery = () => {
+    setFlow('signIn');
+    setRecoveryMode(true);
+    setRecoveryStep('identifier');
+    setRecoveryChallengeId(undefined);
+    setRecoveryCode('');
+    setPassword('');
+    setPasswordConfirmation('');
+    setError(undefined);
+  };
+
+  const cancelRecovery = () => {
+    setRecoveryMode(false);
+    setRecoveryStep('identifier');
+    setRecoveryChallengeId(undefined);
+    setRecoveryCode('');
+    setPassword('');
+    setPasswordConfirmation('');
+    setError(undefined);
+  };
+
+  const requestRecoveryCode = async () => {
     setSubmitting(true);
     setError(undefined);
-    setPhoneCode('');
+    setRecoveryCode('');
     try {
-      await startSmsRetriever();
-      if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        await prepareSmsDelivery({ phone, platform: Platform.OS });
-      }
-      await signIn('phone', data);
-      setPhoneStep('code');
-      const status = await getSmsStatus({ phone });
-      setPhoneRemaining(status.remaining);
-      setPhoneRetryAt(status.retryAt ?? Date.now() + 5 * 60 * 1000);
+      if (channel === 'phone') await startSmsRetriever();
+      const result = await requestPasswordRecovery({
+        identifier:
+          channel === 'phone'
+            ? canonicalPhone(normalizedIdentifier)
+            : normalizedIdentifier.toLowerCase(),
+        ...(Platform.OS === 'ios' || Platform.OS === 'android'
+          ? { platform: Platform.OS }
+          : {}),
+      });
+      setRecoveryChallengeId(result.challengeId);
+      setRecoveryExpiresAt(result.expiresAt);
+      setPhoneRetryAt(result.retryAt);
+      setRecoveryStep('code');
     } catch (cause) {
-      console.error('Phone code request failed');
-      setError(phoneAuthError(cause));
+      console.error('Password recovery request failed');
+      setError(recoveryError(cause));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const finishRecovery = async () => {
+    if (!recoveryChallengeId) return;
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await completePasswordRecovery({
+        challengeId: recoveryChallengeId,
+        code: recoveryCode,
+        newPassword: password,
+      });
+      const data = new FormData();
+      if (channel === 'phone') {
+        data.append('phone', canonicalPhone(normalizedIdentifier));
+      } else {
+        data.append('email', normalizedIdentifier.toLowerCase());
+        data.append('flow', 'signIn');
+      }
+      data.append('password', password);
+      try {
+        await signIn(channel === 'phone' ? 'phone-password' : 'password', data);
+        onAuthenticated?.();
+      } catch {
+        cancelRecovery();
+        setError('Пароль изменён. Войдите с новым паролем.');
+      }
+    } catch (cause) {
+      console.error('Password recovery completion failed');
+      setError(recoveryError(cause));
     } finally {
       setSubmitting(false);
     }
@@ -310,34 +384,24 @@ export function AuthScreen({
       return;
     }
 
-    const data = new FormData();
-    if (channel === 'phone') {
-      if (phoneStep === 'phone') {
-        await requestPhoneCode();
-        return;
-      }
-      data.append('phone', canonicalPhone(normalizedIdentifier));
-      data.append('code', phoneCode);
-      setSubmitting(true);
-      try {
-        await signIn('phone', data);
-        onAuthenticated?.();
-      } catch (cause) {
-        console.error('Phone authentication failed');
-        setError(phoneAuthError(cause));
-      } finally {
-        setSubmitting(false);
-      }
+    if (recoveryMode) {
+      if (recoveryStep === 'identifier') await requestRecoveryCode();
+      else await finishRecovery();
       return;
     }
 
-    data.append('email', normalizedIdentifier.toLowerCase());
+    const data = new FormData();
+    if (channel === 'phone') {
+      data.append('phone', canonicalPhone(normalizedIdentifier));
+    } else {
+      data.append('email', normalizedIdentifier.toLowerCase());
+      data.append('flow', flow);
+    }
     data.append('password', password);
-    data.append('flow', flow);
     setSubmitting(true);
 
     try {
-      await signIn('password', data);
+      await signIn(channel === 'phone' ? 'phone-password' : 'password', data);
       onAuthenticated?.();
     } catch (cause) {
       console.error('Authentication failed', cause);
@@ -346,7 +410,7 @@ export function AuthScreen({
         issue.retryable
           ? issue.message
           : flow === 'signIn'
-            ? 'Не удалось войти. Проверьте email и пароль.'
+            ? 'Не удалось войти. Проверьте данные и пароль.'
             : 'Не удалось создать аккаунт. Возможно, email уже используется.',
       );
     } finally {
@@ -424,14 +488,22 @@ export function AuthScreen({
                   </Text>
                 </View>
 
-                <SegmentedSwitcher
-                  accessibilityLabel="Способ входа"
-                  options={authChannelOptions}
-                  value={channel}
-                  onChange={changeChannel}
-                  style={styles.channelPicker}
-                  labelStyle={styles.channelLabel}
-                />
+                {flow === 'signIn' || recoveryMode ? (
+                  <SegmentedSwitcher
+                    accessibilityLabel={
+                      recoveryMode ? 'Способ восстановления' : 'Способ входа'
+                    }
+                    options={authChannelOptions}
+                    value={channel}
+                    onChange={changeChannel}
+                    style={styles.channelPicker}
+                    labelStyle={styles.channelLabel}
+                  />
+                ) : (
+                  <Text style={styles.registrationHint}>
+                    Регистрация по электронной почте
+                  </Text>
+                )}
 
                 <View style={[styles.fieldGroup, styles.identifierField]}>
                   <Text style={styles.fieldLabel}>
@@ -459,64 +531,122 @@ export function AuthScreen({
                   />
                 </View>
 
-                <View style={[styles.fieldGroup, styles.passwordField]}>
-                  <Text style={styles.fieldLabel}>
-                    {channel === 'phone' ? 'Код из SMS' : 'Пароль'}
+                {!recoveryMode || recoveryStep === 'code' ? (
+                  <View style={[styles.fieldGroup, styles.passwordField]}>
+                    <Text style={styles.fieldLabel}>
+                      {recoveryMode
+                        ? channel === 'phone'
+                          ? 'Код из SMS'
+                          : 'Код из письма'
+                        : 'Пароль'}
+                    </Text>
+                    <TextInput
+                      testID="e2e-auth-password"
+                      ref={phoneCodeInputRef}
+                      autoCapitalize="none"
+                      {...(recoveryMode
+                        ? channel === 'phone'
+                          ? otpAutofillProps(Platform.OS)
+                          : {
+                              autoComplete: 'one-time-code' as const,
+                              textContentType: 'oneTimeCode' as const,
+                            }
+                        : {
+                            autoComplete: e2eMode
+                              ? ('off' as const)
+                              : flow === 'signIn'
+                                ? ('current-password' as const)
+                                : ('new-password' as const),
+                            textContentType: undefined,
+                          })}
+                      keyboardType={recoveryMode ? 'number-pad' : 'default'}
+                      maxLength={recoveryMode ? 6 : undefined}
+                      onChangeText={(value) =>
+                        recoveryMode
+                          ? setRecoveryCode(
+                              value.replace(/\D/g, '').slice(0, 6),
+                            )
+                          : setPassword(value)
+                      }
+                      placeholder={recoveryMode ? '000000' : 'Введите пароль'}
+                      placeholderTextColor="#8F8A90"
+                      secureTextEntry={!recoveryMode && !e2eMode}
+                      style={styles.input}
+                      value={recoveryMode ? recoveryCode : password}
+                    />
+                  </View>
+                ) : (
+                  <Text style={styles.recoveryHint}>
+                    Мы отправим одноразовый код, если аккаунт существует.
                   </Text>
-                  <TextInput
-                    testID="e2e-auth-password"
-                    ref={phoneCodeInputRef}
-                    autoCapitalize="none"
-                    {...(channel === 'phone'
-                      ? otpAutofillProps(Platform.OS)
-                      : {
-                          autoComplete: e2eMode
-                            ? ('off' as const)
-                            : flow === 'signIn'
-                              ? ('current-password' as const)
-                              : ('new-password' as const),
-                          textContentType: e2eMode
-                            ? ('oneTimeCode' as const)
-                            : undefined,
-                        })}
-                    keyboardType={channel === 'phone' ? 'number-pad' : 'default'}
-                    editable={channel !== 'phone' || phoneStep === 'code'}
-                    maxLength={channel === 'phone' ? 6 : undefined}
-                    onChangeText={(value) =>
-                      channel === 'phone'
-                        ? setPhoneCode(value.replace(/\D/g, '').slice(0, 6))
-                        : setPassword(value)
-                    }
-                    placeholder={
-                      channel === 'phone'
-                        ? phoneStep === 'code'
-                          ? '000000'
-                          : 'Сначала получите код'
-                        : 'Введите пароль'
-                    }
-                    placeholderTextColor="#8F8A90"
-                    secureTextEntry={channel === 'email' && !e2eMode}
-                    style={styles.input}
-                    value={channel === 'phone' ? phoneCode : password}
-                  />
-                </View>
+                )}
 
-                {channel === 'phone' && phoneStep === 'code' ? (
+                {recoveryMode && recoveryStep === 'code' ? (
+                  <>
+                    <View style={[styles.fieldGroup, styles.newPasswordField]}>
+                      <Text style={styles.fieldLabel}>Новый пароль</Text>
+                      <TextInput
+                        testID="e2e-auth-new-password"
+                        autoCapitalize="none"
+                        autoComplete="new-password"
+                        onChangeText={setPassword}
+                        placeholder="Не менее 8 символов"
+                        placeholderTextColor="#8F8A90"
+                        secureTextEntry={!e2eMode}
+                        style={styles.input}
+                        value={password}
+                      />
+                    </View>
+                    <View
+                      style={[styles.fieldGroup, styles.confirmPasswordField]}
+                    >
+                      <Text style={styles.fieldLabel}>Повторите пароль</Text>
+                      <TextInput
+                        testID="e2e-auth-confirm-password"
+                        autoCapitalize="none"
+                        autoComplete="new-password"
+                        onChangeText={setPasswordConfirmation}
+                        placeholder="Повторите новый пароль"
+                        placeholderTextColor="#8F8A90"
+                        secureTextEntry={!e2eMode}
+                        style={styles.input}
+                        value={passwordConfirmation}
+                      />
+                    </View>
+                  </>
+                ) : null}
+
+                {recoveryMode && recoveryStep === 'code' ? (
                   <Pressable
                     accessibilityRole="button"
-                    disabled={submitting || Boolean(phoneRetryAt && phoneRetryAt > clock)}
-                    onPress={() => void requestPhoneCode()}
-                    style={styles.smsHint}
+                    disabled={
+                      submitting ||
+                      Boolean(phoneRetryAt && phoneRetryAt > clock)
+                    }
+                    onPress={() => void requestRecoveryCode()}
+                    style={styles.recoveryResend}
                   >
                     <Text style={styles.smsHintText}>
                       {phoneRetryAt && phoneRetryAt > clock
-                        ? `Повторно через ${Math.ceil((phoneRetryAt - clock) / 1000)} сек. Осталось: ${phoneRemaining}`
-                        : `Запросить код снова. Осталось: ${phoneRemaining}`}
+                        ? `Повторно через ${Math.ceil((phoneRetryAt - clock) / 1000)} сек.`
+                        : recoveryExpiresAt && recoveryExpiresAt <= clock
+                          ? 'Код истёк. Запросить новый'
+                          : 'Запросить код снова'}
                     </Text>
                   </Pressable>
                 ) : null}
 
-                {flow === 'signUp' ? (
+                {!recoveryMode && flow === 'signIn' && Platform.OS !== 'web' ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={beginRecovery}
+                    style={styles.forgotPassword}
+                  >
+                    <Text style={styles.smsHintText}>Забыли пароль?</Text>
+                  </Pressable>
+                ) : null}
+
+                {flow === 'signUp' && !recoveryMode ? (
                   <View style={styles.consents}>
                     <View style={[styles.consentRow, styles.personalConsent]}>
                       <Checkbox
@@ -566,6 +696,7 @@ export function AuthScreen({
                     style={[
                       styles.errorText,
                       flow === 'signIn' && styles.errorTextSignIn,
+                      recoveryMode && styles.errorTextRecovery,
                     ]}
                   >
                     {visibleError}
@@ -592,10 +723,10 @@ export function AuthScreen({
                         submitDisabled && styles.primaryButtonLabelDisabled,
                       ]}
                     >
-                      {channel === 'phone'
-                        ? phoneStep === 'phone'
+                      {recoveryMode
+                        ? recoveryStep === 'identifier'
                           ? 'Получить код'
-                          : 'Подтвердить'
+                          : 'Сохранить пароль'
                         : flow === 'signUp'
                           ? 'Далее'
                           : 'Войти'}
@@ -607,16 +738,20 @@ export function AuthScreen({
                   testID="e2e-auth-switch-flow"
                   accessibilityRole="button"
                   hitSlop={8}
-                  onPress={changeFlow}
+                  onPress={recoveryMode ? cancelRecovery : changeFlow}
                   style={styles.flowSwitcher}
                 >
                   <Text style={styles.flowSwitcherText}>
-                    {flow === 'signUp'
-                      ? 'Уже зарегистрированы? '
-                      : 'Нет аккаунта? '}
-                    <Text style={styles.flowSwitcherAction}>
-                      {flow === 'signUp' ? 'Войти' : 'Зарегистрироваться'}
-                    </Text>
+                    {recoveryMode
+                      ? 'Вернуться ко входу'
+                      : flow === 'signUp'
+                        ? 'Уже зарегистрированы? '
+                        : 'Нет аккаунта? '}
+                    {!recoveryMode ? (
+                      <Text style={styles.flowSwitcherAction}>
+                        {flow === 'signUp' ? 'Войти' : 'Зарегистрироваться'}
+                      </Text>
+                    ) : null}
                   </Text>
                 </Pressable>
               </View>
@@ -711,6 +846,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#F0EEF0',
   },
+  registrationHint: {
+    position: 'absolute',
+    left: 26,
+    top: 214,
+    width: 349,
+    color: '#6F6A70',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 14,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
   channelOption: {
     zIndex: 1,
     flex: 1,
@@ -754,6 +900,12 @@ const styles = StyleSheet.create({
   },
   passwordField: {
     top: 360,
+  },
+  newPasswordField: {
+    top: 454,
+  },
+  confirmPasswordField: {
+    top: 548,
   },
   fieldLabel: {
     color: '#242124',
@@ -844,6 +996,30 @@ const styles = StyleSheet.create({
   },
   errorTextSignIn: {
     top: 446,
+  },
+  errorTextRecovery: {
+    top: 665,
+  },
+  recoveryHint: {
+    position: 'absolute',
+    left: 26,
+    top: 365,
+    width: 349,
+    color: '#6F6A70',
+    fontFamily: 'SFProDisplay-Regular',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  forgotPassword: {
+    position: 'absolute',
+    right: 27,
+    top: 446,
+  },
+  recoveryResend: {
+    position: 'absolute',
+    left: 26,
+    top: 640,
+    width: 349,
   },
   smsHint: {
     position: 'absolute',

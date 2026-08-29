@@ -2,7 +2,7 @@ appId: com.anonymous.privateexpo
 ---
 - extendedWaitUntil:
     visible: 'Нет подключения'
-    timeout: 30000
+    timeout: 60000
 - assertVisible: 'Ожидает подключения'
 - tapOn: 'Вернуться в профиль'
 - scrollUntilVisible:

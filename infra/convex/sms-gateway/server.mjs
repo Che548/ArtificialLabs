@@ -1,5 +1,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { appendFile, mkdir, readFile, rename, writeFile, chmod } from 'node:fs/promises';
+import {
+  appendFile,
+  mkdir,
+  readFile,
+  rename,
+  writeFile,
+  chmod,
+} from 'node:fs/promises';
 import { createServer, request as httpRequest } from 'node:http';
 import { dirname } from 'node:path';
 
@@ -34,7 +41,9 @@ function json(response, status, value) {
 
 function encodeUnicode(message) {
   return Array.from(message)
-    .map((character) => character.codePointAt(0).toString(16).toUpperCase().padStart(4, '0'))
+    .map((character) =>
+      character.codePointAt(0).toString(16).toUpperCase().padStart(4, '0'),
+    )
     .join('');
 }
 
@@ -52,19 +61,25 @@ function modemTime(date = new Date()) {
 
 function modemRequest(url, options, body, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const request = httpRequest(url, { ...options, insecureHTTPParser: true }, (response) => {
-      const chunks = [];
-      response.on('data', (chunk) => chunks.push(chunk));
-      response.on('end', () => {
-        const status = response.statusCode ?? 0;
-        if (status < 200 || status >= 300) {
-          reject(new Error('MODEM_HTTP_ERROR'));
-          return;
-        }
-        resolve(Buffer.concat(chunks).toString('utf8'));
-      });
-    });
-    request.setTimeout(timeoutMs, () => request.destroy(new Error('MODEM_TIMEOUT')));
+    const request = httpRequest(
+      url,
+      { ...options, insecureHTTPParser: true },
+      (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => {
+          const status = response.statusCode ?? 0;
+          if (status < 200 || status >= 300) {
+            reject(new Error('MODEM_HTTP_ERROR'));
+            return;
+          }
+          resolve(Buffer.concat(chunks).toString('utf8'));
+        });
+      },
+    );
+    request.setTimeout(timeoutMs, () =>
+      request.destroy(new Error('MODEM_TIMEOUT')),
+    );
     request.on('error', reject);
     if (body) request.end(body);
     else request.end();
@@ -73,9 +88,11 @@ function modemRequest(url, options, body, timeoutMs) {
 
 async function modemGet(params, timeoutMs = 5000) {
   const url = new URL('/reqproc/proc_get', MODEM_BASE_URL);
-  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-  const text = (await modemRequest(url, { method: 'GET' }, undefined, timeoutMs))
-    .replace(/[\u0000-\u001f]/g, '');
+  for (const [key, value] of Object.entries(params))
+    url.searchParams.set(key, value);
+  const text = (
+    await modemRequest(url, { method: 'GET' }, undefined, timeoutMs)
+  ).replace(/[\u0000-\u001f]/g, '');
   return JSON.parse(text);
 }
 
@@ -122,12 +139,17 @@ function incomingFingerprint(message) {
 }
 
 async function archiveAndTrimIncoming(messages) {
-  const incoming = messages.filter((message) => String(message.tag ?? '1') === '1');
+  const incoming = messages.filter(
+    (message) => String(message.tag ?? '1') === '1',
+  );
   const fresh = incoming
     .map((message) => ({ fingerprint: incomingFingerprint(message), message }))
     .filter(({ fingerprint }) => !state.archivedIncoming[fingerprint]);
   if (fresh.length > 0) {
-    await mkdir(dirname(INCOMING_ARCHIVE_FILE), { recursive: true, mode: 0o700 });
+    await mkdir(dirname(INCOMING_ARCHIVE_FILE), {
+      recursive: true,
+      mode: 0o700,
+    });
     const archivedAt = Date.now();
     await appendFile(
       INCOMING_ARCHIVE_FILE,
@@ -162,7 +184,11 @@ async function archiveAndTrimIncoming(messages) {
 
 async function capacity() {
   const messages = await archiveAndTrimIncoming(await listMessages('10'));
-  return { total: MODEM_CAPACITY, used: messages.length, free: Math.max(0, MODEM_CAPACITY - messages.length) };
+  return {
+    total: MODEM_CAPACITY,
+    used: messages.length,
+    free: Math.max(0, MODEM_CAPACITY - messages.length),
+  };
 }
 
 async function modemHealth() {
@@ -178,7 +204,9 @@ function decodeUssdData(value) {
   if (!/^(?:[0-9a-fA-F]{4})+$/.test(text)) return text;
   let decoded = '';
   for (let index = 0; index < text.length; index += 4) {
-    decoded += String.fromCharCode(Number.parseInt(text.slice(index, index + 4), 16));
+    decoded += String.fromCharCode(
+      Number.parseInt(text.slice(index, index + 4), 16),
+    );
   }
   return decoded.replace(/\0/g, '').trim();
 }
@@ -191,11 +219,12 @@ function parseRemainingSms(value) {
   const beforeMatch = text.match(
     /(?:sms|смс)\s*(?:остаток|осталось|доступно)?\s*[:=\-]?\s*(\d[\d ]{0,12})/iu,
   );
-  const values = afterValues.length > 0
-    ? afterValues
-    : beforeMatch
-      ? [Number(beforeMatch[1].replace(/\s/g, ''))]
-      : [];
+  const values =
+    afterValues.length > 0
+      ? afterValues
+      : beforeMatch
+        ? [Number(beforeMatch[1].replace(/\s/g, ''))]
+        : [];
   if (
     values.length > 0 &&
     values.every(
@@ -230,7 +259,9 @@ async function cancelUssd() {
 }
 
 async function tariffBalance() {
-  const existingMessages = await archiveAndTrimIncoming(await listMessages('10'));
+  const existingMessages = await archiveAndTrimIncoming(
+    await listMessages('10'),
+  );
   if (existingMessages.length >= MODEM_CAPACITY) {
     return { ok: false, code: 'SMS_BALANCE_UNAVAILABLE' };
   }
@@ -306,7 +337,10 @@ async function tariffBalance() {
 async function pollCommand(smsCmd, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const status = await modemGet({ cmd: 'sms_cmd_status_info', sms_cmd: String(smsCmd) });
+    const status = await modemGet({
+      cmd: 'sms_cmd_status_info',
+      sms_cmd: String(smsCmd),
+    });
     const result = String(status.sms_cmd_status_result ?? '');
     if (result === '3') return true;
     if (result === '2') return false;
@@ -319,25 +353,38 @@ async function deleteOwnOutgoing(phone, encodedMessage) {
   const sent = await listMessages('2');
   const own = sent.find(
     (message) =>
-      String(message.number ?? '').replace(/\D/g, '') === phone.replace(/\D/g, '') &&
+      String(message.number ?? '').replace(/\D/g, '') ===
+        phone.replace(/\D/g, '') &&
       String(message.content ?? '').toUpperCase() === encodedMessage,
   );
   if (!own?.id) return false;
-  const accepted = await modemPost({ goformId: 'DELETE_SMS', msg_id: `${own.id};`, notCallback: 'true' });
+  const accepted = await modemPost({
+    goformId: 'DELETE_SMS',
+    msg_id: `${own.id};`,
+    notCallback: 'true',
+  });
   return accepted.result === 'success' && (await pollCommand(6));
 }
 
-function formatOtpMessage(code, platform, iosDomain, androidAppHash) {
+function formatOtpMessage(
+  code,
+  platform,
+  iosDomain,
+  androidAppHash,
+  purpose = 'phone-verification',
+) {
+  const label =
+    purpose === 'password-recovery' ? 'Sfera reset code' : 'Sfera code';
   if (platform === 'ios') {
-    return `Sfera code: ${code}\n@${iosDomain} #${code}`;
+    return `${label}: ${code}\n@${iosDomain} #${code}`;
   }
   if (platform === 'android') {
-    return `<#> Sfera code: ${code}\n${androidAppHash}`;
+    return `<#> ${label}: ${code}\n${androidAppHash}`;
   }
-  return `Sfera code: ${code}`;
+  return `${label}: ${code}`;
 }
 
-async function sendSms({ phone, code, platform }) {
+async function sendSms({ phone, code, platform, purpose }) {
   const storage = await capacity();
   if (storage.free < 1) return { ok: false, code: 'SMS_UNAVAILABLE' };
   const iosDomain = process.env.SMS_IOS_DOMAIN ?? 'artificiallabs.bebra42.ru';
@@ -348,7 +395,13 @@ async function sendSms({ phone, code, platform }) {
   ) {
     return { ok: false, code: 'SMS_UNAVAILABLE' };
   }
-  const message = formatOtpMessage(code, platform, iosDomain, androidAppHash);
+  const message = formatOtpMessage(
+    code,
+    platform,
+    iosDomain,
+    androidAppHash,
+    purpose,
+  );
   if (Buffer.byteLength(message, 'utf8') > 140) {
     return { ok: false, code: 'SMS_UNAVAILABLE' };
   }
@@ -365,7 +418,9 @@ async function sendSms({ phone, code, platform }) {
   if (accepted.result !== 'success' || !(await pollCommand(4))) {
     return { ok: false, code: 'SMS_GATEWAY_REJECTED' };
   }
-  const cleaned = await deleteOwnOutgoing(phone, encodedMessage).catch(() => false);
+  const cleaned = await deleteOwnOutgoing(phone, encodedMessage).catch(
+    () => false,
+  );
   return { ok: true, cleaned };
 }
 
@@ -403,7 +458,9 @@ async function loadState() {
     Object.entries(state.requests).filter(([, entry]) => entry.at > cutoff),
   );
   state.balanceRequests = Object.fromEntries(
-    Object.entries(state.balanceRequests).filter(([, entry]) => entry.at > cutoff),
+    Object.entries(state.balanceRequests).filter(
+      ([, entry]) => entry.at > cutoff,
+    ),
   );
 }
 
@@ -424,7 +481,13 @@ function validSignature(rawBody, headers) {
   const timestamp = String(headers['x-sms-timestamp'] ?? '');
   const requestId = String(headers['x-sms-request-id'] ?? '');
   const received = String(headers['x-sms-signature'] ?? '');
-  if (!SHARED_SECRET || !timestamp || !requestId || !/^[a-f0-9]{64}$/.test(received)) return false;
+  if (
+    !SHARED_SECRET ||
+    !timestamp ||
+    !requestId ||
+    !/^[a-f0-9]{64}$/.test(received)
+  )
+    return false;
   if (Math.abs(Date.now() - Number(timestamp)) > REPLAY_WINDOW_MS) return false;
   const expected = createHmac('sha256', SHARED_SECRET)
     .update(`${timestamp}\n${requestId}\n${rawBody}`)
@@ -495,12 +558,15 @@ export function createGatewayServer() {
           ok: false,
           code: 'SMS_BALANCE_UNAVAILABLE',
         }));
-        const safeResponse = result.ok && 'remainingSms' in result
-          ? { ok: true, remainingSms: result.remainingSms }
-          : {
-              ok: false,
-              code: ('code' in result && result.code) || 'SMS_BALANCE_UNAVAILABLE',
-            };
+        const safeResponse =
+          result.ok && 'remainingSms' in result
+            ? { ok: true, remainingSms: result.remainingSms }
+            : {
+                ok: false,
+                code:
+                  ('code' in result && result.code) ||
+                  'SMS_BALANCE_UNAVAILABLE',
+              };
         state.balanceRequests[requestId] = {
           at: now,
           ok: result.ok,
@@ -514,6 +580,10 @@ export function createGatewayServer() {
         input.requestId !== requestId ||
         !/^\+79\d{9}$/.test(input.phone) ||
         !/^\d{6}$/.test(input.code) ||
+        (input.purpose !== undefined &&
+          !['phone-verification', 'password-recovery'].includes(
+            input.purpose,
+          )) ||
         !Number.isFinite(input.expiration) ||
         input.expiration <= Date.now()
       ) {
@@ -536,7 +606,11 @@ export function createGatewayServer() {
       const safeResponse = result.ok
         ? { ok: true }
         : { ok: false, code: result.code ?? 'SMS_UNAVAILABLE' };
-      state.requests[requestId] = { at: Date.now(), ok: result.ok, response: safeResponse };
+      state.requests[requestId] = {
+        at: Date.now(),
+        ok: result.ok,
+        response: safeResponse,
+      };
       await queueStateWrite();
       json(response, result.ok ? 200 : 503, safeResponse);
     } catch {

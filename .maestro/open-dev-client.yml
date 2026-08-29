@@ -6,6 +6,9 @@ appId: com.anonymous.privateexpo
 - tapOn:
     text: "Close"
     optional: true
+- tapOn:
+    text: "OK"
+    optional: true
 - runFlow:
     when:
       visible: 'http://localhost:.*'

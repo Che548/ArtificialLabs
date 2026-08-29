@@ -33,6 +33,7 @@ import type * as lib_sms from "../lib/sms.js";
 import type * as monitoring from "../monitoring.js";
 import type * as monitoringData from "../monitoringData.js";
 import type * as notifications from "../notifications.js";
+import type * as passwordRecovery from "../passwordRecovery.js";
 import type * as profile from "../profile.js";
 import type * as publicCatalog from "../publicCatalog.js";
 import type * as seed from "../seed.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   monitoring: typeof monitoring;
   monitoringData: typeof monitoringData;
   notifications: typeof notifications;
+  passwordRecovery: typeof passwordRecovery;
   profile: typeof profile;
   publicCatalog: typeof publicCatalog;
   seed: typeof seed;

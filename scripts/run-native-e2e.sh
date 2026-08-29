@@ -68,6 +68,12 @@ copy_maestro_screenshot() {
   source="$(find "${MAESTRO_DEBUG_ROOT:-$HOME/.maestro/tests}" -type f \
     -path "*/${flow}/takeScreenshot/${label}.png" -mmin -20 \
     -print 2>/dev/null | tail -1)"
+  # Composite iOS flows keep screenshots under the wrapper flow directory.
+  if [[ -z "$source" ]]; then
+    source="$(find "${MAESTRO_DEBUG_ROOT:-$HOME/.maestro/tests}" -type f \
+      -path "*/takeScreenshot/${label}.png" -mmin -20 \
+      -print 2>/dev/null | tail -1)"
+  fi
   if [[ -n "$source" ]]; then
     install -m 600 "$source" "$destination"
   else
@@ -351,16 +357,15 @@ if [[ "$android_ready" -eq 1 ]]; then
   android_launch_pid="$!"
 fi
 sleep 10
-maestro --device "$ios_device" test .maestro/open-dev-client.yml
-sleep 20
-# A completed Maestro system-dialog flow can leave the simulator on the Home
-# Screen even though the development bundle finished loading. Foreground the
-# exact E2E URL again before the application flow so the first assertion
-# observes the app rather than SpringBoard.
-xcrun simctl openurl "$ios_device" "$ios_dev_url"
-
-if maestro --device "$ios_device" test .maestro/ios-primary.yml \
-  --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
+# Run the iOS application surface in a single XCUITest session. Maestro's iOS
+# 26 driver can lose its localhost port between separate CLI invocations.
+ios_complete_flow=".maestro/ios-complete.yml"
+[[ -n "$scan_fixture_source" ]] && ios_complete_flow=".maestro/ios-complete-with-scan.yml"
+if maestro --device "$ios_device" test "$ios_complete_flow" \
+  --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD" \
+  --env E2E_PRODUCT_SCREENSHOT="ios-product-surface" \
+  --env E2E_SCAN_RESULT_SCREENSHOT="ios-scan-result" \
+  --env E2E_SCAN_SAVED_SCREENSHOT="ios-scan-saved"; then
   ios_primary_ok=1
   xcrun simctl io "$ios_device" screenshot \
     "$E2E_REPORT_DIR/ios-live-sync.png" >/dev/null 2>&1 || true
@@ -370,22 +375,11 @@ else
   record_failure "iOS primary flow"
 fi
 if [[ "$ios_primary_ok" -eq 1 ]]; then
-  if ! maestro --device "$ios_device" test .maestro/product-surface.yml \
-    --env E2E_PRODUCT_SCREENSHOT="ios-product-surface"; then
-    record_failure "iOS product surface flow"
-  else
-    copy_maestro_screenshot product-surface ios-product-surface \
-      "$E2E_REPORT_DIR/ios-product-surface.png"
-  fi
+  copy_maestro_screenshot product-surface ios-product-surface \
+    "$E2E_REPORT_DIR/ios-product-surface.png"
   if [[ -n "$scan_fixture_source" ]]; then
-    if ! maestro --device "$ios_device" test .maestro/scan-fixture.yml \
-      --env E2E_SCAN_RESULT_SCREENSHOT="ios-scan-result" \
-      --env E2E_SCAN_SAVED_SCREENSHOT="ios-scan-saved"; then
-      record_failure "iOS real-photo scan flow"
-    else
-      copy_maestro_screenshot scan-fixture ios-scan-result "$E2E_REPORT_DIR/ios-scan-result.png"
-      copy_maestro_screenshot scan-fixture ios-scan-saved "$E2E_REPORT_DIR/ios-scan-saved.png"
-    fi
+    copy_maestro_screenshot scan-fixture ios-scan-result "$E2E_REPORT_DIR/ios-scan-result.png"
+    copy_maestro_screenshot scan-fixture ios-scan-saved "$E2E_REPORT_DIR/ios-scan-saved.png"
   fi
   expected_scan_count=0
   [[ -n "$scan_fixture_source" ]] && expected_scan_count=1

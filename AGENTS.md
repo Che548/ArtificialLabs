@@ -41,10 +41,19 @@ Phone authentication uses the standard Convex Auth `phone` provider and the
 private `sms-gateway` service in the Convex Docker network on `junk`. The
 gateway has no host port or FRP endpoint. `SMS_GATEWAY_SHARED_SECRET` and
 `SMS_RATE_LIMIT_HASH_SECRET` exist only in the Convex/junk environment; never
-log or commit them. SMS auth remains disabled unless `SMS_AUTH_ENABLED=1` and
-the public-client IP probe has confirmed that separate connections do not
-collapse to one proxy IP. Never log phone numbers, OTP values, request bodies,
-or raw IP addresses.
+log or commit them. `SMS_AUTH_ENABLED=1` enables SMS delivery for profile phone
+verification and password recovery. OTP-only login remains disabled unless the
+temporary migration flag `SMS_LOGIN_ENABLED=1` is explicitly set; normal login
+uses a confirmed phone plus password. The public-client IP probe must confirm
+that separate connections do not collapse to one proxy IP. Never log phone
+numbers, OTP values, request bodies, or raw IP addresses.
+
+SMS recovery allows at most three delivery attempts, while email recovery
+allows at most five, per identifier and client IP in separate rolling 24-hour
+windows. Both channels use a six-digit code. Do not expose remaining-attempt
+counters in APIs or UI. A recovery request for an unknown phone must return
+`RECOVERY_PHONE_ACCOUNT_NOT_FOUND` before contacting the private gateway;
+rate-limit failures must never send a message.
 
 OTP messages use an ASCII-only, platform-specific format so each request stays
 within one SMS. Before the standard Convex Phone provider sends a code, native
@@ -110,9 +119,14 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
   status, retry transient transport failures with bounded backoff, and trigger
   an immediate single-flight sync when connectivity returns. Do not retry Auth
   or validation errors as transport failures.
-- Email verification, password reset and OCR remain deferred milestones. The
-  admin console manages only catalogs, lots, calibrations, published content,
-  privacy-safe aggregates, monitoring and admin access.
+- Password recovery is available in the native app through SMS or Resend email.
+  Registration remains email-only, while confirmed phones can be used with the
+  same password for login. `RESEND_API_KEY`, `RESEND_FROM` and
+  `PASSWORD_RECOVERY_HASH_SECRET` are Convex-only secrets and must never be
+  exposed to clients, Git or build artifacts. Email verification and OCR remain
+  deferred milestones. The admin console manages only catalogs, lots,
+  calibrations, published content, privacy-safe aggregates, monitoring and
+  admin access.
 
 ## Admin console
 

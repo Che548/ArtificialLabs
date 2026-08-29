@@ -5,6 +5,8 @@ import type { PropsWithChildren } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { resolveConnectivity } from './connectivity-policy';
+
 type ConnectivityValue = {
   isOffline: boolean;
   isKnown: boolean;
@@ -26,18 +28,14 @@ export function ConnectivityProvider({ children }: PropsWithChildren) {
       Platform.OS === 'android' &&
       process.env.EXPO_PUBLIC_E2E_MODE === '1' &&
       Boolean(process.env.EXPO_PUBLIC_E2E_ANDROID_CONVEX_URL);
-    const isKnown =
-      typeof network.isConnected === 'boolean' ||
-      typeof network.isInternetReachable === 'boolean';
-    return {
-      isKnown,
-      isOffline: usesReversedE2EBackend
-        ? false
-        : network.isConnected === false ||
-          network.isInternetReachable === false ||
-          (!convexConnection.isWebSocketConnected &&
-            convexConnection.connectionRetries > 1),
-    };
+    return resolveConnectivity({
+      isAndroidReversedE2E: usesReversedE2EBackend,
+      networkIsConnected: network.isConnected,
+      networkIsInternetReachable: network.isInternetReachable,
+      convexHasEverConnected: convexConnection.hasEverConnected,
+      convexIsWebSocketConnected: convexConnection.isWebSocketConnected,
+      convexConnectionRetries: convexConnection.connectionRetries,
+    });
   }, [
     convexConnection.connectionRetries,
     convexConnection.hasEverConnected,

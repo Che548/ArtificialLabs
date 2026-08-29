@@ -85,10 +85,7 @@ import { persistLabDocument } from '../lib/local-files';
 import { clearPendingTelemetryEvents } from '../lib/local-database';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import type { ServiceIssue } from '../lib/service-errors';
-import {
-  listenForSmsOtp,
-  startSmsRetriever,
-} from '../lib/sms-otp-retriever';
+import { listenForSmsOtp, startSmsRetriever } from '../lib/sms-otp-retriever';
 import type {
   AllergyRisk,
   HealthDocument,
@@ -1335,7 +1332,6 @@ function PhoneVerificationRow({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
   const [retryAt, setRetryAt] = useState<number>();
-  const [remaining, setRemaining] = useState(3);
   const [clock, setClock] = useState(Date.now());
   const codeInputRef = useRef<TextInput>(null);
 
@@ -1403,7 +1399,6 @@ function PhoneVerificationRow({
       form.append('phone', verifiedValue);
       await signIn('phone', form);
       const status = await getSmsStatus({ phone: verifiedValue });
-      setRemaining(status.remaining);
       setRetryAt(status.retryAt ?? Date.now() + 5 * 60 * 1000);
       setStep('code');
     } catch (error) {
@@ -1535,8 +1530,8 @@ function PhoneVerificationRow({
         >
           <AppText role="caption" color={colors.text.secondary}>
             {retryAt && retryAt > clock
-              ? `Повторно через ${Math.ceil((retryAt - clock) / 1000)} сек. Осталось: ${remaining}`
-              : `Запросить снова. Осталось: ${remaining}`}
+              ? `Повторно через ${Math.ceil((retryAt - clock) / 1000)} сек.`
+              : 'Запросить снова'}
           </AppText>
         </Pressable>
       ) : null}

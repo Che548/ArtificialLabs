@@ -133,6 +133,45 @@ export default defineSchema({
   })
     .index('by_phone_ip_time', ['phoneHash', 'ipHash', 'createdAt'])
     .index('by_expiry', ['expiresAt']),
+  passwordRecoveryChallenges: defineTable({
+    identifierHash: v.string(),
+    ipHash: v.string(),
+    channel: v.union(v.literal('email'), v.literal('sms')),
+    codeHash: v.string(),
+    userId: v.optional(v.id('users')),
+    passwordAccountId: v.optional(v.id('authAccounts')),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('dummy'),
+      v.literal('claimed'),
+      v.literal('consumed'),
+      v.literal('failed'),
+    ),
+    claimTokenHash: v.optional(v.string()),
+    claimedAt: v.optional(v.number()),
+    failedAttempts: v.number(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_identifier_time', ['identifierHash', 'createdAt'])
+    .index('by_expiry', ['expiresAt']),
+  passwordRecoverySendAttempts: defineTable({
+    identifierHash: v.string(),
+    ipHash: v.string(),
+    channel: v.literal('email'),
+    attemptedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_identifier_time', ['identifierHash', 'attemptedAt'])
+    .index('by_ip_time', ['ipHash', 'attemptedAt'])
+    .index('by_expiry', ['expiresAt']),
+  passwordRecoveryCodeFailures: defineTable({
+    identifierHash: v.string(),
+    attemptedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_identifier_time', ['identifierHash', 'attemptedAt'])
+    .index('by_expiry', ['expiresAt']),
   smsDailyAggregates: defineTable({
     day: v.string(),
     requested: v.number(),
@@ -546,11 +585,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     format: v.optional(v.string()),
     status: v.optional(
-      v.union(
-        v.literal('draft'),
-        v.literal('active'),
-        v.literal('archived'),
-      ),
+      v.union(v.literal('draft'), v.literal('active'), v.literal('archived')),
     ),
     compatibleAlgorithmVersions: v.optional(v.array(v.string())),
     publishedCalibrationVersion: v.optional(v.string()),
@@ -583,11 +618,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_system_lot', ['testSystemId', 'lotNumber'])
-    .index('by_system_status_updated', [
-      'testSystemId',
-      'status',
-      'updatedAt',
-    ])
+    .index('by_system_status_updated', ['testSystemId', 'status', 'updatedAt'])
     .index('by_status_updated', ['status', 'updatedAt']),
   calibrationVersions: defineTable({
     testSystemKey: v.string(),

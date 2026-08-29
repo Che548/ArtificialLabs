@@ -5,7 +5,9 @@ import { createServer } from 'node:http';
 import { test } from 'node:test';
 
 function listen(server) {
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
+  return new Promise((resolve) =>
+    server.listen(0, '127.0.0.1', () => resolve(server.address().port)),
+  );
 }
 
 test('accepts one signed request, replays it idempotently, and deletes only its sent SMS', async () => {
@@ -15,12 +17,22 @@ test('accepts one signed request, replays it idempotently, and deletes only its 
   const modem = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://modem');
     response.setHeader('content-type', 'application/json');
-    if (request.method === 'GET' && url.searchParams.get('cmd') === 'sms_data_total') {
+    if (
+      request.method === 'GET' &&
+      url.searchParams.get('cmd') === 'sms_data_total'
+    ) {
       const tags = url.searchParams.get('tags');
-      response.end(JSON.stringify({ messages: tags === '2' && outgoing ? [outgoing] : [] }));
+      response.end(
+        JSON.stringify({
+          messages: tags === '2' && outgoing ? [outgoing] : [],
+        }),
+      );
       return;
     }
-    if (request.method === 'GET' && url.searchParams.get('cmd') === 'sms_cmd_status_info') {
+    if (
+      request.method === 'GET' &&
+      url.searchParams.get('cmd') === 'sms_cmd_status_info'
+    ) {
       response.end(JSON.stringify({ sms_cmd_status_result: '3' }));
       return;
     }
@@ -36,7 +48,8 @@ test('accepts one signed request, replays it idempotently, and deletes only its 
         tag: '2',
       };
     }
-    if (form.get('goformId') === 'DELETE_SMS' && form.get('msg_id') === '42;') deleteCount += 1;
+    if (form.get('goformId') === 'DELETE_SMS' && form.get('msg_id') === '42;')
+      deleteCount += 1;
     response.end(JSON.stringify({ result: 'success' }));
   });
   const modemPort = await listen(modem);
@@ -44,7 +57,9 @@ test('accepts one signed request, replays it idempotently, and deletes only its 
   process.env.MODEM_BASE_URL = `http://127.0.0.1:${modemPort}`;
   process.env.SMS_GATEWAY_SHARED_SECRET = 'test-shared-secret';
   process.env.STATE_FILE = `/tmp/artificiallabs-sms-gateway-${process.pid}.json`;
-  const { createGatewayServer } = await import(`./server.mjs?test=${Date.now()}`);
+  const { createGatewayServer } = await import(
+    `./server.mjs?test=${Date.now()}`
+  );
   const gateway = createGatewayServer();
   const gatewayPort = await listen(gateway);
   const body = JSON.stringify({
@@ -58,16 +73,17 @@ test('accepts one signed request, replays it idempotently, and deletes only its 
   const signature = createHmac('sha256', 'test-shared-secret')
     .update(`${timestamp}\nrequest-1\n${body}`)
     .digest('hex');
-  const request = () => fetch(`http://127.0.0.1:${gatewayPort}/v1/sms`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-sms-timestamp': timestamp,
-      'x-sms-request-id': 'request-1',
-      'x-sms-signature': signature,
-    },
-    body,
-  });
+  const request = () =>
+    fetch(`http://127.0.0.1:${gatewayPort}/v1/sms`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-sms-timestamp': timestamp,
+        'x-sms-request-id': 'request-1',
+        'x-sms-signature': signature,
+      },
+      body,
+    });
   assert.equal((await request()).status, 200);
   assert.equal((await request()).status, 200);
   assert.equal(sendCount, 1);
@@ -77,10 +93,7 @@ test('accepts one signed request, replays it idempotently, and deletes only its 
       .match(/.{4}/g)
       .map((unit) => Number.parseInt(unit, 16)),
   );
-  assert.equal(
-    decodedMessage,
-    '<#> Sfera code: 123456\nY4QO6pOIVxj',
-  );
+  assert.equal(decodedMessage, '<#> Sfera code: 123456\nY4QO6pOIVxj');
   assert.ok(Buffer.byteLength(decodedMessage, 'utf8') <= 140);
   await Promise.all([
     new Promise((resolve) => gateway.close(resolve)),
@@ -103,22 +116,34 @@ test('formats one strict ASCII SMS for each native platform', async () => {
     'artificiallabs.bebra42.ru',
     'Y4QO6pOIVxj',
   );
-  assert.equal(
-    ios,
-    'Sfera code: 123456\n@artificiallabs.bebra42.ru #123456',
-  );
+  assert.equal(ios, 'Sfera code: 123456\n@artificiallabs.bebra42.ru #123456');
   assert.equal(android, '<#> Sfera code: 123456\nY4QO6pOIVxj');
   assert.ok(Buffer.byteLength(ios, 'utf8') <= 140);
   assert.ok(Buffer.byteLength(android, 'utf8') <= 140);
+  assert.equal(
+    testing.formatOtpMessage(
+      '654321',
+      'android',
+      'artificiallabs.bebra42.ru',
+      'Y4QO6pOIVxj',
+      'password-recovery',
+    ),
+    '<#> Sfera reset code: 654321\nY4QO6pOIVxj',
+  );
 });
 
 test('rejects missing signatures without contacting the modem', async () => {
   process.env.NODE_ENV = 'test';
   process.env.SMS_GATEWAY_SHARED_SECRET = 'test-shared-secret';
-  const { createGatewayServer } = await import(`./server.mjs?unauthorized=${Date.now()}`);
+  const { createGatewayServer } = await import(
+    `./server.mjs?unauthorized=${Date.now()}`
+  );
   const gateway = createGatewayServer();
   const port = await listen(gateway);
-  const response = await fetch(`http://127.0.0.1:${port}/v1/sms`, { method: 'POST', body: '{}' });
+  const response = await fetch(`http://127.0.0.1:${port}/v1/sms`, {
+    method: 'POST',
+    body: '{}',
+  });
   assert.equal(response.status, 401);
   await new Promise((resolve) => gateway.close(resolve));
 });
@@ -129,9 +154,12 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
   let pollCount = 0;
   let messagePollCount = 0;
   let prunedCount = 0;
-  const encode = (value) => Array.from(value)
-    .map((character) => character.codePointAt(0).toString(16).padStart(4, '0'))
-    .join('');
+  const encode = (value) =>
+    Array.from(value)
+      .map((character) =>
+        character.codePointAt(0).toString(16).padStart(4, '0'),
+      )
+      .join('');
   let incoming = Array.from({ length: 18 }, (_, index) => ({
     id: `old-${18 - index}`,
     tag: '1',
@@ -141,36 +169,58 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
   const modem = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://modem');
     response.setHeader('content-type', 'application/json');
-    if (request.method === 'GET' && url.searchParams.get('cmd') === 'network_type,signalbar') {
+    if (
+      request.method === 'GET' &&
+      url.searchParams.get('cmd') === 'network_type,signalbar'
+    ) {
       healthCount += 1;
       response.end(JSON.stringify({ network_type: 'LTE', signalbar: '4' }));
       return;
     }
-    if (request.method === 'GET' && url.searchParams.get('cmd') === 'ussd_write_flag') {
+    if (
+      request.method === 'GET' &&
+      url.searchParams.get('cmd') === 'ussd_write_flag'
+    ) {
       pollCount += 1;
-      response.end(JSON.stringify({ ussd_write_flag: pollCount > 1 ? '16' : '15' }));
+      response.end(
+        JSON.stringify({ ussd_write_flag: pollCount > 1 ? '16' : '15' }),
+      );
       return;
     }
-    if (request.method === 'GET' && url.searchParams.get('cmd') === 'ussd_data_info') {
-      response.end(JSON.stringify({
-        ussd_data_info: encode('Запрос принят. Информация направлена в SMS.'),
-      }));
+    if (
+      request.method === 'GET' &&
+      url.searchParams.get('cmd') === 'ussd_data_info'
+    ) {
+      response.end(
+        JSON.stringify({
+          ussd_data_info: encode('Запрос принят. Информация направлена в SMS.'),
+        }),
+      );
       return;
     }
-    if (request.method === 'GET' && url.searchParams.get('cmd') === 'sms_cmd_status_info') {
+    if (
+      request.method === 'GET' &&
+      url.searchParams.get('cmd') === 'sms_cmd_status_info'
+    ) {
       response.end(JSON.stringify({ sms_cmd_status_result: '3' }));
       return;
     }
-    if (request.method === 'GET' && url.searchParams.get('cmd') === 'sms_data_total') {
+    if (
+      request.method === 'GET' &&
+      url.searchParams.get('cmd') === 'sms_data_total'
+    ) {
       messagePollCount += 1;
       if (ussdSendCount > 0 && !balanceDelivered) {
-        incoming = [{
-          id: 'operator-balance-1',
-          tag: '1',
-          content: encode(
-            'Остаток пакетов: 200 SMS, неиспользованные остатки с прошлого периода: 192 SMS.',
-          ),
-        }, ...incoming];
+        incoming = [
+          {
+            id: 'operator-balance-1',
+            tag: '1',
+            content: encode(
+              'Остаток пакетов: 200 SMS, неиспользованные остатки с прошлого периода: 192 SMS.',
+            ),
+          },
+          ...incoming,
+        ];
         balanceDelivered = true;
       }
       response.end(JSON.stringify({ messages: incoming }));
@@ -201,13 +251,17 @@ test('reads the T2 tariff SMS remainder once and enforces the daily gateway cool
   process.env.SMS_GATEWAY_SHARED_SECRET = 'test-shared-secret';
   process.env.STATE_FILE = `/tmp/artificiallabs-sms-gateway-balance-${process.pid}.json`;
   process.env.SMS_BALANCE_SETTLE_MS = '0';
-  process.env.INCOMING_ARCHIVE_FILE =
-    `/tmp/artificiallabs-sms-gateway-incoming-${process.pid}.ndjson`;
+  process.env.INCOMING_ARCHIVE_FILE = `/tmp/artificiallabs-sms-gateway-incoming-${process.pid}.ndjson`;
   await unlink(process.env.INCOMING_ARCHIVE_FILE).catch(() => undefined);
-  const { createGatewayServer, testing } = await import(`./server.mjs?balance=${Date.now()}`);
+  const { createGatewayServer, testing } = await import(
+    `./server.mjs?balance=${Date.now()}`
+  );
   assert.equal(testing.parseRemainingSms('SMS: 1 234 из 1500'), 1234);
   assert.equal(testing.parseRemainingSms('200 SMS и 192 SMS'), 392);
-  assert.equal(testing.isTariffBalanceMessage('Остаток пакетов: 200 SMS'), true);
+  assert.equal(
+    testing.isTariffBalanceMessage('Остаток пакетов: 200 SMS'),
+    true,
+  );
   assert.equal(testing.parseRemainingSms('Нет данных о пакете'), undefined);
   assert.equal(testing.tariffSmsUnavailable('Запрос неправильный.'), true);
   const gateway = createGatewayServer();

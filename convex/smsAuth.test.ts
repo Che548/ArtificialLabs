@@ -56,7 +56,8 @@ describe('SMS authentication storage', () => {
       now,
     });
     expect(first).toMatchObject({ allowed: true, remaining: 2 });
-    if (!first.allowed || !first.attemptId) throw new Error('reservation failed');
+    if (!first.allowed || !first.attemptId)
+      throw new Error('reservation failed');
     await t.mutation(internal.smsAuth.finish, {
       attemptId: first.attemptId,
       sent: false,
@@ -172,6 +173,8 @@ describe('SMS authentication storage', () => {
         phoneVerificationTime: Date.now(),
       }),
     );
-    await expect(client.mutation(api.profile.save, input)).resolves.toBeDefined();
+    await expect(
+      client.mutation(api.profile.save, input),
+    ).resolves.toBeDefined();
   });
 });

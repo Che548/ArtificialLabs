@@ -67,6 +67,13 @@ crons.hourly(
   {},
 );
 
+crons.hourly(
+  'purge password recovery state',
+  { minuteUTC: 53 },
+  internal.passwordRecovery.cleanupExpired,
+  {},
+);
+
 crons.interval(
   'check admin services',
   { minutes: 5 },

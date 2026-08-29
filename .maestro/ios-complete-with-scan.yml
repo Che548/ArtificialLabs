@@ -1,0 +1,7 @@
+appId: com.anonymous.privateexpo
+---
+# Scan fixture variant of the single-session iOS 26 flow.
+- runFlow: open-dev-client.yml
+- runFlow: ios-primary.yml
+- runFlow: product-surface.yml
+- runFlow: scan-fixture.yml

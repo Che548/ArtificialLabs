@@ -17,26 +17,35 @@ describe('SMS auth primitives', () => {
   });
 
   it('rejects non-Russian or malformed numbers', () => {
-    expect(() => normalizeRussianPhone('+14155552671')).toThrow('SMS_PHONE_INVALID');
+    expect(() => normalizeRussianPhone('+14155552671')).toThrow(
+      'SMS_PHONE_INVALID',
+    );
     expect(() => normalizeRussianPhone('123')).toThrow('SMS_PHONE_INVALID');
   });
 
   it('keeps IPv4 and truncates IPv6 to /64', () => {
     expect(normalizeClientIp('192.0.2.4')).toBe('192.0.2.4');
-    expect(normalizeClientIp('2001:db8:abcd:12::7')).toBe('2001:db8:abcd:12::/64');
+    expect(normalizeClientIp('2001:db8:abcd:12::7')).toBe(
+      '2001:db8:abcd:12::/64',
+    );
     expect(normalizeClientIp('::ffff:192.0.2.4')).toBe('192.0.2.4');
     expect(() => normalizeClientIp(null)).toThrow('SMS_IP_UNAVAILABLE');
   });
 
   it('applies five and thirty minute cooldowns and a rolling day limit', () => {
     const now = 1_800_000_000_000;
-    expect(evaluateSmsLimit([], [], now)).toMatchObject({ allowed: true, remaining: 3 });
+    expect(evaluateSmsLimit([], [], now)).toMatchObject({
+      allowed: true,
+      remaining: 3,
+    });
     expect(evaluateSmsLimit([now - 60_000], [], now)).toMatchObject({
       allowed: false,
       reason: 'SMS_COOLDOWN',
       retryAt: now + 4 * 60_000,
     });
-    expect(evaluateSmsLimit([now - 31 * 60_000], [now - 31 * 60_000], now)).toMatchObject({
+    expect(
+      evaluateSmsLimit([now - 31 * 60_000], [now - 31 * 60_000], now),
+    ).toMatchObject({
       allowed: true,
       remaining: 2,
     });
@@ -53,7 +62,11 @@ describe('SMS auth primitives', () => {
         [],
         now,
       ),
-    ).toMatchObject({ allowed: false, reason: 'SMS_RATE_LIMITED', remaining: 0 });
+    ).toMatchObject({
+      allowed: false,
+      reason: 'SMS_RATE_LIMITED',
+      remaining: 0,
+    });
   });
 
   it('generates a six digit decimal OTP', () => {
