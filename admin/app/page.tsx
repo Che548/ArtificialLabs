@@ -997,9 +997,15 @@ function SmsTariffBalance() {
   const nextAllowedAt = balance?.nextAllowedAt;
   const checking = balance?.status === 'checking';
   const coolingDown = Boolean(nextAllowedAt && nextAllowedAt > now);
-  const disabled = overview === undefined || checking || coolingDown;
+  const disabled = overview === undefined || checking;
   const requestRefresh = async () => {
     setMessage(undefined);
+    if (coolingDown && nextAllowedAt) {
+      setMessage(
+        `Повторная проверка доступна ${new Date(nextAllowedAt).toLocaleString('ru-RU')}. До этого времени запрос к T2 не выполняется.`,
+      );
+      return;
+    }
     try {
       const result = await refresh({ requestId: requestId() });
       setMessage(
@@ -1079,7 +1085,11 @@ function SmsTariffBalance() {
         занятое место в памяти модема; расчёт не подтверждает доставку сообщения
         на телефон.
       </p>
-      {message && <p className="muted sms-message">{message}</p>}
+      {message && (
+        <p className="muted sms-message" role="status" aria-live="polite">
+          {message}
+        </p>
+      )}
     </section>
   );
 }

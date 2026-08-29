@@ -98,6 +98,37 @@ describe('SMS authentication storage', () => {
     ).resolves.toMatchObject({ allowed: false, duplicate: true });
   });
 
+  test('resets only attempts associated with the selected phone hash', async () => {
+    const t = convexTest(schema, modules);
+    const now = 1_800_000_000_000;
+    await t.run(async (ctx) => {
+      await ctx.db.insert('smsSendAttempts', {
+        requestId: 'reset-selected',
+        phoneHash: 'phone-selected',
+        ipHash: 'shared-ip',
+        attemptedAt: now,
+        expiresAt: now + 48 * 60 * 60 * 1000,
+        outcome: 'sent',
+      });
+      await ctx.db.insert('smsSendAttempts', {
+        requestId: 'keep-other',
+        phoneHash: 'phone-other',
+        ipHash: 'shared-ip',
+        attemptedAt: now,
+        expiresAt: now + 48 * 60 * 60 * 1000,
+        outcome: 'sent',
+      });
+    });
+    await expect(
+      t.mutation(internal.smsAuth.resetPhoneLimitByHash, {
+        phoneHash: 'phone-selected',
+      }),
+    ).resolves.toBe(1);
+    const rows = await t.run((ctx) => ctx.db.query('smsSendAttempts').collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].requestId).toBe('keep-other');
+  });
+
   test('removes expired unverified phone-only users but preserves email users', async () => {
     const t = convexTest(schema, modules);
     const temporaryUser = await t.run((ctx) =>

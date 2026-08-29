@@ -179,6 +179,7 @@ export const finishSmsTariffRefresh = internalMutation({
     actorUserId: v.id('users'),
     remainingSms: v.optional(v.number()),
     errorCode: v.optional(v.string()),
+    nextAllowedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const current = await ctx.db
@@ -196,6 +197,14 @@ export const finishSmsTariffRefresh = internalMutation({
       : args.errorCode && SAFE_BALANCE_ERRORS.has(args.errorCode)
         ? args.errorCode
         : 'SMS_BALANCE_UNAVAILABLE';
+    const gatewayCooldownAt =
+      !success &&
+      errorCode === 'SMS_BALANCE_COOLDOWN' &&
+      Number.isSafeInteger(args.nextAllowedAt) &&
+      (args.nextAllowedAt ?? 0) > now &&
+      (args.nextAllowedAt ?? 0) <= now + DAY_MS
+        ? args.nextAllowedAt
+        : undefined;
     await ctx.db.patch(current._id, {
       status: success ? 'ready' : 'error',
       remainingSms: success ? args.remainingSms : current.remainingSms,
@@ -204,6 +213,9 @@ export const finishSmsTariffRefresh = internalMutation({
         : current.successfulSendsSinceRefresh,
       lastSuccessAt: success ? now : current.lastSuccessAt,
       errorCode,
+      // A gateway cooldown means this request did not execute USSD. Adopt the
+      // gateway's existing deadline instead of extending it by another day.
+      nextAllowedAt: gatewayCooldownAt ?? current.nextAllowedAt,
       updatedAt: now,
     });
     await writeAdminAudit(ctx, {
@@ -218,6 +230,36 @@ export const finishSmsTariffRefresh = internalMutation({
         : `Обновление остатка SMS завершилось ошибкой ${errorCode}`,
       requestId: args.requestId,
       occurredAt: now,
+    });
+    return true;
+  },
+});
+
+export const resetSmsTariffCooldown = internalMutation({
+  args: {
+    actorUserId: v.id('users'),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const current = await ctx.db
+      .query('smsTariffBalance')
+      .withIndex('by_key', (q) => q.eq('key', TARIFF_BALANCE_KEY))
+      .unique();
+    if (!current) return false;
+    await ctx.db.patch(current._id, {
+      status: current.remainingSms === undefined ? 'idle' : 'ready',
+      nextAllowedAt: args.now,
+      errorCode: undefined,
+      updatedAt: args.now,
+    });
+    await writeAdminAudit(ctx, {
+      actorUserId: args.actorUserId,
+      action: 'sms.tariff_balance.cooldown_reset',
+      entityType: 'sms_tariff_balance',
+      entityId: TARIFF_BALANCE_KEY,
+      summary: 'Суточный cooldown проверки тарифа сброшен вручную',
+      requestId: `sms-tariff-reset-${args.now}`,
+      occurredAt: args.now,
     });
     return true;
   },

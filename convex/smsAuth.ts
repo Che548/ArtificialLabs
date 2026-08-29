@@ -1,7 +1,12 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from './_generated/api';
-import { action, internalMutation, internalQuery } from './_generated/server';
+import {
+  action,
+  internalAction,
+  internalMutation,
+  internalQuery,
+} from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import {
   evaluateSmsLimit,
@@ -384,6 +389,30 @@ export const cleanupAttempts = internalMutation({
       await ctx.scheduler.runAfter(0, internal.smsAuth.cleanupAttempts, {});
     }
     return expired.length;
+  },
+});
+
+export const resetPhoneLimitByHash = internalMutation({
+  args: { phoneHash: v.string() },
+  handler: async (ctx, args) => {
+    const attempts = await ctx.db
+      .query('smsSendAttempts')
+      .withIndex('by_phone_time', (q) => q.eq('phoneHash', args.phoneHash))
+      .take(100);
+    for (const attempt of attempts) await ctx.db.delete(attempt._id);
+    return attempts.length;
+  },
+});
+
+export const resetPhoneLimit = internalAction({
+  args: { phone: v.string() },
+  handler: async (ctx, args): Promise<number> => {
+    const phone = normalizeRussianPhone(args.phone);
+    const secret = requiredSecret('SMS_RATE_LIMIT_HASH_SECRET');
+    const phoneHash = await hmacSha256(secret, `phone:${phone}`);
+    return await ctx.runMutation(internal.smsAuth.resetPhoneLimitByHash, {
+      phoneHash,
+    });
   },
 });
 

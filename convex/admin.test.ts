@@ -177,6 +177,36 @@ describe('admin access and audit', () => {
       { requestId: 'tariff-refresh-2' },
     );
     expect(second).toMatchObject({ accepted: false, status: 'checking' });
+    const gatewayCooldownAt = Date.now() + 60_000;
+    await t.mutation(internal.monitoringData.finishSmsTariffRefresh, {
+      requestId: 'tariff-refresh-1',
+      actorUserId: admin.userId,
+      errorCode: 'SMS_BALANCE_COOLDOWN',
+      nextAllowedAt: gatewayCooldownAt,
+    });
+    await expect(
+      admin.client.query(api.monitoringData.smsOverview, {}),
+    ).resolves.toMatchObject({
+      balance: {
+        status: 'error',
+        errorCode: 'SMS_BALANCE_COOLDOWN',
+        nextAllowedAt: gatewayCooldownAt,
+      },
+    });
+    await expect(
+      t.mutation(internal.monitoringData.resetSmsTariffCooldown, {
+        actorUserId: admin.userId,
+        now: gatewayCooldownAt - 1,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      admin.client.query(api.monitoringData.smsOverview, {}),
+    ).resolves.toMatchObject({
+      balance: {
+        status: 'idle',
+        nextAllowedAt: gatewayCooldownAt - 1,
+      },
+    });
     await t.mutation(internal.monitoringData.finishSmsTariffRefresh, {
       requestId: 'tariff-refresh-1',
       actorUserId: admin.userId,

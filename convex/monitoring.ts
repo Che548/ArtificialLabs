@@ -75,6 +75,7 @@ export const refreshSmsTariffBalance = internalAction({
     const sharedSecret = process.env.SMS_GATEWAY_SHARED_SECRET;
     let remainingSms: number | undefined;
     let errorCode: string | undefined;
+    let nextAllowedAt: number | undefined;
     if (!sharedSecret) {
       errorCode = 'SMS_BALANCE_UNAVAILABLE';
     } else {
@@ -97,7 +98,12 @@ export const refreshSmsTariffBalance = internalAction({
           signal: AbortSignal.timeout(BALANCE_TIMEOUT_MS),
         });
         const payload = (await response.json().catch(() => null)) as
-          | { ok?: boolean; remainingSms?: number; code?: string }
+          | {
+              ok?: boolean;
+              remainingSms?: number;
+              code?: string;
+              nextAllowedAt?: number;
+            }
           | null;
         if (
           response.ok &&
@@ -111,6 +117,13 @@ export const refreshSmsTariffBalance = internalAction({
             payload?.code && SAFE_BALANCE_ERRORS.has(payload.code)
               ? payload.code
               : 'SMS_BALANCE_UNAVAILABLE';
+          if (
+            errorCode === 'SMS_BALANCE_COOLDOWN' &&
+            Number.isSafeInteger(payload?.nextAllowedAt) &&
+            (payload?.nextAllowedAt ?? 0) > Date.now()
+          ) {
+            nextAllowedAt = payload?.nextAllowedAt;
+          }
         }
       } catch (error) {
         errorCode =
@@ -124,6 +137,7 @@ export const refreshSmsTariffBalance = internalAction({
       actorUserId: args.actorUserId,
       remainingSms,
       errorCode,
+      nextAllowedAt,
     });
   },
 });
