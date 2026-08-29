@@ -411,7 +411,11 @@ function formatOtpMessage(
     return `${label}: ${code}\n@${iosDomain} #${code}`;
   }
   if (platform === 'android') {
-    return `<#> ${label}: ${code}\n${androidAppHash}`;
+    // Some recipient networks silently filter the conventional `<#> ... code`
+    // template when it is sent from a regular SIM. SMS Retriever only requires
+    // the one-time token and the 11-character app hash, so use the neutral
+    // product label while preserving permissionless Android autofill.
+    return `ArtificialLabs: ${code}\n${androidAppHash}`;
   }
   return `${label}: ${code}`;
 }

@@ -100,7 +100,7 @@ test('accepts one signed request, replays it idempotently, and cleans its sent S
       .match(/.{4}/g)
       .map((unit) => Number.parseInt(unit, 16)),
   );
-  assert.equal(decodedMessage, '<#> Sfera code: 123456\nY4QO6pOIVxj');
+  assert.equal(decodedMessage, 'ArtificialLabs: 123456\nY4QO6pOIVxj');
   assert.ok(Buffer.byteLength(decodedMessage, 'utf8') <= 140);
   await Promise.all([
     new Promise((resolve) => gateway.close(resolve)),
@@ -124,7 +124,7 @@ test('formats one strict ASCII SMS for each native platform', async () => {
     'Y4QO6pOIVxj',
   );
   assert.equal(ios, 'Sfera code: 123456\n@artificiallabs.bebra42.ru #123456');
-  assert.equal(android, '<#> Sfera code: 123456\nY4QO6pOIVxj');
+  assert.equal(android, 'ArtificialLabs: 123456\nY4QO6pOIVxj');
   assert.ok(Buffer.byteLength(ios, 'utf8') <= 140);
   assert.ok(Buffer.byteLength(android, 'utf8') <= 140);
   assert.equal(
@@ -135,7 +135,7 @@ test('formats one strict ASCII SMS for each native platform', async () => {
       'Y4QO6pOIVxj',
       'password-recovery',
     ),
-    '<#> Sfera reset code: 654321\nY4QO6pOIVxj',
+    'ArtificialLabs: 654321\nY4QO6pOIVxj',
   );
 });
 
