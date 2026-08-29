@@ -1,0 +1,7 @@
+# Gradle compiles this included plugin inside node_modules before the Android
+# app fingerprint task runs. These generated caches are not native inputs and
+# do not exist in the clean OTA export job, so including them makes compatible
+# release builds and updates resolve to different runtime versions.
+node_modules/expo-updates/expo-updates-gradle-plugin/.gradle/**/*
+node_modules/expo-updates/expo-updates-gradle-plugin/.kotlin/**/*
+node_modules/expo-updates/expo-updates-gradle-plugin/build/**/*

@@ -158,6 +158,9 @@ The app uses a self-hosted Expo Updates Protocol v1 service on `junk`:
   `artificiallabs_updates` is the only public ingress.
 - Releases are isolated by exact platform, fingerprint runtime version and
   `preview`/`production` channel. The default client channel is `production`.
+- Keep `.fingerprintignore` aligned with generated Gradle caches. Before
+  sharing an Android release APK, compare its `assets/fingerprint` with
+  `npx expo-updates runtimeversion:resolve --platform android`; they must match.
 
 `.github/workflows/ota.yml` is manual-only and must be selected on `main`.
 `publish-preview` always exports the current `main`; never publish new bundle
