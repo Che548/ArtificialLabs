@@ -10,7 +10,7 @@ function listen(server) {
   );
 }
 
-test('accepts one signed request, replays it idempotently, and deletes only its sent SMS', async () => {
+test('accepts one signed request, replays it idempotently, and cleans its sent SMS only after expiry', async () => {
   let sendCount = 0;
   let deleteCount = 0;
   let outgoing;
@@ -56,17 +56,20 @@ test('accepts one signed request, replays it idempotently, and deletes only its 
   process.env.NODE_ENV = 'test';
   process.env.MODEM_BASE_URL = `http://127.0.0.1:${modemPort}`;
   process.env.SMS_GATEWAY_SHARED_SECRET = 'test-shared-secret';
+  process.env.SMS_OUTGOING_CLEANUP_GRACE_MS = '0';
+  process.env.SMS_OUTGOING_CLEANUP_RETRY_MS = '10';
   process.env.STATE_FILE = `/tmp/artificiallabs-sms-gateway-${process.pid}.json`;
   const { createGatewayServer } = await import(
     `./server.mjs?test=${Date.now()}`
   );
   const gateway = createGatewayServer();
   const gatewayPort = await listen(gateway);
+  const expiration = Date.now() + 100;
   const body = JSON.stringify({
     requestId: 'request-1',
     phone: '+79990000000',
     code: '123456',
-    expiration: Date.now() + 300_000,
+    expiration,
     platform: 'android',
   });
   const timestamp = String(Date.now());
@@ -87,6 +90,10 @@ test('accepts one signed request, replays it idempotently, and deletes only its 
   assert.equal((await request()).status, 200);
   assert.equal((await request()).status, 200);
   assert.equal(sendCount, 1);
+  assert.equal(deleteCount, 0);
+  await new Promise((resolve) =>
+    setTimeout(resolve, Math.max(0, expiration - Date.now()) + 50),
+  );
   assert.equal(deleteCount, 1);
   const decodedMessage = String.fromCodePoint(
     ...String(outgoing.content)

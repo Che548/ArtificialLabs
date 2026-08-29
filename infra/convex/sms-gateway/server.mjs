@@ -27,6 +27,15 @@ const BALANCE_MESSAGE_SETTLE_MS = Number(
 const TARIFF_BALANCE_USSD = process.env.SMS_BALANCE_USSD_CODE ?? '*255*0#';
 const MODEM_CAPACITY = Number(process.env.MODEM_CAPACITY ?? 20);
 const MODEM_INCOMING_TARGET = Number(process.env.MODEM_INCOMING_TARGET ?? 16);
+const OUTGOING_CLEANUP_GRACE_MS = Math.max(
+  0,
+  Number(process.env.SMS_OUTGOING_CLEANUP_GRACE_MS ?? 60_000),
+);
+const OUTGOING_CLEANUP_RETRY_MS = Math.max(
+  1_000,
+  Number(process.env.SMS_OUTGOING_CLEANUP_RETRY_MS ?? 30_000),
+);
+const OUTGOING_CLEANUP_ATTEMPTS = 3;
 
 function json(response, status, value) {
   const body = JSON.stringify(value);
@@ -366,6 +375,29 @@ async function deleteOwnOutgoing(phone, encodedMessage) {
   return accepted.result === 'success' && (await pollCommand(6));
 }
 
+function scheduleOwnOutgoingCleanup(phone, encodedMessage, expiration) {
+  const cleanupAt = Math.min(
+    expiration + OUTGOING_CLEANUP_GRACE_MS,
+    Date.now() + 24 * 60 * 60 * 1000,
+  );
+  const run = async (attempt = 1) => {
+    const cleaned = await deleteOwnOutgoing(phone, encodedMessage).catch(
+      () => false,
+    );
+    if (cleaned || attempt >= OUTGOING_CLEANUP_ATTEMPTS) return;
+    const retry = setTimeout(
+      () => void run(attempt + 1),
+      OUTGOING_CLEANUP_RETRY_MS,
+    );
+    retry.unref?.();
+  };
+  const timer = setTimeout(
+    () => void run(),
+    Math.max(0, cleanupAt - Date.now()),
+  );
+  timer.unref?.();
+}
+
 function formatOtpMessage(
   code,
   platform,
@@ -384,7 +416,7 @@ function formatOtpMessage(
   return `${label}: ${code}`;
 }
 
-async function sendSms({ phone, code, platform, purpose }) {
+async function sendSms({ phone, code, expiration, platform, purpose }) {
   const storage = await capacity();
   if (storage.free < 1) return { ok: false, code: 'SMS_UNAVAILABLE' };
   const iosDomain = process.env.SMS_IOS_DOMAIN ?? 'artificiallabs.bebra42.ru';
@@ -418,10 +450,11 @@ async function sendSms({ phone, code, platform, purpose }) {
   if (accepted.result !== 'success' || !(await pollCommand(4))) {
     return { ok: false, code: 'SMS_GATEWAY_REJECTED' };
   }
-  const cleaned = await deleteOwnOutgoing(phone, encodedMessage).catch(
-    () => false,
-  );
-  return { ok: true, cleaned };
+  // ZTE reports command result 3 before the carrier has necessarily accepted
+  // the message. Deleting it immediately can cancel delivery. Keep it until
+  // the OTP is expired, then remove only this gateway-created outgoing SMS.
+  scheduleOwnOutgoingCleanup(phone, encodedMessage, expiration);
+  return { ok: true };
 }
 
 let state = {

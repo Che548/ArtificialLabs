@@ -66,6 +66,12 @@ Android package name or production signing certificate changes, recompute
 Associated Domains entitlement and the public AASA file must remain aligned
 with Team ID `2675845GP5` and bundle ID `com.anonymous.privateexpo`.
 
+The gateway must not delete a newly submitted outgoing OTP immediately: the
+ZTE command-success state can precede carrier acceptance. Delete only the exact
+gateway-created outgoing message after its OTP has expired plus a short grace
+period. Live modem delivery checks are manual-only and must never be added to
+regular E2E, CI, cron, readiness, or health checks.
+
 The gateway archives every incoming modem SMS once in the private persistent
 `/data/incoming-sms-archive.ndjson` file (`0600`) using an HMAC fingerprint for
 deduplication. Before OTP or tariff operations it keeps only the newest 16 of
