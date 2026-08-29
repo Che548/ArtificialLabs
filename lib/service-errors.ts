@@ -45,7 +45,7 @@ export function classifyServiceIssue(
     };
   }
   if (
-    /network request failed|failed to fetch|fetch failed|websocket|socket|econn|enotfound|timed?\s*out|timeout|connection (?:closed|refused|reset)|http\s*5\d\d|status\s*5\d\d|bad gateway|service unavailable|gateway timeout|server unavailable/.test(
+    /network request failed|failed to fetch|fetch failed|websocket|socket|econn|enotfound|timed?\s*out|timeout|(?:client|connection) (?:closed|disconnected|refused|reset)|not connected|http\s*5\d\d|status\s*5\d\d|bad gateway|service unavailable|gateway timeout|server unavailable/.test(
       text,
     )
   ) {

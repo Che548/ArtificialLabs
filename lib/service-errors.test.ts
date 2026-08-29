@@ -12,10 +12,17 @@ test('offline state takes precedence over an opaque transport error', () => {
 });
 
 test('server transport failures are retryable without exposing internals', () => {
-  const issue = classifyServiceIssue(new Error('WebSocket connection closed'));
-  assert.equal(issue.kind, 'server');
-  assert.equal(issue.retryable, true);
-  assert.doesNotMatch(issue.message, /WebSocket/);
+  for (const error of [
+    new Error('WebSocket connection closed'),
+    new Error('Client disconnected'),
+    new Error('Connection reset without closing handshake'),
+    new Error('Client is not connected'),
+  ]) {
+    const issue = classifyServiceIssue(error);
+    assert.equal(issue.kind, 'server');
+    assert.equal(issue.retryable, true);
+    assert.doesNotMatch(issue.message, /WebSocket|disconnected|handshake/);
+  }
 });
 
 test('authentication and validation failures are not retried', () => {
