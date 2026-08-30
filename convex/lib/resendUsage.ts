@@ -9,3 +9,10 @@ export function parseResendQuotaHeader(value: string | null) {
       limit !== undefined && Number.isSafeInteger(limit) ? limit : undefined,
   };
 }
+
+export function includeAcceptedEmailInQuota(
+  used: number | undefined,
+  accepted: boolean,
+) {
+  return used === undefined ? undefined : used + (accepted ? 1 : 0);
+}

@@ -14,7 +14,10 @@ import {
   normalizeClientIp,
   normalizeRussianPhone,
 } from './lib/sms';
-import { parseResendQuotaHeader } from './lib/resendUsage';
+import {
+  includeAcceptedEmailInQuota,
+  parseResendQuotaHeader,
+} from './lib/resendUsage';
 import { sendSmsCode } from './smsAuth';
 
 const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
@@ -238,9 +241,9 @@ async function sendRecoveryEmail(
   return {
     ok: response.ok,
     quota: {
-      dailyUsed: daily.used,
+      dailyUsed: includeAcceptedEmailInQuota(daily.used, response.ok),
       dailyLimit: daily.limit,
-      monthlyUsed: monthly.used,
+      monthlyUsed: includeAcceptedEmailInQuota(monthly.used, response.ok),
       monthlyLimit: monthly.limit,
     },
   };

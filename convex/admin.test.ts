@@ -2,7 +2,10 @@ import { convexTest } from 'convex-test';
 import { describe, expect, test } from 'vitest';
 
 import { api, internal } from './_generated/api';
-import { parseResendQuotaHeader } from './lib/resendUsage';
+import {
+  includeAcceptedEmailInQuota,
+  parseResendQuotaHeader,
+} from './lib/resendUsage';
 import schema from './schema';
 
 const modules = import.meta.glob('./**/*.ts');
@@ -311,5 +314,9 @@ describe('admin access and audit', () => {
     expect(parseResendQuotaHeader('2')).toEqual({ used: 2 });
     expect(parseResendQuotaHeader('2 / 100')).toEqual({ used: 2, limit: 100 });
     expect(parseResendQuotaHeader('invalid')).toEqual({});
+    expect(includeAcceptedEmailInQuota(0, true)).toBe(1);
+    expect(includeAcceptedEmailInQuota(2, true)).toBe(3);
+    expect(includeAcceptedEmailInQuota(2, false)).toBe(2);
+    expect(includeAcceptedEmailInQuota(undefined, true)).toBeUndefined();
   });
 });
