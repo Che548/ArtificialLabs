@@ -11,6 +11,7 @@ COPY admin/package.json admin/package-lock.json ./admin/
 RUN npm ci && npm --prefix admin ci
 
 COPY admin ./admin
+COPY assets/icon.png ./admin/public/email-logo.png
 COPY convex ./convex
 COPY lib ./lib
 COPY shared ./shared

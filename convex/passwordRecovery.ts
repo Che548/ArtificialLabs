@@ -21,6 +21,7 @@ import {
 import { sendSmsCode } from './smsAuth';
 
 const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
+const EMAIL_LOGO_URL = 'https://artificiallabs.bebra42.ru/email-logo.png';
 const SMS_CODE_TTL_MS = 5 * 60 * 1000;
 const EMAIL_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
 const EMAIL_SEND_COOLDOWN_MS = 60 * 1000;
@@ -228,7 +229,7 @@ async function sendRecoveryEmail(
       to: [email],
       subject: 'Код восстановления пароля Сфера',
       text: `Код восстановления пароля: ${code}. Код действует 10 минут. Никому не сообщайте его.`,
-      html: `<p>Код восстановления пароля:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>Код действует 10 минут. Никому не сообщайте его.</p>`,
+      html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#202124;max-width:520px;margin:0 auto;padding:32px 24px"><img src="${EMAIL_LOGO_URL}" width="180" height="180" alt="Сфера" style="display:block;width:180px;height:180px;object-fit:contain;margin:0 auto 24px"/><p style="margin:0 0 12px">Код восстановления пароля:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:0 0 16px;color:#dc3287">${code}</p><p style="margin:0;color:#5f6368">Код действует 10 минут. Никому не сообщайте его.</p></div>`,
     }),
     signal: AbortSignal.timeout(12_000),
   });

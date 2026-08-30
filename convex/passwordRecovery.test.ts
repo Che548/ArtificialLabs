@@ -5,9 +5,19 @@ import { api, internal } from './_generated/api';
 import { hmacSha256 } from './lib/sms';
 import schema from './schema';
 
+const passwordRecoverySource = await import('./passwordRecovery.ts?raw').then(
+  (module) => module.default,
+);
+
 const modules = import.meta.glob('./**/*.ts');
 
 describe('password recovery storage', () => {
+  test('uses the first-party HTTPS logo in recovery email HTML', () => {
+    expect(passwordRecoverySource).toContain(
+      'https://artificiallabs.bebra42.ru/email-logo.png',
+    );
+    expect(passwordRecoverySource).toContain('alt="Сфера"');
+  });
   test('resolves email and only verified phone to the same password account', async () => {
     const t = convexTest(schema, modules);
     const userId = await t.run((ctx) =>
