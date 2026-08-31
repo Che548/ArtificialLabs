@@ -39,7 +39,6 @@ const privacyPolicyUrl = 'https://brainwaves.engineering/docs#document-2';
 const userAgreementUrl = 'https://brainwaves.engineering/docs#document-3';
 const designWidth = 402;
 const designHeight = 874;
-const devLoginEnabled = __DEV__;
 const e2eMode = process.env.EXPO_PUBLIC_E2E_MODE === '1';
 const e2eEmail = process.env.EXPO_PUBLIC_E2E_EMAIL;
 
@@ -177,13 +176,11 @@ function LegalLink({ children, url }: { children: string; url: string }) {
 export function AuthScreen({
   embedded = false,
   onAuthenticated,
-  onDevLogin,
   onPreviewComplete,
   preview = false,
 }: {
   embedded?: boolean;
   onAuthenticated?: () => void;
-  onDevLogin?: () => void;
   onPreviewComplete?: () => void;
   preview?: boolean;
 }) {
@@ -418,23 +415,6 @@ export function AuthScreen({
     }
   };
 
-  const enterDevMode = () => {
-    Keyboard.dismiss();
-    setError(undefined);
-
-    if (onDevLogin) {
-      onDevLogin();
-      return;
-    }
-
-    if (preview) {
-      onPreviewComplete?.();
-      return;
-    }
-
-    onAuthenticated?.();
-  };
-
   return (
     <View style={styles.root}>
       {preview ? null : <StatusBar hidden />}
@@ -467,20 +447,6 @@ export function AuthScreen({
               style={styles.canvas}
             >
               <View style={styles.content}>
-                {devLoginEnabled ? (
-                  <View style={styles.devLoginSlot}>
-                    <Pressable
-                      accessibilityLabel="Войти в локальном режиме разработчика"
-                      accessibilityRole="button"
-                      hitSlop={10}
-                      onPress={enterDevMode}
-                      style={styles.devLoginButton}
-                    >
-                      <Text style={styles.devLoginLabel}>DEV вход</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-
                 <View style={styles.brandBlock}>
                   <Text style={styles.brand}>сфера.</Text>
                   <Text style={styles.brandSubtitle}>
@@ -791,30 +757,6 @@ const styles = StyleSheet.create({
     width: 244,
     height: 72,
     alignItems: 'center',
-  },
-  devLoginSlot: {
-    position: 'absolute',
-    zIndex: 2,
-    left: 26,
-    top: 697,
-    width: 349,
-    height: 34,
-  },
-  devLoginButton: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(211, 20, 113, 0.28)',
-    borderRadius: 12,
-    backgroundColor: 'rgba(211, 20, 113, 0.08)',
-  },
-  devLoginLabel: {
-    color: '#EA4087',
-    fontFamily: 'SFProDisplay-Medium',
-    fontSize: 13,
-    lineHeight: 16,
   },
   brand: {
     width: 244,

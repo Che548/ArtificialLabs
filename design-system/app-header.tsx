@@ -14,6 +14,7 @@ const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 export function AppHeader({
   centerContent,
   centerStyle,
+  controlIconColor = colors.brand.primary,
   dateAccessibilityLabel = 'Выбрать дату',
   historyAccessibilityLabel = 'Открыть историю',
   hideRightControl = false,
@@ -27,6 +28,7 @@ export function AppHeader({
 }: {
   centerContent?: ReactNode;
   centerStyle?: StyleProp<ViewStyle>;
+  controlIconColor?: string;
   dateAccessibilityLabel?: string;
   historyAccessibilityLabel?: string;
   hideRightControl?: boolean;
@@ -51,7 +53,7 @@ export function AppHeader({
         {Platform.OS === 'android' ? (
           <AndroidHistoryIcon width={24} height={24} />
         ) : (
-          <HeaderHistoryIcon width={22} height={22} color="#EA4087" />
+          <HeaderHistoryIcon width={22} height={22} color={controlIconColor} />
         )}
       </GlassControl>
 
@@ -83,7 +85,7 @@ export function AppHeader({
         >
           {rightContent ?? (
             <View style={styles.headerIconOrientation}>
-              <CalendarIcon width={22} height={22} color="#EA4087" />
+              <CalendarIcon width={22} height={22} color={controlIconColor} />
             </View>
           )}
         </GlassControl>

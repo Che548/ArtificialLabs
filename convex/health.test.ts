@@ -68,6 +68,7 @@ describe('health ownership and sync', () => {
           title: 'Анализ',
           collectedAt: 10,
           status: 'unreviewed',
+          interpretation: 'Показатели переписаны с фотографии результата.',
           analytes: [],
           hasLocalSourceDocument: true,
           updatedAt: 10,
@@ -180,6 +181,9 @@ describe('health ownership and sync', () => {
     for (const [key, rows] of Object.entries(aliceSnapshot)) {
       if (key !== 'profile') expect(rows).toHaveLength(1);
     }
+    expect(aliceSnapshot.labResults[0]?.interpretation).toBe(
+      'Показатели переписаны с фотографии результата.',
+    );
 
     const bobSnapshot = await bob.client.query(api.health.snapshot, {});
     for (const [key, rows] of Object.entries(bobSnapshot)) {
@@ -213,6 +217,62 @@ describe('health ownership and sync', () => {
     });
     snapshot = await client.query(api.health.snapshot, {});
     expect(snapshot.medications[0]?.deletedAt).toBe(30);
+  });
+
+  test('syncs completion interpretations and keeps legacy events valid', async () => {
+    const t = convexTest(schema, modules);
+    const { client } = await createUser(t, 'interpretation@example.test');
+    await client.mutation(api.profile.save, {
+      displayName: 'interpretation@example.test',
+      goal: 'planning',
+      onboardingCompleted: true,
+      consentToCloudSyncAt: 20,
+      updatedAt: 20,
+    });
+
+    await client.mutation(api.health.syncBatch, {
+      ...emptyBatch(),
+      recommendationEvents: [
+        {
+          localId: 'completion-with-interpretation',
+          carePlanLocalId: 'care-plan-1',
+          type: 'completed',
+          reasonCode: 'USER_RECORDED_COMPLETION',
+          resultInterpretation: 'Показатели в пределах нормы.',
+          beforeStatus: 'current',
+          afterStatus: 'completed',
+          evidenceRefs: [],
+          policyVersion: '2026-08-20-medical-agent-v1',
+          occurredAt: 21,
+          updatedAt: 21,
+        },
+        {
+          localId: 'legacy-completion',
+          carePlanLocalId: 'care-plan-2',
+          type: 'completed',
+          reasonCode: 'USER_RECORDED_COMPLETION',
+          beforeStatus: 'current',
+          afterStatus: 'completed',
+          evidenceRefs: [],
+          policyVersion: '2026-08-20-medical-agent-v1',
+          occurredAt: 22,
+          updatedAt: 22,
+        },
+      ],
+    });
+
+    const snapshot = await client.query(api.health.snapshot, {});
+    expect(snapshot.recommendationEvents).toHaveLength(2);
+    expect(
+      snapshot.recommendationEvents.find(
+        (event) => event.localId === 'completion-with-interpretation',
+      )?.resultInterpretation,
+    ).toBe('Показатели в пределах нормы.');
+    expect(
+      snapshot.recommendationEvents.find(
+        (event) => event.localId === 'legacy-completion',
+      )?.resultInterpretation,
+    ).toBeUndefined();
   });
 
   test('accepts both legacy demo messages and model generation metadata', async () => {

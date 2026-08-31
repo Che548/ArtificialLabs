@@ -1,4 +1,4 @@
-import { ConvexAuthProvider, useAuthToken } from '@convex-dev/auth/react';
+import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useConvexAuth } from 'convex/react';
 import { useFonts } from 'expo-font';
@@ -46,7 +46,7 @@ import AndroidActiveProfileIcon from '../assets/android-icons/active/profile.svg
 import AndroidActiveScanIcon from '../assets/android-icons/active/scan.svg';
 import AndroidActiveTodayIcon from '../assets/android-icons/active/today.svg';
 
-const activeTint = '#EA4087';
+const activeTint = '#0089CE';
 const activeCapsuleTint = '#FBE7F0';
 const inactiveTint = '#736E6C';
 const androidTabBackground = '#FFF5F1';
@@ -97,38 +97,38 @@ function IOSNativeTabs() {
         }}
         minimizeBehavior="never"
       >
-        <NativeTabs.Trigger name="chat">
-          <Label>Сферка</Label>
+        <NativeTabs.Trigger name="index">
+          <Label>Programs</Label>
           <Icon
             sf={{
-              default: 'waveform.and.person.filled',
-              selected: 'waveform.and.person.filled',
+              default: 'list.bullet.below.rectangle',
+              selected: 'list.bullet.below.rectangle',
+            }}
+            androidSrc={tabIcons.today}
+          />
+        </NativeTabs.Trigger>
+
+        <NativeTabs.Trigger name="chat">
+          <Label>Chat</Label>
+          <Icon
+            sf={{
+              default: 'message',
+              selected: 'message',
             }}
             androidSrc={tabIcons.chat}
           />
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="analyses">
-          <Label>Анализы</Label>
+          <Label>Labs</Label>
           <Icon
             sf={{ default: 'stethoscope', selected: 'stethoscope' }}
             androidSrc={tabIcons.analyses}
           />
         </NativeTabs.Trigger>
 
-        <NativeTabs.Trigger name="index">
-          <Label>Сегодня</Label>
-          <Icon
-            sf={{
-              default: 'heart.circle',
-              selected: 'heart.circle.fill',
-            }}
-            androidSrc={tabIcons.today}
-          />
-        </NativeTabs.Trigger>
-
         <NativeTabs.Trigger name="scan">
-          <Label>Скан</Label>
+          <Label>Scan</Label>
           <Icon
             sf={{ default: 'viewfinder', selected: 'viewfinder' }}
             androidSrc={tabIcons.scan}
@@ -136,7 +136,7 @@ function IOSNativeTabs() {
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="profile">
-          <Label>Профиль</Label>
+          <Label>Profile</Label>
           <Icon
             sf={{
               default: 'person.crop.circle',
@@ -242,48 +242,48 @@ function AndroidTabButton({
 }: AndroidTabButtonProps) {
   const navigationLabel = accessibilityLabel ?? ariaLabel;
   const inferredTestID =
-    navigationLabel?.split(',')[0]?.trim() === 'Сферка'
+    navigationLabel?.split(',')[0]?.trim() === 'Chat'
       ? 'e2e-tab-chat'
-      : navigationLabel?.split(',')[0]?.trim() === 'Анализы'
+      : navigationLabel?.split(',')[0]?.trim() === 'Labs'
         ? 'e2e-tab-analyses'
-        : navigationLabel?.split(',')[0]?.trim() === 'Сегодня'
+        : navigationLabel?.split(',')[0]?.trim() === 'Programs'
           ? 'e2e-tab-today'
-          : navigationLabel?.split(',')[0]?.trim() === 'Скан'
+          : navigationLabel?.split(',')[0]?.trim() === 'Scan'
             ? 'e2e-tab-scan'
-            : navigationLabel?.split(',')[0]?.trim() === 'Профиль'
+            : navigationLabel?.split(',')[0]?.trim() === 'Profile'
               ? 'e2e-tab-profile'
               : undefined;
   const testID = providedTestID ?? inferredTestID;
   const tabLabel =
     testID === 'e2e-tab-chat'
-      ? 'Сферка'
+      ? 'Chat'
       : testID === 'e2e-tab-analyses'
-        ? 'Анализы'
+        ? 'Labs'
         : testID === 'e2e-tab-today'
-          ? 'Сегодня'
+          ? 'Programs'
           : testID === 'e2e-tab-scan'
-            ? 'Скан'
+            ? 'Scan'
             : testID === 'e2e-tab-profile'
-              ? 'Профиль'
+              ? 'Profile'
               : navigationLabel?.split(',')[0]?.trim();
   const fallbackTestID =
-    tabLabel === 'Сферка'
+    tabLabel === 'Chat'
       ? 'e2e-tab-chat'
-      : tabLabel === 'Анализы'
+      : tabLabel === 'Labs'
         ? 'e2e-tab-analyses'
-        : tabLabel === 'Сегодня'
+        : tabLabel === 'Programs'
           ? 'e2e-tab-today'
-          : tabLabel === 'Скан'
+          : tabLabel === 'Scan'
             ? 'e2e-tab-scan'
-            : tabLabel === 'Профиль'
+            : tabLabel === 'Profile'
               ? 'e2e-tab-profile'
               : undefined;
   const resolvedTestID = testID ?? fallbackTestID;
   const selected = Boolean(accessibilityState?.selected);
   const edgeOffset =
-    tabLabel === 'Сферка'
+    tabLabel === 'Programs'
       ? 7
-      : tabLabel === 'Профиль'
+      : tabLabel === 'Profile'
         ? -7
         : 0;
   const progress = useRef(new Animated.Value(selected ? 1 : 0)).current;
@@ -339,11 +339,11 @@ function AndroidTabs() {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 8);
   const tabMetadata: Record<string, { label: string; testID: string }> = {
-    chat: { label: 'Сферка', testID: 'e2e-tab-chat' },
-    analyses: { label: 'Анализы', testID: 'e2e-tab-analyses' },
-    index: { label: 'Сегодня', testID: 'e2e-tab-today' },
-    scan: { label: 'Скан', testID: 'e2e-tab-scan' },
-    profile: { label: 'Профиль', testID: 'e2e-tab-profile' },
+    chat: { label: 'Chat', testID: 'e2e-tab-chat' },
+    analyses: { label: 'Labs', testID: 'e2e-tab-analyses' },
+    index: { label: 'Programs', testID: 'e2e-tab-today' },
+    scan: { label: 'Scan', testID: 'e2e-tab-scan' },
+    profile: { label: 'Profile', testID: 'e2e-tab-profile' },
   };
 
   return (
@@ -388,73 +388,72 @@ function AndroidTabs() {
         })}
       >
         <RouterTabs.Screen
+          name="index"
+          options={{
+            title: 'Programs',
+            tabBarButtonTestID: 'e2e-tab-today',
+            tabBarItemStyle: [styles.androidTabItem, styles.androidFirstTab],
+            tabBarIcon: ({ focused }) => (
+              <AndroidTabIcon focused={focused} route="index" />
+            ),
+            tabBarLabel: ({ focused }) => (
+              <AndroidTabLabel focused={focused} label="Programs" />
+            ),
+          }}
+        />
+        <RouterTabs.Screen
           name="chat"
           options={{
-            title: 'Сферка',
+            title: 'Chat',
             tabBarButtonTestID: 'e2e-tab-chat',
-            tabBarItemStyle: [styles.androidTabItem, styles.androidFirstTab],
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="chat" />
             ),
             tabBarLabel: ({ focused }) => (
-              <AndroidTabLabel focused={focused} label="Сферка" />
+              <AndroidTabLabel focused={focused} label="Chat" />
             ),
           }}
         />
         <RouterTabs.Screen
           name="analyses"
           options={{
-            title: 'Анализы',
+            title: 'Labs',
             tabBarButtonTestID: 'e2e-tab-analyses',
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="analyses" />
             ),
             tabBarLabel: ({ focused }) => (
-              <AndroidTabLabel focused={focused} label="Анализы" />
-            ),
-          }}
-        />
-        <RouterTabs.Screen
-          name="index"
-          options={{
-            title: 'Сегодня',
-            tabBarButtonTestID: 'e2e-tab-today',
-            tabBarIcon: ({ focused }) => (
-              <AndroidTabIcon focused={focused} route="index" />
-            ),
-            tabBarLabel: ({ focused }) => (
-              <AndroidTabLabel focused={focused} label="Сегодня" />
+              <AndroidTabLabel focused={focused} label="Labs" />
             ),
           }}
         />
         <RouterTabs.Screen
           name="scan"
           options={{
-            title: 'Скан',
+            title: 'Scan',
             tabBarButtonTestID: 'e2e-tab-scan',
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="scan" />
             ),
             tabBarLabel: ({ focused }) => (
-              <AndroidTabLabel focused={focused} label="Скан" />
+              <AndroidTabLabel focused={focused} label="Scan" />
             ),
           }}
         />
         <RouterTabs.Screen
           name="profile"
           options={{
-            title: 'Профиль',
+            title: 'Profile',
             tabBarButtonTestID: 'e2e-tab-profile',
             tabBarItemStyle: [styles.androidTabItem, styles.androidLastTab],
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="profile" />
             ),
             tabBarLabel: ({ focused }) => (
-              <AndroidTabLabel focused={focused} label="Профиль" />
+              <AndroidTabLabel focused={focused} label="Profile" />
             ),
           }}
         />
-        <RouterTabs.Screen name="design-system" options={{ href: null }} />
       </RouterTabs>
     </ThemeProvider>
   );
@@ -487,7 +486,7 @@ function Tabs() {
 function LoadingAuth() {
   return (
     <View className="flex-1 items-center justify-center bg-surface-canvas">
-      <ActivityIndicator color={activeTint} />
+      <ActivityIndicator color="#EA4087" />
     </View>
   );
 }
@@ -527,8 +526,6 @@ function WebDemo() {
 
 function NativeApp() {
   const { isAuthenticated, isLoading } = useConvexAuth();
-  const authToken = useAuthToken();
-  const [devMode, setDevMode] = useState(false);
   const [authLoadingTimedOut, setAuthLoadingTimedOut] = useState(false);
 
   useEffect(() => {
@@ -541,28 +538,12 @@ function NativeApp() {
     return () => clearTimeout(timeout);
   }, [isLoading]);
 
-  if (devMode) {
-    return (
-      <HealthStoreProvider mode="local">
-        <NotificationManagerProvider>
-          <AppGate allowEmptyProfile>
-            <Tabs />
-          </AppGate>
-        </NotificationManagerProvider>
-      </HealthStoreProvider>
-    );
-  }
-
   if (isLoading && !authLoadingTimedOut) {
     return <LoadingAuth />;
   }
 
-  // Convex confirms `isAuthenticated` only after a websocket handshake. Keep
-  // an already signed-in native user inside the encrypted local app when the
-  // backend is unreachable; an invalid token is still removed by Convex Auth
-  // as soon as the server can answer.
-  if (!isAuthenticated && !authToken) {
-    return <AuthScreen onDevLogin={() => setDevMode(true)} />;
+  if (!isAuthenticated) {
+    return <AuthScreen />;
   }
 
   return (
@@ -582,6 +563,7 @@ function NativeApp() {
 export default function TabLayout() {
   const webDemo = Platform.OS === 'web';
   const [fontsLoaded, fontError] = useFonts({
+    StackSansNotch: require('../assets/fonts/StackSansNotch-VariableFont_wght.ttf'),
     'SFProDisplay-Regular': require('../assets/fonts/SF-Pro-Display-Regular.otf'),
     'SFProDisplay-Medium': require('../assets/fonts/SF-Pro-Display-Medium.otf'),
     'SFProDisplay-Semibold': require('../assets/fonts/SF-Pro-Display-Semibold.otf'),

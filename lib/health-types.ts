@@ -65,6 +65,7 @@ export type LabResult = {
   title: string;
   collectedAt: number;
   status: 'normal' | 'attention' | 'unreviewed';
+  interpretation?: string;
   analytes: Array<{
     name: string;
     value: string;
@@ -295,6 +296,7 @@ export type RecommendationEvent = {
     | 'replaced'
     | 'reviewed';
   reasonCode: string;
+  resultInterpretation?: string;
   beforeStatus?: CarePlanStatus;
   afterStatus?: CarePlanStatus;
   evidenceRefs: AgentSourceRef[];

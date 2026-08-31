@@ -1,94 +1,119 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Image,
-  Platform,
   Pressable,
   StyleSheet,
-  type StyleProp,
   Text,
   View,
   type ImageSourcePropType,
+  type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
-import CalendarIcon from '../assets/figma/calendar-icon.svg';
-import MonitoringIcon from '../assets/figma/monitoring-icon.svg';
-import AndroidGraphIcon from '../assets/android-icons/graph.svg';
-import ArrowUpRightIcon from '../assets/figma/arrow-card.svg';
-import { AppText, GlassControl, HeaderDateLabel } from './components';
-import { colors, fonts, radii, shadows, spacing } from './tokens';
+import MonitorIcon from '../assets/figma/analyses/monitor.svg';
+import NotificationIcon from '../assets/figma/analyses/notif.svg';
+import UploadIcon from '../assets/figma/analyses/upload.svg';
+import { AppText, GlassControl } from './components';
+import { fonts } from './tokens';
 
-const headerGlass = colors.surface.headerGlassWash;
-const headerWash = colors.surface.headerGlassWash;
+const ink = '#171717';
+const secondary = '#5D5D5D';
+const success = '#1FBB74';
+const cardShadow = {
+  shadowColor: '#000000',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.12,
+  shadowRadius: 18,
+  elevation: 5,
+} as const;
+
+function ArrowIcon() {
+  return (
+    <Svg width={23} height={23} viewBox="0 0 23 23">
+      <Path
+        d="M7 16 16 7M9 7h7v7"
+        fill="none"
+        stroke="#FFFFFF"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <Svg width={25} height={25} viewBox="0 0 25 25">
+      <Path
+        d="m6.5 12.7 4 4 8-8"
+        fill="none"
+        stroke="#FFFFFF"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
 
 export function AnalysisReferenceHeader({
-  date = new Date(),
   onCalendar,
   onChart,
-  onDate,
 }: {
   date?: Date;
   onCalendar?: () => void;
   onChart?: () => void;
   onDate?: () => void;
 }) {
-  const dateLabel = new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-  }).format(date);
-
   return (
     <View style={styles.header}>
       <GlassControl
-        accessibilityLabel="Открыть графики анализов"
+        accessibilityLabel="Upload"
         elevated
         onPress={onChart}
-        tintColor={headerGlass}
-        washColor={headerWash}
-        style={styles.headerCircle}
+        style={styles.uploadControl}
+        tintColor="rgba(255,255,255,0.84)"
+        washColor="rgba(255,255,255,0.72)"
       >
-        {Platform.OS === 'android' ? (
-          <AndroidGraphIcon width={24} height={24} />
-        ) : (
-          <View style={styles.headerIconOrientation}>
-            <MonitoringIcon
-              width={22}
-              height={22}
-              color={colors.brand.primary}
-            />
-          </View>
-        )}
-      </GlassControl>
-
-      <GlassControl
-        accessibilityLabel={`Показать текущие анализы. Сегодня ${dateLabel}`}
-        elevated
-        onPress={onDate}
-        tintColor={headerGlass}
-        washColor={headerWash}
-        style={styles.headerDate}
-      >
-        <HeaderDateLabel date={date} label="Сегодня" />
-      </GlassControl>
-
-      <GlassControl
-        accessibilityLabel="Показать ближайшие анализы"
-        elevated
-        onPress={onCalendar}
-        tintColor={headerGlass}
-        washColor={headerWash}
-        style={styles.headerCircle}
-      >
-        <View style={styles.headerIconOrientation}>
-          <CalendarIcon width={22} height={22} color={colors.brand.primary} />
+        <View style={styles.uploadContent}>
+          <UploadIcon width={20} height={20} />
+          <Text style={styles.uploadText}>Upload</Text>
         </View>
       </GlassControl>
+
+      <Text style={styles.headerTitle}>Labs</Text>
+
+      <View style={styles.headerActions}>
+        <GlassControl
+          accessibilityLabel="Notifications"
+          elevated
+          onPress={onCalendar}
+          style={styles.headerCircle}
+          tintColor="rgba(255,255,255,0.84)"
+          washColor="rgba(255,255,255,0.72)"
+        >
+          <NotificationIcon width={20} height={20} />
+        </GlassControl>
+        <GlassControl
+          accessibilityLabel="Display options"
+          elevated
+          onPress={onChart}
+          style={styles.headerCircle}
+          tintColor="rgba(255,255,255,0.84)"
+          washColor="rgba(255,255,255,0.72)"
+        >
+          <MonitorIcon width={20} height={20} />
+        </GlassControl>
+      </View>
     </View>
   );
 }
 
+const volumeBars = Array.from({ length: 31 }, (_, index) => index < 23);
+
 export function AnalysisAttentionHero({
-  mascot,
   onPress,
   score = 72,
 }: {
@@ -97,47 +122,55 @@ export function AnalysisAttentionHero({
   score?: number;
 }) {
   return (
-    <View style={styles.hero}>
-      <View pointerEvents="box-none" style={styles.heroActionSlot}>
-        <View pointerEvents="none" style={styles.heroActionVisual}>
-          <ArrowUpRightIcon width={23} height={23} />
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Health Attention ${score}%`}
+      onPress={onPress}
+      style={styles.metricsCard}
+    >
+      <View style={styles.metricsRow}>
+        <View style={[styles.metric, styles.metricWide]}>
+          <Text style={styles.metricValue}>{score}%</Text>
+          <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}
+            numberOfLines={2}
+            style={styles.metricLabel}
+          >
+            Health Attention{`\n`}scoring for 3 months
+          </Text>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Посмотреть внимательность к здоровью"
-          onPress={onPress}
-          style={StyleSheet.absoluteFill}
-        />
+        <View style={styles.metricDivider} />
+        <View style={[styles.metric, styles.metricMiddle]}>
+          <Text style={styles.metricValue}>3</Text>
+          <Text style={styles.metricLabel}>Checks{`\n`}Recommended</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={[styles.metric, styles.metricLast]}>
+          <Text style={styles.metricValue}>2</Text>
+          <Text style={styles.metricLabel}>Results{`\n`}Expires soon</Text>
+        </View>
       </View>
 
-      <View style={styles.heroCopy}>
-        <AppText numeric color="#16B86B" style={styles.heroScore}>
-          {score}%
-        </AppText>
-        <Text style={styles.heroLabel}>
-          Твоя <Text style={styles.heroLabelStrong}>внимательность</Text>
-          {'\n'}к здоровью
+      <Text style={styles.volumeTitle}>Volume</Text>
+      <View style={styles.volumeBars}>
+        {volumeBars.map((active, index) => (
+          <View
+            key={index}
+            style={[styles.volumeBar, active && styles.volumeBarActive]}
+          />
+        ))}
+      </View>
+      <View style={styles.volumeFooter}>
+        <Text style={styles.volumeCopy}>
+          Previous <Text style={styles.volumeStrong}>84%</Text>
+        </Text>
+        <Text style={styles.volumeCopy}>
+          Best <Text style={styles.volumeStrong}>96%</Text>
         </Text>
       </View>
-
-      <Image
-        accessible={false}
-        source={mascot}
-        resizeMode="contain"
-        style={styles.heroMascot}
-      />
-    </View>
+    </Pressable>
   );
-}
-
-function analysisNoun(count: number) {
-  const lastTwoDigits = Math.abs(count) % 100;
-  const lastDigit = lastTwoDigits % 10;
-
-  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return 'анализов';
-  if (lastDigit === 1) return 'анализ';
-  if (lastDigit >= 2 && lastDigit <= 4) return 'анализа';
-  return 'анализов';
 }
 
 function DeadlineCard({
@@ -149,52 +182,29 @@ function DeadlineCard({
   deadline: string;
   onPress?: () => void;
 }) {
-  const noun = analysisNoun(count);
-  const displayNoun = noun.charAt(0).toUpperCase() + noun.slice(1);
-  const accessibilityLabel = count
-    ? `${count} ${noun} нужно сдать до ${deadline}`
-    : 'В этом разделе пока нет анализов';
-
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       style={styles.deadlineCard}
     >
-      <View pointerEvents="none" style={styles.deadlineCardSurface} />
-      <View style={styles.deadlineCardContent}>
-        <AppText numeric weight="medium" style={styles.deadlineCount}>
-          {count}
-        </AppText>
-        <View style={styles.deadlineArrow}>
-          <ArrowUpRightIcon width={16} height={16} />
-        </View>
-        <Text numberOfLines={3} style={styles.deadlineCopy}>
-          {count ? (
-            <>
-              {displayNoun} нужно{`\n`}сдать до{`\n`}
-              <Text style={styles.deadlineStrong}>{deadline}</Text>
-            </>
-          ) : (
-            <>
-              В этом разделе{`\n`}пока нет{`\n`}
-              <Text style={styles.deadlineStrong}>анализов</Text>
-            </>
-          )}
-        </Text>
+      <Text style={styles.deadlineCount}>{count}</Text>
+      <View style={styles.deadlineArrow}>
+        <ArrowIcon />
       </View>
+      <Text style={styles.deadlineCopy}>
+        Tests must be taken over{`\n`}the next{' '}
+        <Text style={styles.deadlineStrong}>{deadline}</Text>
+      </Text>
     </Pressable>
   );
 }
 
 export function AnalysisDeadlineSummary({
-  currentDeadline,
   currentCount,
   onCurrent,
   onUpcoming,
   style,
-  upcomingDeadline,
   upcomingCount,
 }: {
   currentDeadline: string;
@@ -207,15 +217,49 @@ export function AnalysisDeadlineSummary({
 }) {
   return (
     <View style={[styles.deadlineRow, style]}>
-      <DeadlineCard
-        count={currentCount}
-        deadline={currentDeadline}
-        onPress={onCurrent}
+      <DeadlineCard count={2} deadline="1 Month" onPress={onCurrent} />
+      <DeadlineCard count={3} deadline="3 Months" onPress={onUpcoming} />
+    </View>
+  );
+}
+
+function ProgressiveBlurImage({
+  source,
+  title,
+}: {
+  source: ImageSourcePropType;
+  title: string;
+}) {
+  return (
+    <View style={styles.imageFrame}>
+      <Image
+        accessible
+        accessibilityLabel={`Image: ${title}`}
+        source={source}
+        resizeMode="contain"
+        style={styles.analysisImage}
       />
-      <DeadlineCard
-        count={upcomingCount}
-        deadline={upcomingDeadline}
-        onPress={onUpcoming}
+      <View pointerEvents="none" style={styles.blurMiddleClip}>
+        <Image
+          source={source}
+          resizeMode="contain"
+          blurRadius={2}
+          style={styles.analysisImage}
+        />
+      </View>
+      <View pointerEvents="none" style={styles.blurBottomClip}>
+        <Image
+          source={source}
+          resizeMode="contain"
+          blurRadius={6}
+          style={styles.analysisImage}
+        />
+      </View>
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.9)', '#FFFFFF']}
+        locations={[0, 0.58, 1]}
+        style={styles.imageFade}
       />
     </View>
   );
@@ -223,15 +267,12 @@ export function AnalysisDeadlineSummary({
 
 export function AnalysisReferencePlanCard({
   description,
-  dueLabel,
   dueValue,
   hasAttachedResult = false,
   image,
   onView,
   statusLabel,
   title,
-  validityLabel,
-  validityValue,
 }: {
   description?: string;
   dueLabel: string;
@@ -241,150 +282,73 @@ export function AnalysisReferencePlanCard({
   onView?: () => void;
   statusLabel?: string;
   title: string;
-  validityLabel: string;
-  validityValue: string;
+  validityLabel?: string;
+  validityValue?: string;
 }) {
+  const complete = hasAttachedResult || Boolean(statusLabel);
+
   return (
     <View style={styles.planCard}>
-      {image ? (
-        <View style={styles.planMedia}>
-          <Image
-            accessible
-            accessibilityLabel={`Изображение: ${title}`}
-            source={image}
-            resizeMode="contain"
-            style={styles.planImage}
-          />
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(255,255,255,0)', '#FFFFFF']}
-            locations={[0.46, 1]}
-            style={styles.planImageFade}
-          />
+      {image ? <ProgressiveBlurImage source={image} title={title} /> : null}
+      <View style={styles.planHeading}>
+        <Text numberOfLines={1} style={styles.planTitle}>
+          {title}
+        </Text>
+        <Text numberOfLines={1} style={styles.planSubtitle}>
+          {description}
+        </Text>
+      </View>
+      {complete ? (
+        <View style={styles.completeBadge}>
+          <CheckIcon />
         </View>
       ) : (
-        <View style={styles.planNoImageMark}>
-          <AppText weight="semibold" style={styles.planNoImageMarkText}>
-            {title.slice(0, 1).toLocaleUpperCase('ru-RU')}
-          </AppText>
+        <View style={styles.dueBadge}>
+          <Text style={styles.dueBadgeText}>{dueValue || '28d'}</Text>
         </View>
       )}
 
-      <View style={styles.planCopy}>
-        {hasAttachedResult ? (
-          <View style={styles.planAttachedBadge}>
-            <View style={styles.planAttachedDot} />
-            <AppText
-              role="caption"
-              weight="semibold"
-              style={styles.planAttachedText}
-            >
-              Результат прикреплён
-            </AppText>
-          </View>
-        ) : null}
-        {statusLabel ? (
-          <View style={styles.planStatusBadge}>
-            <AppText
-              role="caption"
-              weight="semibold"
-              style={styles.planStatusText}
-            >
-              {statusLabel}
-            </AppText>
-          </View>
-        ) : null}
-        <AppText weight="semibold" numberOfLines={1} style={styles.planTitle}>
-          {title}
-        </AppText>
-        {description ? (
-          <AppText
-            role="caption"
-            color={colors.text.secondary}
-            numberOfLines={2}
-            style={styles.planDescription}
-          >
-            {description}
-          </AppText>
-        ) : null}
+      <View style={styles.cardRule} />
+      <View style={styles.cardDetails}>
+        <Text numberOfLines={1} style={styles.detailLine}>
+          <Text style={styles.detailStrong}>Why:</Text>{' '}
+          {complete
+            ? 'Screen for common urine changes'
+            : 'Estimate heart and vessel risk'}
+        </Text>
+        <Text style={styles.detailLine}>
+          <Text style={styles.detailStrong}>Result:</Text>{' '}
+          {complete ? 'Added' : 'Not added'}
+        </Text>
+        <Text style={styles.detailLine}>
+          <Text style={styles.detailStrong}>Valid for:</Text>{' '}
+          {complete ? '6 months' : '12 months'}
+        </Text>
       </View>
-
-      <View style={styles.planFooter}>
-        <View style={styles.planMeta}>
-          <View style={styles.planMetaCell}>
-            <AppText
-              role="caption"
-              color={colors.text.secondary}
-              style={styles.planMetaLabel}
-            >
-              {dueLabel}
-            </AppText>
-            <AppText
-              role="label"
-              weight="semibold"
-              style={styles.planMetaValue}
-            >
-              {dueValue}
-            </AppText>
-          </View>
-          <View style={styles.planMetaDivider} />
-          <View style={styles.planMetaCell}>
-            <AppText
-              role="caption"
-              color={colors.text.secondary}
-              style={styles.planMetaLabel}
-            >
-              {validityLabel}
-            </AppText>
-            <AppText
-              role="label"
-              weight="semibold"
-              style={styles.planMetaValue}
-            >
-              {validityValue}
-            </AppText>
-          </View>
-        </View>
-
-        <View style={styles.planAction}>
-          <AppText
-            role="caption"
-            weight="semibold"
-            style={styles.planActionText}
-          >
-            Посмотреть ↗
-          </AppText>
-        </View>
+      <View style={[styles.cardRule, styles.bottomRule]} />
+      <View style={styles.cardActions}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onView}
+          style={styles.infoButton}
+        >
+          <Text style={styles.infoButtonText}>Info</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onView}
+          style={styles.resultButton}
+        >
+          <Text style={styles.resultButtonText}>
+            {complete ? 'View Result' : 'Add Result'}
+          </Text>
+        </Pressable>
       </View>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Открыть: ${title}${
-          hasAttachedResult ? ', результат прикреплён' : ''
-        }`}
-        disabled={!onView}
-        onPress={onView}
-        style={StyleSheet.absoluteFillObject}
-      >
-        {({ pressed }) => (
-          <View
-            pointerEvents="none"
-            style={[
-              StyleSheet.absoluteFillObject,
-              pressed && onView && styles.planCardPressedOverlay,
-            ]}
-          />
-        )}
-      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pressed: {
-    opacity: 0.76,
-    transform: [{ scale: 0.985 }],
-  },
   header: {
     width: '100%',
     height: 48,
@@ -392,301 +356,274 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  uploadControl: { width: 116, height: 48, borderRadius: 24 },
+  uploadContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  uploadText: {
+    color: ink,
+    fontFamily: fonts.sfRegular,
+    fontSize: 17,
+    lineHeight: 21,
+  },
+  headerTitle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: -1,
+    textAlign: 'center',
+    color: ink,
+    fontFamily: fonts.sfBold,
+    fontSize: 21,
+    lineHeight: 26,
+    letterSpacing: -0.5,
+  },
+  headerActions: { flexDirection: 'row', gap: 8 },
   headerCircle: {
     width: 48,
-    minWidth: 48,
-    flexBasis: 48,
-    flexShrink: 0,
     height: 48,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerDate: {
-    width: 156,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerIconOrientation: {
-    transform: [{ scaleY: -1 }],
-  },
-  hero: {
-    position: 'relative',
-    width: '100%',
-    height: 224,
-    overflow: 'visible',
-    borderRadius: 38,
-    backgroundColor: colors.surface.raised,
-  },
-  heroActionSlot: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    zIndex: 10,
-    width: 28,
-    height: 28,
-  },
-  heroActionVisual: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 14,
-    backgroundColor: '#ECA4C8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroCopy: {
-    position: 'absolute',
-    top: 75,
-    left: 23,
-    zIndex: 3,
-  },
-  heroScore: {
-    fontSize: 40,
-    lineHeight: 43,
-    letterSpacing: -1.2,
-  },
-  heroLabel: {
-    marginTop: 0,
-    color: '#5D5A5A',
-    fontFamily: fonts.sfRegular,
-    fontSize: 18,
-    lineHeight: 22,
-    letterSpacing: -0.4,
-    includeFontPadding: false,
-  },
-  heroLabelStrong: {
-    color: colors.text.primary,
-    fontFamily: fonts.sfSemibold,
-  },
-  heroMascot: {
-    position: 'absolute',
-    right: 27,
-    bottom: -11,
-    zIndex: 5,
-    width: 154,
-    height: 90,
-  },
-  deadlineRow: {
-    width: '100%',
-    minWidth: 0,
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  deadlineCard: {
-    position: 'relative',
-    height: 124,
-    minWidth: 0,
-    flexBasis: 0,
-    flexGrow: 1,
-    flexShrink: 1,
-    borderRadius: 22,
-    ...shadows.card,
-  },
-  deadlineCardSurface: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(33,31,32,0.06)',
+  metricsCard: {
+    height: 197,
+    borderRadius: 30,
     backgroundColor: '#FFFFFF',
+    padding: 16,
+    ...cardShadow,
   },
-  deadlineCardContent: {
-    position: 'relative',
-    zIndex: 1,
-    minWidth: 0,
-    flex: 1,
+  metricsRow: { height: 91, flexDirection: 'row' },
+  metric: { flex: 1, paddingLeft: 14, paddingRight: 8 },
+  metricWide: { flex: 1.35, paddingLeft: 0, paddingRight: 10 },
+  metricMiddle: { flex: 1.2 },
+  metricLast: { paddingRight: 0 },
+  metricDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 91,
+    marginTop: 0,
+    backgroundColor: '#CCD0DC',
+  },
+  metricValue: {
+    color: ink,
+    fontFamily: fonts.stackSansNotch,
+    fontWeight: '700',
+    fontSize: 40,
+    lineHeight: 48,
+    letterSpacing: -1.5,
+  },
+  metricLabel: {
+    marginTop: 1,
+    color: secondary,
+    fontFamily: fonts.sfMedium,
+    fontSize: 13,
+    lineHeight: 16,
+    letterSpacing: -0.25,
+  },
+  volumeTitle: {
+    marginTop: 7,
+    color: secondary,
+    fontFamily: fonts.sfRegular,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  volumeBars: {
+    height: 22,
+    marginTop: 5,
+    flexDirection: 'row',
+    alignItems: 'stretch',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 16,
+  },
+  volumeBar: { width: 2, borderRadius: 2, backgroundColor: '#E7E7E7' },
+  volumeBarActive: { backgroundColor: success },
+  volumeFooter: {
+    marginTop: 5,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  volumeCopy: {
+    color: secondary,
+    fontFamily: fonts.sfRegular,
+    fontSize: 13.5,
+    lineHeight: 17,
+  },
+  volumeStrong: { color: ink, fontFamily: fonts.sfSemibold },
+  deadlineRow: { width: '100%', flexDirection: 'row', gap: 16 },
+  deadlineCard: {
+    height: 105,
+    flex: 1,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    ...cardShadow,
   },
   deadlineCount: {
-    fontSize: 27,
-    lineHeight: 30,
-    letterSpacing: -0.6,
+    color: ink,
+    fontFamily: fonts.stackSansNotch,
+    fontSize: 34,
+    lineHeight: 40,
+    letterSpacing: -1,
   },
   deadlineArrow: {
     position: 'absolute',
-    top: 12,
+    top: 16,
     right: 16,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#ECA4C8',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: ink,
   },
   deadlineCopy: {
-    color: colors.text.secondary,
+    marginTop: 0,
+    color: secondary,
     fontFamily: fonts.sfRegular,
-    fontSize: 15,
-    lineHeight: 18,
-    letterSpacing: -0.25,
-    includeFontPadding: false,
+    fontSize: 13.5,
+    lineHeight: 16,
+    letterSpacing: -0.2,
   },
-  deadlineStrong: {
-    color: colors.text.primary,
-    fontFamily: fonts.sfSemibold,
-  },
+  deadlineStrong: { color: ink, fontFamily: fonts.sfSemibold },
   planCard: {
     position: 'relative',
-    width: '100%',
-    height: 208,
-    overflow: 'hidden',
-    borderRadius: 24,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(33,31,32,0.10)',
-    backgroundColor: colors.surface.raised,
+    height: 242,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    ...cardShadow,
   },
-  planCardPressedOverlay: {
-    backgroundColor: 'rgba(234,64,135,0.035)',
-  },
-  planMedia: {
+  imageFrame: {
     position: 'absolute',
     top: 12,
-    left: 18,
-    width: 88,
-    height: 108,
+    left: 16,
+    width: 82,
+    height: 86,
     overflow: 'hidden',
   },
-  planNoImageMark: {
+  analysisImage: {
     position: 'absolute',
-    top: 24,
-    left: 22,
-    width: 72,
-    height: 72,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF0F6',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.18)',
-  },
-  planNoImageMarkText: {
-    color: colors.brand.primary,
-    fontSize: 28,
-    lineHeight: 32,
-  },
-  planImage: {
-    width: '100%',
-    height: '100%',
-    transform: [{ scale: 1.16 }],
-  },
-  planImageFade: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
+    top: 0,
     left: 0,
-    height: 38,
+    width: 82,
+    height: 86,
   },
-  planCopy: {
+  blurMiddleClip: {
     position: 'absolute',
-    top: 45,
-    right: 18,
-    left: 112,
+    top: 44,
+    left: 0,
+    width: 82,
+    height: 42,
+    overflow: 'hidden',
   },
-  planAttachedBadge: {
+  blurBottomClip: {
     position: 'absolute',
-    right: 0,
-    bottom: '100%',
-    marginBottom: 7,
-    height: 24,
-    paddingHorizontal: 9,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFF0F6',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.22)',
+    top: 63,
+    left: 0,
+    width: 82,
+    height: 23,
+    overflow: 'hidden',
   },
-  planAttachedDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.brand.primary,
-  },
-  planAttachedText: {
-    color: colors.brand.primary,
-    fontSize: 11.5,
-    lineHeight: 14,
-  },
-  planStatusBadge: {
-    alignSelf: 'flex-start',
-    minHeight: 22,
-    justifyContent: 'center',
-    marginBottom: 6,
-    paddingHorizontal: 8,
-    borderRadius: 11,
-    backgroundColor: '#F3F0F1',
-  },
-  planStatusText: {
-    color: colors.text.secondary,
-    fontSize: 11,
-    lineHeight: 13,
-  },
+  imageFade: { ...StyleSheet.absoluteFillObject, top: 42 },
+  planHeading: { position: 'absolute', top: 30, left: 98, right: 67 },
   planTitle: {
-    fontSize: 20,
+    color: ink,
+    fontFamily: fonts.sfRegular,
+    fontSize: 19,
     lineHeight: 23,
     letterSpacing: -0.45,
   },
-  planDescription: {
+  planSubtitle: {
     marginTop: 3,
-    fontSize: 14,
-    lineHeight: 17,
-    letterSpacing: -0.2,
+    color: secondary,
+    fontFamily: fonts.sfRegular,
+    fontSize: 14.5,
+    lineHeight: 18,
+    letterSpacing: -0.3,
   },
-  planFooter: {
+  dueBadge: {
     position: 'absolute',
-    right: 20,
-    bottom: 13,
-    left: 14,
-    height: 59,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(33,31,32,0.10)',
-    paddingTop: 10,
-    flexDirection: 'row',
+    top: 35,
+    right: 16,
+    minWidth: 42,
+    height: 30,
+    borderRadius: 15,
+    paddingHorizontal: 10,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
+    justifyContent: 'center',
+    backgroundColor: ink,
   },
-  planMeta: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  planMetaCell: {
-    minWidth: 0,
-    gap: 1,
-  },
-  planMetaLabel: {
-    fontSize: 13.5,
+  dueBadgeText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.sfRegular,
+    fontSize: 13,
     lineHeight: 16,
   },
-  planMetaValue: {
+  completeBadge: {
+    position: 'absolute',
+    top: 39,
+    right: 16,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: success,
+  },
+  cardRule: {
+    position: 'absolute',
+    top: 95,
+    left: 16,
+    right: 16,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#E8E8E8',
+  },
+  cardDetails: { position: 'absolute', top: 107, left: 16, right: 16, gap: 4 },
+  detailLine: {
+    color: secondary,
+    fontFamily: fonts.sfRegular,
     fontSize: 16,
-    lineHeight: 19,
+    lineHeight: 20,
   },
-  planMetaDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 31,
-    backgroundColor: 'rgba(33,31,32,0.12)',
+  detailStrong: { color: ink, fontFamily: fonts.sfMedium },
+  bottomRule: { top: 180 },
+  cardActions: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 16,
+    height: 36,
+    flexDirection: 'row',
+    gap: 10,
   },
-  planAction: {
-    width: 118,
-    height: 40,
-    flexShrink: 0,
-    borderRadius: 13,
-    backgroundColor: '#F5F1F3',
+  infoButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: ink,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  planActionText: {
-    fontSize: 14,
-    lineHeight: 17,
+  infoButtonText: {
+    color: ink,
+    fontFamily: fonts.sfRegular,
+    fontSize: 15,
+    lineHeight: 18,
+  },
+  resultButton: {
+    flex: 1,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: ink,
+  },
+  resultButtonText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.sfRegular,
+    fontSize: 15,
+    lineHeight: 18,
   },
 });

@@ -98,6 +98,7 @@ export function SegmentedSwitcher<T extends string>({
   labelStyle,
   onChange,
   options,
+  pill = false,
   style,
   value,
 }: {
@@ -105,6 +106,7 @@ export function SegmentedSwitcher<T extends string>({
   labelStyle?: StyleProp<TextStyle>;
   onChange: (value: T) => void;
   options: ReadonlyArray<SegmentedSwitcherOption<T>>;
+  pill?: boolean;
   style?: StyleProp<ViewStyle>;
   value: T;
 }) {
@@ -150,13 +152,18 @@ export function SegmentedSwitcher<T extends string>({
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="tablist"
       onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
-      style={[styles.segmentedSwitcher, style]}
+      style={[
+        styles.segmentedSwitcher,
+        pill && styles.segmentedSwitcherPill,
+        style,
+      ]}
     >
       {segmentWidth > 0 ? (
         <Animated.View
           pointerEvents="none"
           style={[
             styles.segmentedSwitcherIndicator,
+            pill && styles.segmentedSwitcherIndicatorPill,
             {
               width: segmentWidth,
               transform: [
@@ -208,7 +215,10 @@ export function SegmentedSwitcher<T extends string>({
               accessibilityState={{ selected, disabled: option.disabled }}
               disabled={option.disabled}
               onPress={() => onChange(option.value)}
-              style={styles.segmentedSwitcherOption}
+              style={[
+                styles.segmentedSwitcherOption,
+                pill && styles.segmentedSwitcherOptionPill,
+              ]}
             />
           </View>
         );
@@ -4012,6 +4022,12 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  segmentedSwitcherPill: {
+    borderRadius: 23,
+  },
+  segmentedSwitcherIndicatorPill: {
+    borderRadius: 19,
+  },
   segmentedSwitcherOptionSlot: {
     zIndex: 1,
     flex: 1,
@@ -4020,6 +4036,9 @@ const styles = StyleSheet.create({
   segmentedSwitcherOption: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 11,
+  },
+  segmentedSwitcherOptionPill: {
+    borderRadius: 19,
   },
   segmentedSwitcherOptionDisabled: {
     opacity: 0.48,

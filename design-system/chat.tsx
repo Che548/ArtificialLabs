@@ -39,6 +39,7 @@ import SuggestionAnalysesIcon from '../assets/figma/chat/suggestion-analyses.svg
 import SuggestionClinicIcon from '../assets/figma/chat/suggestion-clinic.svg';
 import SuggestionNutritionIcon from '../assets/figma/chat/suggestion-nutrition.svg';
 import VoiceIcon from '../assets/figma/chat/voice.svg';
+import ArtificialLabsLogo from '../assets/figma/chat/artificial-labs-logo.svg';
 import { AppHeader } from './app-header';
 import { AppText, SegmentedSwitcher } from './components';
 import { isAllowedChatMarkdownLink } from '../lib/safe-markdown';
@@ -54,7 +55,6 @@ import {
   spacing,
 } from './tokens';
 
-const mascotImage = require('../assets/figma/chat/mascot.png');
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const safeMarkdown = MarkdownIt({
   typographer: true,
@@ -177,8 +177,8 @@ const chatHeaderModes: Array<{
   badge?: string;
   disabled?: boolean;
 }> = [
-  { value: 'chat', label: 'Чат' },
-  { value: 'assistant', label: 'Ассистент' },
+  { value: 'chat', label: 'Chat' },
+  { value: 'assistant', label: 'Assistant' },
 ];
 
 export function ChatModeSwitcher({
@@ -191,7 +191,9 @@ export function ChatModeSwitcher({
   return (
     <SegmentedSwitcher
       accessibilityLabel="Режим чата"
+      labelStyle={styles.chatModeLabel}
       options={chatHeaderModes}
+      pill
       value={value}
       onChange={(nextValue) => onChange?.(nextValue)}
     />
@@ -221,7 +223,8 @@ export function ChatHeader({
         <ChatModeSwitcher value={activeMode} onChange={onModeChange} />
       }
       centerStyle={styles.chatModeHeaderSlot}
-      hideRightControl={!conversation}
+      controlIconColor="#171717"
+      hideRightControl={false}
       historyAccessibilityLabel="История чатов"
       onHistory={onHistory}
       onCalendar={onCalendar}
@@ -770,7 +773,7 @@ function ChatGlassAddButton({ onPress }: { onPress?: () => void }) {
         onPress={onPress}
         style={styles.composerPressTarget}
       >
-        <PlusIcon width={20} height={20} />
+        <PlusIcon width={24} height={24} />
       </Pressable>
     </ChatComposerGlass>
   );
@@ -779,29 +782,12 @@ function ChatGlassAddButton({ onPress }: { onPress?: () => void }) {
 export function ChatEmptyState({ compact = false }: { compact?: boolean }) {
   return (
     <View style={[styles.emptyState, compact && styles.emptyStateCompact]}>
-      <Image
-        accessibilityLabel="Сферка — защитница женского здоровья"
-        source={mascotImage}
-        resizeMode="contain"
-        style={[styles.mascot, compact && styles.mascotCompact]}
+      <ArtificialLabsLogo
+        accessibilityLabel="Artificial Labs"
+        width={226}
+        height={59}
       />
-      <View style={styles.brand}>
-        <Text
-          style={[
-            styles.brandTitle,
-            Platform.OS === 'android' && styles.brandTitleAndroid,
-          ]}
-        >
-          сферка.
-        </Text>
-        <AppText
-          role="heading"
-          color={colors.brand.primarySoft}
-          style={styles.brandTagline}
-        >
-          Защитница женского здоровья
-        </AppText>
-      </View>
+      <AppText style={styles.brandTagline}>Health. Clarity. Action.</AppText>
     </View>
   );
 }
@@ -1030,7 +1016,7 @@ export function ChatComposer({
     <View style={styles.composerRow}>
       <ChatGlassAddButton onPress={onAdd} />
 
-      <ChatComposerGlass radius={23} style={styles.composer}>
+      <ChatComposerGlass radius={999} style={styles.composer}>
         <TextInput
           accessibilityLabel="Сообщение для Сферки"
           accessibilityState={{ disabled }}
@@ -1040,7 +1026,7 @@ export function ChatComposer({
             setCanSubmit(!disabled && nextValue.trim().length > 0);
             onChangeText(nextValue);
           }}
-          placeholder="Спросить Сферку"
+          placeholder="Ask anything"
           placeholderTextColor="#5C5C5C"
           multiline
           maxLength={1200}
@@ -1072,14 +1058,9 @@ export function ChatComposer({
             <View />
           </ChatComposerGlass>
 
-          <Animated.View
+          <View
             pointerEvents="none"
-            style={[
-              styles.sendButtonBackground,
-              {
-                opacity: actionProgress,
-              },
-            ]}
+            style={styles.sendButtonBackground}
           />
 
           <Animated.View
@@ -1103,9 +1084,9 @@ export function ChatComposer({
             ]}
           >
             <VoiceIcon
-              color={colors.brand.primary}
-              width={17.4}
-              height={17.4}
+              color={colors.text.inverse}
+              width={22}
+              height={22}
             />
           </Animated.View>
 
@@ -1607,7 +1588,7 @@ function ChatThinkingIndicator({
             { fontSize: textFontSize, lineHeight: textLineHeight },
           ]}
         >
-          Сферка думает
+          Assistant is thinking
         </AppText>
         <View style={styles.thinkingDots}>
           {dotOpacities.map((opacity, index) => (
@@ -2266,11 +2247,17 @@ export function ChatKitPreview() {
 
 const styles = StyleSheet.create({
   emptyState: {
-    width: 370,
+    width: 280,
     alignItems: 'center',
+    gap: 6,
   },
   chatModeHeaderSlot: {
-    width: 184,
+    width: 200,
+  },
+  chatModeLabel: {
+    fontSize: 14,
+    lineHeight: 18,
+    letterSpacing: -0.2,
   },
   conversationExitIcon: {
     width: 24,
@@ -2281,35 +2268,12 @@ const styles = StyleSheet.create({
   emptyStateCompact: {
     transform: [{ scale: 0.84 }],
   },
-  mascot: {
-    width: 282,
-    height: 188,
-  },
-  mascotCompact: {
-    marginBottom: -8,
-  },
-  brand: {
-    width: 288,
-    marginTop: -29,
-    alignItems: 'center',
-    gap: 4,
-  },
-  brandTitle: {
-    color: colors.brand.primarySoft,
-    fontFamily: fonts.yaroRegular,
-    fontSize: 34.125,
-    lineHeight: 37.5,
-    letterSpacing: -0.68,
-    textAlign: 'center',
-  },
-  brandTitleAndroid: {
-    width: 288,
-  },
   brandTagline: {
-    width: 288,
-    fontSize: 21.5,
-    lineHeight: 24,
-    letterSpacing: -0.43,
+    width: 260,
+    fontFamily: fonts.sfRegular,
+    fontSize: 20,
+    lineHeight: 22,
+    letterSpacing: -0.4,
     textAlign: 'center',
   },
   suggestions: {
@@ -2325,7 +2289,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   suggestionIconSlot: {
-    width: 46,
+    width: 48,
     height: 28,
     flexShrink: 0,
     alignItems: 'center',
@@ -2337,9 +2301,10 @@ const styles = StyleSheet.create({
   },
   suggestionText: {
     flex: 1,
-    fontSize: 16,
-    lineHeight: 19.2,
-    letterSpacing: -0.32,
+    fontFamily: fonts.sfRegular,
+    fontSize: 17,
+    lineHeight: 21,
+    letterSpacing: -0.34,
   },
   attachmentMenuWrap: {
     width: 252,
@@ -2378,7 +2343,7 @@ const styles = StyleSheet.create({
     top: 11,
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(245,243,243,0.78)',
@@ -2402,15 +2367,15 @@ const styles = StyleSheet.create({
   },
   composerRow: {
     width: '100%',
-    minHeight: 46,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 10,
   },
   addButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     ...(Platform.OS === 'android'
@@ -2418,26 +2383,26 @@ const styles = StyleSheet.create({
       : {
           shadowColor: '#000000',
           shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.18,
-          shadowRadius: 4,
+          shadowOpacity: 0.2,
+          shadowRadius: 20,
           elevation: 2,
         }),
   },
   composer: {
     flex: 1,
-    minHeight: 46,
-    maxHeight: 108,
-    paddingLeft: 16,
-    paddingRight: 6,
-    paddingVertical: 5.5,
-    borderRadius: 23,
+    minHeight: 44,
+    maxHeight: 116,
+    paddingLeft: 18,
+    paddingRight: 4,
+    paddingVertical: 4,
+    borderRadius: 22,
     ...(Platform.OS === 'android'
       ? androidShadows.control
       : {
           shadowColor: '#000000',
           shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.18,
-          shadowRadius: 4,
+          shadowOpacity: 0.2,
+          shadowRadius: 20,
           elevation: 2,
         }),
     flexDirection: 'row',
@@ -2469,34 +2434,35 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    minHeight: 35,
-    maxHeight: 94,
+    minHeight: 36,
+    maxHeight: 102,
     paddingHorizontal: 0,
-    paddingVertical: Platform.OS === 'ios' ? 7.9 : 0,
+    paddingTop: Platform.OS === 'ios' ? 4 : 0,
+    paddingBottom: Platform.OS === 'ios' ? 11 : 0,
     color: colors.text.primary,
     fontFamily: fonts.sfRegular,
-    fontSize: 16,
-    lineHeight: 19.2,
-    letterSpacing: -0.32,
+    fontSize: 17,
+    lineHeight: 21,
+    letterSpacing: -0.34,
     textAlign: 'left',
     textAlignVertical: 'center',
   },
   actionButton: {
-    width: 35,
-    height: 35,
-    borderRadius: 17.5,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendButtonBackground: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 17.5,
-    backgroundColor: colors.brand.primary,
+    borderRadius: 20,
+    backgroundColor: '#171717',
   },
   sendButtonGlass: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 17.5,
+    borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.84)',
   },

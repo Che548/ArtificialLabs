@@ -333,6 +333,7 @@ export default defineSchema({
       v.literal('attention'),
       v.literal('unreviewed'),
     ),
+    interpretation: v.optional(v.string()),
     analytes: v.array(
       v.object({
         name: v.string(),
@@ -594,6 +595,7 @@ export default defineSchema({
       v.literal('reviewed'),
     ),
     reasonCode: v.string(),
+    resultInterpretation: v.optional(v.string()),
     beforeStatus: v.optional(carePlanStatus),
     afterStatus: v.optional(carePlanStatus),
     evidenceRefs: v.array(agentSourceRef),

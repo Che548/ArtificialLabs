@@ -269,13 +269,14 @@ export default function ChatScreen() {
   const compactHeight = window.height < 760;
   const composerBottom =
     Platform.OS === 'android'
-      ? Math.max(insets.bottom, 8) + 60 + 12
-      : Math.max(insets.bottom, 12) + (!hasNativeLiquidGlass ? 72 : 58);
+      ? Math.max(insets.bottom, 8) + 60 + 18
+      : Math.max(insets.bottom, 12) + (!hasNativeLiquidGlass ? 78 : 64);
   const conversationComposerBottom = Math.max(insets.bottom + 4, 16) - 12;
   const historyPanelWidth = Math.min(window.width * 0.76, 318);
   const headerTop = getHeaderTop(insets.top);
   const suggestionsVisible = !composerFocused;
   const suggestionsProgress = useRef(new Animated.Value(1)).current;
+  const emptyStateProgress = useRef(new Animated.Value(1)).current;
   const conversationProgress = useRef(new Animated.Value(0)).current;
   const historyProgress = useRef(new Animated.Value(0)).current;
   const copyNoticeProgress = useRef(new Animated.Value(0)).current;
@@ -357,58 +358,24 @@ export default function ChatScreen() {
     [reminders],
   );
   const suggestions = useMemo<ChatSuggestion[]>(() => {
-    const today = new Date();
-    const hasTodayJournal = journalEntries.some((entry) => {
-      if (entry.deletedAt) return false;
-      const date = new Date(entry.occurredAt);
-      return (
-        date.getFullYear() === today.getFullYear() &&
-        date.getMonth() === today.getMonth() &&
-        date.getDate() === today.getDate()
-      );
-    });
-    const contextual: ChatSuggestion[] = [];
-
-    if (!hasTodayJournal) {
-      contextual.push({
-        id: 'journal-today',
-        title: 'Что важно отметить в дневнике сегодня?',
-        icon: 'nutrition',
-      });
-    }
-    if (labResults.filter((item) => !item.deletedAt).length === 0) {
-      contextual.push({
-        id: 'analyses-context',
-        title:
-          profile?.goal === 'pregnancy'
-            ? 'Какие анализы важны на моём сроке беременности?'
-            : 'Какие анализы важны при подготовке к беременности?',
-        icon: 'analyses',
-      });
-    }
-    contextual.push({
-      id: 'goal-context',
-      title:
-        profile?.goal === 'pregnancy'
-          ? 'Как подготовиться к следующему визиту к врачу?'
-          : profile?.goal === 'cycle'
-            ? 'Какие изменения цикла стоит обсудить с врачом?'
-            : 'Как определить фертильное окно точнее?',
-      icon: 'clinic',
-    });
-
     return [
-      ...activeReminders.map((reminder) => ({
-        id: `reminder:${reminder.localId}`,
-        title: `${reminder.title}: ${reminder.body}`,
-        icon:
-          reminder.type === 'checkup'
-            ? ('analyses' as const)
-            : ('clinic' as const),
-      })),
-      ...contextual,
-    ].slice(0, 3);
-  }, [activeReminders, journalEntries, labResults, profile?.goal]);
+      {
+        id: 'reference-clinic',
+        title: 'Choose the best clinic in the area',
+        icon: 'clinic',
+      },
+      {
+        id: 'reference-nutrition',
+        title: 'Create a personalized weekly meal plan',
+        icon: 'nutrition',
+      },
+      {
+        id: 'reference-training',
+        title: 'How to gain muscle in the shortest time',
+        icon: 'analyses',
+      },
+    ];
+  }, []);
 
   useEffect(() => {
     setRecentChats((current) =>
@@ -501,6 +468,27 @@ export default function ChatScreen() {
     animation.start();
     return () => animation.stop();
   }, [suggestionsProgress, suggestionsVisible]);
+
+  useEffect(() => {
+    emptyStateProgress.stopAnimation();
+
+    if (reduceMotion) {
+      emptyStateProgress.setValue(composerFocused ? 0 : 1);
+      return undefined;
+    }
+
+    const animation = Animated.timing(emptyStateProgress, {
+      toValue: composerFocused ? 0 : 1,
+      duration: composerFocused ? 200 : 240,
+      easing: composerFocused
+        ? Easing.in(Easing.cubic)
+        : Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+
+    animation.start();
+    return () => animation.stop();
+  }, [composerFocused, emptyStateProgress, reduceMotion]);
 
   const dismissComposer = () => {
     if (!composerFocused) return;
@@ -1345,11 +1333,24 @@ export default function ChatScreen() {
           historySurfaceMotionStyle,
         ]}
       >
-        <StatusBar style="dark" />
+        <StatusBar hidden={false} style="dark" />
+
+        <LinearGradient
+          pointerEvents="none"
+          colors={[
+            'rgba(255,255,255,1)',
+            'rgba(255,249,252,0.94)',
+            'rgba(255,255,255,0)',
+          ]}
+          locations={[0, 0.58, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={[styles.screenTopFade, { height: headerTop + 74 }]}
+        />
 
         <View
           onTouchStart={dismissComposer}
-          style={[styles.headerWrap, { top: headerTop }]}
+          style={[styles.headerWrap, { top: headerTop - 18 }]}
         >
           <ChatHeader
             activeMode={headerMode}
@@ -1367,22 +1368,40 @@ export default function ChatScreen() {
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + 80,
+              paddingTop: headerTop + 64,
               paddingBottom: composerBottom + 152,
             },
           ]}
         >
-          <View
+          <Animated.View
+            pointerEvents="none"
             style={[
               styles.emptyStage,
               {
-                paddingTop: Math.max(135 - insets.top, 32),
+                opacity: emptyStateProgress,
+                paddingTop: 217,
               },
             ]}
           >
             <ChatEmptyState compact={compactHeight} />
-          </View>
+          </Animated.View>
         </ScrollView>
+
+        <LinearGradient
+          pointerEvents="none"
+          colors={[
+            'rgba(255,255,255,0)',
+            'rgba(255,250,252,0.84)',
+            'rgba(255,255,255,1)',
+          ]}
+          locations={[0, 0.46, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={[
+            styles.screenBottomFade,
+            { height: composerBottom + 190 },
+          ]}
+        />
 
         <View
           pointerEvents="box-none"
@@ -1462,11 +1481,6 @@ export default function ChatScreen() {
               )
             }
           />
-          <AppText numberOfLines={2} role="caption" style={styles.aiDisclaimer}>
-            {
-              'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
-            }
-          </AppText>
         </View>
 
         {historyRendered ? (
@@ -1521,7 +1535,7 @@ export default function ChatScreen() {
               ]}
             />
 
-            <View style={[styles.headerWrap, { top: headerTop }]}>
+            <View style={[styles.headerWrap, { top: headerTop - 18 }]}>
               <ChatHeader
                 activeMode={headerMode}
                 onModeChange={changeMode}
@@ -1781,10 +1795,30 @@ const styles = StyleSheet.create({
   },
   headerWrap: {
     position: 'absolute',
-    left: sizes.screenGutter,
-    right: sizes.screenGutter,
+    left: 0,
+    right: 0,
     zIndex: 30,
     alignItems: 'center',
+    paddingTop: 18,
+    paddingHorizontal: sizes.screenGutter,
+    paddingBottom: 24,
+    borderTopLeftRadius: 38,
+    borderTopRightRadius: 38,
+    backgroundColor: '#FFFFFF',
+  },
+  screenTopFade: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    zIndex: 20,
+  },
+  screenBottomFade: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 20,
   },
   scrollContent: {
     flexGrow: 1,
@@ -1801,11 +1835,11 @@ const styles = StyleSheet.create({
   },
   bottomDock: {
     position: 'absolute',
-    left: 20,
-    right: 20,
+    left: 16,
+    right: 16,
     zIndex: 30,
     alignItems: 'center',
-    gap: 10,
+    gap: 16,
   },
   suggestionsMotion: {
     width: '100%',

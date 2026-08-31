@@ -35,6 +35,7 @@ import {
   saveScanResultWithJournal,
   tombstoneLocalChatConversation,
   tombstoneLocalDocumentBundle,
+  tombstoneLocalLabAttachmentBundle,
 } from './local-database';
 import type {
   AllergyRisk,
@@ -101,6 +102,10 @@ type SavedInput<T extends { localId: string; updatedAt: number }> = Omit<
   T,
   'localId' | 'updatedAt'
 > & { localId?: string };
+type AddLabResultInput = Omit<LabResult, 'localId' | 'updatedAt'> & {
+  localDocumentMimeType?: string;
+  localDocumentName?: string;
+};
 type AccountDeletion = {
   pendingDeletion: boolean;
   deletionRequestedAt?: number;
@@ -126,7 +131,12 @@ type HealthStoreValue = HealthSnapshot & {
     input: Omit<JournalEntry, 'localId' | 'updatedAt' | 'source'>,
   ) => Promise<void>;
   addLabResult: (
-    input: Omit<LabResult, 'localId' | 'updatedAt'>,
+    input: AddLabResultInput,
+  ) => Promise<void>;
+  saveLabResult: (result: LabResult) => Promise<void>;
+  deleteLabAttachment: (
+    result: LabResult,
+    document: HealthDocument,
   ) => Promise<void>;
   addScanResult: (
     input: Omit<ScanResult, 'localId' | 'updatedAt'>,
@@ -139,7 +149,8 @@ type HealthStoreValue = HealthSnapshot & {
   saveChatMessage: (input: SavedInput<ChatMessage>) => Promise<void>;
   applyCarePlanAction: (
     item: CarePlanItem,
-    action: 'complete' | 'decline',
+    action: 'complete' | 'decline' | 'restore',
+    input?: { resultInterpretation?: string },
   ) => Promise<void>;
   reconcileAgentPlan: () => Promise<boolean>;
   applyAgentPlanProposal: (proposal: AgentPlanProposal) => Promise<boolean>;
@@ -610,10 +621,12 @@ export function HealthStoreProvider({
   );
 
   const addLabResult = useCallback(
-    async (input: Omit<LabResult, 'localId' | 'updatedAt'>) => {
+    async (input: AddLabResultInput) => {
       if (readOnly) return;
+      const { localDocumentMimeType, localDocumentName, ...resultInput } =
+        input;
       const result = {
-        ...input,
+        ...resultInput,
         localId: newLocalId('lab'),
         updatedAt: Date.now(),
       };
@@ -629,11 +642,12 @@ export function HealthStoreProvider({
       const document = result.localDocumentUri
         ? ({
             localId: documentLocalId!,
-            title: result.title,
+            title: localDocumentName?.trim() || result.title,
             category: 'lab',
             documentDate: result.collectedAt,
             hasLocalFile: true,
             localFileUri: result.localDocumentUri,
+            mimeType: localDocumentMimeType,
             linkedLabResultLocalId: result.localId,
             linkedCarePlanLocalId: linkedPlan?.localId,
             contentIndexStatus: 'metadata-only',
@@ -675,6 +689,36 @@ export function HealthStoreProvider({
       await refresh();
     },
     [readOnly, refresh, snapshot.carePlanItems],
+  );
+
+  const saveLabResult = useCallback(
+    async (result: LabResult) => {
+      if (readOnly) return;
+      await writeRecord('labResults', {
+        ...result,
+        updatedAt: Date.now(),
+      });
+      await persistCarePlanReconciliation();
+      await refresh();
+    },
+    [readOnly, refresh, writeRecord],
+  );
+
+  const deleteLabAttachment = useCallback(
+    async (result: LabResult, document: HealthDocument) => {
+      if (readOnly) return;
+      await tombstoneLocalLabAttachmentBundle(
+        document,
+        result,
+        true,
+        document.localFileUri
+          ? () => discardPersistedLabDocument(document.localFileUri as string)
+          : undefined,
+      );
+      await persistCarePlanReconciliation();
+      await refresh();
+    },
+    [readOnly, refresh],
   );
 
   const addScanResult = useCallback(
@@ -793,15 +837,26 @@ export function HealthStoreProvider({
   );
 
   const applyCarePlanAction = useCallback(
-    async (item: CarePlanItem, action: 'complete' | 'decline') => {
+    async (
+      item: CarePlanItem,
+      action: 'complete' | 'decline' | 'restore',
+      input?: { resultInterpretation?: string },
+    ) => {
       if (readOnly) return;
-      const result = applyCarePlanUserAction(item, action);
+      const result = applyCarePlanUserAction(
+        item,
+        action,
+        Date.now(),
+        input?.resultInterpretation,
+      );
       await saveAgentPlanChanges({
         items: [result.item],
         events: [result.event],
       });
-      const currentSnapshot = await loadLocalSnapshot();
-      await runCarePlanReconciliation(currentSnapshot);
+      if (action !== 'restore') {
+        const currentSnapshot = await loadLocalSnapshot();
+        await runCarePlanReconciliation(currentSnapshot);
+      }
       await refresh();
     },
     [readOnly, refresh, runCarePlanReconciliation],
@@ -1098,6 +1153,8 @@ export function HealthStoreProvider({
       updateProfile,
       addJournalEntry,
       addLabResult,
+      saveLabResult,
+      deleteLabAttachment,
       addScanResult,
       saveMedicalCondition: (input) =>
         saveTyped('medicalConditions', 'condition', input).then(
@@ -1150,6 +1207,8 @@ export function HealthStoreProvider({
       updateProfile,
       addJournalEntry,
       addLabResult,
+      saveLabResult,
+      deleteLabAttachment,
       addScanResult,
       saveTyped,
       saveConversation,

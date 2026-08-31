@@ -1,4 +1,6 @@
-import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
@@ -89,14 +91,33 @@ const cycleFactors = [
   'Не знаю',
 ] as const;
 
-const diseaseOptions = [
+const pregnancyFactors = [
+  'Ничего из перечисленного',
+  'Есть хроническое заболевание',
+  'Постоянно принимаю лекарства',
+  'Многоплодная беременность',
+  'Беременность после ЭКО',
+  'Были осложнения беременности',
+  'Курение или алкоголь',
+  'Не знаю',
+] as const;
+
+const cycleDiseaseOptions = [
   'СПКЯ',
   'Эндометриоз',
   'Заболевание щитовидной железы',
   'Гиперпролактинемия',
 ] as const;
 
-const diseaseFactor = 'Есть заболевание, влияющее на цикл';
+const pregnancyDiseaseOptions = [
+  'Повышенное давление',
+  'Сахарный диабет',
+  'Заболевание щитовидной железы',
+  'Аутоиммунное заболевание',
+] as const;
+
+const cycleDiseaseFactor = 'Есть заболевание, влияющее на цикл';
+const pregnancyDiseaseFactor = 'Есть хроническое заболевание';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const selectionEase = Easing.bezier(0.22, 1, 0.36, 1);
@@ -125,8 +146,7 @@ function OnboardingShell({
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const scale = width / 402;
-  const panelHeaderTop =
-    Math.max(470 * scale, height * 0.525) + 16 * scale;
+  const panelHeaderTop = Math.max(470 * scale, height * 0.525) + 16 * scale;
   const scrollTop = panelHeaderTop + headerHeight;
   const actionBottomPadding = Math.max(insets.bottom - 10, 16 * scale);
   const actionHeight = 46 + actionBottomPadding + 18 * scale;
@@ -157,8 +177,18 @@ function OnboardingShell({
         width={width}
       />
 
-      <View style={[styles.progressPill, { top: Math.max(insets.top + 8, 16 * scale) }]}>
-        <AppText numeric role="body" weight="semibold" style={styles.progressText}>
+      <View
+        style={[
+          styles.progressPill,
+          { top: Math.max(insets.top + 8, 16 * scale) },
+        ]}
+      >
+        <AppText
+          numeric
+          role="body"
+          weight="semibold"
+          style={styles.progressText}
+        >
           {step}/6
         </AppText>
       </View>
@@ -203,7 +233,13 @@ function OnboardingShell({
 
       <View style={[styles.stepSegments, { bottom: progressBottom }]}>
         {[1, 2, 3, 4, 5, 6].map((item) => (
-          <View key={item} style={[styles.stepSegment, item <= step && styles.stepSegmentActive]} />
+          <View
+            key={item}
+            style={[
+              styles.stepSegment,
+              item <= step && styles.stepSegmentActive,
+            ]}
+          />
         ))}
       </View>
 
@@ -218,7 +254,11 @@ function OnboardingShell({
         ]}
       >
         <View style={[styles.actionRow, { gap: 15 * scale }]}>
-          <Pressable accessibilityRole="button" onPress={onBack} style={styles.secondaryAction}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onBack}
+            style={styles.secondaryAction}
+          >
             <AppText role="body" weight="semibold" color={colors.text.primary}>
               {backLabel}
             </AppText>
@@ -228,7 +268,10 @@ function OnboardingShell({
             accessibilityState={{ disabled: nextDisabled }}
             disabled={nextDisabled}
             onPress={onNext}
-            style={[styles.primaryAction, nextDisabled && styles.primaryActionDisabled]}
+            style={[
+              styles.primaryAction,
+              nextDisabled && styles.primaryActionDisabled,
+            ]}
             testID="e2e-onboarding-next"
           >
             <AppText role="body" weight="semibold" color="#FFFFFF">
@@ -241,7 +284,13 @@ function OnboardingShell({
   );
 }
 
-function GoalGlyph({ goal, selected }: { goal: (typeof goals)[number]; selected: boolean }) {
+function GoalGlyph({
+  goal,
+  selected,
+}: {
+  goal: (typeof goals)[number];
+  selected: boolean;
+}) {
   return (
     <View style={[styles.goalGlyph, selected && styles.goalGlyphSelected]}>
       <SymbolView
@@ -280,14 +329,27 @@ function GoalVariant({
             <Pressable
               key={item.value}
               onPress={() => onChange(item.value)}
-              style={[styles.editorialChoice, selected && styles.editorialChoiceSelected]}
+              style={[
+                styles.editorialChoice,
+                selected && styles.editorialChoiceSelected,
+              ]}
             >
-              <AppText numeric role="caption" color={selected ? colors.brand.primary : colors.text.secondary}>
+              <AppText
+                numeric
+                role="caption"
+                color={selected ? colors.brand.primary : colors.text.secondary}
+              >
                 0{index + 1}
               </AppText>
               <View style={styles.editorialText}>
-                <AppText role="body" weight="semibold">{item.title}</AppText>
-                <AppText role="caption" color={colors.text.secondary} style={styles.choiceDescription}>
+                <AppText role="body" weight="semibold">
+                  {item.title}
+                </AppText>
+                <AppText
+                  role="caption"
+                  color={colors.text.secondary}
+                  style={styles.choiceDescription}
+                >
                   {item.description}
                 </AppText>
               </View>
@@ -333,15 +395,34 @@ function GoalVariant({
         {goals.map((item, index) => {
           const selected = goal === item.value;
           return (
-            <Pressable key={item.value} onPress={() => onChange(item.value)} style={styles.pathChoice}>
-              <View style={[styles.pathIndex, selected && styles.pathIndexSelected]}>
-                <AppText numeric role="label" weight="semibold" color={selected ? '#FFFFFF' : colors.text.secondary}>
+            <Pressable
+              key={item.value}
+              onPress={() => onChange(item.value)}
+              style={styles.pathChoice}
+            >
+              <View
+                style={[styles.pathIndex, selected && styles.pathIndexSelected]}
+              >
+                <AppText
+                  numeric
+                  role="label"
+                  weight="semibold"
+                  color={selected ? '#FFFFFF' : colors.text.secondary}
+                >
                   {index + 1}
                 </AppText>
               </View>
-              <View style={[styles.pathCard, selected && styles.pathCardSelected]}>
-                <AppText role="body" weight="semibold">{item.title}</AppText>
-                <AppText role="caption" color={colors.text.secondary} style={styles.choiceDescription}>
+              <View
+                style={[styles.pathCard, selected && styles.pathCardSelected]}
+              >
+                <AppText role="body" weight="semibold">
+                  {item.title}
+                </AppText>
+                <AppText
+                  role="caption"
+                  color={colors.text.secondary}
+                  style={styles.choiceDescription}
+                >
                   {item.description}
                 </AppText>
               </View>
@@ -355,7 +436,12 @@ function GoalVariant({
   if (variant === 5) {
     return (
       <View style={styles.compactPanel}>
-        <AppText role="caption" weight="semibold" color={colors.brand.primary} style={styles.compactEyebrow}>
+        <AppText
+          role="caption"
+          weight="semibold"
+          color={colors.brand.primary}
+          style={styles.compactEyebrow}
+        >
           ВЫБЕРИТЕ ПРОГРАММУ
         </AppText>
         {goals.map((item) => {
@@ -364,10 +450,17 @@ function GoalVariant({
             <Pressable
               key={item.value}
               onPress={() => onChange(item.value)}
-              style={[styles.compactChoice, selected && styles.compactChoiceSelected]}
+              style={[
+                styles.compactChoice,
+                selected && styles.compactChoiceSelected,
+              ]}
             >
               <GoalGlyph goal={item} selected={selected} />
-              <AppText role="body" weight={selected ? 'semibold' : 'regular'} style={styles.compactChoiceText}>
+              <AppText
+                role="body"
+                weight={selected ? 'semibold' : 'regular'}
+                style={styles.compactChoiceText}
+              >
                 {item.title}
               </AppText>
               <SymbolView
@@ -395,8 +488,14 @@ function GoalVariant({
           >
             <GoalGlyph goal={item} selected={selected} />
             <View style={styles.goalText}>
-              <AppText role="body" weight="semibold">{item.title}</AppText>
-              <AppText role="caption" color={colors.text.secondary} style={styles.choiceDescription}>
+              <AppText role="body" weight="semibold">
+                {item.title}
+              </AppText>
+              <AppText
+                role="caption"
+                color={colors.text.secondary}
+                style={styles.choiceDescription}
+              >
                 {item.description}
               </AppText>
             </View>
@@ -436,7 +535,9 @@ function NumberWheel({
 
   const commitDraftValue = () => {
     const parsed = Number.parseInt(draftValue, 10);
-    const nextValue = Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : value;
+    const nextValue = Number.isFinite(parsed)
+      ? Math.min(max, Math.max(min, parsed))
+      : value;
     onChange(nextValue);
     setDraftValue(String(nextValue));
     setEditing(false);
@@ -444,10 +545,22 @@ function NumberWheel({
 
   return (
     <View style={[styles.wheelBlock, compact && styles.wheelBlockCompact]}>
-      <AppText role="label" weight="medium" style={compact ? styles.compactWheelLabel : undefined}>{label}</AppText>
+      <AppText
+        role="label"
+        weight="medium"
+        style={compact ? styles.compactWheelLabel : undefined}
+      >
+        {label}
+      </AppText>
       <View style={styles.wheelControl}>
-        <Pressable accessibilityLabel={`Уменьшить ${label}`} onPress={() => onChange(Math.max(min, value - 1))} style={[styles.wheelButton, compact && styles.wheelButtonCompact]}>
-          <AppText role="heading" color={colors.brand.primary}>−</AppText>
+        <Pressable
+          accessibilityLabel={`Уменьшить ${label}`}
+          onPress={() => onChange(Math.max(min, value - 1))}
+          style={[styles.wheelButton, compact && styles.wheelButtonCompact]}
+        >
+          <AppText role="heading" color={colors.brand.primary}>
+            −
+          </AppText>
         </Pressable>
         <View style={styles.wheelValue}>
           {editable ? (
@@ -465,12 +578,22 @@ function NumberWheel({
               value={draftValue}
             />
           ) : (
-            <AppText numeric role="display" weight="semibold">{value}</AppText>
+            <AppText numeric role="display" weight="semibold">
+              {value}
+            </AppText>
           )}
-          <AppText role="caption" color={colors.text.secondary}>{suffix}</AppText>
+          <AppText role="caption" color={colors.text.secondary}>
+            {suffix}
+          </AppText>
         </View>
-        <Pressable accessibilityLabel={`Увеличить ${label}`} onPress={() => onChange(Math.min(max, value + 1))} style={[styles.wheelButton, compact && styles.wheelButtonCompact]}>
-          <AppText role="heading" color={colors.brand.primary}>+</AppText>
+        <Pressable
+          accessibilityLabel={`Увеличить ${label}`}
+          onPress={() => onChange(Math.min(max, value + 1))}
+          style={[styles.wheelButton, compact && styles.wheelButtonCompact]}
+        >
+          <AppText role="heading" color={colors.brand.primary}>
+            +
+          </AppText>
         </Pressable>
       </View>
     </View>
@@ -513,15 +636,36 @@ function CycleMeasure({
           style={[
             styles.metricStateLayer,
             {
-              opacity: transition.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+              opacity: transition.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0],
+              }),
               transform: [
-                { translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) },
-                { scale: transition.interpolate({ inputRange: [0, 1], outputRange: [1, 0.985] }) },
+                {
+                  translateY: transition.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -4],
+                  }),
+                },
+                {
+                  scale: transition.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 0.985],
+                  }),
+                },
               ],
             },
           ]}
         >
-          <NumberWheel compact label={label} min={min} max={max} suffix="дней" value={value} onChange={onChange} />
+          <NumberWheel
+            compact
+            label={label}
+            min={min}
+            max={max}
+            suffix="дней"
+            value={value}
+            onChange={onChange}
+          />
         </Animated.View>
 
         <AnimatedPressable
@@ -533,15 +677,37 @@ function CycleMeasure({
             {
               opacity: transition,
               transform: [
-                { translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) },
-                { scale: transition.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1] }) },
+                {
+                  translateY: transition.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [4, 0],
+                  }),
+                },
+                {
+                  scale: transition.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.985, 1],
+                  }),
+                },
               ],
             },
           ]}
         >
-          <AppText role="label" weight="medium" style={styles.unknownMeasureLabel}>{label}</AppText>
+          <AppText
+            role="label"
+            weight="medium"
+            style={styles.unknownMeasureLabel}
+          >
+            {label}
+          </AppText>
           <View style={styles.unknownMeasureAction}>
-            <AppText role="label" weight="semibold" color={colors.brand.primary}>Указать</AppText>
+            <AppText
+              role="label"
+              weight="semibold"
+              color={colors.brand.primary}
+            >
+              Указать
+            </AppText>
           </View>
         </AnimatedPressable>
       </View>
@@ -552,18 +718,38 @@ function CycleMeasure({
         style={[
           styles.textAction,
           {
-            opacity: transition.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-            transform: [{ translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) }],
+            opacity: transition.interpolate({
+              inputRange: [0, 1],
+              outputRange: [1, 0],
+            }),
+            transform: [
+              {
+                translateY: transition.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -3],
+                }),
+              },
+            ],
           },
         ]}
       >
-        <AppText role="caption" weight="medium" color={colors.brand.primary}>Не знаю</AppText>
+        <AppText role="caption" weight="medium" color={colors.brand.primary}>
+          Не знаю
+        </AppText>
       </AnimatedPressable>
     </View>
   );
 }
 
-function ChoiceRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function ChoiceRow({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
   const selection = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
   useEffect(() => {
@@ -581,13 +767,28 @@ function ChoiceRow({ label, selected, onPress }: { label: string; selected: bool
       style={[
         styles.simpleChoice,
         {
-          backgroundColor: selection.interpolate({ inputRange: [0, 1], outputRange: ['#FFFFFF', '#FFF7FA'] }),
-          borderColor: selection.interpolate({ inputRange: [0, 1], outputRange: ['#E9E2E4', colors.brand.primary] }),
-          transform: [{ scale: selection.interpolate({ inputRange: [0, 1], outputRange: [1, 1.012] }) }],
+          backgroundColor: selection.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['#FFFFFF', '#FFF7FA'],
+          }),
+          borderColor: selection.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['#E9E2E4', colors.brand.primary],
+          }),
+          transform: [
+            {
+              scale: selection.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.012],
+              }),
+            },
+          ],
         },
       ]}
     >
-      <AppText role="label" weight="medium" style={styles.simpleChoiceText}>{label}</AppText>
+      <AppText role="label" weight="medium" style={styles.simpleChoiceText}>
+        {label}
+      </AppText>
       <Check selected={selected} />
     </AnimatedPressable>
   );
@@ -622,9 +823,22 @@ function GoalPill({
       style={[
         styles.goalPill,
         {
-          backgroundColor: selection.interpolate({ inputRange: [0, 1], outputRange: ['#FFFFFF', '#FFF7FA'] }),
-          borderColor: selection.interpolate({ inputRange: [0, 1], outputRange: ['#E5E1E3', '#F2A8CB'] }),
-          transform: [{ scale: selection.interpolate({ inputRange: [0, 1], outputRange: [1, 1.018] }) }],
+          backgroundColor: selection.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['#FFFFFF', '#FFF7FA'],
+          }),
+          borderColor: selection.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['#E5E1E3', '#F2A8CB'],
+          }),
+          transform: [
+            {
+              scale: selection.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.018],
+              }),
+            },
+          ],
         },
       ]}
     >
@@ -664,44 +878,78 @@ function AnimatedFactorPill({
       style={[
         styles.factorPill,
         {
-          backgroundColor: selection.interpolate({ inputRange: [0, 1], outputRange: ['#FFFFFF', '#FFF7FA'] }),
-          borderColor: selection.interpolate({ inputRange: [0, 1], outputRange: ['#E5E1E3', '#F2A8CB'] }),
-          transform: [{ scale: selection.interpolate({ inputRange: [0, 1], outputRange: [1, 1.015] }) }],
+          backgroundColor: selection.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['#FFFFFF', '#FFF7FA'],
+          }),
+          borderColor: selection.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['#E5E1E3', '#F2A8CB'],
+          }),
+          transform: [
+            {
+              scale: selection.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.015],
+              }),
+            },
+          ],
         },
       ]}
     >
       <Animated.View
         style={{
           opacity: selection,
-          transform: [{ scale: selection.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }],
+          transform: [
+            {
+              scale: selection.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.45, 1],
+              }),
+            },
+          ],
           overflow: 'hidden',
-          width: selection.interpolate({ inputRange: [0, 1], outputRange: [0, 18] }),
+          width: selection.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 18],
+          }),
         }}
       >
-        <SymbolView name="checkmark" tintColor={colors.brand.primary} size={13} type="monochrome" />
+        <SymbolView
+          name="checkmark"
+          tintColor={colors.brand.primary}
+          size={13}
+          type="monochrome"
+        />
       </Animated.View>
-      <AppText role="caption" weight="medium" style={styles.factorPillText}>{label}</AppText>
+      <AppText role="caption" weight="medium" style={styles.factorPillText}>
+        {label}
+      </AppText>
     </AnimatedPressable>
   );
 }
 
 function DiseasePickerModal({
   customValue,
+  options,
   onCancel,
   onClear,
   onCustomValueChange,
   onSave,
   onToggle,
   selected,
+  title,
   visible,
 }: {
   customValue: string;
+  options: readonly string[];
   onCancel: () => void;
   onClear: () => void;
   onCustomValueChange: (value: string) => void;
   onSave: () => void;
   onToggle: (value: string) => void;
   selected: Set<string>;
+  title: string;
   visible: boolean;
 }) {
   const insets = useSafeAreaInsets();
@@ -744,7 +992,10 @@ function DiseasePickerModal({
       transparent
       visible={mounted}
     >
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.diseaseModalRoot}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.diseaseModalRoot}
+      >
         <AnimatedPressable
           accessibilityLabel="Закрыть выбор заболевания"
           onPress={onCancel}
@@ -757,8 +1008,18 @@ function DiseasePickerModal({
               paddingBottom: Math.max(insets.bottom, 18),
               opacity: appear,
               transform: [
-                { translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [82, 0] }) },
-                { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1] }) },
+                {
+                  translateY: appear.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [82, 0],
+                  }),
+                },
+                {
+                  scale: appear.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.985, 1],
+                  }),
+                },
               ],
             },
           ]}
@@ -766,11 +1027,25 @@ function DiseasePickerModal({
           <View style={styles.diseaseHandle} />
           <View style={styles.diseaseHeader}>
             <View style={styles.diseaseHeaderText}>
-              <AppText role="heading" weight="semibold">Заболевание</AppText>
-              <AppText role="caption" color={colors.text.secondary}>Можно выбрать несколько вариантов или ввести свой.</AppText>
+              <AppText role="heading" weight="semibold">
+                {title}
+              </AppText>
+              <AppText role="caption" color={colors.text.secondary}>
+                Можно выбрать несколько вариантов или ввести свой.
+              </AppText>
             </View>
-            <Pressable accessibilityLabel="Закрыть" hitSlop={10} onPress={onCancel} style={styles.diseaseClose}>
-              <SymbolView name="xmark" tintColor={colors.text.primary} size={15} type="monochrome" />
+            <Pressable
+              accessibilityLabel="Закрыть"
+              hitSlop={10}
+              onPress={onCancel}
+              style={styles.diseaseClose}
+            >
+              <SymbolView
+                name="xmark"
+                tintColor={colors.text.primary}
+                size={15}
+                type="monochrome"
+              />
             </Pressable>
           </View>
 
@@ -781,7 +1056,7 @@ function DiseasePickerModal({
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.diseaseOptions}>
-              {diseaseOptions.map((option) => (
+              {options.map((option) => (
                 <AnimatedFactorPill
                   key={option}
                   label={option}
@@ -792,7 +1067,9 @@ function DiseasePickerModal({
             </View>
 
             <View style={styles.diseaseInputBlock}>
-              <AppText role="label" weight="medium">Другой вариант</AppText>
+              <AppText role="label" weight="medium">
+                Другой вариант
+              </AppText>
               <TextInput
                 autoCapitalize="sentences"
                 onChangeText={onCustomValueChange}
@@ -806,16 +1083,31 @@ function DiseasePickerModal({
           </ScrollView>
 
           <View style={styles.diseaseActions}>
-            <Pressable accessibilityRole="button" onPress={onClear} style={styles.diseaseClearAction}>
-              <AppText role="label" weight="medium" color={colors.text.secondary}>Не указывать</AppText>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onClear}
+              style={styles.diseaseClearAction}
+            >
+              <AppText
+                role="label"
+                weight="medium"
+                color={colors.text.secondary}
+              >
+                Не указывать
+              </AppText>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               disabled={!canSave}
               onPress={onSave}
-              style={[styles.diseaseSaveAction, !canSave && styles.diseaseSaveActionDisabled]}
+              style={[
+                styles.diseaseSaveAction,
+                !canSave && styles.diseaseSaveActionDisabled,
+              ]}
             >
-              <AppText role="label" weight="semibold" color="#FFFFFF">Сохранить</AppText>
+              <AppText role="label" weight="semibold" color="#FFFFFF">
+                Сохранить
+              </AppText>
             </Pressable>
           </View>
         </Animated.View>
@@ -851,9 +1143,14 @@ export function OnboardingPreviewFlow({
   };
   const [cycleUnknown, setCycleUnknown] = useState(false);
   const [periodUnknown, setPeriodUnknown] = useState(false);
-  const [pregnancyDateKind, setPregnancyDateKind] = useState<PregnancyDateKind>('lastPeriod');
-  const [factors, setFactors] = useState<Set<string>>(new Set(['Ничего из перечисленного']));
-  const [selectedDiseases, setSelectedDiseases] = useState<Set<string>>(new Set());
+  const [pregnancyDateKind, setPregnancyDateKind] =
+    useState<PregnancyDateKind>('lastPeriod');
+  const [factors, setFactors] = useState<Set<string>>(
+    new Set(['Ничего из перечисленного']),
+  );
+  const [selectedDiseases, setSelectedDiseases] = useState<Set<string>>(
+    new Set(),
+  );
   const [customDisease, setCustomDisease] = useState('');
   const [diseaseModalVisible, setDiseaseModalVisible] = useState(false);
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
@@ -865,6 +1162,18 @@ export function OnboardingPreviewFlow({
   const [submissionError, setSubmissionError] = useState<string>();
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const contentTranslateX = useRef(new Animated.Value(0)).current;
+  const activeDiseaseFactor =
+    goal === 'pregnancy' ? pregnancyDiseaseFactor : cycleDiseaseFactor;
+  const activeDiseaseOptions =
+    goal === 'pregnancy' ? pregnancyDiseaseOptions : cycleDiseaseOptions;
+  const activeFactors = goal === 'pregnancy' ? pregnancyFactors : cycleFactors;
+
+  useEffect(() => {
+    setFactors(new Set(['Ничего из перечисленного']));
+    setSelectedDiseases(new Set());
+    setCustomDisease('');
+    setDiseaseModalVisible(false);
+  }, [goal]);
 
   const transitionContent = (update: () => void, direction: 1 | -1) => {
     if (transitioning) return;
@@ -908,7 +1217,7 @@ export function OnboardingPreviewFlow({
   };
 
   const toggleFactor = (factor: string) => {
-    if (factor === diseaseFactor) {
+    if (factor === activeDiseaseFactor) {
       setDiseaseModalVisible(true);
       return;
     }
@@ -937,7 +1246,7 @@ export function OnboardingPreviewFlow({
     setCustomDisease('');
     setFactors((current) => {
       const next = new Set(current);
-      next.delete(diseaseFactor);
+      next.delete(activeDiseaseFactor);
       return next.size ? next : new Set(['Ничего из перечисленного']);
     });
     setDiseaseModalVisible(false);
@@ -948,7 +1257,7 @@ export function OnboardingPreviewFlow({
     setFactors((current) => {
       const next = new Set(current);
       next.delete('Ничего из перечисленного');
-      next.add(diseaseFactor);
+      next.add(activeDiseaseFactor);
       return next;
     });
     setDiseaseModalVisible(false);
@@ -986,7 +1295,8 @@ export function OnboardingPreviewFlow({
           goal !== 'pregnancy' && !cycleUnknown ? cycleLength : undefined,
         postpartum: factors.has('Послеродовой период') || undefined,
         postContraception:
-          factors.has('Недавно отменила гормональную контрацепцию') || undefined,
+          factors.has('Недавно отменила гормональную контрацепцию') ||
+          undefined,
         medicalConditions,
         cloudSyncEnabled,
         anonymousAnalytics,
@@ -1015,7 +1325,9 @@ export function OnboardingPreviewFlow({
               ? 'Выберите дату'
               : 'Расскажите о цикле'
             : step === 5
-              ? 'Что может влиять на цикл?'
+              ? goal === 'pregnancy'
+                ? 'Что может влиять на течение беременности?'
+                : 'Что может влиять на цикл?'
               : 'Разрешения и данные';
 
   const fixedHeader = (
@@ -1065,12 +1377,30 @@ export function OnboardingPreviewFlow({
         onNext={onClose}
         step={6}
       >
-        <Animated.View style={[styles.completeScreen, { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }] }] }>
+        <Animated.View
+          style={[
+            styles.completeScreen,
+            {
+              opacity: contentOpacity,
+              transform: [{ translateX: contentTranslateX }],
+            },
+          ]}
+        >
           <View style={styles.completeGlyph}>
-            <SymbolView name="checkmark" tintColor="#FFFFFF" size={34} type="monochrome" />
+            <SymbolView
+              name="checkmark"
+              tintColor="#FFFFFF"
+              size={34}
+              type="monochrome"
+            />
           </View>
-          <AppText role="body" color={colors.text.secondary} style={styles.completeText}>
-            Программа наблюдения создана. Точность прогнозов будет повышаться по мере заполнения данных и сканирования тестов.
+          <AppText
+            role="body"
+            color={colors.text.secondary}
+            style={styles.completeText}
+          >
+            Программа наблюдения создана. Точность прогнозов будет повышаться по
+            мере заполнения данных и сканирования тестов.
           </AppText>
         </Animated.View>
       </OnboardingShell>
@@ -1083,201 +1413,344 @@ export function OnboardingPreviewFlow({
       backLabel="Назад"
       header={fixedHeader}
       headerHeight={
-        step === 1 || (step === 3 && goal !== 'pregnancy') ? 58 : 32
+        step === 1 ||
+        (step === 3 && goal !== 'pregnancy') ||
+        (step === 5 && goal === 'pregnancy')
+          ? 78
+          : 32
       }
-      nextLabel={step === 6 ? 'Начать' : 'Далее'}
-      nextDisabled={submitting}
-      onBack={step === 1 ? onClose : () => transitionContent(() => setStep(step - 1), -1)}
-      onNext={() => {
-        if (step < 6) transitionContent(() => setStep(step + 1), 1);
-        else void complete();
-      }}
-      step={step}
-    >
-      <Animated.View
-        style={[
-          styles.content,
-          step === 1 && styles.firstStepContent,
-          { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }] },
-        ]}
+        nextLabel={step === 6 ? 'Начать' : 'Далее'}
+        nextDisabled={submitting}
+        onBack={
+          step === 1
+            ? onClose
+            : () => transitionContent(() => setStep(step - 1), -1)
+        }
+        onNext={() => {
+          if (step < 6) transitionContent(() => setStep(step + 1), 1);
+          else void complete();
+        }}
+        step={step}
       >
-        {step === 1 ? (
-          <>
-            <View accessibilityRole="radiogroup" style={styles.goalPillList}>
-              {goals.map((item) => (
-                <GoalPill
-                  item={item}
-                  key={item.value}
-                  onPress={() => setGoal(item.value)}
-                  selected={goal === item.value}
+        <Animated.View
+          style={[
+            styles.content,
+            step === 1 && styles.firstStepContent,
+            {
+              opacity: contentOpacity,
+              transform: [{ translateX: contentTranslateX }],
+            },
+          ]}
+        >
+          {step === 1 ? (
+            <>
+              <View accessibilityRole="radiogroup" style={styles.goalPillList}>
+                {goals.map((item) => (
+                  <GoalPill
+                    item={item}
+                    key={item.value}
+                    onPress={() => setGoal(item.value)}
+                    selected={goal === item.value}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
+
+          {step === 2 ? (
+            <>
+              <NumberWheel
+                editable
+                label="Год рождения"
+                min={1940}
+                max={2010}
+                suffix="год"
+                value={birthYear}
+                onChange={setBirthYear}
+              />
+              <View style={styles.fieldBlock}>
+                <AppText role="label" weight="medium">
+                  Как к вам обращаться?
+                </AppText>
+                <TextInput
+                  testID="e2e-onboarding-name"
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Имя — необязательно"
+                  placeholderTextColor="#9A9495"
+                  style={styles.field}
                 />
-              ))}
-            </View>
-          </>
-        ) : null}
+              </View>
+            </>
+          ) : null}
 
-        {step === 2 ? (
-          <>
-            <NumberWheel editable label="Год рождения" min={1940} max={2010} suffix="год" value={birthYear} onChange={setBirthYear} />
-            <View style={styles.fieldBlock}>
-              <AppText role="label" weight="medium">Как к вам обращаться?</AppText>
-              <TextInput testID="e2e-onboarding-name" value={name} onChangeText={setName} placeholder="Имя — необязательно" placeholderTextColor="#9A9495" style={styles.field} />
-            </View>
-          </>
-        ) : null}
-
-        {step === 3 ? (
-          <>
-            {goal === 'pregnancy' ? (
-              <>
-                <View style={styles.simpleChoiceList}>
-                  <ChoiceRow label="Первый день последней менструации" selected={pregnancyDateKind === 'lastPeriod'} onPress={() => setPregnancyDateKind('lastPeriod')} />
-                  <ChoiceRow label="Предполагаемая дата родов" selected={pregnancyDateKind === 'dueDate'} onPress={() => setPregnancyDateKind('dueDate')} />
-                  <ChoiceRow label="Пока не знаю" selected={pregnancyDateKind === 'unknown'} onPress={() => setPregnancyDateKind('unknown')} />
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.dateStepCard}>
-                  <AppText role="body" weight="semibold" style={styles.dateStepLabel}>
-                    {dateUnknown ? 'Дата не указана' : 'Дата начала'}
-                  </AppText>
-                  {dateUnknown ? (
-                    <Pressable accessibilityRole="button" onPress={() => setDateUnknown(false)} style={styles.dateRestoreAction}>
-                      <AppText role="label" weight="semibold" color={colors.brand.primary}>Указать дату</AppText>
-                    </Pressable>
-                  ) : (
-                    <View style={styles.datePickerSurface}>
-                      {Platform.OS === 'android' ? (
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="Выбрать дату начала"
-                          onPress={openAndroidDatePicker}
-                          style={styles.androidDateButton}
-                          testID="e2e-onboarding-date"
+          {step === 3 ? (
+            <>
+              {goal === 'pregnancy' ? (
+                <>
+                  <View style={styles.simpleChoiceList}>
+                    <ChoiceRow
+                      label="Первый день последней менструации"
+                      selected={pregnancyDateKind === 'lastPeriod'}
+                      onPress={() => setPregnancyDateKind('lastPeriod')}
+                    />
+                    <ChoiceRow
+                      label="Предполагаемая дата родов"
+                      selected={pregnancyDateKind === 'dueDate'}
+                      onPress={() => setPregnancyDateKind('dueDate')}
+                    />
+                    <ChoiceRow
+                      label="Пока не знаю"
+                      selected={pregnancyDateKind === 'unknown'}
+                      onPress={() => setPregnancyDateKind('unknown')}
+                    />
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.dateStepCard}>
+                    <AppText
+                      role="body"
+                      weight="semibold"
+                      style={styles.dateStepLabel}
+                    >
+                      {dateUnknown ? 'Дата не указана' : 'Дата начала'}
+                    </AppText>
+                    {dateUnknown ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => setDateUnknown(false)}
+                        style={styles.dateRestoreAction}
+                      >
+                        <AppText
+                          role="label"
+                          weight="semibold"
+                          color={colors.brand.primary}
                         >
-                          <SymbolView name="calendar" tintColor={colors.brand.primary} size={18} type="monochrome" />
-                          <AppText role="label" weight="semibold" color={colors.brand.primary}>
-                            {date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-                          </AppText>
-                        </Pressable>
-                      ) : (
-                        <DateTimePicker
-                          value={date}
-                          mode="date"
-                          display="compact"
-                          onChange={(_, next) => next && setDate(next)}
-                          accentColor={colors.brand.primary}
-                          style={styles.datePickerControl}
-                        />
-                      )}
+                          Указать дату
+                        </AppText>
+                      </Pressable>
+                    ) : (
+                      <View style={styles.datePickerSurface}>
+                        {Platform.OS === 'android' ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Выбрать дату начала"
+                            onPress={openAndroidDatePicker}
+                            style={styles.androidDateButton}
+                            testID="e2e-onboarding-date"
+                          >
+                            <SymbolView
+                              name="calendar"
+                              tintColor={colors.brand.primary}
+                              size={18}
+                              type="monochrome"
+                            />
+                            <AppText
+                              role="label"
+                              weight="semibold"
+                              color={colors.brand.primary}
+                            >
+                              {date.toLocaleDateString('ru-RU', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                              })}
+                            </AppText>
+                          </Pressable>
+                        ) : (
+                          <DateTimePicker
+                            value={date}
+                            mode="date"
+                            display="compact"
+                            onChange={(_, next) => next && setDate(next)}
+                            accentColor={colors.brand.primary}
+                            style={styles.datePickerControl}
+                          />
+                        )}
+                      </View>
+                    )}
+                  </View>
+                  {!dateUnknown ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setDateUnknown(true)}
+                      style={styles.dateUnknownAction}
+                    >
+                      <SymbolView
+                        name="questionmark.circle"
+                        tintColor={colors.brand.primary}
+                        size={17}
+                        type="monochrome"
+                      />
+                      <AppText
+                        role="label"
+                        weight="medium"
+                        color={colors.brand.primary}
+                      >
+                        Не помню дату
+                      </AppText>
+                    </Pressable>
+                  ) : null}
+                </>
+              )}
+            </>
+          ) : null}
+
+          {step === 4 ? (
+            <>
+              {goal === 'pregnancy' ? (
+                <>
+                  <AppText
+                    role="label"
+                    color={colors.text.secondary}
+                    style={[styles.description, styles.centeredDescription]}
+                  >
+                    {pregnancyDateKind === 'dueDate'
+                      ? 'Предполагаемая дата родов'
+                      : pregnancyDateKind === 'lastPeriod'
+                        ? 'Первый день последней менструации'
+                        : 'Дату можно добавить позже'}
+                  </AppText>
+                  {pregnancyDateKind !== 'unknown' ? (
+                    <View
+                      style={[
+                        styles.questionBlock,
+                        styles.pregnancyDatePickerBlock,
+                      ]}
+                    >
+                      <DateTimePicker
+                        value={date}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'compact' : 'default'}
+                        onChange={(_, next) => next && setDate(next)}
+                        accentColor={colors.brand.primary}
+                        style={styles.datePickerControl}
+                      />
+                    </View>
+                  ) : (
+                    <View style={styles.note}>
+                      <SymbolView
+                        name="info.circle"
+                        tintColor={colors.brand.primary}
+                        size={19}
+                        type="monochrome"
+                      />
+                      <AppText
+                        role="caption"
+                        color={colors.text.secondary}
+                        style={styles.noteText}
+                      >
+                        Мы начнём без даты. Её можно будет указать в профиле.
+                      </AppText>
                     </View>
                   )}
-                </View>
-                {!dateUnknown ? (
-                  <Pressable accessibilityRole="button" onPress={() => setDateUnknown(true)} style={styles.dateUnknownAction}>
-                    <SymbolView name="questionmark.circle" tintColor={colors.brand.primary} size={17} type="monochrome" />
-                    <AppText role="label" weight="medium" color={colors.brand.primary}>Не помню дату</AppText>
-                  </Pressable>
-                ) : null}
-              </>
-            )}
-          </>
-        ) : null}
-
-        {step === 4 ? (
-          <>
-            {goal === 'pregnancy' ? (
-              <>
-                <AppText role="label" color={colors.text.secondary} style={[styles.description, styles.centeredDescription]}>
-                  {pregnancyDateKind === 'dueDate' ? 'Предполагаемая дата родов' : pregnancyDateKind === 'lastPeriod' ? 'Первый день последней менструации' : 'Дату можно добавить позже'}
-                </AppText>
-                {pregnancyDateKind !== 'unknown' ? (
-                  <View style={styles.questionBlock}>
-                    <DateTimePicker value={date} mode="date" display={Platform.OS === 'ios' ? 'compact' : 'default'} onChange={(_, next) => next && setDate(next)} accentColor={colors.brand.primary} />
+                </>
+              ) : (
+                <>
+                  <View style={styles.measureGrid}>
+                    <CycleMeasure
+                      label="Длина цикла"
+                      min={20}
+                      max={45}
+                      unknown={cycleUnknown}
+                      value={cycleLength}
+                      onChange={setCycleLength}
+                      onUnknownChange={setCycleUnknown}
+                    />
+                    <CycleMeasure
+                      label="Менструация"
+                      min={2}
+                      max={10}
+                      unknown={periodUnknown}
+                      value={periodLength}
+                      onChange={setPeriodLength}
+                      onUnknownChange={setPeriodUnknown}
+                    />
                   </View>
-                ) : (
-                  <View style={styles.note}>
-                    <SymbolView name="info.circle" tintColor={colors.brand.primary} size={19} type="monochrome" />
-                    <AppText role="caption" color={colors.text.secondary} style={styles.noteText}>Мы начнём без даты. Её можно будет указать в профиле.</AppText>
-                  </View>
-                )}
-              </>
-            ) : (
-              <>
-                <View style={styles.measureGrid}>
-                  <CycleMeasure label="Длина цикла" min={20} max={45} unknown={cycleUnknown} value={cycleLength} onChange={setCycleLength} onUnknownChange={setCycleUnknown} />
-                  <CycleMeasure label="Менструация" min={2} max={10} unknown={periodUnknown} value={periodLength} onChange={setPeriodLength} onUnknownChange={setPeriodUnknown} />
-                </View>
-              </>
-            )}
-          </>
-        ) : null}
+                </>
+              )}
+            </>
+          ) : null}
 
-        {step === 5 ? (
-          <>
-            <AppText role="label" color={colors.text.secondary} style={[styles.description, styles.centeredDescription]}>Можно выбрать несколько вариантов.</AppText>
-            <View style={styles.factorPills}>
-              {cycleFactors.map((factor) => {
-                const selected = factors.has(factor);
-                return (
-                  <AnimatedFactorPill key={factor} label={factor} onPress={() => toggleFactor(factor)} selected={selected} />
-                );
-              })}
-            </View>
-          </>
-        ) : null}
-
-        {step === 6 ? (
-          <>
-            <AppText
-              role="label"
-              color={colors.text.secondary}
-              style={[styles.description, styles.centeredDescription]}
-            >
-              Выберите функции, которые хотите включить. Настройки можно изменить позже.
-            </AppText>
-            <ProfileSettingsGroup title="Данные">
-              <ProfileToggleRow
-                label="Облачная синхронизация"
-                subtitle="Только структурированные данные"
-                value={cloudSyncEnabled}
-                onChange={setCloudSyncEnabled}
-              />
-              <ProfileToggleRow
-                label="Анонимная аналитика"
-                value={anonymousAnalytics}
-                onChange={setAnonymousAnalytics}
-              />
-              <ProfileToggleRow
-                label="Автономные рекомендации"
-                subtitle="Проверка запускается при стабильном подключении; фоновые сроки не гарантируются"
-                value={medicalRecommendations}
-                onChange={setMedicalRecommendations}
-                isLast
-              />
-            </ProfileSettingsGroup>
-            {submissionError ? (
+          {step === 5 ? (
+            <>
               <AppText
-                role="caption"
-                color={colors.state.error}
-                style={styles.submissionError}
+                role="label"
+                color={colors.text.secondary}
+                style={[styles.description, styles.centeredDescription]}
               >
-                {submissionError}
+                Можно выбрать несколько вариантов.
               </AppText>
-            ) : null}
-          </>
-        ) : null}
-      </Animated.View>
+              <View style={styles.factorPills}>
+                {activeFactors.map((factor) => {
+                  const selected = factors.has(factor);
+                  return (
+                    <AnimatedFactorPill
+                      key={factor}
+                      label={factor}
+                      onPress={() => toggleFactor(factor)}
+                      selected={selected}
+                    />
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+
+          {step === 6 ? (
+            <>
+              <AppText
+                role="label"
+                color={colors.text.secondary}
+                style={[styles.description, styles.centeredDescription]}
+              >
+                Выберите функции, которые хотите включить. Настройки можно
+                изменить позже.
+              </AppText>
+              <ProfileSettingsGroup title="Данные">
+                <ProfileToggleRow
+                  label="Облачная синхронизация"
+                  subtitle="Только структурированные данные"
+                  value={cloudSyncEnabled}
+                  onChange={setCloudSyncEnabled}
+                />
+                <ProfileToggleRow
+                  label="Анонимная аналитика"
+                  value={anonymousAnalytics}
+                  onChange={setAnonymousAnalytics}
+                />
+                <ProfileToggleRow
+                  label="Автономные рекомендации"
+                  subtitle="Проверка запускается при стабильном подключении; фоновые сроки не гарантируются"
+                  value={medicalRecommendations}
+                  onChange={setMedicalRecommendations}
+                  isLast
+                />
+              </ProfileSettingsGroup>
+              {submissionError ? (
+                <AppText
+                  role="caption"
+                  color={colors.state.error}
+                  style={styles.submissionError}
+                >
+                  {submissionError}
+                </AppText>
+              ) : null}
+            </>
+          ) : null}
+        </Animated.View>
       </OnboardingShell>
       <DiseasePickerModal
         customValue={customDisease}
+        options={activeDiseaseOptions}
         onCancel={() => setDiseaseModalVisible(false)}
         onClear={clearDiseases}
         onCustomValueChange={setCustomDisease}
         onSave={saveDiseases}
         onToggle={toggleDisease}
         selected={selectedDiseases}
+        title={goal === 'pregnancy' ? 'Хроническое заболевание' : 'Заболевание'}
         visible={diseaseModalVisible}
       />
     </>
@@ -1355,7 +1828,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  stepSegment: { flex: 1, height: 3, borderRadius: 2, backgroundColor: '#E4E1E2' },
+  stepSegment: {
+    flex: 1,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#E4E1E2',
+  },
   stepSegmentActive: { backgroundColor: colors.brand.primary },
   actionSurface: {
     position: 'absolute',
@@ -1390,44 +1868,173 @@ const styles = StyleSheet.create({
   variantHeader: { gap: 10 },
   variantTitleBlock: { gap: 5 },
   variantPicker: { gap: 7 },
-  variantChip: { width: 36, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECE7E9' },
+  variantChip: {
+    width: 36,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECE7E9',
+  },
   variantChipActive: { backgroundColor: colors.brand.primary },
   goalCards: { gap: 9 },
-  goalCard: { minHeight: 78, padding: 12, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: '#EEE7E9', ...shadows.card },
-  goalCardSelected: { borderColor: colors.brand.primary, backgroundColor: '#FFF7FA' },
-  goalGlyph: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7E4EC' },
+  goalCard: {
+    minHeight: 78,
+    padding: 12,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: '#EEE7E9',
+    ...shadows.card,
+  },
+  goalCardSelected: {
+    borderColor: colors.brand.primary,
+    backgroundColor: '#FFF7FA',
+  },
+  goalGlyph: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F7E4EC',
+  },
   goalGlyphSelected: { backgroundColor: colors.brand.primary },
   goalText: { flex: 1, gap: 2 },
   choiceDescription: { marginTop: 2, fontSize: 12, lineHeight: 15 },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#C8C1C3', alignItems: 'center', justifyContent: 'center' },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#C8C1C3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   radioSelected: { borderColor: colors.brand.primary },
-  radioDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: colors.brand.primary },
+  radioDot: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: colors.brand.primary,
+  },
   variantTwoList: { borderTopWidth: 1, borderColor: '#DDD6D8' },
-  editorialChoice: { paddingVertical: 14, borderBottomWidth: 1, borderColor: '#DDD6D8', flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  editorialChoiceSelected: { paddingHorizontal: 12, marginHorizontal: -12, backgroundColor: '#FFF7FA' },
+  editorialChoice: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: '#DDD6D8',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  editorialChoiceSelected: {
+    paddingHorizontal: 12,
+    marginHorizontal: -12,
+    backgroundColor: '#FFF7FA',
+  },
   editorialText: { flex: 1 },
   variantThreeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
-  posterChoice: { width: '48%', minHeight: 128, padding: 13, borderRadius: 22, justifyContent: 'space-between', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#ECE5E7' },
+  posterChoice: {
+    width: '48%',
+    minHeight: 128,
+    padding: 13,
+    borderRadius: 22,
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#ECE5E7',
+  },
   posterChoiceWide: { width: '100%', minHeight: 104 },
-  posterChoiceSelected: { backgroundColor: '#FCE6EF', borderColor: colors.brand.primary },
+  posterChoiceSelected: {
+    backgroundColor: '#FCE6EF',
+    borderColor: colors.brand.primary,
+  },
   posterTitle: { maxWidth: 190 },
   pathList: { gap: 10, position: 'relative' },
-  pathLine: { position: 'absolute', left: 19, top: 19, bottom: 19, width: 1, backgroundColor: '#D8CED1' },
+  pathLine: {
+    position: 'absolute',
+    left: 19,
+    top: 19,
+    bottom: 19,
+    width: 1,
+    backgroundColor: '#D8CED1',
+  },
   pathChoice: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pathIndex: { zIndex: 1, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEE8EA', borderWidth: 4, borderColor: '#FFFFFF' },
+  pathIndex: {
+    zIndex: 1,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EEE8EA',
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+  },
   pathIndexSelected: { backgroundColor: colors.brand.primary },
-  pathCard: { flex: 1, padding: 12, borderRadius: 18, backgroundColor: '#FFFFFF' },
-  pathCardSelected: { backgroundColor: '#FCEAF1', borderWidth: 1, borderColor: colors.brand.primary },
-  compactPanel: { padding: 7, borderRadius: 24, backgroundColor: '#FFFFFF', ...shadows.card },
+  pathCard: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+  },
+  pathCardSelected: {
+    backgroundColor: '#FCEAF1',
+    borderWidth: 1,
+    borderColor: colors.brand.primary,
+  },
+  compactPanel: {
+    padding: 7,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    ...shadows.card,
+  },
   compactEyebrow: { paddingHorizontal: 10, paddingTop: 9, paddingBottom: 5 },
-  compactChoice: { minHeight: 60, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 18 },
+  compactChoice: {
+    minHeight: 60,
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 18,
+  },
   compactChoiceSelected: { backgroundColor: '#FAEDF2' },
   compactChoiceText: { flex: 1 },
-  wheelBlock: { padding: 14, gap: 10, borderRadius: 22, backgroundColor: '#FFFFFF', ...shadows.card },
-  wheelBlockCompact: { flex: 1, minHeight: 126, paddingHorizontal: 10, paddingVertical: 12 },
-  compactWheelLabel: { minHeight: 34, textAlign: 'center', fontSize: 14, lineHeight: 17 },
-  wheelControl: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  wheelButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8EDF1' },
+  wheelBlock: {
+    padding: 14,
+    gap: 10,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    ...shadows.card,
+  },
+  wheelBlockCompact: {
+    flex: 1,
+    minHeight: 126,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+  },
+  compactWheelLabel: {
+    minHeight: 34,
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 17,
+  },
+  wheelControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  wheelButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8EDF1',
+  },
   wheelButtonCompact: { width: 34, height: 34, borderRadius: 17 },
   wheelValue: { alignItems: 'center' },
   wheelValueInput: {
@@ -1457,7 +2064,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     ...shadows.card,
   },
-  unknownMeasureLabel: { alignSelf: 'stretch', textAlign: 'center', fontSize: 14, lineHeight: 17 },
+  unknownMeasureLabel: {
+    alignSelf: 'stretch',
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 17,
+  },
   unknownMeasureAction: {
     minWidth: 96,
     height: 40,
@@ -1467,8 +2079,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FCEAF2',
   },
-  fieldBlock: { padding: 14, gap: 8, borderRadius: 22, backgroundColor: '#FFFFFF' },
-  field: { height: 46, borderRadius: 14, paddingHorizontal: 13, backgroundColor: '#F2EFF0', color: colors.text.primary, fontFamily: fonts.sfRegular, fontSize: 16 },
+  fieldBlock: {
+    padding: 14,
+    gap: 8,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+  },
+  field: {
+    height: 46,
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    backgroundColor: '#F2EFF0',
+    color: colors.text.primary,
+    fontFamily: fonts.sfRegular,
+    fontSize: 16,
+  },
   dateStepCard: {
     minHeight: 104,
     paddingVertical: 0,
@@ -1520,19 +2145,66 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F1D8E3',
   },
-  questionBlock: { padding: 14, gap: 10, borderRadius: 22, backgroundColor: '#FFFFFF' },
+  questionBlock: {
+    padding: 14,
+    gap: 10,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+  },
+  pregnancyDatePickerBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   simpleChoiceList: { gap: 8 },
-  simpleChoice: { minHeight: 52, paddingHorizontal: 14, borderRadius: 17, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E9E2E4' },
-  simpleChoiceSelected: { borderColor: colors.brand.primary, backgroundColor: '#FFF7FA' },
+  simpleChoice: {
+    minHeight: 52,
+    paddingHorizontal: 14,
+    borderRadius: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E9E2E4',
+  },
+  simpleChoiceSelected: {
+    borderColor: colors.brand.primary,
+    backgroundColor: '#FFF7FA',
+  },
   simpleChoiceText: { flex: 1 },
   calendar: { alignSelf: 'stretch' },
   factorList: { gap: 7 },
-  factorChoice: { minHeight: 52, paddingHorizontal: 13, borderRadius: 17, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E9E2E4' },
+  factorChoice: {
+    minHeight: 52,
+    paddingHorizontal: 13,
+    borderRadius: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E9E2E4',
+  },
   factorChoiceSelected: { borderColor: '#E9A4C3', backgroundColor: '#FFF7FA' },
-  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 1.5, borderColor: '#C8C1C3', alignItems: 'center', justifyContent: 'center' },
-  checkboxSelected: { borderColor: colors.brand.primary, backgroundColor: colors.brand.primary },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: '#C8C1C3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: {
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.brand.primary,
+  },
   factorText: { flex: 1 },
-  factorPills: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  factorPills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
   factorPill: {
     minHeight: 38,
     maxWidth: '100%',
@@ -1548,17 +2220,38 @@ const styles = StyleSheet.create({
   factorPillSelected: { borderColor: '#F2A8CB', backgroundColor: '#FFF7FA' },
   factorPillText: { flexShrink: 1, fontSize: 13, lineHeight: 16 },
   textAction: { alignSelf: 'center', paddingVertical: 2, paddingHorizontal: 8 },
-  note: { flexDirection: 'row', gap: 9, padding: 12, borderRadius: 16, backgroundColor: '#F9EAF0' },
+  note: {
+    flexDirection: 'row',
+    gap: 9,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: '#F9EAF0',
+  },
   noteText: { flex: 1, lineHeight: 17 },
-  completeScreen: { paddingHorizontal: 30, paddingTop: 2, alignItems: 'center' },
-  completeGlyph: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brand.primary, marginBottom: 11 },
+  completeScreen: {
+    paddingHorizontal: 30,
+    paddingTop: 2,
+    alignItems: 'center',
+  },
+  completeGlyph: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brand.primary,
+    marginBottom: 11,
+  },
   completeTitle: { textAlign: 'center', fontFamily: fonts.sfSemibold },
   completeText: { marginTop: 9, textAlign: 'center', lineHeight: 22 },
   diseaseModalRoot: {
     flex: 1,
     justifyContent: 'flex-end',
   },
-  diseaseBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(43,31,36,0.22)' },
+  diseaseBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(43,31,36,0.22)',
+  },
   diseaseSheet: {
     maxHeight: '78%',
     paddingTop: 10,
@@ -1586,7 +2279,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3EFF0',
   },
   diseaseContent: { paddingTop: 20, paddingBottom: 18, gap: 20 },
-  diseaseOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, paddingHorizontal: 3 },
+  diseaseOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 9,
+    paddingHorizontal: 3,
+  },
   diseaseInputBlock: { gap: 8 },
   diseaseInput: {
     height: 50,

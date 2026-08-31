@@ -1,6 +1,7 @@
 import type { TextStyle, ViewStyle } from 'react-native';
 
 export const fonts = {
+  stackSansNotch: 'StackSansNotch',
   sfRegular: 'SFProDisplay-Regular',
   sfMedium: 'SFProDisplay-Medium',
   sfSemibold: 'SFProDisplay-Semibold',

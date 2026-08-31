@@ -11,8 +11,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { AppText, SegmentedSwitcher } from './components';
-import { colors, motion, radii, shadows, spacing } from './tokens';
+import { AppText } from './components';
+import { colors, fonts, motion, radii, shadows, spacing } from './tokens';
 
 export type AnalysisTabKey = 'current' | 'upcoming' | 'completed';
 export type AnalysisTabsVariant = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
@@ -141,16 +141,35 @@ export function AnalysisTabs({
 }: AnalysisTabsProps) {
   if (variant === 2) {
     return (
-      <SegmentedSwitcher
-        accessibilityLabel="Раздел анализов"
-        options={analysisTabs.map((tab) => ({
-          value: tab.key,
-          label: tab.label,
-        }))}
-        value={activeTab}
-        onChange={onChange}
-        labelStyle={styles.tabLabel}
-      />
+      <View accessibilityRole="tablist" style={styles.referenceTabs}>
+        {analysisTabs.map((tab) => {
+          const active = tab.key === activeTab;
+          const label =
+            tab.key === 'current'
+              ? 'All'
+              : tab.key === 'upcoming'
+                ? 'Current'
+                : 'Quarter';
+          return (
+            <Pressable
+              key={tab.key}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              onPress={() => onChange(tab.key)}
+              style={[styles.referenceTab, active && styles.referenceTabActive]}
+            >
+              <AppText
+                style={[
+                  styles.referenceTabLabel,
+                  active && styles.referenceTabLabelActive,
+                ]}
+              >
+                {label}
+              </AppText>
+            </Pressable>
+          );
+        })}
+      </View>
     );
   }
 
@@ -4068,6 +4087,41 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(115,110,108,0.12)',
     backgroundColor: 'rgba(255,255,255,0.82)',
     padding: 4,
+  },
+  referenceTabs: {
+    width: '100%',
+    height: 40,
+    padding: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  referenceTab: {
+    height: 36,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+  },
+  referenceTabActive: {
+    backgroundColor: '#F0F0F0',
+  },
+  referenceTabLabel: {
+    color: '#5D5D5D',
+    fontFamily: fonts.sfRegular,
+    fontSize: 14,
+    lineHeight: 17,
+    letterSpacing: -0.25,
+  },
+  referenceTabLabelActive: {
+    color: '#171717',
+    fontFamily: fonts.sfMedium,
   },
   tab: {
     minHeight: 38,

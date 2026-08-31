@@ -1,6 +1,7 @@
 export * from './components';
 export * from './analyses';
 export * from './analysis-content';
+export * from './analysis-attachment';
 export * from './analysis-dashboard';
 export * from './analysis-overview';
 export * from './app-header';

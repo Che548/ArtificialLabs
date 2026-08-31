@@ -26,13 +26,18 @@ import {
   View,
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
+import type { ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 import BuyIcon from '../assets/figma/scan-screen/buy.svg';
-import HistoryIcon from '../assets/figma/scan-screen/history.svg';
 import InfoIcon from '../assets/figma/scan-screen/info.svg';
 import ScanIcon from '../assets/figma/scan-screen/scan.svg';
+import DisplayReferenceIcon from '../assets/figma/programs-scan/display.svg';
+import HistoryReferenceIcon from '../assets/figma/programs-scan/history.svg';
+import LockReferenceIcon from '../assets/figma/programs-scan/lock.svg';
+import NotificationReferenceIcon from '../assets/figma/programs-scan/notification.svg';
+import ScanReferenceIcon from '../assets/figma/programs-scan/scan-gr.svg';
 import {
   CalendarPageModal,
   AppHeader,
@@ -40,6 +45,7 @@ import {
   androidShadows,
   colors,
   EdgeFadeGradient,
+  fonts,
   getHeaderTop,
   JournalFlowModal,
   type JournalFlowEntry,
@@ -275,6 +281,149 @@ function ActionButton({ icon, label, onPress }: ActionButtonProps) {
   );
 }
 
+type OrbitingSphereProps = {
+  direction: 1 | -1;
+  duration: number;
+  height: number;
+  left: number;
+  phase: number;
+  radius: number;
+  reduceMotion: boolean;
+  source: ImageSourcePropType;
+  top: number;
+  width: number;
+};
+
+function OrbitingSphere({
+  direction,
+  duration,
+  height,
+  left,
+  phase,
+  radius,
+  reduceMotion,
+  source,
+  top,
+  width,
+}: OrbitingSphereProps) {
+  const motion = useRef(new Animated.Value(0)).current;
+  const phaseDegrees = phase * 360;
+  const initialAngle = phase * Math.PI * 2;
+  const initialCenterX = left + width / 2;
+  const initialCenterY = top + height / 2;
+  const orbitCenterX = initialCenterX - Math.cos(initialAngle) * radius;
+  const orbitCenterY = initialCenterY - Math.sin(initialAngle) * radius;
+
+  useEffect(() => {
+    motion.stopAnimation();
+    motion.setValue(0);
+
+    if (reduceMotion) {
+      return undefined;
+    }
+
+    const animation = Animated.loop(
+      Animated.timing(motion, {
+        toValue: 1,
+        duration,
+        easing: Easing.linear,
+        isInteraction: false,
+        useNativeDriver: true,
+      }),
+      { iterations: -1, resetBeforeIteration: true },
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+      motion.stopAnimation();
+    };
+  }, [duration, motion, reduceMotion]);
+
+  const rotation = motion.interpolate({
+    inputRange: [0, 1],
+    outputRange: [`${phaseDegrees}deg`, `${phaseDegrees + direction * 360}deg`],
+  });
+  const counterRotation = motion.interpolate({
+    inputRange: [0, 1],
+    outputRange: [
+      `${-phaseDegrees}deg`,
+      `${-phaseDegrees - direction * 360}deg`,
+    ],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.scanSphereOrbitAnchor,
+        {
+          left: orbitCenterX - 0.5,
+          top: orbitCenterY - 0.5,
+          transform: [{ rotate: rotation }],
+        },
+      ]}
+    >
+      <Animated.Image
+        accessibilityIgnoresInvertColors
+        source={source}
+        resizeMode="stretch"
+        style={{
+          position: 'absolute',
+          left: radius + 0.5 - width / 2,
+          top: 0.5 - height / 2,
+          width,
+          height,
+          transform: [{ rotate: counterRotation }],
+        }}
+      />
+    </Animated.View>
+  );
+}
+
+function AnimatedScanBackground({ reduceMotion }: { reduceMotion: boolean }) {
+  return (
+    <View pointerEvents="none" style={styles.scanPageBackground}>
+      <OrbitingSphere
+        direction={1}
+        duration={18000}
+        height={348.31}
+        left={-180}
+        phase={0}
+        radius={10}
+        reduceMotion={reduceMotion}
+        source={require('../assets/today/cycle-sphere-left.png')}
+        top={299}
+        width={361.9}
+      />
+      <OrbitingSphere
+        direction={-1}
+        duration={22000}
+        height={600}
+        left={57}
+        phase={0.5}
+        radius={12}
+        reduceMotion={reduceMotion}
+        source={require('../assets/today/cycle-sphere-top-right.png')}
+        top={-290}
+        width={585}
+      />
+      <OrbitingSphere
+        direction={1}
+        duration={20000}
+        height={317}
+        left={241}
+        phase={0.25}
+        radius={9}
+        reduceMotion={reduceMotion}
+        source={require('../assets/today/cycle-sphere-bottom-right.png')}
+        top={313}
+        width={325}
+      />
+    </View>
+  );
+}
+
 function ScannerCorners() {
   return (
     <Svg
@@ -489,6 +638,7 @@ export default function ScanScreen() {
   }, []);
 
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
+  const pageHeaderTop = getHeaderTop(insets.top);
   const headerTop = getHeaderTop(insets.top, scale);
   const scannerTop = Math.max(108, headerTop + 70);
   const sfRegular = fontsLoaded
@@ -604,168 +754,154 @@ export default function ScanScreen() {
   };
 
   return (
-    <View
-      style={[styles.root, Platform.OS === 'android' && styles.androidRoot]}
-    >
+    <View style={styles.referenceRoot}>
       <StatusBar style="dark" hidden={false} />
-      <View
-        style={{
-          width: DESIGN_WIDTH * scale,
-          height: DESIGN_HEIGHT * scale,
-        }}
-      >
-        <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
-          <View style={styles.canvas}>
-            <Image
-              accessibilityIgnoresInvertColors
-              source={require('../assets/figma/scan-screen/background.png')}
-              resizeMode="cover"
-              style={styles.scanPageBackground}
-            />
 
-            <AppHeader
-              style={[styles.header, { top: headerTop }]}
-              onHistory={() => setHistoryVisible(true)}
-              onDate={() => setCalendarVisible(true)}
-              onCalendar={() => setCalendarVisible(true)}
-            />
-
-            <View style={[styles.scannerStage, { top: scannerTop }]}>
-              <ScannerCorners />
-
-              <Image
-                accessibilityIgnoresInvertColors
-                source={require('../assets/scan/mascot-test.png')}
-                resizeMode="contain"
-                style={styles.scanMascot}
-              />
-
-              <View style={styles.scanButton}>
-                <Pressable
-                  accessible
-                  accessibilityRole="button"
-                  accessibilityLabel="Начать сканирование"
-                  onPress={() => setScanFlowVisible(true)}
-                >
-                  {({ pressed }) => (
-                    <View
-                      style={[
-                        styles.scanButtonContent,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <ScanIcon width={20} height={20} />
-                      <Text
-                        accessible={false}
-                        importantForAccessibility="no"
-                        style={[
-                          styles.scanButtonLabel,
-                          { fontFamily: sfRegular },
-                        ]}
-                      >
-                        Начать сканирование
-                      </Text>
-                    </View>
-                  )}
-                </Pressable>
-              </View>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Выбрать тест из галереи"
-                onPress={() => {
-                  void pickScanPhoto();
-                }}
-                style={styles.galleryButton}
-              >
-                {({ pressed }) => (
-                  <Text
-                    style={[
-                      styles.galleryButtonLabel,
-                      { fontFamily: sfRegular },
-                      pressed && styles.galleryButtonLabelPressed,
-                    ]}
-                  >
-                    Выбрать из галереи
-                  </Text>
-                )}
-              </Pressable>
-
-              {e2eScanFixtureUri ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Запустить тестовый снимок"
-                  onPress={() => {
-                    setHasSeenScanBriefing(true);
-                    setSelectedScanImageUri(e2eScanFixtureUri);
-                    setScanFlowVisible(true);
-                  }}
-                  style={styles.e2eFixtureButton}
-                  testID="e2e-scan-fixture"
-                >
-                  <Text
-                    style={[
-                      styles.galleryButtonLabel,
-                      { fontFamily: sfRegular },
-                    ]}
-                  >
-                    Тестовый снимок
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            <View style={styles.scanContentPanel}>
-              <View style={styles.scanBrandCopy}>
-                <Text
-                  style={[
-                    styles.sphere,
-                    { fontFamily: yaro },
-                    Platform.OS === 'android' && styles.sphereAndroid,
-                  ]}
-                >
-                  сфера.
-                </Text>
-                <Text
-                  style={[styles.scannerDescription, { fontFamily: sfRegular }]}
-                >
-                  Мгновенный анализ тестов на{'\n'}
-                  овуляцию или беременность
-                </Text>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.actions,
-                Platform.OS === 'android' && styles.actionsAndroid,
-              ]}
-            >
-              <ActionButton
-                label="Инфо"
-                onPress={() => void openExternalUrl(RAPIDBIO_INFO_URL)}
-                icon={<InfoIcon width={19} height={19} />}
-              />
-              <ActionButton
-                label="Купить"
-                onPress={() => void openExternalUrl(RAPIDBIO_STORE_URL)}
-                icon={<BuyIcon width={19} height={19} />}
-              />
-              <ActionButton
-                label="История"
-                onPress={() => setHistoryVisible(true)}
-                icon={<HistoryIcon width={19} height={19} />}
-              />
-            </View>
-
-            <EdgeFadeGradient
-              edge="bottom"
-              height={108}
-              style={styles.navbarFadeGradient}
-            />
+      <View style={[styles.referenceHeader, { top: pageHeaderTop }]}>
+        <GlassControl
+          accessibilityLabel="Scan history"
+          onPress={() => setHistoryVisible(true)}
+          style={styles.referenceHistoryControl}
+        >
+          <View style={styles.referenceHistoryContent}>
+            <HistoryReferenceIcon width={20} height={20} />
+            <Text style={styles.referenceHistoryLabel}>History</Text>
           </View>
+        </GlassControl>
+
+        <Text pointerEvents="none" style={styles.referenceHeaderTitle}>
+          Scan
+        </Text>
+
+        <View style={styles.referenceHeaderActions}>
+          <GlassControl
+            accessibilityLabel="Notifications"
+            onPress={() => setCalendarVisible(true)}
+            style={styles.referenceHeaderCircle}
+          >
+            <NotificationReferenceIcon width={22} height={22} />
+          </GlassControl>
+          <GlassControl
+            accessibilityLabel="Display options"
+            onPress={() => setHistoryVisible(true)}
+            style={styles.referenceHeaderCircle}
+          >
+            <DisplayReferenceIcon width={22} height={22} />
+          </GlassControl>
         </View>
       </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.referenceScrollContent,
+          {
+            paddingTop: pageHeaderTop + 64,
+            paddingBottom: Math.max(insets.bottom + 118, 146),
+          },
+        ]}
+      >
+        <View accessibilityRole="tablist" style={styles.referenceSegment}>
+          <View style={styles.referenceSegmentActive}>
+            <Text style={styles.referenceSegmentActiveText}>Scanner</Text>
+          </View>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityLabel="Scan History"
+            onPress={() => setHistoryVisible(true)}
+            style={styles.referenceSegmentTab}
+          >
+            <Text style={styles.referenceSegmentText}>History</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.referenceReadyCard}>
+          <View style={styles.referenceReadyCopy}>
+            <ScanReferenceIcon width={38} height={38} />
+            <Text style={styles.referenceReadyText}>
+              The application is ready to scan, click the{`\n`}Start button to begin
+            </Text>
+          </View>
+          <View style={styles.referenceStartButton}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Start scanning"
+              onPress={() => {
+                if (e2eScanFixtureUri) {
+                  setHasSeenScanBriefing(true);
+                  setSelectedScanImageUri(e2eScanFixtureUri);
+                }
+                setScanFlowVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.referenceButtonPressTarget,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.referenceStartLabel}>Start</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.referenceRapidCard}>
+          <View style={styles.referenceRapidImageFrame}>
+            <Image
+              accessibilityLabel="RapidScanner image"
+              resizeMode="cover"
+              source={require('../assets/figma/programs-scan/scan-raw-1.png')}
+              style={styles.referenceRapidImage}
+            />
+          </View>
+          <View style={styles.referenceRule} />
+          <View style={styles.referenceRapidFooter}>
+            <View style={styles.referenceRapidCopy}>
+              <Text style={styles.referenceCardTitle}>RapidScanner</Text>
+              <Text numberOfLines={1} style={styles.referenceCardSubtitle}>
+                Instant AI Interpretation of Rapid Tests
+              </Text>
+            </View>
+            <View style={styles.referenceChosenButton}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="RapidScanner chosen; select image from gallery"
+                onPress={() => void pickScanPhoto()}
+                style={({ pressed }) => [
+                  styles.referenceButtonPressTarget,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.referenceChosenLabel}>Chosen</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.referenceLockedRow}>
+          {[
+            ['OralScanner', 'Neural Network-Powered Tongue Cancer Scanner'],
+            ['SkinScanner', 'Neural Network-Powered Skin Cancer Scanner'],
+          ].map(([title, subtitle]) => (
+            <View key={title} style={styles.referenceLockedCard}>
+              <View style={styles.referenceLockedPreview}>
+                <LockReferenceIcon width={36} height={36} />
+              </View>
+              <View style={styles.referenceRule} />
+              <View style={styles.referenceLockedCopy}>
+                <Text style={styles.referenceCardTitle}>{title}</Text>
+                <Text numberOfLines={2} style={styles.referenceCardSubtitle}>
+                  {subtitle}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+
+      <EdgeFadeGradient
+        edge="bottom"
+        height={108}
+        style={styles.referenceNavbarFade}
+      />
 
       <Modal
         animationType={reduceMotion ? 'none' : 'slide'}
@@ -885,7 +1021,9 @@ export default function ScanScreen() {
             : undefined
         }
         onClose={() => setCalendarVisible(false)}
-        onAddSymptoms={(date) => setJournalFlowDate(new Date(date))}
+        onAddSymptoms={(date) => {
+          setJournalFlowDate(new Date(date));
+        }}
         symptomDateKeys={symptomDateKeys}
       />
 
@@ -1064,7 +1202,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fee8e3',
+    backgroundColor: '#FDECE5',
   },
   flowModalRoot: {
     flex: 1,
@@ -1134,12 +1272,21 @@ const styles = StyleSheet.create({
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
     borderRadius: 40,
-    backgroundColor: '#FDE9E3',
+    backgroundColor: '#FDECE5',
   },
   scanPageBackground: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    top: 0,
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
+    overflow: 'hidden',
+    backgroundColor: '#FDECE5',
+  },
+  scanSphereOrbitAnchor: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
   },
   androidRoot: {
     justifyContent: 'flex-start',
@@ -1355,6 +1502,255 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 17,
     letterSpacing: -0.3,
+  },
+  referenceRoot: {
+    flex: 1,
+    backgroundColor: '#F2F2F2',
+  },
+  referenceHeader: {
+    position: 'absolute',
+    zIndex: 10,
+    left: 16,
+    right: 16,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  referenceHeaderTitle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: -1,
+    color: '#171717',
+    fontFamily: fonts.sfSemibold,
+    fontSize: 21,
+    lineHeight: 26,
+    letterSpacing: -0.42,
+    textAlign: 'center',
+  },
+  referenceHistoryControl: {
+    width: 116,
+    height: 48,
+    borderRadius: 24,
+  },
+  referenceHistoryContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  referenceHistoryLabel: {
+    color: '#171717',
+    fontFamily: fonts.sfRegular,
+    fontSize: 17,
+    lineHeight: 21,
+  },
+  referenceHeaderActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  referenceHeaderCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  referenceScrollContent: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  referenceSegment: {
+    width: '100%',
+    height: 40,
+    padding: 2,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  referenceSegmentActive: {
+    flex: 1,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F0F0',
+  },
+  referenceSegmentTab: {
+    flex: 1,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  referenceSegmentActiveText: {
+    color: '#171717',
+    fontFamily: fonts.sfMedium,
+    fontSize: 14,
+    lineHeight: 17,
+    letterSpacing: -0.25,
+  },
+  referenceSegmentText: {
+    color: '#5D5D5D',
+    fontFamily: fonts.sfRegular,
+    fontSize: 14,
+    lineHeight: 17,
+    letterSpacing: -0.25,
+  },
+  referenceReadyCard: {
+    width: '100%',
+    height: 183,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  referenceReadyCopy: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  referenceReadyText: {
+    maxWidth: 290,
+    color: '#5D5D5D',
+    fontFamily: fonts.sfMedium,
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: -0.32,
+    textAlign: 'center',
+  },
+  referenceStartButton: {
+    width: 220,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#171717',
+  },
+  referenceStartLabel: {
+    color: '#FFFFFF',
+    fontFamily: fonts.sfMedium,
+    fontSize: 17,
+    lineHeight: 21,
+  },
+  referenceButtonPressTarget: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  referenceRapidCard: {
+    width: '100%',
+    borderRadius: 30,
+    padding: 16,
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  referenceRapidImageFrame: {
+    width: '100%',
+    height: 82,
+    overflow: 'hidden',
+    borderRadius: 20,
+    backgroundColor: '#EAEAEA',
+  },
+  referenceRapidImage: {
+    width: '100%',
+    height: '100%',
+  },
+  referenceRule: {
+    width: '100%',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#E4E4E4',
+  },
+  referenceRapidFooter: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  referenceRapidCopy: {
+    minWidth: 0,
+    flex: 1,
+    gap: 3,
+  },
+  referenceCardTitle: {
+    color: '#171717',
+    fontFamily: fonts.sfSemibold,
+    fontSize: 18,
+    lineHeight: 22,
+    letterSpacing: -0.36,
+  },
+  referenceCardSubtitle: {
+    color: '#5D5D5D',
+    fontFamily: fonts.sfRegular,
+    fontSize: 13,
+    lineHeight: 16,
+    letterSpacing: -0.24,
+  },
+  referenceChosenButton: {
+    width: 126,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#171717',
+  },
+  referenceChosenLabel: {
+    color: '#FFFFFF',
+    fontFamily: fonts.sfMedium,
+    fontSize: 16,
+    lineHeight: 19,
+  },
+  referenceLockedRow: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 16,
+  },
+  referenceLockedCard: {
+    minWidth: 0,
+    flex: 1,
+    height: 194,
+    borderRadius: 26,
+    padding: 16,
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  referenceLockedPreview: {
+    width: '100%',
+    height: 82,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F2F2F2',
+  },
+  referenceLockedCopy: {
+    gap: 4,
+  },
+  referenceNavbarFade: {
+    bottom: 0,
+    zIndex: 8,
   },
   pressed: {
     opacity: 0.72,

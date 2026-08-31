@@ -3,22 +3,22 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 100;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8D76B91582B84FD894EEC251 /* StackSansNotch-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7F4704958DA442D086276156 /* StackSansNotch-VariableFont_wght.ttf */; };
 		D7D1BB7932811972C4ED106E /* ArtificialLabsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10DAD3F19F19DF9D47D76D4D /* ArtificialLabsApp.swift */; };
 		F31F04F3DB6680FAA4C3F56A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3DFCC6F5E60DA5FC7F4EA5 /* ContentView.swift */; };
 		F9CC9E94E8F55A980B9AA160 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6C404E54A96344BC1963CA39 /* Assets.xcassets */; };
+		FD18E4039AAF7A61087450AC /* StackSansNotch-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7D688D488C48FA99DC121168 /* StackSansNotch-VariableFont_wght.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		071E134AE0070B7FF7781C11 /* ArtificialLabs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArtificialLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		071E134AE0070B7FF7781C11 /* ArtificialLabs.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ArtificialLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		10DAD3F19F19DF9D47D76D4D /* ArtificialLabsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtificialLabsApp.swift; sourceTree = "<group>"; };
 		3F3DFCC6F5E60DA5FC7F4EA5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		6C404E54A96344BC1963CA39 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		7F4704958DA442D086276156 /* StackSansNotch-VariableFont_wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "StackSansNotch-VariableFont_wght.ttf"; sourceTree = "<group>"; };
+		7D688D488C48FA99DC121168 /* StackSansNotch-VariableFont_wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "StackSansNotch-VariableFont_wght.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -48,21 +48,21 @@
 			path = ArtificialLabs;
 			sourceTree = "<group>";
 		};
+		A76F20DEE4A3CEBC92526B58 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				7D688D488C48FA99DC121168 /* StackSansNotch-VariableFont_wght.ttf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 		C0EF71091FC285C24A440C3E /* Resources */ = {
 			isa = PBXGroup;
 			children = (
 				6C404E54A96344BC1963CA39 /* Assets.xcassets */,
-				E0B437A97E8041A994B4C51E /* Fonts */,
+				A76F20DEE4A3CEBC92526B58 /* Fonts */,
 			);
 			path = Resources;
-			sourceTree = "<group>";
-		};
-		E0B437A97E8041A994B4C51E /* Fonts */ = {
-			isa = PBXGroup;
-			children = (
-				7F4704958DA442D086276156 /* StackSansNotch-VariableFont_wght.ttf */,
-			);
-			path = Fonts;
 			sourceTree = "<group>";
 		};
 		F37727017F8AC1CE4D2394EC = {
@@ -85,7 +85,11 @@
 			);
 			buildRules = (
 			);
+			dependencies = (
+			);
 			name = ArtificialLabs;
+			packageProductDependencies = (
+			);
 			productName = ArtificialLabs;
 			productReference = 071E134AE0070B7FF7781C11 /* ArtificialLabs.app */;
 			productType = "com.apple.product-type.application";
@@ -98,6 +102,8 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = 97D48CE369BBC7E093F23E15 /* Build configuration list for PBXProject "ArtificialLabs" */;
 			developmentRegion = en;
@@ -108,7 +114,7 @@
 			);
 			mainGroup = F37727017F8AC1CE4D2394EC;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 100;
+			preferredProjectObjectVersion = 77;
 			productRefGroup = 3CCF82B048638D065497F22E /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -121,30 +127,33 @@
 /* Begin PBXResourcesBuildPhase section */
 		15913B829413C236818B9EED /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
-				8D76B91582B84FD894EEC251 /* StackSansNotch-VariableFont_wght.ttf in Resources */,
 				F9CC9E94E8F55A980B9AA160 /* Assets.xcassets in Resources */,
+				FD18E4039AAF7A61087450AC /* StackSansNotch-VariableFont_wght.ttf in Resources */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		6861191CBA2CB58457159AE8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 				D7D1BB7932811972C4ED106E /* ArtificialLabsApp.swift in Sources */,
 				F31F04F3DB6680FAA4C3F56A /* ContentView.swift in Sources */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		0C4A274BD10962671E0F09F7 /* Debug configuration for PBXNativeTarget "ArtificialLabs" */ = {
+		0C4A274BD10962671E0F09F7 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 47KNJT9WCW;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ArtificialLabs;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -162,12 +171,11 @@
 			};
 			name = Debug;
 		};
-		8F82AEC55E20223853768F28 /* Release configuration for PBXNativeTarget "ArtificialLabs" */ = {
+		8F82AEC55E20223853768F28 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 47KNJT9WCW;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ArtificialLabs;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -185,7 +193,7 @@
 			};
 			name = Release;
 		};
-		A30A8004D24A03BF4D386A59 /* Debug configuration for PBXProject "ArtificialLabs" */ = {
+		A30A8004D24A03BF4D386A59 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -250,7 +258,7 @@
 			};
 			name = Debug;
 		};
-		D6969C5E65182644D5BD56D0 /* Release configuration for PBXProject "ArtificialLabs" */ = {
+		D6969C5E65182644D5BD56D0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -314,17 +322,19 @@
 		97D48CE369BBC7E093F23E15 /* Build configuration list for PBXProject "ArtificialLabs" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A30A8004D24A03BF4D386A59 /* Debug configuration for PBXProject "ArtificialLabs" */,
-				D6969C5E65182644D5BD56D0 /* Release configuration for PBXProject "ArtificialLabs" */,
+				A30A8004D24A03BF4D386A59 /* Debug */,
+				D6969C5E65182644D5BD56D0 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
 		C8CB8848ED8B5083C674E4FD /* Build configuration list for PBXNativeTarget "ArtificialLabs" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				0C4A274BD10962671E0F09F7 /* Debug configuration for PBXNativeTarget "ArtificialLabs" */,
-				8F82AEC55E20223853768F28 /* Release configuration for PBXNativeTarget "ArtificialLabs" */,
+				0C4A274BD10962671E0F09F7 /* Debug */,
+				8F82AEC55E20223853768F28 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */

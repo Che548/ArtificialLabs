@@ -20,7 +20,6 @@ import {
   Modal,
   Animated,
   Easing,
-  Image,
   StyleSheet,
   Switch,
   TextInput,
@@ -28,6 +27,8 @@ import {
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import Svg, { Path, type SvgProps } from 'react-native-svg';
+
+import ProfileAvatar from '../assets/profile/avatar.svg';
 
 import { AppText, SegmentedSwitcher } from './components';
 import {
@@ -40,8 +41,6 @@ import {
   shadows,
   spacing,
 } from './tokens';
-
-const profileAvatarImage = require('../assets/profile/avatar.png');
 
 export type ProfileTab = 'profile' | 'notifications';
 
@@ -176,18 +175,13 @@ export function ProfileAccountCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Открыть данные профиля"
+      accessibilityLabel="Open profile details"
       onPress={onPress}
       style={styles.accountCard}
     >
       <View style={styles.accountLayout}>
         <View style={styles.avatar}>
-          <Image
-            accessible={false}
-            resizeMode="cover"
-            source={profileAvatarImage}
-            style={styles.avatarImage}
-          />
+          <ProfileAvatar width={64} height={64} />
         </View>
 
         <View style={styles.accountCopy}>
@@ -225,10 +219,10 @@ export function ProfileTabControl({
 }) {
   return (
     <SegmentedSwitcher
-      accessibilityLabel="Раздел профиля"
+      accessibilityLabel="Profile section"
       options={[
-        { value: 'profile', label: 'Профиль' },
-        { value: 'notifications', label: 'Уведомления' },
+        { value: 'profile', label: 'Profile' },
+        { value: 'notifications', label: 'Notifications' },
       ]}
       value={activeTab}
       onChange={onChange}
@@ -415,7 +409,7 @@ export function ProfileFieldRow({
   isLast = false,
   label,
   onSubmit,
-  placeholder = 'Не указано',
+  placeholder = 'Not specified',
   suffix,
 }: {
   defaultValue?: string;
@@ -473,9 +467,9 @@ export function ProfileFieldRow({
 }
 
 function formatProfileDate(date?: Date) {
-  if (!date) return 'Не указано';
+  if (!date) return 'Not specified';
 
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat('en-US', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -483,20 +477,24 @@ function formatProfileDate(date?: Date) {
 }
 
 export function ProfileDateRow({
+  autoOpen = false,
   disabled = false,
   isLast = false,
   label,
   maximumDate,
   minimumDate,
   onChange,
+  onDismiss,
   value,
 }: {
+  autoOpen?: boolean;
   disabled?: boolean;
   isLast?: boolean;
   label: string;
   maximumDate?: Date;
   minimumDate?: Date;
   onChange?: (timestamp: number) => void;
+  onDismiss?: () => void;
   value?: number;
 }) {
   const insets = useSafeAreaInsets();
@@ -521,6 +519,11 @@ export function ProfileDateRow({
     onChange?.(date.getTime());
   };
 
+  const closePicker = () => {
+    setPickerVisible(false);
+    onDismiss?.();
+  };
+
   const openPicker = () => {
     if (disabled) return;
 
@@ -535,7 +538,11 @@ export function ProfileDateRow({
         maximumDate,
         minimumDate,
         onChange: (event: DateTimePickerEvent, date?: Date) => {
-          if (event.type === 'set' && date) commitDate(date);
+          if (event.type === 'set' && date) {
+            commitDate(date);
+          } else if (event.type === 'dismissed') {
+            onDismiss?.();
+          }
         },
       });
       return;
@@ -544,12 +551,16 @@ export function ProfileDateRow({
     setPickerVisible(true);
   };
 
+  useEffect(() => {
+    if (autoOpen && !disabled) openPicker();
+  }, [autoOpen, disabled]);
+
   return (
     <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${formatProfileDate(selectedDate)}`}
-        accessibilityHint="Открывает выбор даты"
+        accessibilityHint="Opens the date picker"
         disabled={disabled}
         onPress={openPicker}
         style={({ pressed }) => [
@@ -594,7 +605,7 @@ export function ProfileDateRow({
           animationType="fade"
           transparent
           visible
-          onRequestClose={() => setPickerVisible(false)}
+          onRequestClose={closePicker}
         >
           <View
             style={[
@@ -604,15 +615,15 @@ export function ProfileDateRow({
           >
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Закрыть выбор даты"
-              onPress={() => setPickerVisible(false)}
+              accessibilityLabel="Close date picker"
+              onPress={closePicker}
               style={StyleSheet.absoluteFill}
             />
             <View style={styles.dateSheet}>
               <View style={styles.dateSheetHeader}>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => setPickerVisible(false)}
+                  onPress={closePicker}
                   hitSlop={10}
                   style={styles.dateSheetHeaderAction}
                 >
@@ -621,7 +632,7 @@ export function ProfileDateRow({
                     color={colors.text.secondary}
                     style={styles.dateSheetHeaderActionLeft}
                   >
-                    Отмена
+                    Cancel
                   </AppText>
                 </Pressable>
                 <AppText
@@ -647,7 +658,7 @@ export function ProfileDateRow({
                     color={colors.brand.primary}
                     style={styles.dateSheetHeaderActionRight}
                   >
-                    Готово
+                    Done
                   </AppText>
                 </Pressable>
               </View>
@@ -895,8 +906,8 @@ const profileLanguages: ReadonlyArray<{
   label: string;
   secondaryLabel: string;
 }> = [
-  { value: 'ru', label: 'Русский', secondaryLabel: 'Russian' },
-  { value: 'en', label: 'English', secondaryLabel: 'Английский' },
+  { value: 'ru', label: 'Russian', secondaryLabel: 'Russian' },
+  { value: 'en', label: 'English', secondaryLabel: 'English' },
 ];
 
 const profileRegions: ReadonlyArray<{
@@ -904,10 +915,10 @@ const profileRegions: ReadonlyArray<{
   label: string;
   secondaryLabel: string;
 }> = [
-  { value: 'ru', label: 'Россия', secondaryLabel: 'Российская Федерация' },
-  { value: 'by', label: 'Беларусь', secondaryLabel: 'Республика Беларусь' },
-  { value: 'kz', label: 'Казахстан', secondaryLabel: 'Республика Казахстан' },
-  { value: 'other', label: 'Другой регион', secondaryLabel: 'Выбрать позднее' },
+  { value: 'ru', label: 'Russia', secondaryLabel: 'Russian Federation' },
+  { value: 'by', label: 'Belarus', secondaryLabel: 'Republic of Belarus' },
+  { value: 'kz', label: 'Kazakhstan', secondaryLabel: 'Republic of Kazakhstan' },
+  { value: 'other', label: 'Other region', secondaryLabel: 'Choose later' },
 ];
 
 type ProfileSelectionAnchor = {
@@ -1120,14 +1131,14 @@ export function ProfileLanguageSelector({
           color={colors.text.secondary}
           style={styles.languageLabel}
         >
-          РЕГИОН
+          REGION
         </AppText>
         <View style={styles.groupShadow}>
           <View style={styles.groupSurface}>
             <Pressable
               ref={regionTriggerRef}
               accessibilityRole="button"
-              accessibilityLabel="Выбрать регион"
+              accessibilityLabel="Select region"
               accessibilityState={{ expanded: expanded === 'region' }}
               onPress={() => openPopover('region', regionTriggerRef)}
               style={({ pressed }) => [
@@ -1153,14 +1164,14 @@ export function ProfileLanguageSelector({
           color={colors.text.secondary}
           style={styles.languageLabel}
         >
-          ЯЗЫК ИНТЕРФЕЙСА
+          INTERFACE LANGUAGE
         </AppText>
         <View style={styles.groupShadow}>
           <View style={styles.groupSurface}>
             <Pressable
               ref={languageTriggerRef}
               accessibilityRole="button"
-              accessibilityLabel="Выбрать язык интерфейса"
+              accessibilityLabel="Select interface language"
               accessibilityState={{ expanded: expanded === 'language' }}
               onPress={() => openPopover('language', languageTriggerRef)}
               style={({ pressed }) => [
@@ -1182,7 +1193,7 @@ export function ProfileLanguageSelector({
       {expanded === 'region' ? (
         <ProfileSelectionPopover
           anchor={anchor}
-          closeLabel="Закрыть выбор региона"
+          closeLabel="Close region picker"
           options={profileRegions}
           selectedValue={currentRegion}
           onClose={() => setExpanded(null)}
@@ -1196,7 +1207,7 @@ export function ProfileLanguageSelector({
       {expanded === 'language' ? (
         <ProfileSelectionPopover
           anchor={anchor}
-          closeLabel="Закрыть выбор языка"
+          closeLabel="Close language picker"
           options={profileLanguages}
           selectedValue={currentValue}
           onClose={() => setExpanded(null)}
@@ -1331,7 +1342,7 @@ export type DestructiveButtonVariant =
   | 'textOnly';
 
 export function DestructiveButtonPreview({
-  label = 'Удалить запись',
+  label = 'Delete record',
   onPress = () => undefined,
   variant,
 }: {
@@ -1404,15 +1415,15 @@ export function DestructiveButtonPreview({
     text: textColor,
   } = colorByVariant[variant];
   const subtitle = warning
-    ? 'Действие нельзя отменить'
+    ? 'This action cannot be undone'
     : quietRow
-      ? 'Удалить без переноса в архив'
+      ? 'Delete without archiving'
       : hold
-        ? 'Нажмите и удерживайте'
+        ? 'Press and hold'
         : confirm
-          ? 'Потребуется подтверждение'
+          ? 'Confirmation required'
           : inset
-            ? 'Запись будет удалена навсегда'
+            ? 'The record will be permanently deleted'
             : null;
 
   const icon = (tile = false, color = iconColor) => (
@@ -1538,7 +1549,7 @@ export function DestructiveButtonPreview({
                 weight="semibold"
                 color={colors.state.error}
               >
-                Подтвердить
+                Confirm
               </AppText>
             </View>
           ) : null}
@@ -1674,14 +1685,14 @@ export function ProfileEmptyNotifications() {
         />
       </View>
       <AppText role="heading" weight="semibold" style={styles.emptyTitle}>
-        Уведомлений нет
+        No notifications
       </AppText>
       <AppText
         role="label"
         color={colors.text.secondary}
         style={styles.emptyDescription}
       >
-        Здесь появятся напоминания, результаты и системные сообщения.
+        Reminders, results, and system messages will appear here.
       </AppText>
     </View>
   );
@@ -1691,55 +1702,55 @@ export function ProfileKitPreview() {
   return (
     <View style={styles.kitPreview}>
       <ProfileAccountCard
-        name="Анна Чехова"
-        subtitle="Планирование · профиль заполнен на 62%"
+        name="Anna Chekhova"
+        subtitle="Planning · profile 62% complete"
       />
       <ProfileTabControl
         activeTab="profile"
         unreadCount={3}
         onChange={() => undefined}
       />
-      <ProfileSettingsGroup title="Здоровье">
+      <ProfileSettingsGroup title="Health">
         <ProfileSettingsRow
           icon="person.text.rectangle.fill"
-          fallback="Я"
+          fallback="ME"
           iconBackground="#EA4087"
-          label="Основная информация"
-          value="Заполнено"
+          label="Basic information"
+          value="Completed"
           isLast
         />
       </ProfileSettingsGroup>
-      <ProfileSettingsGroup title="Прямое редактирование">
-        <ProfileFieldRow label="Имя или псевдоним" defaultValue="Анна" />
+      <ProfileSettingsGroup title="Direct editing">
+        <ProfileFieldRow label="Name or nickname" defaultValue="Anna" />
         <ProfileDateRow
-          label="Дата рождения"
+          label="Date of birth"
           value={new Date(1996, 4, 18).getTime()}
           maximumDate={new Date()}
         />
         <ProfileFieldRow
-          label="Рост"
-          placeholder="Добавить"
-          suffix="см"
+          label="Height"
+          placeholder="Add"
+          suffix="cm"
           isLast
         />
       </ProfileSettingsGroup>
       <ProfileVerticalChoiceControl
-        accessibilityLabel="Цель использования, вертикальный вариант"
+        accessibilityLabel="Primary goal, vertical layout"
         defaultValue="planning"
-        label="Цель использования"
+        label="Primary goal"
         options={[
-          { value: 'planning', label: 'Планирование' },
-          { value: 'pregnancy', label: 'Беременность' },
-          { value: 'cycle', label: 'Мониторинг' },
+          { value: 'planning', label: 'Planning' },
+          { value: 'pregnancy', label: 'Pregnancy' },
+          { value: 'cycle', label: 'Monitoring' },
         ]}
       />
       <ProfileLanguageSelector />
-      <ProfileSettingsGroup title="Уведомления">
-        <ProfileToggleRow label="Результаты анализов" defaultValue isLast />
+      <ProfileSettingsGroup title="Notifications">
+        <ProfileToggleRow label="Lab results" defaultValue isLast />
       </ProfileSettingsGroup>
       <ProfileActionRow
         icon="plus"
-        label="Добавить документ"
+        label="Add document"
         onPress={() => undefined}
       />
     </View>
@@ -1787,16 +1798,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
   accountCopy: {
     minWidth: 0,
     flex: 1,
   },
   accountSubtitle: {
     marginTop: 4,
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: -0.32,
   },
   tabControl: {
     width: '100%',

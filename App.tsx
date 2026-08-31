@@ -93,7 +93,9 @@ const FONT_SF_SEMIBOLD = 'SFProDisplay-Semibold';
 const FONT_YARO_RG = 'YaroRg';
 const FontReadyContext = createContext(false);
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
-const MAX_PREGNANCY_WEEK = 42;
+const LAST_NUMBERED_PREGNANCY_WEEK = 40;
+const POST_TERM_WEEK = LAST_NUMBERED_PREGNANCY_WEEK + 1;
+const MAX_PREGNANCY_WEEK = POST_TERM_WEEK;
 const WEEK_ITEM_WIDTH = 84;
 const WEEK_BUBBLE_SIZE = 75;
 const WEEK_CENTER_PADDING = (DESIGN_WIDTH - WEEK_ITEM_WIDTH) / 2;
@@ -101,6 +103,124 @@ const weeks = Array.from(
   { length: MAX_PREGNANCY_WEEK },
   (_, index) => index + 1,
 );
+
+const pregnancyWeekImages = {
+  1: require('./assets/pregnancy-weeks/1.png'),
+  2: require('./assets/pregnancy-weeks/2.png'),
+  3: require('./assets/pregnancy-weeks/3.png'),
+  4: require('./assets/pregnancy-weeks/4.png'),
+  5: require('./assets/pregnancy-weeks/5.png'),
+  6: require('./assets/pregnancy-weeks/6.png'),
+  7: require('./assets/pregnancy-weeks/7.png'),
+  8: require('./assets/pregnancy-weeks/8.png'),
+  9: require('./assets/pregnancy-weeks/9.png'),
+  10: require('./assets/pregnancy-weeks/10.png'),
+  11: require('./assets/pregnancy-weeks/11.png'),
+  12: require('./assets/pregnancy-weeks/12.png'),
+  13: require('./assets/pregnancy-weeks/13.png'),
+  14: require('./assets/pregnancy-weeks/14.png'),
+  15: require('./assets/pregnancy-weeks/15.png'),
+  16: require('./assets/pregnancy-weeks/16.png'),
+  17: require('./assets/pregnancy-weeks/17.png'),
+  18: require('./assets/pregnancy-weeks/18.png'),
+  19: require('./assets/pregnancy-weeks/19.png'),
+  20: require('./assets/pregnancy-weeks/20.png'),
+  21: require('./assets/pregnancy-weeks/21.png'),
+  22: require('./assets/pregnancy-weeks/22.png'),
+  23: require('./assets/pregnancy-weeks/23.png'),
+  24: require('./assets/pregnancy-weeks/24.png'),
+  25: require('./assets/pregnancy-weeks/25.png'),
+  26: require('./assets/pregnancy-weeks/26.png'),
+  27: require('./assets/pregnancy-weeks/27.png'),
+  28: require('./assets/pregnancy-weeks/28.png'),
+  29: require('./assets/pregnancy-weeks/29.png'),
+  30: require('./assets/pregnancy-weeks/30.png'),
+  31: require('./assets/pregnancy-weeks/31.png'),
+  32: require('./assets/pregnancy-weeks/32.png'),
+  33: require('./assets/pregnancy-weeks/33.png'),
+  34: require('./assets/pregnancy-weeks/34.png'),
+  35: require('./assets/pregnancy-weeks/35.png'),
+  36: require('./assets/pregnancy-weeks/36.png'),
+  37: require('./assets/pregnancy-weeks/37.png'),
+  38: require('./assets/pregnancy-weeks/38.png'),
+  39: require('./assets/pregnancy-weeks/39.png'),
+  40: require('./assets/pregnancy-weeks/40.png'),
+} as const;
+
+const pregnancyWeekImageLayouts = {
+  1: { left: -2.63, top: 45.89, width: 404.79, height: 719.25 },
+  2: { left: -2.63, top: 45.89, width: 404.79, height: 719.25 },
+  3: { left: -4.87, top: 42.89, width: 407.62, height: 724.28 },
+  4: { left: -3.52, top: 44.9, width: 405.73, height: 720.92 },
+  5: { left: -3.06, top: 45.89, width: 404.79, height: 719.25 },
+  6: { left: -3.52, top: 44.9, width: 405.73, height: 720.92 },
+  7: { left: -3.52, top: 44.9, width: 405.73, height: 720.92 },
+  8: { left: -4.87, top: 42.89, width: 407.62, height: 723.84 },
+  9: { left: -3.06, top: 47.18, width: 405.22, height: 717.96 },
+  10: { left: 0, top: 48, width: 402, height: 714.29 },
+  11: { left: -15.01, top: 28.55, width: 418.25, height: 743.16 },
+  12: { left: -16.9, top: 20.08, width: 421.07, height: 748.17 },
+  13: { left: -19.65, top: 15.54, width: 427.03, height: 758.77 },
+  14: { left: -14.84, top: -12.58, width: 427.14, height: 758.95 },
+  15: { left: -17.38, top: 22.31, width: 423.21, height: 751.97 },
+  16: { left: -21.65, top: 15.71, width: 429.76, height: 763.61 },
+  17: { left: -5.27, top: -51.59, width: 421.17, height: 748.35 },
+  18: { left: -12.95, top: -25.53, width: 418.95, height: 744.41 },
+  19: { left: -23.08, top: -28.17, width: 428.71, height: 761.74 },
+  20: { left: -5.99, top: 36.16, width: 415.76, height: 738.74 },
+  21: { left: -20.56, top: -40.72, width: 429.97, height: 763.99 },
+  22: { left: -13.67, top: 22.62, width: 419.52, height: 629.28 },
+  23: { left: -26.47, top: 24.61, width: 426.62, height: 758.03 },
+  24: { left: -32.19, top: 5.86, width: 435.22, height: 773.31 },
+  25: { left: -35.52, top: -1.57, width: 433.81, height: 770.81 },
+  26: { left: -27.32, top: -6.85, width: 424.34, height: 753.98 },
+  27: { left: -30.78, top: 7.31, width: 426.72, height: 758.21 },
+  28: { left: -35.98, top: 10.34, width: 435.22, height: 773.31 },
+  29: { left: -32.85, top: 7.45, width: 435.32, height: 773.5 },
+  30: { left: -24.46, top: 27.79, width: 425.27, height: 755.63 },
+  31: { left: -27.15, top: 25.35, width: 427.76, height: 760.07 },
+  32: { left: -23.09, top: 13.2, width: 430.18, height: 764.37 },
+  33: { left: -30.54, top: 22.33, width: 436.41, height: 775.43 },
+  34: { left: -33.21, top: -28, width: 435.22, height: 773.31 },
+  35: { left: -7.28, top: -65.56, width: 421.17, height: 748.35 },
+  36: { left: -25.9, top: 24.61, width: 423.41, height: 752.34 },
+  37: { left: -25.68, top: -20.32, width: 428.18, height: 760.81 },
+  38: { left: -14.07, top: -27.25, width: 436.41, height: 775.43 },
+  39: { left: -14.24, top: -3.53, width: 423.31, height: 752.15 },
+  40: { left: -2.83, top: -58.85, width: 409.44, height: 727.5 },
+} as const;
+
+type PregnancyWeekWithImage = keyof typeof pregnancyWeekImages;
+
+function isPregnancyWeekWithImage(
+  week: number,
+): week is PregnancyWeekWithImage {
+  return week >= 1 && week <= 40;
+}
+
+function PregnancyWeekHero({ week }: { week: number }) {
+  const imageWeek =
+    week === POST_TERM_WEEK ? LAST_NUMBERED_PREGNANCY_WEEK : week;
+
+  if (!isPregnancyWeekWithImage(imageWeek)) {
+    return (
+      <Image
+        source={require('./assets/figma/today_pregnancy_background.png')}
+        resizeMode="cover"
+        style={styles.heroImage}
+      />
+    );
+  }
+
+  return (
+    <Image
+      fadeDuration={0}
+      source={pregnancyWeekImages[imageWeek]}
+      resizeMode="stretch"
+      style={[styles.pregnancyWeekImage, pregnancyWeekImageLayouts[imageWeek]]}
+    />
+  );
+}
 
 function getWeekLabel(week: number) {
   const lastTwoDigits = week % 100;
@@ -508,7 +628,7 @@ function MonitoringScreen({
 }) {
   const { carePlanItems, profile, journalEntries } = useHealthStore();
   const pregnancyWeek = pregnancyWeekFromStart(profile?.pregnancyStartAt);
-  const initialWeek = pregnancyWeek ?? 1;
+  const initialWeek = Math.min(pregnancyWeek ?? 1, MAX_PREGNANCY_WEEK);
   const [activeWeek, setActiveWeek] = useState(initialWeek);
   const fontsReady = useContext(FontReadyContext);
   const weekScrollRef = useRef<ScrollView>(null);
@@ -588,11 +708,7 @@ function MonitoringScreen({
 
   return (
     <View style={styles.canvas}>
-      <Image
-        source={require('./assets/figma/today_pregnancy_background.png')}
-        resizeMode="cover"
-        style={styles.heroImage}
-      />
+      <PregnancyWeekHero week={activeWeek} />
 
       <LinearGradient
         pointerEvents="none"
@@ -687,7 +803,7 @@ function MonitoringScreen({
                 scrollEventThrottle={16}
               >
                 {weeks.map((week, index) => {
-                  const selected = week === activeWeek;
+                  const isPostTerm = week === POST_TERM_WEEK;
                   const weekLabel = getWeekLabel(week);
                   const itemOffset = index * WEEK_ITEM_WIDTH;
                   const inputRange = [
@@ -717,7 +833,11 @@ function MonitoringScreen({
                       ]}
                     >
                       <LiquidGlassPressable
-                        accessibilityLabel={`${week} ${weekLabel}`}
+                        accessibilityLabel={
+                          isPostTerm
+                            ? 'После 40 недели'
+                            : `${week} ${weekLabel}`
+                        }
                         controlStyle={styles.weekBubble}
                         onPress={() => scrollToWeek(week)}
                         washColor="transparent"
@@ -729,16 +849,18 @@ function MonitoringScreen({
                               { fontFamily: weekNumberFont },
                             ]}
                           >
-                            {week}
+                            {isPostTerm ? '—' : week}
                           </Text>
-                          <Text
-                            style={[
-                              styles.weekLabel,
-                              { fontFamily: weekLabelFont },
-                            ]}
-                          >
-                            {weekLabel}
-                          </Text>
+                          {isPostTerm ? null : (
+                            <Text
+                              style={[
+                                styles.weekLabel,
+                                { fontFamily: weekLabelFont },
+                              ]}
+                            >
+                              {weekLabel}
+                            </Text>
+                          )}
                         </View>
                       </LiquidGlassPressable>
                     </Animated.View>
@@ -765,6 +887,7 @@ function MonitoringScreen({
                   ]}
                 >
                   {weeks.map((week, index) => {
+                    const isPostTerm = week === POST_TERM_WEEK;
                     const weekLabel = getWeekLabel(week);
                     const itemOffset = index * WEEK_ITEM_WIDTH;
                     const inputRange = [
@@ -816,17 +939,19 @@ function MonitoringScreen({
                                 { fontFamily: weekNumberFont },
                               ]}
                             >
-                              {week}
+                              {isPostTerm ? '—' : week}
                             </Animated.Text>
-                            <Animated.Text
-                              style={[
-                                styles.weekLabel,
-                                styles.weekTextSelected,
-                                { fontFamily: weekLabelFont },
-                              ]}
-                            >
-                              {weekLabel}
-                            </Animated.Text>
+                            {isPostTerm ? null : (
+                              <Animated.Text
+                                style={[
+                                  styles.weekLabel,
+                                  styles.weekTextSelected,
+                                  { fontFamily: weekLabelFont },
+                                ]}
+                              >
+                                {weekLabel}
+                              </Animated.Text>
+                            )}
                           </Animated.View>
                         </View>
                       </Animated.View>
@@ -1906,8 +2031,7 @@ export function PlanningTodayScreenCatalogPreview() {
         visible={calendarVisible}
         onClose={() => setCalendarVisible(false)}
         onAddSymptoms={(date) => {
-          setCalendarVisible(false);
-          setSymptomsDate(date);
+          setSymptomsDate(new Date(date));
         }}
       />
       <JournalFlowModal
@@ -2117,9 +2241,7 @@ export default function App() {
                 headerTop={headerTop}
                 onCalendarPress={() => setCalendarVisible(true)}
                 onChartsPress={() => setChartsVisible(true)}
-                onJournalPress={() =>
-                  openJournalFlow(new Date(), 'cycle')
-                }
+                onJournalPress={() => openJournalFlow(new Date(), 'cycle')}
                 onNutritionPress={() =>
                   openJournalFlow(new Date(), 'nutrition')
                 }
@@ -2137,7 +2259,9 @@ export default function App() {
         <CalendarPageModal
           visible={calendarVisible}
           onClose={() => setCalendarVisible(false)}
-          onAddSymptoms={(date) => openJournalFlow(date, 'cycle')}
+          onAddSymptoms={(date) => {
+            openJournalFlow(date, 'cycle');
+          }}
           symptomDateKeys={symptomDateKeys}
           allowPeriodMarking={profile?.goal !== 'pregnancy'}
           cycleLengthDays={profile?.cycleLengthDays}
@@ -2213,6 +2337,9 @@ const styles = StyleSheet.create({
     top: 48,
     width: DESIGN_WIDTH,
     height: 714,
+  },
+  pregnancyWeekImage: {
+    position: 'absolute',
   },
   topBar: {
     position: 'absolute',

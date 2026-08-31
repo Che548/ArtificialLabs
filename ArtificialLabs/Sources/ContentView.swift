@@ -104,10 +104,12 @@ struct ContentView: View {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
 
-                        AppBottomGradient()
-                            .frame(height: 80 + proxy.safeAreaInsets.bottom)
-                            .offset(y: proxy.safeAreaInsets.bottom)
-                            .ignoresSafeArea(.container, edges: .bottom)
+                        if selectedTab != .chat {
+                            AppBottomGradient()
+                                .frame(height: 80 + proxy.safeAreaInsets.bottom)
+                                .offset(y: proxy.safeAreaInsets.bottom)
+                                .ignoresSafeArea(.container, edges: .bottom)
+                        }
                     }
                     .allowsHitTesting(false)
 
@@ -123,6 +125,7 @@ struct ContentView: View {
             }
         }
         .font(.alDisplay(size: 15))
+        .preferredColorScheme(.light)
         .onChange(of: selectedTab) { _, newValue in
             isJournalPresented = false
             isNotificationsPresented = false
@@ -163,29 +166,19 @@ struct ContentView: View {
         } else if selectedTab == .profile {
             ProfileContent(topContentPadding: headerContentPadding)
         } else if selectedTab == .labs {
-            LabsContent(topContentPadding: 72)
+            LabsContent(topContentPadding: 81)
         } else if selectedTab == .scan {
             ScanContent(topContentPadding: 119, selectedMode: $selectedScanMode)
         } else if selectedTab == .devices {
             ProgramsContent(topContentPadding: 119)
         } else {
             VStack(spacing: 0) {
-                Color.clear
-                    .frame(height: 44)
-
                 if selectedTab == .chat {
-                    Spacer(minLength: 24)
-
-                    if !isComposerFocused {
-                        BrandLockup()
-                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                    }
-
-                    Spacer(minLength: isComposerFocused ? 0 : 34)
-
-                    ChatComposer(message: $message, isFocused: $isComposerFocused)
-                        .padding(.horizontal, horizontalPadding)
-                        .padding(.bottom, composerBottomPadding)
+                    ChatContent(
+                        message: $message,
+                        isFocused: $isComposerFocused,
+                        focusedBottomPadding: composerBottomPadding
+                    )
                 } else {
                     Spacer(minLength: 0)
 
@@ -243,6 +236,17 @@ private struct TopBar: View {
     }
 
     private var topBarContent: some View {
+        Group {
+            if tab == .chat && !isOverlayPresented {
+                ChatHeader()
+            } else {
+                standardTopBar
+            }
+        }
+        .frame(height: 48)
+    }
+
+    private var standardTopBar: some View {
         ZStack {
             HStack {
                 if isOverlayPresented {
@@ -264,11 +268,11 @@ private struct TopBar: View {
             }
 
             Text(title)
-                .font(.custom("Stack Sans Notch", size: 18).weight(.regular))
+                .font(.alDisplay(size: 18, weight: .semibold))
                 .tracking(-0.32)
                 .foregroundStyle(Color.alText)
         }
-        .frame(height: 44)
+        .frame(height: 48)
     }
 
     private var isOverlayPresented: Bool {
@@ -341,7 +345,7 @@ private struct HeaderPill: View {
         }
         .foregroundStyle(Color.alText)
         .padding(.horizontal, 18)
-        .frame(height: 46)
+        .frame(height: 48)
         .liquidGlassCapsule(isInteractive: true)
     }
 }
@@ -357,12 +361,74 @@ private struct HeaderIconButton: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 20, height: 20)
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 48)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .liquidGlassCapsule(isInteractive: true)
         .accessibilityLabel(Text(accessibilityTitle))
+    }
+}
+
+private enum ChatMode: String, CaseIterable {
+    case chat = "Chat"
+    case assistant = "Assistant"
+}
+
+private struct ChatHeader: View {
+    @State private var selectedMode: ChatMode = .chat
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button(action: {}) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(Color.alText)
+                    .frame(width: 48, height: 48)
+            }
+            .buttonStyle(.plain)
+            .liquidGlassCapsule(isInteractive: true)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 0) {
+                ForEach(ChatMode.allCases, id: \.self) { mode in
+                    Button {
+                        selectedMode = mode
+                    } label: {
+                        Text(mode.rawValue)
+                            .font(.alDisplay(size: 15, weight: .regular))
+                            .foregroundStyle(selectedMode == mode ? Color.alText : Color.alInactiveText)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background {
+                                if selectedMode == mode {
+                                    Capsule()
+                                        .fill(.white.opacity(0.94))
+                                        .shadow(color: .black.opacity(0.08), radius: 4, y: 1)
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(2)
+            .frame(width: 200, height: 48)
+            .background(Color.alSegmentBackground, in: Capsule())
+            .overlay { Capsule().stroke(Color.black.opacity(0.035), lineWidth: 0.5) }
+            .alComponentShadow()
+
+            Spacer(minLength: 0)
+
+            Button(action: {}) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(Color.alText)
+                    .frame(width: 48, height: 48)
+            }
+            .buttonStyle(.plain)
+            .liquidGlassCapsule(isInteractive: true)
+        }
     }
 }
 
@@ -376,7 +442,7 @@ private struct BrandLockup: View {
                 .padding(.bottom, -6)
 
             Text("Medical Artificial Labs")
-                .font(.custom("Stack Sans Notch", size: 30).weight(.regular))
+                .font(.alDisplay(size: 30, weight: .semibold))
                 .tracking(-0.56)
                 .foregroundStyle(Color.alText)
                 .lineLimit(1)
@@ -394,6 +460,90 @@ private struct BrandLockup: View {
     }
 }
 
+private struct ChatContent: View {
+    @Binding var message: String
+    @FocusState.Binding var isFocused: Bool
+    let focusedBottomPadding: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            let scale = proxy.size.width / 402
+
+            ZStack(alignment: .topLeading) {
+                AppBottomGradient()
+                    .frame(width: proxy.size.width, height: 286 * scale)
+                    .position(
+                        x: proxy.size.width / 2,
+                        y: proxy.size.height - 143 * scale
+                    )
+                    .ignoresSafeArea(.container, edges: .bottom)
+
+                if !isFocused {
+                    Image("artificial_labs_logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 204 * scale, height: 53 * scale)
+                        .position(x: proxy.size.width / 2, y: 339.5 * scale)
+                        .transition(.opacity.combined(with: .scale(scale: 0.97)))
+
+                    Text("Health. Clarity. Action.")
+                        .font(.alDisplay(size: 20, weight: .regular))
+                        .foregroundStyle(Color.alText)
+                        .position(x: proxy.size.width / 2, y: 383 * scale)
+
+                    ChatSuggestions()
+                        .frame(width: 352 * scale, alignment: .leading)
+                        .position(x: 201 * scale, y: 590 * scale)
+                }
+
+                ChatComposer(message: $message, isFocused: $isFocused)
+                    .frame(width: 370 * scale)
+                    .position(
+                        x: proxy.size.width / 2,
+                        y: isFocused ? proxy.size.height - focusedBottomPadding - 19 : 665 * scale
+                    )
+            }
+        }
+    }
+}
+
+private struct ChatSuggestions: View {
+    private let suggestions: [(String, String)] = [
+        ("stethoscope", "Choose the best clinic in the area"),
+        ("asterisk", "Create a personalized weekly meal plan"),
+        ("male", "How to gain muscle in the shortest time")
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(suggestions, id: \.1) { symbol, title in
+                HStack(spacing: 19) {
+                    if symbol == "male" {
+                        Image("male")
+                            .resizable()
+                            .renderingMode(.template)
+                            .scaledToFit()
+                            .foregroundStyle(Color.alBlue)
+                            .frame(width: 19, height: 19)
+                            .frame(width: 28)
+                    } else {
+                        Image(systemName: symbol)
+                            .font(.system(size: 19, weight: .regular))
+                            .foregroundStyle(Color.alBlue)
+                            .frame(width: 28)
+                    }
+
+                    Text(title)
+                        .font(.alDisplay(size: 16, weight: .regular))
+                        .foregroundStyle(Color.alSecondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
+                }
+            }
+        }
+    }
+}
+
 private struct LabsContent: View {
     let topContentPadding: CGFloat
 
@@ -402,6 +552,7 @@ private struct LabsContent: View {
             title: "Lipid Profile",
             subtitle: "Cardiovascular risk check",
             status: .badge("28d"),
+            image: "lipid_profile_art",
             why: "Estimate heart and vessel risk",
             result: "Not added",
             validFor: "12 months",
@@ -409,9 +560,10 @@ private struct LabsContent: View {
             secondaryAction: "Info"
         ),
         .init(
-            title: "Urine Test Strip",
+            title: "Ferritin",
             subtitle: "Kidney & metabolic quick check",
             status: .tick,
+            image: "ferritin_art",
             why: "Screens for common urine changes",
             result: "Risks not identified",
             validFor: "1 month",
@@ -422,21 +574,13 @@ private struct LabsContent: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 16) {
+            VStack(spacing: 20) {
                 LabsScoreCard()
 
                 HStack(spacing: 16) {
                     LabsDeadlineCard(count: "2", period: "1 Month")
                     LabsDeadlineCard(count: "3", period: "3 Months")
                 }
-
-                LabsStatusChartCard()
-
-                LabsDeadlineTimelineCard()
-
-                LabsValidityTimelineCard()
-
-                LabsFerritinTrendCard()
 
                 LabsSegmentedFilter()
 
@@ -446,7 +590,7 @@ private struct LabsContent: View {
             }
             .padding(.top, topContentPadding)
             .padding(.horizontal, 16)
-            .padding(.bottom, 104)
+            .padding(.bottom, 120)
         }
     }
 }
@@ -457,14 +601,15 @@ private struct LabsScoreCard: View {
             VStack(spacing: 15) {
                 LabsScoreMetricsRow()
 
-                LabsAttentionTrendChart()
+                LabsVolumeChart()
             }
         }
+        .frame(height: 176)
     }
 }
 
 private struct LabsScoreMetricsRow: View {
-    private let spacing: CGFloat = 16
+    private let spacing: CGFloat = 10
     private let dividerWidth: CGFloat = 0.5
 
     var body: some View {
@@ -499,18 +644,18 @@ private struct LabsTopMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(value)
-                .font(.alDisplay(size: 36, weight: .semibold))
+                .font(.alLargeNumber(size: 36, weight: .semibold))
                 .foregroundStyle(Color.alText)
                 .tracking(-0.64)
                 .lineLimit(1)
 
             Text(label)
-                .font(.alDisplay(size: 14, weight: .medium))
+                .font(.alDisplay(size: 13, weight: .medium))
                 .foregroundStyle(Color.alMutedText)
                 .tracking(-0.22)
                 .lineSpacing(0)
                 .lineLimit(2)
-                .minimumScaleFactor(0.86)
+                .minimumScaleFactor(0.65)
                 .allowsTightening(true)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -1017,11 +1162,11 @@ private struct LabsDeadlineCard: View {
     let period: String
 
     var body: some View {
-        LabsCard(padding: 12) {
+        LabsCard(padding: 14) {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .top) {
                     Text(count)
-                        .font(.alDisplay(size: 34, weight: .semibold))
+                        .font(.alLargeNumber(size: 29, weight: .medium))
                         .foregroundStyle(Color.alText)
                         .tracking(-1)
 
@@ -1036,15 +1181,16 @@ private struct LabsDeadlineCard: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.alText)
                 )
-                    .font(.alDisplay(size: 16, weight: .medium))
+                    .font(.alDisplay(size: 13, weight: .regular))
                     .foregroundStyle(Color.alMutedText)
                     .tracking(-0.25)
                     .lineSpacing(0)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(minHeight: 88, alignment: .top)
+            .frame(height: 61, alignment: .top)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(height: 89)
     }
 }
 
@@ -1062,11 +1208,11 @@ private struct LabsSegmentedFilter: View {
             GeometryReader { proxy in
                 Capsule()
                     .fill(Color.alSegmentSelected)
-                    .frame(width: proxy.size.width / CGFloat(LabsFilter.allCases.count), height: 39)
+                    .frame(width: proxy.size.width / CGFloat(LabsFilter.allCases.count), height: 28)
                     .offset(x: proxy.size.width / CGFloat(LabsFilter.allCases.count) * CGFloat(selectedIndex))
                     .animation(.easeInOut(duration: 0.22), value: selectedFilter)
             }
-            .frame(height: 39)
+            .frame(height: 28)
 
             HStack(spacing: 0) {
                 ForEach(LabsFilter.allCases, id: \.self) { filter in
@@ -1076,17 +1222,17 @@ private struct LabsSegmentedFilter: View {
                         Text(filter.rawValue)
                             .foregroundStyle(selectedFilter == filter ? Color.alText : Color.alMutedText)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 39)
+                            .frame(height: 28)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
-        .font(.alDisplay(size: 16, weight: .medium))
+        .font(.alDisplay(size: 13, weight: .medium))
         .tracking(-0.24)
         .padding(2)
-        .frame(height: 43)
+        .frame(height: 32)
         .background(.white, in: Capsule())
         .alComponentShadow()
     }
@@ -1100,17 +1246,20 @@ private struct LabsTestCard: View {
     let model: LabsTestCardModel
 
     var body: some View {
-        LabsCard(padding: 12) {
-            VStack(alignment: .leading, spacing: 10) {
+        LabsCard(padding: 16) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
+                    ProgressiveBlurImage(name: model.image)
+                        .frame(width: 68, height: 68)
+
                     VStack(alignment: .leading, spacing: 0) {
                         Text(model.title)
-                            .font(.alDisplay(size: 16, weight: .semibold))
+                            .font(.alDisplay(size: 18, weight: .semibold))
                             .foregroundStyle(Color.alText)
                             .tracking(-0.28)
 
                         Text(model.subtitle)
-                            .font(.alDisplay(size: 14, weight: .medium))
+                            .font(.alDisplay(size: 15, weight: .regular))
                             .foregroundStyle(Color.alMutedText)
                             .tracking(-0.24)
                             .lineLimit(1)
@@ -1121,7 +1270,7 @@ private struct LabsTestCard: View {
                     switch model.status {
                     case .badge(let badge):
                         Text(badge)
-                            .font(.alDisplay(size: 13, weight: .medium))
+                            .font(.alDisplay(size: 12, weight: .regular))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 10)
                             .frame(height: 30)
@@ -1145,6 +1294,52 @@ private struct LabsTestCard: View {
                 }
             }
         }
+        .frame(height: 230)
+    }
+}
+
+private struct ProgressiveBlurImage: View {
+    let name: String
+
+    var body: some View {
+        ZStack {
+            artwork
+
+            artwork
+                .blur(radius: 2.2)
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.38),
+                            .init(color: .black.opacity(0.72), location: 0.70),
+                            .init(color: .black, location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+
+            artwork
+                .blur(radius: 5.5)
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.68),
+                            .init(color: .black, location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+        }
+        .clipped()
+        .accessibilityHidden(true)
+    }
+
+    private var artwork: some View {
+        Image(name)
+            .resizable()
+            .scaledToFit()
     }
 }
 
@@ -1172,10 +1367,10 @@ private struct LabsInfoLine: View {
 
     var body: some View {
         Text(label + " ")
-            .font(.alDisplay(size: 14, weight: .semibold))
+            .font(.alDisplay(size: 13, weight: .semibold))
             .foregroundStyle(Color.alText)
         + Text(value)
-            .font(.alDisplay(size: 14, weight: .medium))
+            .font(.alDisplay(size: 13, weight: .regular))
             .foregroundStyle(Color.alMutedText)
     }
 }
@@ -1188,7 +1383,7 @@ private struct LabsCard<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .background(.white, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
             .alComponentShadow()
     }
 }
@@ -1226,7 +1421,7 @@ private struct LabsActionButton: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity)
-                .frame(height: 34)
+                .frame(height: 28)
                 .background(isPrimary ? Color.alText : Color.clear, in: Capsule())
                 .overlay {
                     Capsule()
@@ -1241,6 +1436,7 @@ private struct LabsTestCardModel: Identifiable {
     let title: String
     let subtitle: String
     let status: LabsTestStatus
+    let image: String
     let why: String
     let result: String
     let validFor: String
@@ -2705,42 +2901,40 @@ private struct ChatComposer: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            TextField(text: $message, axis: .vertical) {
-                Text("Ask me anything...")
-                    .foregroundStyle(Color.alPlaceholder)
+        HStack(spacing: 10) {
+            Button(action: {}) {
+                Image(systemName: "plus")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(Color.alText)
+                    .frame(width: 36, height: 36)
             }
-                .font(.alDisplay(size: 15, weight: .regular))
-                .foregroundStyle(Color.alText)
-                .tint(Color.alBlue)
-                .padding(.horizontal, 14)
-                .padding(.top, 17)
-                .focused($isFocused)
+            .buttonStyle(.plain)
+            .liquidGlassCapsule(isInteractive: true)
 
-            Spacer(minLength: 0)
+            HStack(spacing: 10) {
+                TextField("Ask anything", text: $message)
+                    .font(.alDisplay(size: 15, weight: .regular))
+                    .foregroundStyle(Color.alText)
+                    .tint(Color.alBlue)
+                    .focused($isFocused)
 
-            HStack {
-                CircleIconButton(assetImage: "add", iconSize: 15, buttonSize: 30, background: Color.alText)
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    CircleIconButton(assetImage: "voice", iconSize: 20, buttonSize: 30, background: Color.alText)
-                    CircleIconButton(
-                        assetImage: "send",
-                        iconSize: 15,
-                        buttonSize: 30,
-                        background: Color.alText,
-                        opacity: hasMessage ? 1.0 : 0.8
-                    )
+                Button(action: {}) {
+                    Image(systemName: hasMessage ? "arrow.up" : "waveform")
+                        .font(.system(size: hasMessage ? 16 : 17, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color.alText, in: Circle())
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 14)
+            .padding(.leading, 14)
+            .padding(.trailing, 4)
+            .frame(height: 36)
+            .background(.white.opacity(0.94), in: Capsule())
+            .overlay { Capsule().stroke(Color.black.opacity(0.035), lineWidth: 0.5) }
+            .alComponentShadow()
         }
-        .frame(height: 96)
-        .background(.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .alComponentShadow()
+        .frame(height: 38)
     }
 }
 
@@ -2906,7 +3100,11 @@ private enum AppTab: Hashable {
 
 private extension Font {
     static func alDisplay(size: CGFloat, weight: Weight = .regular) -> Font {
-        .custom("Montserrat", size: size).weight(weight)
+        .system(size: size, weight: weight, design: .default)
+    }
+
+    static func alLargeNumber(size: CGFloat, weight: Weight = .regular) -> Font {
+        .custom("Stack Sans Notch", size: size).weight(weight)
     }
 }
 
@@ -3002,6 +3200,8 @@ private extension Color {
     static let alDivider = Color(red: 0.902, green: 0.902, blue: 0.902)
     static let alSoftDivider = Color(red: 0.894, green: 0.894, blue: 0.894)
     static let alSegmentSelected = Color(red: 0.941, green: 0.941, blue: 0.941)
+    static let alSegmentBackground = Color(red: 0.946, green: 0.942, blue: 0.946)
+    static let alInactiveText = Color(red: 0.57, green: 0.55, blue: 0.58)
     static let alGreen = Color(red: 0.122, green: 0.733, blue: 0.455)
     static let alPink = Color(red: 0.918, green: 0.251, blue: 0.529)
 }

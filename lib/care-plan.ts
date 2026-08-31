@@ -451,12 +451,14 @@ function eventFor(
   reasonCode: string,
   now: number,
   beforeStatus?: CarePlanItem['status'],
+  resultInterpretation?: string,
 ): RecommendationEvent {
   return {
     localId: newLocalId('recommendation-event'),
     carePlanLocalId: item.localId,
     type,
     reasonCode,
+    resultInterpretation,
     beforeStatus,
     afterStatus: item.status,
     evidenceRefs: item.evidenceRefs.map((ref) => ({
@@ -1630,9 +1632,22 @@ export function applyConfirmedCarePlanSchedule(
 
 export function applyCarePlanUserAction(
   item: CarePlanItem,
-  action: 'complete' | 'decline',
+  action: 'complete' | 'decline' | 'restore',
   now = Date.now(),
+  resultInterpretation?: string,
 ) {
+  if (action === 'restore' && item.status !== 'completed')
+    throw new Error('INVALID_CARE_PLAN_RESTORE');
+  const normalizedInterpretation = resultInterpretation?.trim();
+  if (normalizedInterpretation && normalizedInterpretation.length > 2000)
+    throw new Error('INVALID_CARE_PLAN_RESULT_INTERPRETATION');
+  const catalog = analysisCatalogByKey.get(item.catalogKey);
+  const restoredStatus =
+    item.riskTier === 'low' &&
+    !item.requiresClinician &&
+    (catalog?.riskFlags.length ?? 1) === 0
+      ? 'current'
+      : 'upcoming';
   const next: CarePlanItem =
     action === 'complete'
       ? {
@@ -1643,22 +1658,44 @@ export function applyCarePlanUserAction(
           safetyHoldReason: undefined,
           updatedAt: now,
         }
-      : {
-          ...item,
-          status: 'declined',
-          declinedAt: now,
-          safetyHoldAt: undefined,
-          safetyHoldReason: undefined,
-          updatedAt: now,
-        };
+      : action === 'decline'
+        ? {
+            ...item,
+            status: 'declined',
+            declinedAt: now,
+            safetyHoldAt: undefined,
+            safetyHoldReason: undefined,
+            updatedAt: now,
+          }
+        : {
+            ...item,
+            status: restoredStatus,
+            dueAt: now,
+            dueWindowStart: now,
+            dueWindowEnd: now + 14 * DAY_MS,
+            performedAt: undefined,
+            declinedAt: undefined,
+            safetyHoldAt: undefined,
+            safetyHoldReason: undefined,
+            updatedAt: now,
+          };
   return {
     item: next,
     event: eventFor(
       next,
-      action === 'complete' ? 'completed' : 'declined',
-      action === 'complete' ? 'USER_RECORDED_COMPLETION' : 'USER_DECLINED',
+      action === 'complete'
+        ? 'completed'
+        : action === 'decline'
+          ? 'declined'
+          : 'reviewed',
+      action === 'complete'
+        ? 'USER_RECORDED_COMPLETION'
+        : action === 'decline'
+          ? 'USER_DECLINED'
+          : 'USER_RESTORED_TO_PLAN',
       now,
       item.status,
+      action === 'complete' ? normalizedInterpretation : undefined,
     ),
   };
 }
@@ -1748,6 +1785,11 @@ export function validateRecommendationEvent(event: RecommendationEvent) {
   return Boolean(
     event.policyVersion === AGENT_POLICY_VERSION &&
     /^[A-Z0-9_]{3,100}$/.test(event.reasonCode) &&
+    (event.resultInterpretation === undefined ||
+      (event.type === 'completed' &&
+        event.resultInterpretation.trim() === event.resultInterpretation &&
+        event.resultInterpretation.length > 0 &&
+        event.resultInterpretation.length <= 2000)) &&
     Number.isFinite(event.occurredAt) &&
     event.evidenceRefs.length <= 8 &&
     event.evidenceRefs.every(

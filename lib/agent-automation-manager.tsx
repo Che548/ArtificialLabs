@@ -67,6 +67,7 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
   const {
     applyAgentPlanProposal,
     accountDeletion,
+    cloudProfileReady,
     preferences,
     readOnly,
     recordAgentPlanRun,
@@ -76,7 +77,11 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
   } = healthStore;
   const status = useQuery(
     api.agent.status,
-    isAuthenticated && !accountDeletion.pendingDeletion ? {} : 'skip',
+    isAuthenticated &&
+      cloudProfileReady &&
+      !accountDeletion.pendingDeletion
+      ? {}
+      : 'skip',
   );
   const reviewPlan = useAction(api.agentPlan.review);
   const inFlight = useRef(false);

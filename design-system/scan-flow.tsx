@@ -57,6 +57,7 @@ import {
   shadows,
   spacing,
 } from './tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScanFlowFrame from '../assets/figma/scan-screen/scan-flow-frame.svg';
 import type { AnalysisResult } from '../modules/strip-cv';
 import {
@@ -2001,6 +2002,7 @@ export function ScanResultScreen({
   hideReadyHeading?: boolean;
   resultData?: ScanResultData;
 }) {
+  const insets = useSafeAreaInsets();
   const usesSavedResult = fromHistory || resultData !== undefined;
   const savedResult = resultData ?? defaultScanResult;
   const analysisDecision = getAnalysisDecision(result ?? null, error);
@@ -2199,7 +2201,12 @@ export function ScanResultScreen({
         </View>
       )}
 
-      <View style={styles.resultActions}>
+      <View
+        style={[
+          styles.resultActions,
+          { bottom: Math.max(insets.bottom - 10, 16) },
+        ]}
+      >
         <PrimaryButton
           disabled={isCompleting}
           label={resultActionLabel}
@@ -2264,10 +2271,11 @@ export function ScanCorrectionScreen({
   result?: AnalysisResult | null;
   resultData?: ScanResultData;
 }) {
+  const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<number | null>(null);
 
   return (
-    <View style={[styles.resultScreen, styles.correctionScreen]}>
+    <View style={styles.resultScreen}>
       <FlowHeader
         leadingIcon={fromHistory ? 'back' : 'close'}
         light={false}
@@ -2323,23 +2331,29 @@ export function ScanCorrectionScreen({
                 pressed && styles.pressed,
               ]}
             >
-              <View style={[styles.radio, active && styles.radioActive]}>
-                {active ? <View style={styles.radioDot} /> : null}
+              <View style={styles.correctionOptionContent}>
+                <View style={[styles.radio, active && styles.radioActive]}>
+                  {active ? <View style={styles.radioDot} /> : null}
+                </View>
+                <AppText
+                  role="label"
+                  weight="medium"
+                  style={styles.correctionOptionLabel}
+                >
+                  {option}
+                </AppText>
               </View>
-              <AppText
-                role="label"
-                weight="medium"
-                numberOfLines={1}
-                style={styles.correctionOptionLabel}
-              >
-                {option}
-              </AppText>
             </Pressable>
           );
         })}
       </View>
 
-      <View style={styles.correctionActions}>
+      <View
+        style={[
+          styles.correctionActions,
+          { bottom: Math.max(insets.bottom - 10, 16) },
+        ]}
+      >
         <PrimaryButton
           label="Сохранить интерпретацию"
           disabled={selected === null}
@@ -2357,7 +2371,12 @@ export function ScanCorrectionScreen({
               pressed && styles.pressed,
             ]}
           >
-            <AppText role="label" weight="medium" color={colors.brand.primary}>
+            <AppText
+              role="label"
+              weight="medium"
+              color={colors.brand.primary}
+              style={styles.resultSecondaryButtonLabel}
+            >
               Переснять тест
             </AppText>
           </Pressable>
@@ -3261,9 +3280,6 @@ const styles = StyleSheet.create({
   },
   resultScreen: {
     flex: 1,
-    backgroundColor: '#FFF8F5',
-  },
-  correctionScreen: {
     backgroundColor: '#FFFFFF',
   },
   resultHeading: {
@@ -3507,7 +3523,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 94,
     gap: 10,
   },
   resultSecondaryButton: {
@@ -3546,9 +3561,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(33,33,35,0.08)',
     backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+  },
+  correctionOptionContent: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
+  },
+  correctionOptionLabel: {
+    minWidth: 0,
+    flex: 1,
   },
   correctionOptionActive: {
     borderColor: colors.brand.primary,
@@ -3557,7 +3580,6 @@ const styles = StyleSheet.create({
   radio: {
     width: 22,
     height: 22,
-    flexShrink: 0,
     borderRadius: 11,
     borderWidth: 1.5,
     borderColor: colors.state.disabled,
@@ -3573,14 +3595,10 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: colors.brand.primary,
   },
-  correctionOptionLabel: {
-    flex: 1,
-  },
   correctionActions: {
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 94,
     gap: 10,
   },
 });

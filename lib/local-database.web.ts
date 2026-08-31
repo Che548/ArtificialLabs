@@ -162,6 +162,25 @@ export async function tombstoneLocalDocumentBundle(
     });
   if (removeLocalFile) await removeLocalFile();
 }
+export async function tombstoneLocalLabAttachmentBundle(
+  document: HealthEntityMap['documents'],
+  result: HealthEntityMap['labResults'],
+  _enqueue = true,
+  removeLocalFile?: () => Promise<void>,
+) {
+  const now = Date.now();
+  await saveLocalRecord('documents', {
+    ...document,
+    deletedAt: now,
+    updatedAt: now,
+  });
+  await saveLocalRecord('labResults', {
+    ...result,
+    deletedAt: now,
+    updatedAt: now,
+  });
+  if (removeLocalFile) await removeLocalFile();
+}
 export async function tombstoneLocalChatConversation(
   conversation: ChatConversation,
   messages: ChatMessage[],

@@ -98,7 +98,6 @@ import type {
   MonitoringProgram,
 } from '../lib/health-types';
 import type { NotificationTone } from '../shared/notification-copy';
-import DesignSystemScreen from './design-system';
 import { DiagnosticsScreen } from '../components/DiagnosticsScreen';
 import { getAppVersionInfo } from '../lib/app-version';
 import { registerDiagnosticsTap } from '../lib/diagnostics-access';
@@ -142,33 +141,31 @@ type ProfileSection =
   | 'onboarding'
   | 'planning-today-ui-kit'
   | 'scan-concepts'
-  | 'today-ui-kit'
-  | 'ui-kit';
+  | 'today-ui-kit';
 
 const SECTION_TITLES: Record<ProfileSection, string> = {
-  account: 'Данные профиля',
-  personal: 'Основная информация',
-  'medical-history': 'Медицинская история',
-  medications: 'Препараты',
-  allergies: 'Аллергии и риски',
-  documents: 'Документы',
-  programs: 'Программы',
-  language: 'Язык и регион',
-  permissions: 'Разрешения и данные',
-  imports: 'Импорт данных',
-  exports: 'Экспорт данных',
-  security: 'Аккаунт и безопасность',
-  'notification-settings': 'Настройки уведомлений',
-  'delete-account': 'Удаление аккаунта',
-  onboarding: 'Онбординг',
-  'planning-today-ui-kit': 'Сегодня · Планирование',
-  'scan-concepts': 'Варианты сканирования',
-  'today-ui-kit': 'Сегодня · UI kit',
-  'ui-kit': 'UI kit',
+  account: 'Profile details',
+  personal: 'Basic information',
+  'medical-history': 'Medical history',
+  medications: 'Medications',
+  allergies: 'Allergies and risks',
+  documents: 'Documents',
+  programs: 'Programs',
+  language: 'Language and region',
+  permissions: 'Permissions and data',
+  imports: 'Import data',
+  exports: 'Export data',
+  security: 'Account and security',
+  'notification-settings': 'Notification settings',
+  'delete-account': 'Delete account',
+  onboarding: 'Onboarding',
+  'planning-today-ui-kit': 'Today · Planning',
+  'scan-concepts': 'Scan concepts',
+  'today-ui-kit': 'Today · UI kit',
 };
 
 function formatDate(timestamp?: number) {
-  if (!timestamp) return 'Не указано';
+  if (!timestamp) return 'Not specified';
   return new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
     month: 'long',
@@ -177,9 +174,9 @@ function formatDate(timestamp?: number) {
 }
 
 function goalLabel(goal?: HealthGoal) {
-  if (goal === 'pregnancy') return 'Беременность';
-  if (goal === 'cycle') return 'Мониторинг';
-  return 'Планирование';
+  if (goal === 'pregnancy') return 'Pro';
+  if (goal === 'cycle') return 'Monitoring';
+  return 'Planning';
 }
 
 function ProfileHistoryBackIcon() {
@@ -285,8 +282,8 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error('Signing out failed', error);
       Alert.alert(
-        'Не удалось выйти',
-        'Защищённое хранилище недоступно. Разблокируйте устройство и попробуйте ещё раз.',
+        'Could not sign out',
+        'Secure storage is unavailable. Unlock the device and try again.',
       );
     } finally {
       signOutInFlight.current = false;
@@ -353,8 +350,11 @@ export default function ProfileScreen() {
       (result) => !result.deletedAt && result.hasLocalSourceDocument,
     ).length,
   );
+  const storedDisplayName = profile?.displayName?.trim();
   const displayName =
-    profile?.displayName?.trim() || viewerEmail?.split('@')[0] || 'Профиль';
+    storedDisplayName === 'Пользователь'
+      ? 'User'
+      : storedDisplayName || viewerEmail?.split('@')[0] || 'Profile';
   const hasViewerIdentity = Boolean(
     viewerEmail || viewerPhone || hasLocalAuthSession,
   );
@@ -362,9 +362,9 @@ export default function ProfileScreen() {
   const synchronize = async () => {
     setSyncMessage(undefined);
     if (await syncNow()) {
-      setSyncMessage('Данные синхронизированы');
+      setSyncMessage('Data synchronized');
     } else {
-      setSyncMessage('Не удалось синхронизировать данные');
+      setSyncMessage('Could not synchronize data');
     }
   };
 
@@ -379,19 +379,19 @@ export default function ProfileScreen() {
   const confirmAiConsentRevocation = () => {
     if (!aiChatStatus?.consentAccepted) return;
     Alert.alert(
-      'Отозвать согласие?',
-      'Сферка перестанет отправлять текст чата в Yandex AI Studio. При следующей отправке согласие будет запрошено снова.',
+      'Revoke consent?',
+      'Sferka will stop sending chat text to Yandex AI Studio. Consent will be requested again the next time you send a message.',
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Отозвать',
+          text: 'Revoke',
           style: 'destructive',
           onPress: () => {
             void revokeAiChatConsent({}).catch((error) => {
               console.error('Revoking AI chat consent failed', error);
               Alert.alert(
-                'Не удалось отозвать согласие',
-                'Проверьте подключение и попробуйте ещё раз.',
+                'Could not revoke consent',
+                'Check your connection and try again.',
               );
             });
           },
@@ -403,12 +403,12 @@ export default function ProfileScreen() {
   const confirmAgentConsentRevocation = () => {
     if (!aiAgentStatus?.consentAccepted) return;
     Alert.alert(
-      'Отключить Ассистента?',
-      'Доступ к данным здоровья будет отозван, а автономные проверки приостановлены. Локальный план останется видимым.',
+      'Disable Assistant?',
+      'Access to health data will be revoked and automated checks will be paused. The local plan will remain visible.',
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Отключить',
+          text: 'Disable',
           style: 'destructive',
           onPress: () => {
             void savePreferences({
@@ -420,8 +420,8 @@ export default function ProfileScreen() {
               .catch((error) => {
                 console.error('Revoking AI agent consent failed', error);
                 Alert.alert(
-                  'Не удалось отключить Ассистента',
-                  'Проверьте подключение и попробуйте ещё раз.',
+                  'Could not disable Assistant',
+                  'Check your connection and try again.',
                 );
               });
           },
@@ -432,12 +432,12 @@ export default function ProfileScreen() {
 
   const confirmAgentDataDeletion = () => {
     Alert.alert(
-      'Удалить данные Ассистента?',
-      'План, автономные правила и история их изменений будут удалены. Дневник, анализы, документы и чаты останутся.',
+      'Delete Assistant data?',
+      'The plan, automated rules, and their change history will be deleted. Journal entries, lab results, documents, and chats will remain.',
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Удалить',
+          text: 'Delete',
           style: 'destructive',
           onPress: () => {
             void clearRemoteAgentData({})
@@ -445,8 +445,8 @@ export default function ProfileScreen() {
               .catch((error) => {
                 console.error('Clearing AI agent data failed', error);
                 Alert.alert(
-                  'Не удалось удалить данные Ассистента',
-                  'Проверьте подключение и попробуйте ещё раз.',
+                  'Could not delete Assistant data',
+                  'Check your connection and try again.',
                 );
               });
           },
@@ -472,8 +472,8 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error('Updating AI agent automation failed', error);
       Alert.alert(
-        'Не удалось изменить автономные рекомендации',
-        'Проверьте подключение и попробуйте ещё раз.',
+        'Could not update automated recommendations',
+        'Check your connection and try again.',
       );
     }
   };
@@ -611,9 +611,7 @@ export default function ProfileScreen() {
             },
           ]}
         >
-          {activeSection === 'ui-kit' ? (
-            <DesignSystemScreen onBack={closeSection} />
-          ) : activeSection === 'today-ui-kit' ? (
+          {activeSection === 'today-ui-kit' ? (
             <ProfileDetailScreen
               bottomInset={insets.bottom}
               title={SECTION_TITLES[activeSection]}
@@ -764,8 +762,8 @@ function ProfileVersionFooter({
   const version = getAppVersionInfo({ updateCreatedAt, updateId });
   return (
     <Pressable
-      accessibilityHint="Сведения о версии приложения"
-      accessibilityLabel="Версия приложения"
+      accessibilityHint="App version details"
+      accessibilityLabel="App version"
       accessibilityRole="button"
       onPress={onPress}
       style={styles.versionFooter}
@@ -795,34 +793,34 @@ function ProfileOverview({
 }) {
   return (
     <View style={styles.overview}>
-      <ProfileSettingsGroup title="Профиль здоровья">
+      <ProfileSettingsGroup title="Health profile">
         <ProfileSettingsRow
           icon="person.text.rectangle.fill"
           iconAsset={ProfileIcon01}
-          fallback="Я"
+          fallback="ME"
           iconBackground={profileTones.health.tile}
           iconColor={profileTones.health.glyph}
-          label="Основная информация"
+          label="Basic information"
           onPress={() => onOpen('personal')}
         />
         <ProfileSettingsRow
           icon="cross.case.fill"
           iconAsset={ProfileIcon02}
-          fallback="М"
+          fallback="H"
           iconBackground={profileTones.health.tile}
           iconColor={profileTones.health.glyph}
-          label="Медицинская история"
-          value={conditionCount ? String(conditionCount) : 'Не заполнено'}
+          label="Medical history"
+          value={conditionCount ? String(conditionCount) : 'Not completed'}
           onPress={() => onOpen('medical-history')}
         />
         <ProfileSettingsRow
           icon="pills.fill"
           iconAsset={ProfileIcon03}
-          fallback="П"
+          fallback="M"
           iconBackground={profileTones.health.tile}
           iconColor={profileTones.health.glyph}
-          label="Препараты"
-          value={medicationCount ? String(medicationCount) : 'Нет активных'}
+          label="Medications"
+          value={medicationCount ? String(medicationCount) : 'No active items'}
           onPress={() => onOpen('medications')}
         />
         <ProfileSettingsRow
@@ -831,92 +829,92 @@ function ProfileOverview({
           fallback="!"
           iconBackground={profileTones.health.tile}
           iconColor={profileTones.health.glyph}
-          label="Аллергии и риски"
-          value={allergyCount ? String(allergyCount) : 'Не заполнено'}
+          label="Allergies and risks"
+          value={allergyCount ? String(allergyCount) : 'Not completed'}
           onPress={() => onOpen('allergies')}
         />
         <ProfileSettingsRow
           icon="doc.text.fill"
           iconAsset={ProfileIcon05}
-          fallback="Д"
+          fallback="D"
           iconBackground={profileTones.health.tile}
           iconColor={profileTones.health.glyph}
-          label="Документы"
-          value={documentCount ? String(documentCount) : 'Нет документов'}
+          label="Documents"
+          value={documentCount ? String(documentCount) : 'No documents'}
           onPress={() => onOpen('documents')}
         />
         <ProfileSettingsRow
           icon="heart.text.square.fill"
           iconAsset={ProfileIcon06}
-          fallback="П"
+          fallback="P"
           iconBackground={profileTones.health.tile}
           iconColor={profileTones.health.glyph}
-          label="Программы"
-          value={programCount ? String(programCount) : 'Нет программ'}
+          label="Programs"
+          value={programCount ? String(programCount) : 'No programs'}
           isLast
           onPress={() => onOpen('programs')}
         />
       </ProfileSettingsGroup>
 
-      <ProfileSettingsGroup title="Настройки">
+      <ProfileSettingsGroup title="Settings">
         <ProfileSettingsRow
           icon="globe.europe.africa.fill"
           iconAsset={ProfileIcon07}
           fallback="RU"
           iconBackground={profileTones.preferences.tile}
           iconColor={profileTones.preferences.glyph}
-          label="Язык и регион"
-          value="Русский"
+          label="Language and region"
+          value="Russian"
           onPress={() => onOpen('language')}
         />
         <ProfileSettingsRow
           icon="hand.raised.fill"
           iconAsset={ProfileIcon08}
-          fallback="Д"
+          fallback="P"
           iconBackground={profileTones.preferences.tile}
           iconColor={profileTones.preferences.glyph}
-          label="Разрешения и данные"
+          label="Permissions and data"
           onPress={() => onOpen('permissions')}
         />
         <ProfileSettingsRow
           icon="bell.fill"
           iconAsset={ProfileIcon09}
-          fallback="У"
+          fallback="N"
           iconBackground={profileTones.preferences.tile}
           iconColor={profileTones.preferences.glyph}
-          label="Настройки уведомлений"
+          label="Notification settings"
           onPress={() => onOpen('notification-settings')}
         />
         <ProfileSettingsRow
           icon="square.and.arrow.down.fill"
           iconAsset={ProfileIcon10}
-          fallback="И"
+          fallback="I"
           iconBackground={profileTones.preferences.tile}
           iconColor={profileTones.preferences.glyph}
-          label="Импорт данных"
-          value="Не подключён"
+          label="Import data"
+          value="Not connected"
           isLast
           onPress={() => onOpen('imports')}
         />
       </ProfileSettingsGroup>
 
-      <ProfileSettingsGroup title="Аккаунт">
+      <ProfileSettingsGroup title="Account">
         <ProfileSettingsRow
           icon="square.and.arrow.up.fill"
           iconAsset={ProfileIcon11}
-          fallback="Э"
+          fallback="E"
           iconBackground={profileTones.account.tile}
           iconColor={profileTones.account.glyph}
-          label="Экспорт данных"
+          label="Export data"
           onPress={() => onOpen('exports')}
         />
         <ProfileSettingsRow
           icon="lock.shield.fill"
           iconAsset={ProfileIcon12}
-          fallback="Б"
+          fallback="S"
           iconBackground={profileTones.account.tile}
           iconColor={profileTones.account.glyph}
-          label="Аккаунт и безопасность"
+          label="Account and security"
           onPress={() => onOpen('security')}
         />
         <ProfileSettingsRow
@@ -925,61 +923,52 @@ function ProfileOverview({
           fallback="×"
           iconBackground={profileTones.destructive.tile}
           iconColor={profileTones.destructive.glyph}
-          label="Удаление аккаунта"
+          label="Delete account"
           destructive
           isLast
           onPress={() => onOpen('delete-account')}
         />
       </ProfileSettingsGroup>
 
-      <ProfileSettingsGroup title="Разработка">
-        <ProfileSettingsRow
-          icon="square.grid.2x2.fill"
-          fallback="UI"
-          iconBackground={profileTones.account.tile}
-          iconColor={colors.brand.primary}
-          label="UI kit"
-          value="Компоненты"
-          onPress={() => onOpen('ui-kit')}
-        />
+      <ProfileSettingsGroup title="Development">
         <ProfileSettingsRow
           icon="sparkles.rectangle.stack.fill"
-          fallback="ОБ"
+          fallback="ON"
           iconBackground="#F4E7EB"
           iconColor={colors.brand.primary}
-          label="Онбординг"
-          value="5 вариантов"
+          label="Onboarding"
+          value="5 variants"
           onPress={() => onOpen('onboarding')}
         />
         <ProfileSettingsRow
           icon="viewfinder"
-          fallback="СК"
+          fallback="SC"
           iconBackground="#E7EDF0"
           iconColor="#3E6472"
-          label="Варианты страницы Скан"
-          value="5 концептов"
+          label="Scan page concepts"
+          value="5 concepts"
           isLast
           onPress={() => onOpen('scan-concepts')}
         />
       </ProfileSettingsGroup>
 
-      <ProfileSettingsGroup title="Сохранённые экраны">
+      <ProfileSettingsGroup title="Saved screens">
         <ProfileSettingsRow
           icon="heart.circle.fill"
-          fallback="СГ"
+          fallback="TD"
           iconBackground="#FBE7F0"
           iconColor={colors.brand.primary}
-          label="Страница «Сегодня»"
+          label="Today screen"
           value="UI kit"
           onPress={() => onOpen('today-ui-kit')}
         />
         <ProfileSettingsRow
           icon="heart.circle"
-          fallback="ПЛ"
+          fallback="PL"
           iconBackground="#FFF0F4"
           iconColor={colors.brand.primary}
-          label="Сегодня · Планирование"
-          value="Вариант"
+          label="Today · Planning"
+          value="Variant"
           isLast
           onPress={() => onOpen('planning-today-ui-kit')}
         />
@@ -997,10 +986,10 @@ function TodayProfileKitPreview() {
     <View style={styles.todayKitSection}>
       <View style={styles.todayKitCopy}>
         <AppText role="heading" weight="semibold">
-          Текущая версия
+          Current version
         </AppText>
         <AppText role="body" color={colors.text.secondary}>
-          Сохранённый полноэкранный образец страницы «Сегодня».
+          Saved full-screen reference of the Today page.
         </AppText>
       </View>
       <View
@@ -1032,11 +1021,11 @@ function PlanningTodayProfileKitPreview() {
     <View style={styles.todayKitSection}>
       <View style={styles.todayKitCopy}>
         <AppText role="heading" weight="semibold">
-          Режим «Планирование»
+          Planning mode
         </AppText>
         <AppText role="body" color={colors.text.secondary}>
-          Прогноз фертильного окна, лучшие дни для зачатия и быстрые отметки
-          цикла. Кнопки внутри образца работают.
+          Fertile-window forecast, the best days to conceive, and quick cycle
+          tracking. Controls inside the preview are interactive.
         </AppText>
       </View>
       <View
@@ -1068,12 +1057,12 @@ const notificationTonePreviewCopy: Record<
   { title: string; body: string }
 > = {
   formal: {
-    title: 'Добрый день',
-    body: 'Я ваш личный ассистент Сферка',
+    title: 'Good afternoon',
+    body: 'I am your personal assistant, Sferka',
   },
   cute: {
-    title: 'Привет!',
-    body: 'Я твой личный ассистент Сферка',
+    title: 'Hi!',
+    body: 'I am your personal assistant, Sferka',
   },
 };
 
@@ -1138,7 +1127,7 @@ function NotificationTonePreview({ tone }: { tone: NotificationTone }) {
       <View
         accessible
         accessibilityLabel={
-          tone === 'formal' ? 'Сферка в формальном костюме' : 'Милая Сферка'
+          tone === 'formal' ? 'Sferka in a formal outfit' : 'Cute Sferka'
         }
         style={styles.notificationToneImageFrame}
       >
@@ -1251,7 +1240,7 @@ function NotificationTonePreview({ tone }: { tone: NotificationTone }) {
             color={colors.text.secondary}
             style={styles.notificationExampleTime}
           >
-            сейчас
+            now
           </AppText>
         </View>
       </View>
@@ -1279,7 +1268,7 @@ function ProfileDetailScreen({
       <StatusBar style="dark" hidden={false} />
       <View style={[styles.detailHeader, { paddingTop: topInset + 8 }]}>
         <GlassControl
-          accessibilityLabel="Вернуться в профиль"
+          accessibilityLabel="Back to Profile"
           onPress={onBack}
           style={styles.backButton}
         >
@@ -1359,7 +1348,7 @@ function PhoneVerificationRow({
   if (phone) {
     return (
       <ProfileFieldRow
-        label="Телефон"
+        label="Phone"
         inputMode="tel"
         defaultValue={phone}
         disabled
@@ -1380,7 +1369,7 @@ function PhoneVerificationRow({
   const requestCode = async () => {
     if (busy || disabled) return;
     if (!validPhone) {
-      setMessage('Введите российский номер: +7 и ещё 10 цифр.');
+      setMessage('Enter a Russian phone number: +7 followed by 10 digits.');
       return;
     }
     Keyboard.dismiss();
@@ -1405,10 +1394,10 @@ function PhoneVerificationRow({
       const raw = error instanceof Error ? error.message : String(error);
       setMessage(
         raw.includes('SMS_RATE_LIMITED')
-          ? 'Лимит SMS на сегодня исчерпан.'
+          ? 'The SMS limit for today has been reached.'
           : raw.includes('SMS_COOLDOWN')
-            ? 'Повторная отправка пока недоступна.'
-            : 'SMS временно недоступны. Попробуйте позже.',
+            ? 'Resending is not available yet.'
+            : 'SMS is temporarily unavailable. Try again later.',
       );
     } finally {
       setBusy(false);
@@ -1426,9 +1415,9 @@ function PhoneVerificationRow({
       form.append('code', code);
       await signIn('phone', form);
       await onVerified(verifiedValue);
-      setMessage('Телефон подтверждён.');
+      setMessage('Phone verified.');
     } catch {
-      setMessage('Код неверный или истёк. Запросите новый код.');
+      setMessage('The code is incorrect or expired. Request a new code.');
     } finally {
       setBusy(false);
     }
@@ -1459,10 +1448,10 @@ function PhoneVerificationRow({
           }
         >
           {busy
-            ? 'Подождите…'
+            ? 'Please wait…'
             : step === 'phone'
-              ? 'Получить код'
-              : 'Подтвердить'}
+              ? 'Get code'
+              : 'Confirm'}
         </AppText>
       </View>
     </Pressable>
@@ -1471,11 +1460,11 @@ function PhoneVerificationRow({
   return (
     <View style={styles.phoneVerificationRow}>
       <AppText role="label" color={colors.text.secondary}>
-        Телефон
+        Phone
       </AppText>
       <View style={styles.phoneVerificationInputRow}>
         <TextInput
-          accessibilityLabel="Российский номер телефона"
+          accessibilityLabel="Russian phone number"
           editable={!disabled && !busy && step === 'phone'}
           inputMode="tel"
           keyboardType="phone-pad"
@@ -1497,7 +1486,7 @@ function PhoneVerificationRow({
         <View style={styles.phoneVerificationInputRow}>
           <TextInput
             ref={codeInputRef}
-            accessibilityLabel="Код из SMS"
+            accessibilityLabel="SMS code"
             {...otpAutofillProps(Platform.OS)}
             keyboardType="number-pad"
             maxLength={6}
@@ -1530,8 +1519,8 @@ function PhoneVerificationRow({
         >
           <AppText role="caption" color={colors.text.secondary}>
             {retryAt && retryAt > clock
-              ? `Повторно через ${Math.ceil((retryAt - clock) / 1000)} сек.`
-              : 'Запросить снова'}
+              ? `Resend in ${Math.ceil((retryAt - clock) / 1000)} sec.`
+              : 'Resend code'}
           </AppText>
         </Pressable>
       ) : null}
@@ -1697,12 +1686,12 @@ function renderProfileSectionDirect({
     case 'account':
       return (
         <>
-          <ProfileSettingsGroup title="Контакты">
+          <ProfileSettingsGroup title="Contacts">
             <ProfileFieldRow
               label="E-mail"
               inputMode="email"
               defaultValue={viewerEmail}
-              placeholder="E-mail входа"
+              placeholder="Sign-in email"
               disabled
             />
             <PhoneVerificationRow
@@ -1713,31 +1702,31 @@ function renderProfileSectionDirect({
           </ProfileSettingsGroup>
 
           <ProfileVerticalChoiceControl<HealthGoal>
-            accessibilityLabel="Цель использования"
+            accessibilityLabel="Primary goal"
             defaultValue={profile?.goal ?? 'planning'}
             disabled={readOnly}
             grouped
-            label="Цель использования"
+            label="Primary goal"
             value={profile?.goal ?? 'planning'}
             options={[
-              { value: 'planning', label: 'Планирование' },
-              { value: 'pregnancy', label: 'Беременность' },
-              { value: 'cycle', label: 'Мониторинг' },
+              { value: 'planning', label: 'Planning' },
+              { value: 'pregnancy', label: 'Pregnancy' },
+              { value: 'cycle', label: 'Monitoring' },
             ]}
             onChange={(goal) => void saveProfile({ goal })}
           />
 
-          <ProfileSettingsGroup title="Цикл">
+          <ProfileSettingsGroup title="Cycle">
             {profile?.goal !== 'pregnancy' ? (
               <ProfileFieldRow
-                label="Средняя длина"
+                label="Average length"
                 defaultValue={
                   profile?.cycleLengthDays
                     ? String(profile.cycleLengthDays)
                     : ''
                 }
                 inputMode="numeric"
-                suffix="дней"
+                suffix="days"
                 disabled={readOnly}
                 onSubmit={(value) => {
                   const cycleLengthDays = Number(value);
@@ -1754,8 +1743,8 @@ function renderProfileSectionDirect({
             <ProfileDateRow
               label={
                 profile?.goal === 'pregnancy'
-                  ? 'Начало беременности'
-                  : 'Последняя менструация'
+                  ? 'Pregnancy start'
+                  : 'Last period'
               }
               value={
                 profile?.goal === 'pregnancy'
@@ -1780,9 +1769,9 @@ function renderProfileSectionDirect({
     case 'personal':
       return (
         <>
-          <ProfileSettingsGroup title="Личные данные">
+          <ProfileSettingsGroup title="Personal details">
             <ProfileFieldRow
-              label="Имя или псевдоним"
+              label="Name or nickname"
               defaultValue={profile?.displayName}
               disabled={readOnly}
               onSubmit={(displayName) => {
@@ -1790,7 +1779,7 @@ function renderProfileSectionDirect({
               }}
             />
             <ProfileDateRow
-              label="Дата рождения"
+              label="Date of birth"
               value={profile?.birthDate}
               minimumDate={new Date(1900, 0, 1)}
               maximumDate={new Date()}
@@ -1798,10 +1787,10 @@ function renderProfileSectionDirect({
               onChange={(birthDate) => void saveProfile({ birthDate })}
             />
             <ProfileFieldRow
-              label="Рост"
+              label="Height"
               defaultValue={profile?.heightCm ? String(profile.heightCm) : ''}
               inputMode="numeric"
-              suffix="см"
+              suffix="cm"
               disabled={readOnly}
               onSubmit={(value) => {
                 const heightCm = Number(value);
@@ -1810,10 +1799,10 @@ function renderProfileSectionDirect({
               }}
             />
             <ProfileFieldRow
-              label="Вес"
+              label="Weight"
               defaultValue={profile?.weightKg ? String(profile.weightKg) : ''}
               inputMode="numeric"
-              suffix="кг"
+              suffix="kg"
               disabled={readOnly}
               isLast
               onSubmit={(value) => {
@@ -1864,7 +1853,7 @@ function renderProfileSectionDirect({
         <View style={styles.medicalHistoryLayout}>
           <ProfileActionRow
             icon="doc.badge.plus"
-            label="Добавить документ"
+            label="Add document"
             pill
             disabled={readOnly}
             onPress={() => void saveDocumentFromPicker()}
@@ -1873,29 +1862,29 @@ function renderProfileSectionDirect({
             <ProfileSettingsGroup
               title={
                 sourceDocumentId
-                  ? 'Источник ответа Ассистента'
-                  : `Сохранено: ${documentCount}`
+                  ? 'Assistant response source'
+                  : `Saved: ${documentCount}`
               }
             >
               {documents.map((item, index) => (
                 <ProfileSettingsRow
                   key={item.localId}
                   icon="doc.text.fill"
-                  fallback="Д"
+                  fallback="D"
                   iconBackground={profileTones.health.tile}
                   label={item.title}
                   value={`${formatDate(item.documentDate)}${
-                    item.localId === sourceDocumentId ? ' · источник' : ''
+                    item.localId === sourceDocumentId ? ' · source' : ''
                   }`}
                   isLast={index === documents.length - 1}
                   onPress={() =>
                     Alert.alert(
                       item.title,
-                      `${formatDate(item.documentDate)} · содержимое файла не прочитано`,
+                      `${formatDate(item.documentDate)} · file contents have not been read`,
                       [
-                        { text: 'Закрыть', style: 'cancel' },
+                        { text: 'Close', style: 'cancel' },
                         {
-                          text: 'Удалить документ',
+                          text: 'Delete document',
                           style: 'destructive',
                           onPress: () => void deleteRecord('documents', item),
                         },
@@ -1906,7 +1895,7 @@ function renderProfileSectionDirect({
               ))}
             </ProfileSettingsGroup>
           ) : (
-            <ProfileEmptyMessage title="Документы пока не добавлены" />
+            <ProfileEmptyMessage title="No documents added yet" />
           )}
         </View>
       );
@@ -1915,12 +1904,12 @@ function renderProfileSectionDirect({
       return (
         <>
           {programs.length ? (
-            <ProfileSettingsGroup title="Подключённые программы">
+            <ProfileSettingsGroup title="Connected programs">
               {programs.map((program, index) => (
                 <ProfileToggleRow
                   key={program.localId}
                   label={program.title}
-                  subtitle={`Начало: ${formatDate(program.startedAt)}`}
+                  subtitle={`Started: ${formatDate(program.startedAt)}`}
                   value={program.status === 'active'}
                   disabled={readOnly}
                   isLast={index === programs.length - 1}
@@ -1936,8 +1925,8 @@ function renderProfileSectionDirect({
           ) : (
             <ProfileEmptyState
               icon="heart.slash"
-              title="Нет подключённых программ"
-              description="Программы появятся после выбора сценария наблюдения."
+              title="No connected programs"
+              description="Programs will appear after you select a monitoring scenario."
             />
           )}
         </>
@@ -1949,17 +1938,17 @@ function renderProfileSectionDirect({
     case 'permissions':
       return (
         <>
-          <ProfileSettingsGroup title="Данные">
+          <ProfileSettingsGroup title="Data">
             <ProfileToggleRow
-              label="Облачная синхронизация"
-              subtitle="Только структурированные данные"
+              label="Cloud sync"
+              subtitle="Structured data only"
               testID="e2e-cloud-sync-toggle"
               value={cloudSyncEnabled}
               disabled={readOnly || !hasViewerIdentity}
               onChange={(enabled) => void setCloudSyncEnabled(enabled)}
             />
             <ProfileToggleRow
-              label="Анонимная аналитика"
+              label="Anonymous analytics"
               value={analyticsEnabled}
               disabled={readOnly}
               onChange={(value) => {
@@ -1970,21 +1959,21 @@ function renderProfileSectionDirect({
               }}
             />
             <ProfileToggleRow
-              label="Автономные рекомендации"
+              label="Autonomous recommendations"
               subtitle={
                 !agentEnabled
-                  ? 'Ассистент выключен администратором'
+                  ? 'Assistant is disabled by the administrator'
                   : !agentConsentAccepted
-                    ? 'Сначала включите Ассистента в чате'
+                    ? 'Enable Assistant in Chat first'
                     : !agentAutomationEnabled
-                      ? 'Автономные проверки временно выключены'
+                      ? 'Autonomous checks are temporarily disabled'
                       : !agentProviderConfigured
-                        ? 'Сервис плана не настроен на сервере'
+                        ? 'Plan service is not configured on the server'
                         : !agentAutomationAccepted && medicalRecommendations
-                          ? 'Настройка на сервере не подтверждена — включите заново'
+                          ? 'Server configuration is not confirmed — enable it again'
                           : agentLastSuccessfulRunAt
-                            ? `Последняя проверка: ${formatDate(agentLastSuccessfulRunAt)}. Фоновый запуск нерегулярный`
-                            : 'Проверка запустится при стабильном подключении; фоновые сроки не гарантируются'
+                            ? `Last check: ${formatDate(agentLastSuccessfulRunAt)}. Background runs are not guaranteed`
+                            : 'A check will run when the connection is stable; background timing is not guaranteed'
               }
               value={medicalRecommendations}
               disabled={
@@ -1999,8 +1988,8 @@ function renderProfileSectionDirect({
               }}
             />
             <ProfileToggleRow
-              label="Обновления плана"
-              subtitle="Только нейтральный текст без названий анализов"
+              label="Plan updates"
+              subtitle="Neutral text only, without test names"
               value={agentNotifications}
               disabled={
                 readOnly || !medicalRecommendations || !notificationsEnabled
@@ -2017,10 +2006,10 @@ function renderProfileSectionDirect({
             icon="sparkles"
             label={
               aiConsentAccepted
-                ? 'Отозвать согласие для ИИ-чата'
-                : 'Согласие для ИИ-чата не дано'
+                ? 'Revoke AI Chat consent'
+                : 'AI Chat consent has not been granted'
             }
-            subtitle="Передача только видимого текста чата"
+            subtitle="Only visible chat text is transmitted"
             disabled={!aiConsentAccepted}
             onPress={revokeAiConsent}
           />
@@ -2029,10 +2018,10 @@ function renderProfileSectionDirect({
             icon="shield.lefthalf.filled"
             label={
               agentConsentAccepted
-                ? 'Отключить доступ Ассистенту'
-                : 'Доступ Ассистенту не дан'
+                ? 'Disable Assistant access'
+                : 'Assistant access has not been granted'
             }
-            subtitle="Профиль, дневник, анализы, план и чаты"
+            subtitle="Profile, journal, labs, plan, and chats"
             disabled={!agentConsentAccepted}
             onPress={revokeAgentConsent}
             singleLineLabel
@@ -2041,20 +2030,20 @@ function renderProfileSectionDirect({
           <ProfileActionRow
             secondary
             icon="list.bullet.rectangle"
-            label="Данные режима «Ассистент»"
-            subtitle="Посмотреть разрешённые категории данных"
+            label="Assistant mode data"
+            subtitle="View permitted data categories"
             onPress={() =>
               Alert.alert(
-                'Доступ Ассистента',
-                'После отдельного согласия: параметры здоровья из профиля, записи дневника за 30 дней, подтверждённые анализы и домашние тесты, активный план. Только по запросу: старые записи дневника, другие ваши чаты и метаданные документов. Если автономные рекомендации включены, проверка плана может учитывать новые сообщения пользователя из режима «Ассистент» и только категорию и дату нового документа. Обычные чаты, ответы ИИ, названия и содержимое файлов автоматически не передаются. Имя, контакты, идентификаторы и пути к файлам недоступны.',
+                'Assistant access',
+                'After separate consent: health details from your profile, journal entries from the past 30 days, confirmed lab results and home tests, and your active plan. Only when requested: older journal entries, your other chats, and document metadata. When automated recommendations are enabled, plan checks may use new user messages from Assistant mode and only the category and date of a new document. Regular chats, AI responses, file names, and file contents are never sent automatically. Your name, contacts, identifiers, and file paths are unavailable.',
               )
             }
           />
           <ProfileActionRow
             secondary
             icon="trash"
-            label="Удалить данные Ассистента"
-            subtitle="План, правила и журнал изменений"
+            label="Delete Assistant data"
+            subtitle="Plan, rules, and change log"
             onPress={clearAgentData}
           />
           <ProfileActionRow
@@ -2062,8 +2051,8 @@ function renderProfileSectionDirect({
             icon="gearshape.fill"
             label={
               Platform.OS === 'ios'
-                ? 'Разрешения iPhone'
-                : 'Разрешения устройства'
+                ? 'iPhone permissions'
+                : 'Device permissions'
             }
             onPress={openSystemSettings}
           />
@@ -2072,10 +2061,10 @@ function renderProfileSectionDirect({
             icon="arrow.triangle.2.circlepath"
             label={
               syncStatus === 'syncing'
-                ? 'Синхронизация…'
+                ? 'Syncing…'
                 : syncStatus === 'offline'
-                  ? 'Ожидает подключения'
-                  : 'Синхронизировать сейчас'
+                  ? 'Waiting for connection'
+                  : 'Sync now'
             }
             subtitle={serviceIssue?.message ?? syncMessage}
             disabled={
@@ -2099,14 +2088,14 @@ function renderProfileSectionDirect({
       return (
         <>
           <ConfirmedAction
-            label="Удалить локальные данные"
-            confirmation="Нажмите ещё раз: данные устройства будут удалены"
+            label="Delete local data"
+            confirmation="Tap again: device data will be deleted"
             onConfirm={clearAllLocalData}
           />
           <ProfileActionRow
             destructive
             icon="rectangle.portrait.and.arrow.right"
-            label="Выйти из аккаунта"
+            label="Sign out"
             disabled={readOnly || !hasViewerIdentity}
             onPress={signOut}
           />
@@ -2116,9 +2105,9 @@ function renderProfileSectionDirect({
     case 'notification-settings':
       return (
         <>
-          <ProfileSettingsGroup title="Уведомления">
+          <ProfileSettingsGroup title="Notifications">
             <ProfileToggleRow
-              label="Разрешить уведомления"
+              label="Allow notifications"
               value={notificationsEnabled}
               disabled={notificationBusy || readOnly}
               testID="notification-master-toggle"
@@ -2132,7 +2121,7 @@ function renderProfileSectionDirect({
               }
             />
             <ProfileToggleRow
-              label="Системные"
+              label="System"
               value={notificationsEnabled && journalNotifications}
               disabled={!notificationsEnabled}
               onChange={(value) => {
@@ -2141,7 +2130,7 @@ function renderProfileSectionDirect({
               }}
             />
             <ProfileToggleRow
-              label="Результаты и анализы"
+              label="Results and labs"
               value={notificationsEnabled && resultNotifications}
               disabled={!notificationsEnabled}
               onChange={(value) => {
@@ -2151,15 +2140,15 @@ function renderProfileSectionDirect({
               isLast
             />
           </ProfileSettingsGroup>
-          <ProfileSettingsGroup title="Стиль уведомлений">
+          <ProfileSettingsGroup title="Notification style">
             <View style={styles.notificationToneBlock}>
               <ProfileChoiceControl
-                accessibilityLabel="Стиль уведомлений"
+                accessibilityLabel="Notification style"
                 defaultValue="formal"
                 value={notificationTone}
                 options={[
-                  { label: 'Формальный', value: 'formal' },
-                  { label: 'Милый', value: 'cute' },
+                  { label: 'Formal', value: 'formal' },
+                  { label: 'Friendly', value: 'cute' },
                 ]}
                 onChange={(value) => {
                   setNotificationTone(value);
@@ -2172,7 +2161,7 @@ function renderProfileSectionDirect({
           <ProfileActionRow
             secondary
             icon="bell.badge.fill"
-            label="Отправить тестовое уведомление"
+            label="Send test notification"
             testID="e2e-notification-test"
             disabled={notificationBusy || !notificationsEnabled}
             onPress={() => void sendTestNotification(notificationTone)}
@@ -2185,8 +2174,8 @@ function renderProfileSectionDirect({
             icon="gearshape.fill"
             label={
               Platform.OS === 'ios'
-                ? 'Открыть настройки iPhone'
-                : 'Открыть настройки устройства'
+                ? 'Open iPhone Settings'
+                : 'Open device settings'
             }
             onPress={openSystemSettings}
           />
@@ -2199,16 +2188,16 @@ function renderProfileSectionDirect({
           <ProfileActionRow
             destructive
             icon="trash.fill"
-            label="Удалить аккаунт и все данные"
+            label="Delete account and all data"
             disabled={readOnly || !hasViewerIdentity}
             onPress={() =>
               Alert.alert(
-                'Удалить аккаунт?',
-                'Данные можно будет восстановить в течение 30 дней.',
+                'Delete account?',
+                'Your data can be recovered for 30 days.',
                 [
-                  { text: 'Отмена', style: 'cancel' },
+                  { text: 'Cancel', style: 'cancel' },
                   {
-                    text: 'Удалить',
+                    text: 'Delete',
                     style: 'destructive',
                     onPress: () => void requestAccountDeletion(),
                   },
@@ -2260,20 +2249,20 @@ type MedicalCrudProps =
     };
 
 const medicationDoseUnits = [
-  { value: 'mcg', label: 'мкг' },
-  { value: 'mg', label: 'мг' },
-  { value: 'g', label: 'г' },
-  { value: 'ml', label: 'мл' },
-  { value: 'iu', label: 'МЕ' },
+  { value: 'mcg', label: 'mcg' },
+  { value: 'mg', label: 'mg' },
+  { value: 'g', label: 'g' },
+  { value: 'ml', label: 'ml' },
+  { value: 'iu', label: 'IU' },
 ] as const;
 
 type MedicationDoseUnit = (typeof medicationDoseUnits)[number]['value'];
 
 const medicationFrequencyOptions = [
-  { value: 'hour', label: 'час' },
-  { value: 'day', label: 'день' },
-  { value: 'week', label: 'неделя' },
-  { value: 'month', label: 'месяц' },
+  { value: 'hour', label: 'Hourly' },
+  { value: 'day', label: 'Daily' },
+  { value: 'week', label: 'Weekly' },
+  { value: 'month', label: 'Monthly' },
 ] as const;
 
 type MedicationFrequency = (typeof medicationFrequencyOptions)[number]['value'];
@@ -2354,22 +2343,22 @@ function MedicalCrudSection(props: MedicalCrudProps) {
   const selected = records.find((item) => item.localId === selectedId);
   const primaryLabel =
     props.kind === 'condition'
-      ? 'Состояние или диагноз'
+      ? 'Condition or diagnosis'
       : props.kind === 'medication'
-        ? 'Название препарата'
-        : 'Аллерген';
+        ? 'Medication name'
+        : 'Allergen';
   const secondaryLabel =
     props.kind === 'condition'
-      ? 'Заметка'
+      ? 'Note'
       : props.kind === 'medication'
-        ? 'Дозировка'
-        : 'Реакция';
+        ? 'Dosage'
+        : 'Reaction';
   const addLabel =
     props.kind === 'condition'
-      ? 'Добавить запись'
+      ? 'Add record'
       : props.kind === 'medication'
-        ? 'Добавить препарат'
-        : 'Добавить аллергию';
+        ? 'Add medication'
+        : 'Add allergy';
 
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduceEditorMotion);
@@ -2530,7 +2519,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
       />
       {records.length ? (
         <View>
-          <ProfileSettingsGroup title="Сохранённые записи">
+          <ProfileSettingsGroup title="Saved records">
             {records.map((item, index) => {
               const label =
                 'title' in item
@@ -2541,12 +2530,12 @@ function MedicalCrudSection(props: MedicalCrudProps) {
               const value =
                 'status' in item
                   ? item.status === 'active'
-                    ? 'Активно'
-                    : 'Завершено'
+                    ? 'Active'
+                    : 'Completed'
                   : 'active' in item
                     ? item.active
-                      ? 'Принимается'
-                      : 'Завершён'
+                      ? 'Taking'
+                      : 'Completed'
                     : item.severity === 'unknown'
                       ? undefined
                       : item.severity;
@@ -2568,7 +2557,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
           </ProfileSettingsGroup>
         </View>
       ) : (
-        <ProfileEmptyMessage title="Записей пока нет" />
+        <ProfileEmptyMessage title="No records yet" />
       )}
       <Modal
         animationType="none"
@@ -2595,7 +2584,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
           />
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Закрыть форму"
+            accessibilityLabel="Close form"
             onPress={reset}
             style={styles.medicalEditorBackdrop}
           />
@@ -2622,11 +2611,11 @@ function MedicalCrudSection(props: MedicalCrudProps) {
                 weight="semibold"
                 style={styles.medicalEditorTitle}
               >
-                {selected ? 'Изменить запись' : addLabel}
+                {selected ? 'Edit record' : addLabel}
               </AppText>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Закрыть форму"
+                accessibilityLabel="Close form"
                 hitSlop={12}
                 onPress={reset}
                 style={styles.medicalEditorClose}
@@ -2657,12 +2646,12 @@ function MedicalCrudSection(props: MedicalCrudProps) {
                     onChangeText={(value) =>
                       setSecondary(sanitizeMedicationDoseAmount(value))
                     }
-                    placeholder="Количество"
+                    placeholder="Amount"
                     placeholderTextColor="#989395"
                     style={[styles.inlineInput, styles.medicationDoseInput]}
                   />
                   <SegmentedSwitcher
-                    accessibilityLabel="Единица измерения дозировки"
+                    accessibilityLabel="Dosage unit"
                     options={medicationDoseUnits}
                     value={medicationDoseUnit}
                     onChange={setMedicationDoseUnit}
@@ -2675,10 +2664,10 @@ function MedicalCrudSection(props: MedicalCrudProps) {
                     color={colors.text.secondary}
                     style={styles.medicationFrequencyLabel}
                   >
-                    Периодичность
+                    Frequency
                   </AppText>
                   <SegmentedSwitcher
-                    accessibilityLabel="Периодичность приёма препарата"
+                    accessibilityLabel="Medication frequency"
                     options={medicationFrequencyOptions}
                     value={medicationFrequency}
                     onChange={setMedicationFrequency}
@@ -2699,17 +2688,17 @@ function MedicalCrudSection(props: MedicalCrudProps) {
             <View style={styles.medicalEditorActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Назад"
+                accessibilityLabel="Back"
                 onPress={reset}
                 style={styles.medicalEditorSecondaryAction}
               >
                 <AppText role="body" weight="semibold">
-                  Назад
+                  Back
                 </AppText>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Сохранить"
+                accessibilityLabel="Save"
                 testID="e2e-medical-save"
                 accessibilityState={{
                   disabled:
@@ -2726,15 +2715,15 @@ function MedicalCrudSection(props: MedicalCrudProps) {
                 ]}
               >
                 <AppText role="body" weight="semibold" color="#FFFFFF">
-                  Сохранить
+                  Save
                 </AppText>
               </Pressable>
             </View>
             {selected ? (
               <ConfirmedAction
                 compact
-                label="Удалить запись"
-                confirmation="Подтвердить удаление записи"
+                label="Delete record"
+                confirmation="Confirm record deletion"
                 onConfirm={remove}
               />
             ) : null}
@@ -2749,12 +2738,12 @@ const csvCategories: Array<{
   value: HealthEntityName;
   label: string;
 }> = [
-  { value: 'journalEntries', label: 'Дневник' },
-  { value: 'labResults', label: 'Анализы' },
-  { value: 'scanResults', label: 'Сканы' },
-  { value: 'medicalConditions', label: 'История' },
-  { value: 'medications', label: 'Препараты' },
-  { value: 'allergyRisks', label: 'Аллергии' },
+  { value: 'journalEntries', label: 'Journal' },
+  { value: 'labResults', label: 'Labs' },
+  { value: 'scanResults', label: 'Scans' },
+  { value: 'medicalConditions', label: 'History' },
+  { value: 'medications', label: 'Medications' },
+  { value: 'allergyRisks', label: 'Allergies' },
 ];
 
 function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
@@ -2803,11 +2792,11 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
     try {
       const parsed = parseImportPayload(await readAsStringAsync(asset.uri));
       setPreview(parsed);
-      setMessage(`Проверено записей: ${parsed.total}`);
+      setMessage(`Records checked: ${parsed.total}`);
     } catch (error) {
       console.error('Import validation failed', error);
       setPreview(undefined);
-      setMessage('Файл не соответствует формату ArtificialLabs JSON/CSV.');
+      setMessage('The file does not match the ArtificialLabs JSON/CSV format.');
     }
   };
 
@@ -2816,7 +2805,7 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
     setBusy(true);
     try {
       await store.importData(preview);
-      setMessage(`Импортировано записей: ${preview.total}`);
+      setMessage(`Records imported: ${preview.total}`);
       setPreview(undefined);
     } finally {
       setBusy(false);
@@ -2825,7 +2814,7 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
 
   const exportData = async () => {
     if (!cacheDirectory) {
-      setMessage('Экспорт файлов недоступен на этой платформе.');
+      setMessage('File export is unavailable on this platform.');
       return;
     }
     setBusy(true);
@@ -2838,21 +2827,21 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
       const uri = `${cacheDirectory}artificiallabs-export-${Date.now()}.${extension}`;
       await writeAsStringAsync(uri, content);
       if (__DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1') {
-        setMessage('Файл подготовлен для экспорта.');
+        setMessage('The file is ready to export.');
         return;
       }
       if (!(await Sharing.isAvailableAsync())) {
-        setMessage(`Файл подготовлен: ${uri}`);
+        setMessage(`File prepared: ${uri}`);
         return;
       }
       await Sharing.shareAsync(uri, {
-        dialogTitle: 'Экспорт ArtificialLabs',
+        dialogTitle: 'Export ArtificialLabs',
         mimeType: format === 'json' ? 'application/json' : 'text/csv',
       });
-      setMessage('Файл подготовлен для экспорта.');
+      setMessage('The file is ready to export.');
     } catch (error) {
       console.error('Export failed', error);
-      setMessage('Не удалось подготовить файл экспорта.');
+      setMessage('Could not prepare the export file.');
     } finally {
       setBusy(false);
     }
@@ -2861,17 +2850,17 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
   if (mode === 'import') {
     return (
       <View style={styles.medicalHistoryLayout}>
-        <ProfileEmptyMessage title="Поддерживаются ArtificialLabs JSON и CSV" />
+        <ProfileEmptyMessage title="ArtificialLabs JSON and CSV are supported" />
         <ProfileActionRow
           icon="square.and.arrow.down"
-          label="Выбрать файл"
+          label="Choose file"
           disabled={store.readOnly || busy}
           onPress={() => void pickImport()}
         />
         {preview ? (
           <ProfileActionRow
             icon="checkmark"
-            label={`Импортировать ${preview.total} записей`}
+            label={`Import ${preview.total} records`}
             disabled={busy}
             onPress={() => void applyImport()}
           />
@@ -2888,9 +2877,9 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
   return (
     <View style={styles.medicalHistoryLayout}>
       <ProfileChoiceControl
-        accessibilityLabel="Формат экспорта"
+        accessibilityLabel="Export format"
         defaultValue="json"
-        label="Формат"
+        label="Format"
         value={format}
         options={[
           { value: 'json', label: 'JSON' },
@@ -2900,18 +2889,18 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
       />
       {format === 'csv' ? (
         <ProfileVerticalChoiceControl
-          accessibilityLabel="Категория CSV"
+          accessibilityLabel="CSV category"
           defaultValue="journalEntries"
-          label="Категория"
+          label="Category"
           value={category}
           options={csvCategories}
           onChange={setCategory}
         />
       ) : null}
-      <ProfileEmptyMessage title="Исходные файлы и локальные URI в экспорт не включаются" />
+      <ProfileEmptyMessage title="Source files and local URIs are not included in exports" />
       <ProfileActionRow
         icon="square.and.arrow.up"
-        label="Подготовить экспорт"
+        label="Prepare export"
         disabled={store.readOnly || busy}
         onPress={() => void exportData()}
       />
