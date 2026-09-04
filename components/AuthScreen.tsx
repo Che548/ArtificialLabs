@@ -665,7 +665,7 @@ export function AuthScreen({
                       <Text
                         style={[styles.consentText, styles.personalConsentText]}
                       >
-                        Я даю согласие ООО «Имя компании» на обработку моих
+                        Я даю согласие ООО «БРЭЙНВЕЙВС ИНЖИНИРИНГ» на обработку моих
                         персональных данных в целях обработки обращения, связи
                         со мной и подготовки ответа. Я ознакомлен(а) с{' '}
                         <LegalLink url={privacyPolicyUrl}>

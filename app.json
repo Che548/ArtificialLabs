@@ -24,8 +24,16 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
+      "allowBackup": false,
       "permissions": ["android.permission.CAMERA"],
-      "package": "com.anonymous.privateexpo"
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "package": "engineering.brainwaves.sfera",
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"
