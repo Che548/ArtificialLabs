@@ -398,6 +398,7 @@ function ChatPopupMenu({
         {actions.map((action) => (
           <View key={action.id} style={styles.attachmentMenuRowSlot}>
             <Pressable
+              cssInterop={false}
               accessible
               accessibilityRole="button"
               accessibilityLabel={action.label}
@@ -710,6 +711,7 @@ export function ChatHistoryPanel({
                 </Pressable>
                 {selected ? (
                   <Pressable
+                    cssInterop={false}
                     accessibilityRole="button"
                     accessibilityLabel={`Действия с чатом: ${item.title}`}
                     accessibilityState={{ expanded: menuVisible }}
@@ -907,6 +909,7 @@ export function ChatSendButtonPreview({
         style={[styles.sendVariantButton, styles.sendVariantGlass]}
       >
         <Pressable
+          cssInterop={false}
           accessibilityRole="button"
           accessibilityLabel="Отправить сообщение"
           onPress={onPress}
@@ -957,6 +960,7 @@ export function ChatSendButtonPreview({
       {variant === 10 ? <View style={styles.sendVariantInnerRing} /> : null}
       <ChatSendArrow color={foreground} />
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel="Отправить сообщение"
         onPress={onPress}

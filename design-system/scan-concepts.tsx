@@ -129,6 +129,7 @@ function ActionButton({
 }) {
   return (
     <Pressable
+      cssInterop={false}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
@@ -167,6 +168,7 @@ function VariantSelector({
         const selected = variant.id === active;
         return (
           <Pressable
+            cssInterop={false}
             key={variant.id}
             accessibilityRole="tab"
             accessibilityLabel={`Вариант ${variant.number}: ${variant.short}`}
@@ -317,6 +319,7 @@ function ReadinessMain({ onStart }: { onStart: () => void }) {
           const selected = checked.has(index);
           return (
             <Pressable
+              cssInterop={false}
               key={item}
               accessibilityRole="checkbox"
               accessibilityLabel={item}
@@ -602,6 +605,7 @@ function GuideFooter({
   return (
     <View style={styles.guideFooter}>
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel="Предыдущий шаг"
         onPress={onBack}
@@ -616,6 +620,7 @@ function GuideFooter({
         </AppText>
       </Pressable>
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={isLast ? 'Открыть камеру' : 'Следующий шаг'}
         onPress={onNext}

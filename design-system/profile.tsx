@@ -547,6 +547,7 @@ export function ProfileDateRow({
   return (
     <>
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${formatProfileDate(selectedDate)}`}
         accessibilityHint="Открывает выбор даты"
@@ -808,6 +809,7 @@ export function ProfileVerticalChoiceControl<T extends string>({
 
     return (
       <Pressable
+        cssInterop={false}
         key={option.value}
         accessibilityLabel={option.label}
         accessibilityRole="radio"
@@ -1027,6 +1029,7 @@ function ProfileSelectionPopover<T extends string>({
 
               return (
                 <Pressable
+                  cssInterop={false}
                   key={option.value}
                   accessibilityRole="radio"
                   accessibilityLabel={`${option.label}, ${option.secondaryLabel}`}
@@ -1125,6 +1128,7 @@ export function ProfileLanguageSelector({
         <View style={styles.groupShadow}>
           <View style={styles.groupSurface}>
             <Pressable
+              cssInterop={false}
               ref={regionTriggerRef}
               accessibilityRole="button"
               accessibilityLabel="Выбрать регион"
@@ -1158,6 +1162,7 @@ export function ProfileLanguageSelector({
         <View style={styles.groupShadow}>
           <View style={styles.groupSurface}>
             <Pressable
+              cssInterop={false}
               ref={languageTriggerRef}
               accessibilityRole="button"
               accessibilityLabel="Выбрать язык интерфейса"
@@ -1255,6 +1260,7 @@ export function ProfileActionRow({
       ]}
     >
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={label}
         disabled={disabled}
@@ -1451,6 +1457,7 @@ export function DestructiveButtonPreview({
       ]}
     >
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={label}
         onPress={onPress}

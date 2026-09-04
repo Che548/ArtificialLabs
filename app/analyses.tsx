@@ -818,6 +818,7 @@ export default function AnalysesScreen() {
                 </AppText>
                 {!readOnly ? (
                   <Pressable
+                    cssInterop={false}
                     accessibilityRole="button"
                     onPress={() =>
                       router.push({
@@ -1266,6 +1267,7 @@ export default function AnalysesScreen() {
                     </AppText>
                     <View style={styles.analysisModalPlanActions}>
                       <Pressable
+                        cssInterop={false}
                         accessibilityRole="button"
                         disabled={readOnly || saving}
                         onPress={() => {
@@ -1285,6 +1287,7 @@ export default function AnalysesScreen() {
                       </Pressable>
                       {selectedAnalysis.carePlan.status === 'upcoming' ? (
                         <Pressable
+                          cssInterop={false}
                           accessibilityRole="button"
                           accessibilityLabel="Уточнить срок рекомендации"
                           disabled={readOnly || saving}
@@ -1330,6 +1333,7 @@ export default function AnalysesScreen() {
                           />
                           <View style={styles.analysisModalScheduleActions}>
                             <Pressable
+                              cssInterop={false}
                               accessibilityRole="button"
                               disabled={saving}
                               onPress={() => setSchedulePickerVisible(false)}
@@ -1343,6 +1347,7 @@ export default function AnalysesScreen() {
                               </AppText>
                             </Pressable>
                             <Pressable
+                              cssInterop={false}
                               accessibilityRole="button"
                               disabled={saving}
                               onPress={() =>
@@ -1365,6 +1370,7 @@ export default function AnalysesScreen() {
                         </View>
                       ) : null}
                       <Pressable
+                        cssInterop={false}
                         accessibilityRole="button"
                         disabled={readOnly || saving}
                         onPress={() => {
@@ -1462,6 +1468,7 @@ export default function AnalysesScreen() {
                       <View style={styles.analysisModalAttachmentActions}>
                         {(['file', 'photo'] as const).map((kind) => (
                           <Pressable
+                            cssInterop={false}
                             key={kind}
                             accessibilityRole="button"
                             accessibilityLabel={

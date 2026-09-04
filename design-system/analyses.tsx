@@ -1214,6 +1214,7 @@ function AnalysisReferenceCardAction({
 
   return (
     <Pressable
+      cssInterop={false}
       accessibilityRole="button"
       accessibilityLabel={`Открыть: ${title}`}
       onPress={onView}
@@ -1277,6 +1278,7 @@ function AnalysisProminentAction({
       ]}
     >
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={`Посмотреть: ${title}`}
         onPress={onView}
@@ -1323,6 +1325,7 @@ function MinimalCalendarAction({
       ]}
     >
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={`Посмотреть: ${title}`}
         onPress={onView}
@@ -2051,6 +2054,7 @@ function AnalysisReferenceCardDetails({
           </AppText>
         </View>
         <Pressable
+          cssInterop={false}
           accessibilityRole="button"
           accessibilityLabel={`Посмотреть: ${title}`}
           onPress={onView}
@@ -2894,6 +2898,7 @@ export function AnalysisCardAction({
       ]}
     >
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={title ? `${text}: ${title}` : text}
         onPress={onPress}

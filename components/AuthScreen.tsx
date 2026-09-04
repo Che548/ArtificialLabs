@@ -11,6 +11,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -647,8 +648,12 @@ export function AuthScreen({
                 ) : null}
 
                 {flow === 'signUp' && !recoveryMode ? (
-                  <View style={styles.consents}>
-                    <View style={[styles.consentRow, styles.personalConsent]}>
+                  <ScrollView
+                    style={styles.consents}
+                    contentContainerStyle={styles.consentContent}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    <View style={styles.consentRow}>
                       <Checkbox
                         checked={personalDataConsent}
                         label="Согласие на обработку персональных данных"
@@ -670,7 +675,7 @@ export function AuthScreen({
                       </Text>
                     </View>
 
-                    <View style={[styles.consentRow, styles.agreementConsent]}>
+                    <View style={styles.consentRow}>
                       <Checkbox
                         checked={agreementAccepted}
                         label="Принятие пользовательского соглашения"
@@ -687,7 +692,7 @@ export function AuthScreen({
                         .
                       </Text>
                     </View>
-                  </View>
+                  </ScrollView>
                 ) : null}
 
                 {visibleError ? (
@@ -929,24 +934,17 @@ const styles = StyleSheet.create({
     left: 26,
     top: 463,
     width: 349,
-    height: 226,
+    height: 200,
+  },
+  consentContent: {
+    gap: 18,
+    paddingVertical: 4,
   },
   consentRow: {
-    position: 'absolute',
-    left: 0,
     width: 349,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-  },
-  personalConsent: {
-    top: 0,
-    height: 154,
-  },
-  agreementConsent: {
-    top: 95,
-    height: 52,
-    alignItems: 'center',
   },
   checkboxHitArea: {
     width: 22,

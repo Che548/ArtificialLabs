@@ -208,6 +208,7 @@ function GlassControl({
     return (
       <View style={[style, androidMaterials.light]}>
         <Pressable
+          cssInterop={false}
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
           onPress={onPress}
@@ -232,6 +233,7 @@ function GlassControl({
         washColor={colors.surface.headerGlassWash}
       />
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         onPress={onPress}

@@ -1438,6 +1438,7 @@ function PhoneVerificationRow({
     busy || disabled || (step === 'code' && !/^\d{6}$/.test(code));
   const actionButton = (
     <Pressable
+      cssInterop={false}
       accessibilityRole="button"
       disabled={actionDisabled}
       onPress={() => void (step === 'phone' ? requestCode() : verifyCode())}

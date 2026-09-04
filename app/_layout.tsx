@@ -201,6 +201,7 @@ function AndroidTabLabel({
   return (
     <View style={styles.androidLabelSlot}>
       <Animated.Text
+        maxFontSizeMultiplier={1.3}
         numberOfLines={1}
         style={[
           styles.androidTabLabel,
@@ -211,6 +212,7 @@ function AndroidTabLabel({
         {label}
       </Animated.Text>
       <Animated.Text
+        maxFontSizeMultiplier={1.3}
         numberOfLines={1}
         style={[
           styles.androidTabLabel,
@@ -233,6 +235,7 @@ type AndroidTabButtonProps = Omit<
 
 function AndroidTabButton({
   'aria-label': ariaLabel,
+  'aria-selected': ariaSelected,
   accessibilityLabel,
   accessibilityState,
   children,
@@ -279,13 +282,7 @@ function AndroidTabButton({
               ? 'e2e-tab-profile'
               : undefined;
   const resolvedTestID = testID ?? fallbackTestID;
-  const selected = Boolean(accessibilityState?.selected);
-  const edgeOffset =
-    tabLabel === 'Сферка'
-      ? 7
-      : tabLabel === 'Профиль'
-        ? -7
-        : 0;
+  const selected = ariaSelected ?? accessibilityState?.selected ?? false;
   const progress = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
   useEffect(() => {
@@ -299,19 +296,21 @@ function AndroidTabButton({
 
   return (
     <Pressable
+      cssInterop={false}
       {...pressableProps}
       accessibilityLabel={tabLabel ?? navigationLabel}
-      accessibilityState={accessibilityState}
+      accessibilityState={{ ...accessibilityState, selected }}
+      aria-selected={selected}
       nativeID={resolvedTestID}
-      style={style}
+      style={(state) => [
+        typeof style === 'function' ? style(state) : style,
+        styles.androidTabPressTarget,
+      ]}
       testID={resolvedTestID}
     >
       <View
         pointerEvents="none"
-        style={[
-          styles.androidTabButtonContent,
-          { transform: [{ translateX: edgeOffset }] },
-        ]}
+        style={styles.androidTabButtonContent}
       >
         <Animated.View
           style={[
@@ -361,7 +360,7 @@ function AndroidTabs() {
           },
           tabBarActiveTintColor: activeTint,
           tabBarInactiveTintColor: inactiveTint,
-          tabBarActiveBackgroundColor: activeCapsuleTint,
+          tabBarActiveBackgroundColor: 'transparent',
           tabBarHideOnKeyboard: true,
           tabBarLabelPosition: 'below-icon',
           tabBarStyle: [
@@ -392,7 +391,6 @@ function AndroidTabs() {
           options={{
             title: 'Сферка',
             tabBarButtonTestID: 'e2e-tab-chat',
-            tabBarItemStyle: [styles.androidTabItem, styles.androidFirstTab],
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="chat" />
             ),
@@ -445,7 +443,6 @@ function AndroidTabs() {
           options={{
             title: 'Профиль',
             tabBarButtonTestID: 'e2e-tab-profile',
-            tabBarItemStyle: [styles.androidTabItem, styles.androidLastTab],
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="profile" />
             ),
@@ -617,11 +614,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingVertical: 0,
   },
-  androidFirstTab: {
-    marginLeft: 7,
-  },
-  androidLastTab: {
-    marginRight: 7,
+  androidTabPressTarget: {
+    padding: 0,
+    minHeight: 52,
+    width: '100%',
+    alignItems: 'stretch',
   },
   androidActiveTabSurface: {
     ...StyleSheet.absoluteFillObject,
@@ -629,7 +626,7 @@ const styles = StyleSheet.create({
     backgroundColor: activeCapsuleTint,
   },
   androidTabButtonContent: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -650,12 +647,13 @@ const styles = StyleSheet.create({
   },
   androidLabelSlot: {
     width: 58,
-    height: 12,
+    height: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   androidTabLabel: {
     position: 'absolute',
+    includeFontPadding: false,
     fontSize: 10,
     lineHeight: 12,
     textAlign: 'center',
@@ -669,7 +667,7 @@ const styles = StyleSheet.create({
     fontFamily: 'SFProDisplay-Medium',
   },
   androidTabLabelSlot: {
-    height: 12,
+    height: 16,
     marginTop: 0,
   },
 });

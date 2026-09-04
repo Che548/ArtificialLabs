@@ -1,6 +1,6 @@
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SymbolView } from 'expo-symbols';
+import { OnboardingSymbol as SymbolView } from './onboarding-symbol';
 import type { SFSymbol } from 'expo-symbols';
 import { StatusBar } from 'expo-status-bar';
 import type { ComponentType, ReactNode } from 'react';

@@ -296,6 +296,7 @@ export function NavbarIconVariantPreview({
 
               return (
                 <Pressable
+                  cssInterop={false}
                   key={tab.key}
                   accessibilityRole="tab"
                   accessibilityLabel={tab.label}

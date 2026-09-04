@@ -101,6 +101,7 @@ function TextAction({
 }) {
   return (
     <Pressable
+      cssInterop={false}
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
@@ -650,6 +651,7 @@ function ArticleRow({
 }) {
   return (
     <Pressable
+      cssInterop={false}
       accessibilityRole="button"
       accessibilityLabel={article.title}
       onPress={onPress}
@@ -843,6 +845,7 @@ export function AnalysisReferenceBlock({
         <View style={styles.questionList}>
           {questions.map((question) => (
             <Pressable
+              cssInterop={false}
               key={question}
               accessibilityRole="button"
               accessibilityLabel={question}

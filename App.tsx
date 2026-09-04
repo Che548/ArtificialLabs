@@ -293,6 +293,7 @@ function LiquidGlassPressable({
         ]}
       >
         <Pressable
+          cssInterop={false}
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
           onPress={onPress}
@@ -327,6 +328,7 @@ function LiquidGlassPressable({
         washColor={washColor}
       />
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         onPress={onPress}
@@ -454,6 +456,7 @@ function ImportantMascotCard({ onPress }: { onPress?: () => void }) {
     <View style={styles.importantCard}>
       <View pointerEvents="none" style={styles.importantCardSurface} />
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel="Открыть важные пункты плана"
         onPress={onPress}
@@ -837,6 +840,7 @@ function MonitoringScreen({
             </>
           ) : (
             <Pressable
+              cssInterop={false}
               accessibilityRole="button"
               accessibilityLabel="Добавить дату беременности в профиль"
               onPress={onPregnancyDatePress}
@@ -960,19 +964,36 @@ function PlanningQuickAction({
 
   return (
     <View style={styles.planningActionItem}>
-      <LiquidGlassPressable
-        accessibilityLabel={label}
-        controlStyle={styles.planningActionCircle}
-        onPress={onPress}
-        tintColor={primary ? '#EA4087' : 'rgba(255,255,255,0.62)'}
-        washColor={primary ? 'rgba(234,64,135,0.94)' : 'rgba(255,255,255,0.22)'}
-        intensity={72}
-      >
-        {primary ? (
-          <View pointerEvents="none" style={styles.planningActionPrimaryFill} />
-        ) : null}
-        {content}
-      </LiquidGlassPressable>
+      {Platform.OS === 'android' ? (
+        <Pressable
+          cssInterop={false}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          onPress={onPress}
+          style={({ pressed }) => [
+            styles.planningActionCircle,
+            styles.planningAndroidAction,
+            primary && styles.planningAndroidActionPrimary,
+            pressed && styles.glassFallbackPressed,
+          ]}
+        >
+          {content}
+        </Pressable>
+      ) : (
+        <LiquidGlassPressable
+          accessibilityLabel={label}
+          controlStyle={styles.planningActionCircle}
+          onPress={onPress}
+          tintColor={primary ? '#EA4087' : 'rgba(255,255,255,0.62)'}
+          washColor={primary ? 'rgba(234,64,135,0.94)' : 'rgba(255,255,255,0.22)'}
+          intensity={72}
+        >
+          {primary ? (
+            <View pointerEvents="none" style={styles.planningActionPrimaryFill} />
+          ) : null}
+          {content}
+        </LiquidGlassPressable>
+      )}
       <ProjectText
         accessible={false}
         importantForAccessibility="no"
@@ -2652,6 +2673,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#EA4087',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.82)',
+  },
+  planningAndroidAction: {
+    backgroundColor: '#FFF9FC',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  planningAndroidActionPrimary: {
+    backgroundColor: '#EA4087',
   },
   planningActionIcon: {
     zIndex: 1,

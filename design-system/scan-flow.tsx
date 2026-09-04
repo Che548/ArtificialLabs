@@ -373,6 +373,7 @@ function RoundGlassButton({
 
   return (
     <Pressable
+      cssInterop={false}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
@@ -645,6 +646,8 @@ function BriefingScreen({
   onContinue: () => void;
 }) {
   const [activeStep, setActiveStep] = useState(0);
+  const activeStepRef = useRef(0);
+  const continuingRef = useRef(false);
   const [stepTransitioning, setStepTransitioning] = useState(false);
   const stepProgress = useRef(new Animated.Value(1)).current;
   const stepDirection = useRef(1);
@@ -652,6 +655,22 @@ function BriefingScreen({
   const isLastStep = activeStep === briefingInstructions.length - 1;
 
   const moveToStep = (nextStep: number, direction: 1 | -1) => {
+    if (Platform.OS === 'android') {
+      // A decorative transition must not swallow the next completed tap.
+      // Keep the index synchronous even if taps arrive before React renders.
+      activeStepRef.current = nextStep;
+      stepDirection.current = direction;
+      stepProgress.stopAnimation();
+      setActiveStep(nextStep);
+      stepProgress.setValue(0);
+      Animated.timing(stepProgress, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
     if (stepTransitioning) return;
 
     stepDirection.current = direction;
@@ -667,6 +686,7 @@ function BriefingScreen({
         return;
       }
 
+      activeStepRef.current = nextStep;
       setActiveStep(nextStep);
       stepProgress.setValue(0);
       Animated.timing(stepProgress, {
@@ -679,16 +699,18 @@ function BriefingScreen({
   };
 
   const goBack = () => {
-    if (!isFirstStep) moveToStep(activeStep - 1, -1);
+    if (continuingRef.current) return;
+    if (activeStepRef.current > 0) moveToStep(activeStepRef.current - 1, -1);
   };
 
   const goNext = () => {
-    if (stepTransitioning) return;
-    if (isLastStep) {
+    if (stepTransitioning || continuingRef.current) return;
+    if (activeStepRef.current === briefingInstructions.length - 1) {
+      continuingRef.current = true;
       onContinue();
       return;
     }
-    moveToStep(activeStep + 1, 1);
+    moveToStep(activeStepRef.current + 1, 1);
   };
 
   return (
@@ -752,6 +774,7 @@ function BriefingScreen({
             ]}
           >
             <Pressable
+              cssInterop={false}
               accessibilityRole="button"
               accessibilityLabel="Назад"
               accessibilityState={{ disabled: isFirstStep }}
@@ -775,6 +798,7 @@ function BriefingScreen({
             ]}
           >
             <Pressable
+              cssInterop={false}
               accessibilityRole="button"
               accessibilityLabel={isLastStep ? 'Продолжить' : 'Далее'}
               accessibilityState={{ disabled: stepTransitioning }}
@@ -1015,6 +1039,7 @@ function QrScannerScreen({
         </View>
 
         <Pressable
+          cssInterop={false}
           accessibilityRole="button"
           accessibilityLabel="Ввести код вручную"
           accessibilityState={{ disabled: detected }}
@@ -2207,6 +2232,7 @@ export function ScanResultScreen({
         />
         {canConfirm || needsRetake ? (
           <Pressable
+            cssInterop={false}
             accessibilityRole="button"
             accessibilityLabel={
               canConfirm
@@ -2313,6 +2339,7 @@ export function ScanCorrectionScreen({
 
           return (
             <Pressable
+              cssInterop={false}
               key={option}
               accessibilityRole="radio"
               accessibilityState={{ checked: active }}
@@ -2349,6 +2376,7 @@ export function ScanCorrectionScreen({
         />
         {!fromHistory ? (
           <Pressable
+            cssInterop={false}
             accessibilityRole="button"
             accessibilityLabel="Переснять тест"
             onPress={onRetake}

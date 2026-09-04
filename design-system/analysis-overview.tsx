@@ -108,6 +108,7 @@ export function AnalysisKnowledgeCarousel({
             renderItem={({ item }) => (
               <View style={{ width: cardWidth }}>
                 <Pressable
+                  cssInterop={false}
                   accessibilityRole="button"
                   accessibilityLabel={item.title}
                   onPress={() => onPress?.(item)}

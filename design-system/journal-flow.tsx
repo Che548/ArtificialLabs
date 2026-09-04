@@ -1025,6 +1025,7 @@ function JournalOptionChip({
 
   return (
     <Pressable
+      cssInterop={false}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       hitSlop={3}
@@ -1126,6 +1127,7 @@ function PetalWheel({
               ]}
             >
               <Pressable
+                cssInterop={false}
                 accessibilityRole="button"
                 accessibilityLabel={config.label}
                 accessibilityState={{ selected: active }}
@@ -1665,6 +1667,7 @@ export function JournalFlowModal({
                     >
                       {selectedOptions.map((option) => (
                         <Pressable
+                          cssInterop={false}
                           key={option}
                           accessibilityRole="button"
                           accessibilityLabel={`Убрать ${option}`}
@@ -1942,6 +1945,7 @@ export function JournalFlowModal({
                       ]}
                     >
                       <Pressable
+                        cssInterop={false}
                         accessibilityRole="button"
                         accessibilityLabel="Назад"
                         onPress={goBack}
@@ -1969,6 +1973,7 @@ export function JournalFlowModal({
                       ]}
                     >
                       <Pressable
+                        cssInterop={false}
                         accessibilityRole="button"
                         accessibilityLabel={isFinalStep ? 'Сохранить' : 'Далее'}
                         accessibilityState={{

@@ -949,6 +949,7 @@ export function GlassControl({
         ]}
       >
         <Pressable
+          cssInterop={false}
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
           onPress={onPress}
@@ -973,6 +974,7 @@ export function GlassControl({
         washColor={washColor}
       />
       <Pressable
+        cssInterop={false}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         onPress={onPress}
@@ -1329,6 +1331,7 @@ export function ScanActionGroup({
 
         return (
           <Pressable
+            cssInterop={false}
             key={action.label}
             accessibilityRole="button"
             accessibilityLabel={action.label}

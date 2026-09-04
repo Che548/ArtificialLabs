@@ -102,6 +102,7 @@ function AuthChannelPicker({
         const active = channel === item;
         return (
           <Pressable
+            cssInterop={false}
             key={item}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
@@ -180,6 +181,7 @@ function ConsentControl({
 }) {
   return (
     <Pressable
+      cssInterop={false}
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
       accessibilityLabel="Согласие на обработку персональных данных и принятие политики конфиденциальности"
@@ -222,6 +224,7 @@ function AuthPrimaryButton({
 }) {
   return (
     <Pressable
+      cssInterop={false}
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
@@ -528,6 +531,7 @@ export function AuthFlowModal({ visible, onClose }: AuthFlowModalProps) {
                       autoComplete="password"
                     />
                     <Pressable
+                      cssInterop={false}
                       accessibilityRole="button"
                       onPress={() => moveTo('recovery')}
                       style={({ pressed }) => [
@@ -650,6 +654,7 @@ export function AuthFlowModal({ visible, onClose }: AuthFlowModalProps) {
                       onPress={() => moveTo('newPassword')}
                     />
                     <Pressable
+                      cssInterop={false}
                       accessibilityRole="button"
                       onPress={() => moveTo('recovery')}
                       style={({ pressed }) => [
@@ -704,6 +709,7 @@ export function AuthFlowModal({ visible, onClose }: AuthFlowModalProps) {
                       onPress={submitCode}
                     />
                     <Pressable
+                      cssInterop={false}
                       accessibilityRole="button"
                       onPress={() => setCode('')}
                       style={({ pressed }) => [
