@@ -11,6 +11,7 @@ fi
 
 ios_device="${E2E_IOS_DEVICE:-730B98A0-FC3B-45CA-AF3A-9896CEEC16AA}"
 android_device="${E2E_ANDROID_DEVICE:-emulator-5554}"
+android_package="${E2E_ANDROID_PACKAGE:-engineering.brainwaves.sfera}"
 android_avd="${E2E_ANDROID_AVD:-ArtificialLabs_API_36}"
 android_memory_mb="${E2E_ANDROID_MEMORY_MB:-3072}"
 sequential_simulators="${E2E_SEQUENTIAL_SIMULATORS:-0}"
@@ -38,8 +39,8 @@ ios_import_fixture_path=""
 android_import_fixture_uri=""
 import_fixture_source=""
 if [[ -n "$scan_fixture_source" ]]; then
-  android_scan_fixture_uri="file:///data/user/0/com.anonymous.privateexpo/files/e2e/scan.jpg"
-  android_import_fixture_uri="file:///data/user/0/com.anonymous.privateexpo/files/e2e/import.json"
+  android_scan_fixture_uri="file:///data/user/0/${android_package}/files/e2e/scan.jpg"
+  android_import_fixture_uri="file:///data/user/0/${android_package}/files/e2e/import.json"
 fi
 
 mkdir -p "$E2E_REPORT_DIR"
@@ -121,7 +122,7 @@ cleanup() {
     unlink "$ios_import_fixture_path"
   fi
   if [[ -n "$android_scan_fixture_uri" ]]; then
-    adb -s "$android_device" shell run-as com.anonymous.privateexpo \
+    adb -s "$android_device" shell run-as "$android_package" \
       rm -f files/e2e/scan.jpg files/e2e/import.json 2>/dev/null || true
   fi
   if [[ -n "$android_launch_pid" ]]; then
@@ -324,18 +325,18 @@ prepare_android_client() {
   adb -s "$android_device" reverse "tcp:${metro_port}" "tcp:${metro_port}"
   adb -s "$android_device" reverse "tcp:${convex_proxy_port}" "tcp:${convex_proxy_port}"
   adb -s "$android_device" reverse "tcp:${convex_site_proxy_port}" "tcp:${convex_site_proxy_port}"
-  adb -s "$android_device" shell pm path com.anonymous.privateexpo >/dev/null
+  adb -s "$android_device" shell pm path "$android_package" >/dev/null
   if [[ "$clear_data" -eq 1 ]]; then
-    adb -s "$android_device" shell pm clear com.anonymous.privateexpo >/dev/null
+    adb -s "$android_device" shell pm clear "$android_package" >/dev/null
   fi
   if [[ -n "$scan_fixture_source" ]]; then
     adb -s "$android_device" push "$scan_fixture_source" /data/local/tmp/artificiallabs-e2e-scan.jpg >/dev/null
-    adb -s "$android_device" shell run-as com.anonymous.privateexpo mkdir -p files/e2e
-    adb -s "$android_device" shell run-as com.anonymous.privateexpo cp \
+    adb -s "$android_device" shell run-as "$android_package" mkdir -p files/e2e
+    adb -s "$android_device" shell run-as "$android_package" cp \
       /data/local/tmp/artificiallabs-e2e-scan.jpg files/e2e/scan.jpg
     adb -s "$android_device" shell rm -f /data/local/tmp/artificiallabs-e2e-scan.jpg
     adb -s "$android_device" push "$import_fixture_source" /data/local/tmp/artificiallabs-e2e-import.json >/dev/null
-    adb -s "$android_device" shell run-as com.anonymous.privateexpo cp \
+    adb -s "$android_device" shell run-as "$android_package" cp \
       /data/local/tmp/artificiallabs-e2e-import.json files/e2e/import.json
     adb -s "$android_device" shell rm -f /data/local/tmp/artificiallabs-e2e-import.json
   fi
@@ -352,7 +353,7 @@ if [[ -z "$scan_fixture_source" ]]; then
 fi
 xcrun simctl openurl "$ios_device" "$ios_dev_url"
 if [[ "$android_ready" -eq 1 ]]; then
-  adb -s "$android_device" shell am start -a android.intent.action.VIEW -d "$android_dev_url" com.anonymous.privateexpo \
+  adb -s "$android_device" shell am start -a android.intent.action.VIEW -d "$android_dev_url" "$android_package" \
     >"$E2E_REPORT_DIR/android-launch.log" 2>&1 &
   android_launch_pid="$!"
 fi
@@ -395,7 +396,7 @@ if [[ "$sequential_simulators" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
   xcrun simctl shutdown "$ios_device" >/dev/null 2>&1 || true
   if prepare_android_client 1; then
     adb -s "$android_device" shell am start -W -a android.intent.action.VIEW \
-      -d "$android_dev_url" com.anonymous.privateexpo \
+      -d "$android_dev_url" "$android_package" \
       >"$E2E_REPORT_DIR/android-launch-sequential.log" 2>&1 || true
     sleep 15
   fi
@@ -403,26 +404,26 @@ fi
 
 if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
   if [[ -n "$scan_fixture_source" ]]; then
-    adb -s "$android_device" shell run-as com.anonymous.privateexpo mkdir -p files/e2e
+    adb -s "$android_device" shell run-as "$android_package" mkdir -p files/e2e
     adb -s "$android_device" push "$scan_fixture_source" \
       /data/local/tmp/artificiallabs-e2e-scan.jpg >/dev/null
-    adb -s "$android_device" shell run-as com.anonymous.privateexpo cp \
+    adb -s "$android_device" shell run-as "$android_package" cp \
       /data/local/tmp/artificiallabs-e2e-scan.jpg files/e2e/scan.jpg
     adb -s "$android_device" shell rm -f /data/local/tmp/artificiallabs-e2e-scan.jpg
     adb -s "$android_device" push "$import_fixture_source" \
       /data/local/tmp/artificiallabs-e2e-import.json >/dev/null
-    adb -s "$android_device" shell run-as com.anonymous.privateexpo cp \
+    adb -s "$android_device" shell run-as "$android_package" cp \
       /data/local/tmp/artificiallabs-e2e-import.json files/e2e/import.json
     adb -s "$android_device" shell rm -f /data/local/tmp/artificiallabs-e2e-import.json
   fi
   adb -s "$android_device" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
   adb -s "$android_device" shell wm dismiss-keyguard >/dev/null 2>&1 || true
-  adb -s "$android_device" shell am force-stop com.anonymous.privateexpo
+  adb -s "$android_device" shell am force-stop "$android_package"
   adb -s "$android_device" shell am start -W -a android.intent.action.VIEW \
-    -d "$android_dev_url" com.anonymous.privateexpo \
+    -d "$android_dev_url" "$android_package" \
     >"$E2E_REPORT_DIR/android-launch-secondary.log" 2>&1
   sleep 5
-  if ! maestro --device "$android_device" test .maestro/android-secondary.yml \
+  if ! MAESTRO_APP_ID="$android_package" maestro --device "$android_device" test .maestro/android-secondary.yml \
     --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
     if android_maestro_blocked; then
       record_environment_blocked "Android Maestro driver failed"
@@ -441,7 +442,7 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
   else
     if [[ "$android_device" == emulator-* ]]; then
       stop_convex_proxy
-      if ! maestro --device "$android_device" test .maestro/offline-mode.yml \
+      if ! MAESTRO_APP_ID="$android_package" maestro --device "$android_device" test .maestro/offline-mode.yml \
         --env E2E_OFFLINE_SCREENSHOT="android-offline-local-save"; then
         record_failure "Android offline local-first flow"
       else
@@ -451,7 +452,7 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
       if ! start_convex_proxy; then
         record_environment_blocked "Android Convex proxy restart"
         android_ready=0
-      elif ! maestro --device "$android_device" test .maestro/reconnect-mode.yml \
+      elif ! MAESTRO_APP_ID="$android_package" maestro --device "$android_device" test .maestro/reconnect-mode.yml \
         --env E2E_RECONNECTED_SCREENSHOT="android-reconnected-sync"; then
         record_failure "Android reconnect and retry flow"
       else
@@ -459,7 +460,7 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
           "$E2E_REPORT_DIR/android-reconnected-sync.png"
       fi
     fi
-    if ! maestro --device "$android_device" test .maestro/product-surface.yml \
+    if ! MAESTRO_APP_ID="$android_package" maestro --device "$android_device" test .maestro/product-surface.yml \
       --env E2E_PRODUCT_SCREENSHOT="android-product-surface"; then
       if android_maestro_blocked; then
         record_environment_blocked "Android Maestro driver during product flow"
@@ -471,7 +472,7 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
       copy_maestro_screenshot product-surface android-product-surface \
         "$E2E_REPORT_DIR/android-product-surface.png"
     fi
-    if [[ "$android_ready" -eq 1 && -n "$scan_fixture_source" ]] && ! maestro --device "$android_device" test .maestro/scan-fixture.yml \
+    if [[ "$android_ready" -eq 1 && -n "$scan_fixture_source" ]] && ! MAESTRO_APP_ID="$android_package" maestro --device "$android_device" test .maestro/scan-fixture.yml \
       --env E2E_SCAN_RESULT_SCREENSHOT="android-scan-result" \
       --env E2E_SCAN_SAVED_SCREENSHOT="android-scan-saved"; then
       if android_maestro_blocked; then
@@ -530,14 +531,14 @@ if [[ "$sequential_simulators" -eq 1 && "$android_ready" -eq 1 && "$account_dele
   xcrun simctl shutdown "$ios_device" >/dev/null 2>&1 || true
   if prepare_android_client 0; then
     adb -s "$android_device" shell am start -W -a android.intent.action.VIEW \
-      -d "$android_dev_url" com.anonymous.privateexpo \
+      -d "$android_dev_url" "$android_package" \
       >"$E2E_REPORT_DIR/android-launch-restore.log" 2>&1 || true
     sleep 10
   fi
 fi
 
 if [[ "$android_ready" -eq 1 && "$account_deletion_ready" -eq 1 ]]; then
-  if ! maestro --device "$android_device" test .maestro/android-restore.yml \
+  if ! MAESTRO_APP_ID="$android_package" maestro --device "$android_device" test .maestro/android-restore.yml \
     --env E2E_EMAIL="$E2E_EMAIL" --env E2E_PASSWORD="$E2E_PASSWORD"; then
     if node --import tsx tests/e2e/android-preflight.ts "$android_device"; then
       record_failure "Android account restore flow"

@@ -1,4 +1,4 @@
-appId: com.anonymous.privateexpo
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
 ---
 # Keep all iOS application flows in one XCUITest session. On iOS 26 the
 # Maestro localhost driver can become unavailable between separate CLI runs.

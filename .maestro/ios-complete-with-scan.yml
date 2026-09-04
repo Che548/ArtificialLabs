@@ -1,4 +1,4 @@
-appId: com.anonymous.privateexpo
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
 ---
 # Scan fixture variant of the single-session iOS 26 flow.
 - runFlow: open-dev-client.yml

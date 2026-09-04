@@ -1,4 +1,4 @@
-appId: com.anonymous.privateexpo
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
 ---
 - launchApp
 - tapOn:
