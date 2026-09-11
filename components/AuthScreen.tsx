@@ -1,4 +1,6 @@
 import { fontStyle } from '../lib/font-style';
+import { getRandomBytes } from 'expo-crypto';
+import { LoginEmailVerification, parseLoginEmailChallenge, type LoginEmailChallenge } from './LoginEmailVerification';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useAction } from 'convex/react';
 import { StatusBar } from 'expo-status-bar';
@@ -203,6 +205,8 @@ export function AuthScreen({
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const [emailChallenge, setEmailChallenge] = useState<LoginEmailChallenge>();
+  const loginLock = useRef(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState('');
   const [recoveryStep, setRecoveryStep] = useState<'identifier' | 'code'>(
@@ -351,11 +355,15 @@ export function AuthScreen({
         data.append('flow', 'signIn');
       }
       data.append('password', password);
+      const emailTicketToken = Array.from(getRandomBytes(32), byte => byte.toString(16).padStart(2, '0')).join('');
+      data.append('emailTicketToken', emailTicketToken);
       try {
         await signIn(channel === 'phone' ? 'phone-password' : 'password', data);
         onAuthenticated?.();
-      } catch {
+      } catch (cause) {
         cancelRecovery();
+        const pending = parseLoginEmailChallenge(cause, emailTicketToken);
+        if (pending) { setEmailChallenge(pending); setPassword(''); setPasswordConfirmation(''); setFlow('signIn'); return; }
         setError('Пароль изменён. Войдите с новым паролем.');
       }
     } catch (cause) {
@@ -367,7 +375,7 @@ export function AuthScreen({
   };
 
   const submit = async () => {
-    if (!canSubmit || submitting) {
+    if (!canSubmit || submitting || loginLock.current) {
       return;
     }
 
@@ -400,13 +408,23 @@ export function AuthScreen({
       data.append('flow', flow);
     }
     data.append('password', password);
+    const emailTicketToken = Array.from(getRandomBytes(32), byte => byte.toString(16).padStart(2, '0')).join('');
+    data.append('emailTicketToken', emailTicketToken);
+    loginLock.current = true;
     setSubmitting(true);
 
     try {
       await signIn(channel === 'phone' ? 'phone-password' : 'password', data);
       onAuthenticated?.();
     } catch (cause) {
-      console.error('Authentication failed', cause);
+      const pending = parseLoginEmailChallenge(cause, emailTicketToken);
+      if (pending) {
+        setEmailChallenge(pending);
+        setPassword('');
+        setPasswordConfirmation('');
+        setFlow('signIn');
+        return;
+      }
       const issue = classifyServiceIssue(cause, isOffline);
       setError(
         issue.retryable
@@ -416,6 +434,7 @@ export function AuthScreen({
             : 'Не удалось создать аккаунт. Возможно, email уже используется.',
       );
     } finally {
+      loginLock.current = false;
       setSubmitting(false);
     }
   };
@@ -439,6 +458,9 @@ export function AuthScreen({
 
   return (
     <View style={styles.root}>
+      {emailChallenge && <LoginEmailVerification initial={emailChallenge}
+        onClose={() => { setEmailChallenge(undefined); setPassword(''); setPasswordConfirmation(''); }}
+        onDone={() => { setEmailChallenge(undefined); onAuthenticated?.(); }} />}
       {preview ? null : <StatusBar hidden />}
       <View
         style={[

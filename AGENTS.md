@@ -131,8 +131,13 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
   Registration remains email-only, while confirmed phones can be used with the
   same password for login. `RESEND_API_KEY`, `RESEND_FROM` and
   `PASSWORD_RECOVERY_HASH_SECRET` are Convex-only secrets and must never be
-  exposed to clients, Git or build artifacts. Email verification and OCR remain
-  deferred milestones. The admin console manages only catalogs, lots,
+  exposed to clients, Git or build artifacts. Mandatory email verification is
+  gated by the server-only `EMAIL_VERIFICATION_REQUIRED=1`; keep it off until
+  compatible native clients and exact store review accounts have been checked.
+  Review login exemptions are internal, audited, and bound to userId plus the
+  current email; contact changes and recovery never inherit an exemption.
+  Confirmed phone changes require the password and SMS on the new number.
+  OCR remains deferred. The admin console manages only catalogs, lots,
   calibrations, published content, privacy-safe aggregates, monitoring and
   admin access and the restricted read-only account directory described above.
 

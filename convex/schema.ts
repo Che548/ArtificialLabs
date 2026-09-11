@@ -84,6 +84,22 @@ const agentRuleCondition = v.object({
 });
 
 export default defineSchema({
+  contactVerificationChallenges: defineTable({
+    kind: v.union(v.literal('login-email'), v.literal('phone-change')),
+    userId: v.id('users'), accountId: v.id('authAccounts'),
+    sessionId: v.optional(v.id('authSessions')),
+    target: v.string(), previous: v.optional(v.string()), credentialHash: v.string(),
+    tokenHash: v.string(), codeHash: v.string(), generation: v.string(),
+    expiresAt: v.number(), retryAt: v.number(), failedAttempts: v.number(),
+    authorizationExpiresAt: v.optional(v.number()),
+    status: v.union(v.literal('sending'), v.literal('pending'), v.literal('failed'), v.literal('consumed')),
+    purgeAt: v.number(),
+  }).index('by_user', ['userId']).index('by_expiry', ['purgeAt']),
+  contactVerificationAttempts: defineTable({ bucket: v.string(), at: v.number(), expiresAt: v.number() })
+    .index('by_bucket_time', ['bucket', 'at']).index('by_expiry', ['expiresAt']),
+  reviewLoginExceptions: defineTable({ userId: v.id('users'), email: v.string(), store: v.union(v.literal('apple'), v.literal('google')), active: v.boolean(), updatedAt: v.number() })
+    .index('by_user', ['userId']).index('by_store', ['store']),
+  reviewLoginAudit: defineTable({ userId: v.id('users'), operation: v.union(v.literal('grant'), v.literal('revoke')), store: v.union(v.literal('apple'), v.literal('google')), reason: v.string(), at: v.number() }),
   ...authTables,
   emailChangeChallenges: defineTable({
     userId: v.id('users'), sessionId: v.id('authSessions'), accountId: v.id('authAccounts'),

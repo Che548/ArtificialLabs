@@ -85,7 +85,7 @@
     "ota:publish:preview": "node scripts/ota-release.mjs publish --channel=preview",
     "typecheck": "tsc --noEmit",
     "typecheck:convex": "tsc --noEmit -p convex/tsconfig.json",
-    "test:contacts": "vitest run convex/emailChange.test.ts convex/passwordRecovery.test.ts",
+    "test:contacts": "vitest run convex/contactVerification.test.ts convex/emailChange.test.ts convex/passwordRecovery.test.ts",
     "test:contacts:ui": "playwright test --config tests/contact-ui/playwright.config.ts",
     "check:expo": "expo install --check",
     "doctor": "npx --yes expo-doctor@latest",

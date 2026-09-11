@@ -10,6 +10,7 @@ import {
 import type { MutationCtx, QueryCtx, ActionCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { requireActiveAccount } from './lib/access';
+import { revokeReviewLoginExceptions } from './reviewAccess';
 import { generateSixDigitCode, hmacSha256, normalizeClientIp } from './lib/sms';
 import {
   includeAcceptedEmailInQuota,
@@ -233,7 +234,7 @@ export const delivery = internalMutation({
       await ctx.db.patch(row._id, { status: args.ok ? 'pending' : 'failed' });
   },
 });
-async function sendEmail(
+export async function sendEmail(
   ctx: ActionCtx,
   to: string,
   text: string,
@@ -421,6 +422,7 @@ export const commit = internalMutation({
       email: row.newEmail,
       emailVerificationTime: Date.now(),
     });
+    await revokeReviewLoginExceptions(ctx, userId, 'email_changed');
     await ctx.db.patch(account._id, {
       providerAccountId: row.newEmail,
       emailVerified: row.newEmail,

@@ -1713,6 +1713,7 @@ function renderProfileSectionDirect({
             email={viewerEmail}
             phone={viewerPhone}
             disabled={readOnly}
+            onPhoneChanged={async phone => { await saveProfile({ phone }); }}
             renderPhone={(onDone) => (
               <PhoneVerificationRow
                 disabled={readOnly}
