@@ -208,6 +208,9 @@ export async function requireEmailForLogin(
     userId,
   });
   if (!state.required) return;
+  // Temporary rollout compatibility, NOT a trusted client identity. A caller
+  // can omit this parameter too; disable the flag to enforce verification for all.
+  if (token === undefined && process.env.EMAIL_VERIFICATION_ALLOW_LEGACY === '1') return;
   if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token))
     return contactError('CLIENT_UPDATE_REQUIRED');
   const result = await dispatch(ctx, {

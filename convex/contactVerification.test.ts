@@ -13,6 +13,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.stubEnv('PASSWORD_RECOVERY_HASH_SECRET', 'test-only-contact-secret');
   vi.stubEnv('EMAIL_VERIFICATION_REQUIRED', '1');
+  vi.stubEnv('EMAIL_VERIFICATION_ALLOW_LEGACY', '0');
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -178,6 +179,20 @@ test('mandatory verification is off by default and applies to unverified legacy 
       })
     ).required,
   ).toBe(false);
+});
+test('legacy compatibility accepts only absent capability and can be disabled independently', async () => {
+  const s = await setup();
+  await expect(requireEmailForLogin(s.actionCtx, s.userId, undefined)).rejects.toThrow('CLIENT_UPDATE_REQUIRED');
+  vi.stubEnv('EMAIL_VERIFICATION_ALLOW_LEGACY', '1');
+  await expect(requireEmailForLogin(s.actionCtx, s.userId, undefined)).resolves.toBeUndefined();
+  for (const invalid of ['', null, 'invalid']) {
+    await expect(requireEmailForLogin(s.actionCtx, s.userId, invalid)).rejects.toThrow('CLIENT_UPDATE_REQUIRED');
+  }
+  // Valid capability still goes through dispatch, even in compatibility mode.
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 503 })));
+  await expect(requireEmailForLogin(s.actionCtx, s.userId, s.token)).rejects.toThrow('EMAIL_VERIFICATION_REQUIRED');
+  vi.stubEnv('EMAIL_VERIFICATION_ALLOW_LEGACY', '0');
+  await expect(requireEmailForLogin(s.actionCtx, s.userId, undefined)).rejects.toThrow('CLIENT_UPDATE_REQUIRED');
 });
 test('real password providers gate registration and both login identifiers; review exemption still requires password', async () => {
   const s = await setup();
