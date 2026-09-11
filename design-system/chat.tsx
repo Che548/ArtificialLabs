@@ -1,3 +1,5 @@
+import { overlayRadii } from './tokens';
+import { EmptyStateIcon, emptyStateColor } from '../components/EmptyStateIcon';
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -40,6 +42,7 @@ import SuggestionClinicIcon from '../assets/figma/chat/suggestion-clinic.svg';
 import SuggestionNutritionIcon from '../assets/figma/chat/suggestion-nutrition.svg';
 import VoiceIcon from '../assets/figma/chat/voice.svg';
 import { AppHeader } from './app-header';
+import { useAssistantUnread } from '../lib/assistant-inbox';
 import { AppText, SegmentedSwitcher } from './components';
 import { isAllowedChatMarkdownLink } from '../lib/safe-markdown';
 import { FallbackGlassBackdrop } from './glass-fallback';
@@ -188,10 +191,14 @@ export function ChatModeSwitcher({
   value: ChatHeaderMode;
   onChange?: (value: ChatHeaderMode) => void;
 }) {
+  const unread = useAssistantUnread();
   return (
     <SegmentedSwitcher
       accessibilityLabel="Режим чата"
-      options={chatHeaderModes}
+      options={chatHeaderModes.map((mode) => ({
+        ...mode,
+        unread: mode.value === 'assistant' && unread,
+      }))}
       value={value}
       onChange={(nextValue) => onChange?.(nextValue)}
     />
@@ -200,6 +207,7 @@ export function ChatModeSwitcher({
 
 export function ChatHeader({
   activeMode = 'chat',
+  hideHistory = false,
   conversation = false,
   conversationIconProgress,
   onModeChange,
@@ -208,6 +216,7 @@ export function ChatHeader({
   onCalendar,
 }: {
   activeMode?: ChatHeaderMode;
+  hideHistory?: boolean;
   conversation?: boolean;
   conversationIconProgress?: Animated.Value;
   onModeChange?: (value: ChatHeaderMode) => void;
@@ -222,6 +231,7 @@ export function ChatHeader({
       }
       centerStyle={styles.chatModeHeaderSlot}
       hideRightControl={!conversation}
+      hideLeftControl={hideHistory}
       historyAccessibilityLabel="История чатов"
       onHistory={onHistory}
       onCalendar={onCalendar}
@@ -381,7 +391,7 @@ function ChatPopupMenu({
     >
       <ChatComposerGlass
         forceFallback={shadowless}
-        radius={40}
+        radius={overlayRadii.chatMenu}
         tintColor="rgba(255,255,255,0.42)"
         style={[
           styles.attachmentMenuGlass,
@@ -644,6 +654,7 @@ export function ChatHistoryPanel({
 
       {items.length === 0 ? (
         <View style={styles.historyEmptyState}>
+          <EmptyStateIcon kind="chat" />
           <AppText
             color={colors.text.secondary}
             role="body"
@@ -1064,10 +1075,8 @@ export function ChatComposer({
           }
           onPress={canSubmit ? onSubmit : onVoice}
           disabled={disabled}
-          style={[
-            styles.actionButton,
-            disabled && styles.composerActionDisabled,
-          ]}
+          accessibilityState={{ disabled }}
+          style={styles.actionButton}
         >
           <ChatComposerGlass
             tintColor="rgba(255,255,255,0.34)"
@@ -2351,7 +2360,7 @@ const styles = StyleSheet.create({
   attachmentMenuGlass: {
     width: 252,
     height: 222,
-    borderRadius: 40,
+    borderRadius: overlayRadii.chatMenu,
     padding: 12,
     borderWidth: 1,
     borderColor: 'rgba(198,198,204,0.52)',
@@ -2363,7 +2372,7 @@ const styles = StyleSheet.create({
     width: 228,
     height: 198,
     overflow: 'hidden',
-    borderRadius: 28,
+    borderRadius: overlayRadii.chatMenu - 12,
   },
   attachmentMenuRowSlot: {
     width: 228,
@@ -2371,7 +2380,7 @@ const styles = StyleSheet.create({
   },
   attachmentMenuItem: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 28,
+    borderRadius: overlayRadii.chatMenu - 12,
   },
   attachmentMenuItemPressed: {
     backgroundColor: 'rgba(33,33,35,0.06)',
@@ -2708,9 +2717,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  composerActionDisabled: {
-    opacity: 0.46,
-  },
   messageFallbackIcon: {
     color: colors.text.primary,
     fontFamily: fonts.sfRegular,
@@ -2746,6 +2752,7 @@ const styles = StyleSheet.create({
     paddingBottom: 96,
   },
   historyEmptyText: {
+    color: emptyStateColor,
     fontSize: 15.5,
     lineHeight: 20,
     letterSpacing: -0.22,

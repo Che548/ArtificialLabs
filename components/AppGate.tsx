@@ -1,7 +1,6 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import type { PropsWithChildren } from 'react';
 import { useState } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useHealthStore } from '../lib/health-store';
 import { OnboardingScreen } from './OnboardingScreen';
@@ -13,7 +12,6 @@ export function AppGate({
   const { accountDeletion, ready, profile, restoreAccount, serviceIssue } =
     useHealthStore();
   const [restoring, setRestoring] = useState(false);
-  const insets = useSafeAreaInsets();
   if (!ready) {
     return (
       <View className="flex-1 items-center justify-center bg-surface-canvas">
@@ -72,28 +70,5 @@ export function AppGate({
   }
   if (!profile?.onboardingCompleted && !allowEmptyProfile)
     return <OnboardingScreen />;
-  return (
-    <View className="flex-1">
-      {children}
-      {serviceIssue && serviceIssue.kind !== 'offline' ? (
-        <View
-          accessibilityLiveRegion="polite"
-          pointerEvents="none"
-          style={{ top: Math.max(insets.top, 8) + 6 }}
-          className="absolute left-3 right-3 z-50 rounded-[18px] border border-[#E9C785] bg-[#FFF7E0] px-4 py-3 shadow-card"
-        >
-          <Text className="font-sf-semibold text-[13px] leading-4 text-[#6D470B]">
-            {serviceIssue.kind === 'server'
-              ? 'Сервер временно недоступен'
-              : serviceIssue.kind === 'auth'
-                ? 'Нужно войти снова'
-                : 'Не удалось выполнить запрос'}
-          </Text>
-          <Text className="mt-0.5 font-sf text-[12px] leading-4 text-[#735C38]">
-            {serviceIssue.message}
-          </Text>
-        </View>
-      ) : null}
-    </View>
-  );
+  return <View className="flex-1">{children}</View>;
 }

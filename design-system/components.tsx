@@ -1,3 +1,4 @@
+import { EmptyStateIcon, emptyStateColor } from '../components/EmptyStateIcon';
 import type { BlurTint } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
@@ -90,6 +91,7 @@ export type SegmentedSwitcherOption<T extends string> = {
   value: T;
   label: string;
   badge?: string;
+  unread?: boolean;
   disabled?: boolean;
 };
 
@@ -152,6 +154,15 @@ export function SegmentedSwitcher<T extends string>({
       onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
       style={[styles.segmentedSwitcher, style]}
     >
+      <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+        <LiquidGlassSurface
+          radius={22}
+          variant="clear"
+          tintColor="rgba(115,115,122,0.12)"
+          intensity={42}
+          washColor="rgba(115,115,122,0.07)"
+        />
+      </View>
       {segmentWidth > 0 ? (
         <Animated.View
           pointerEvents="none"
@@ -166,7 +177,15 @@ export function SegmentedSwitcher<T extends string>({
               ],
             },
           ]}
-        />
+        >
+          <LiquidGlassSurface
+            radius={19}
+            variant="regular"
+            tintColor="rgba(255,255,255,0.24)"
+            intensity={70}
+            washColor="rgba(255,255,255,0.30)"
+          />
+        </Animated.View>
       ) : null}
 
       {options.map((option) => {
@@ -194,6 +213,9 @@ export function SegmentedSwitcher<T extends string>({
               >
                 {option.label}
               </AppText>
+              {option.unread ? (
+                <View style={styles.segmentedSwitcherUnread} />
+              ) : null}
               {option.badge ? (
                 <AppText role="caption" style={styles.segmentedSwitcherBadge}>
                   {option.badge}
@@ -202,7 +224,11 @@ export function SegmentedSwitcher<T extends string>({
             </View>
             <Pressable
               accessibilityLabel={
-                option.badge ? `${option.label}, ${option.badge}` : option.label
+                option.unread
+                  ? `${option.label}, новое сообщение`
+                  : option.badge
+                    ? `${option.label}, ${option.badge}`
+                    : option.label
               }
               accessibilityRole="tab"
               accessibilityState={{ selected, disabled: option.disabled }}
@@ -1124,6 +1150,7 @@ type JournalAssessmentProps = {
   actionLabel?: string;
   actionIcon?: ReactNode;
   actionVariant?: MetricActionButtonVariant;
+  actionColor?: string;
   onPress?: PressableProps['onPress'];
 };
 
@@ -1141,6 +1168,7 @@ export type MetricActionButtonVariant =
 
 type MetricActionButtonProps = {
   label: string;
+  accentColor?: string;
   icon?: ReactNode;
   variant?: MetricActionButtonVariant;
   onPress?: PressableProps['onPress'];
@@ -1148,6 +1176,7 @@ type MetricActionButtonProps = {
 
 export function MetricActionButton({
   label,
+  accentColor = colors.brand.primary,
   icon,
   variant = 'solid',
   onPress,
@@ -1158,7 +1187,7 @@ export function MetricActionButton({
     variant === 'split' ||
     variant === 'iconLeading' ||
     variant === 'completed';
-  const labelColor = usesLightText ? colors.text.inverse : colors.brand.primary;
+  const labelColor = usesLightText ? colors.text.inverse : accentColor;
   const canUseProvidedIcon =
     icon &&
     (variant === 'solid' || variant === 'burgundy' || variant === 'completed');
@@ -1211,6 +1240,7 @@ export function MetricActionButton({
         variant === 'solid' && styles.metricButtonSolid,
         variant === 'soft' && styles.metricButtonSoft,
         variant === 'outline' && styles.metricButtonOutline,
+        variant === 'outline' && { borderColor: accentColor },
         variant === 'white' && styles.metricButtonWhite,
         variant === 'burgundy' && styles.metricButtonBurgundy,
         variant === 'glass' && styles.metricButtonGlass,
@@ -2168,6 +2198,7 @@ export function JournalAssessment({
   actionLabel = 'Заполнить',
   actionIcon,
   actionVariant = 'solid',
+  actionColor,
   onPress,
 }: JournalAssessmentProps) {
   const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
@@ -2538,6 +2569,7 @@ export function JournalAssessment({
         label={actionLabel}
         icon={actionIcon}
         variant={actionVariant}
+        accentColor={actionColor}
         onPress={onPress}
       />
     </View>
@@ -3885,12 +3917,13 @@ function GalleryHistory({
       ) : null}
       {!featuredRecord ? (
         <View style={styles.galleryEmptyState}>
-          <AppText role="heading" weight="semibold">
+          <EmptyStateIcon kind="photo" />
+          <AppText role="heading" weight="semibold" color={emptyStateColor}>
             Снимков пока нет
           </AppText>
           <AppText
             role="label"
-            color={colors.text.secondary}
+            color={emptyStateColor}
             style={styles.galleryEmptyDescription}
           >
             После первого подтверждённого сканирования здесь появится реальный
@@ -3995,34 +4028,34 @@ export function TokenLabel({ children }: PropsWithChildren) {
 const styles = StyleSheet.create({
   segmentedSwitcher: {
     width: '100%',
-    height: 46,
-    padding: 4,
+    height: 44,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
-    backgroundColor: '#F0EEF0',
+    borderRadius: 22,
+    backgroundColor: 'transparent',
   },
   segmentedSwitcherIndicator: {
     position: 'absolute',
     left: 4,
-    top: 4,
+    top: 3,
     height: 38,
-    borderRadius: 11,
-    backgroundColor: colors.surface.raised,
+    borderRadius: 19,
+    backgroundColor: 'transparent',
     shadowColor: '#251119',
-    shadowOffset: { width: 0, height: 0 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowRadius: 4,
   },
   segmentedSwitcherOptionSlot: {
     zIndex: 1,
     flex: 1,
-    minHeight: 38,
+    minHeight: 44,
   },
   segmentedSwitcherOption: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 11,
+    borderRadius: 19,
   },
   segmentedSwitcherOptionDisabled: {
     opacity: 0.48,
@@ -4036,18 +4069,27 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   segmentedSwitcherLabel: {
-    fontSize: 12.5,
-    lineHeight: 15,
+    fontSize: 13,
+    lineHeight: 18,
     letterSpacing: -0.16,
     textAlign: 'center',
   },
   segmentedSwitcherLabelSelected: {
     color: colors.text.primary,
-    fontFamily: fonts.sfMedium,
+    fontFamily: fonts.sfSemibold,
   },
   segmentedSwitcherLabelInactive: {
     color: colors.text.secondary,
     fontFamily: fonts.sfRegular,
+  },
+  segmentedSwitcherUnread: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.brand.primary,
+    position: 'absolute',
+    right: 6,
+    top: 8,
   },
   segmentedSwitcherBadge: {
     overflow: 'hidden',
@@ -6445,9 +6487,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
+    gap: 0,
   },
   galleryEmptyDescription: {
+    marginTop: 8,
     maxWidth: 280,
     textAlign: 'center',
   },

@@ -4,7 +4,12 @@ import { useConvexAuth } from 'convex/react';
 import { useFonts } from 'expo-font';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs as RouterTabs } from 'expo-router';
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import {
+  Badge,
+  Icon,
+  Label,
+  NativeTabs,
+} from 'expo-router/unstable-native-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -24,6 +29,7 @@ import '../global.css';
 import { AppGate } from '../components/AppGate';
 import { AuthScreen } from '../components/AuthScreen';
 import { convex } from '../lib/convex';
+import { useAssistantUnread } from '../lib/assistant-inbox';
 import { AgentAutomationManager } from '../lib/agent-automation-manager';
 import { ConnectivityBanner, ConnectivityProvider } from '../lib/connectivity';
 import { HealthStoreProvider } from '../lib/health-store';
@@ -76,10 +82,12 @@ const tabIcons = {
 } as const;
 
 function IOSNativeTabs() {
+  const assistantUnread = useAssistantUnread();
   return (
     <ThemeProvider value={DefaultTheme}>
       <NativeTabs
         tintColor={activeTint}
+        badgeBackgroundColor={activeTint}
         iconColor={{ default: inactiveTint, selected: activeTint }}
         backgroundColor={
           Platform.OS === 'android'
@@ -99,6 +107,7 @@ function IOSNativeTabs() {
       >
         <NativeTabs.Trigger name="chat">
           <Label>Сферка</Label>
+          {assistantUnread ? <Badge>1</Badge> : null}
           <Icon
             sf={{
               default: 'waveform.and.person.filled',
@@ -308,10 +317,7 @@ function AndroidTabButton({
       ]}
       testID={resolvedTestID}
     >
-      <View
-        pointerEvents="none"
-        style={styles.androidTabButtonContent}
-      >
+      <View pointerEvents="none" style={styles.androidTabButtonContent}>
         <Animated.View
           style={[
             styles.androidActiveTabSurface,
@@ -335,6 +341,7 @@ function AndroidTabButton({
 }
 
 function AndroidTabs() {
+  const assistantUnread = useAssistantUnread();
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 8);
   const tabMetadata: Record<string, { label: string; testID: string }> = {
@@ -390,6 +397,8 @@ function AndroidTabs() {
           name="chat"
           options={{
             title: 'Сферка',
+            tabBarBadge: assistantUnread ? 1 : undefined,
+            tabBarBadgeStyle: { backgroundColor: activeTint, color: '#FFFFFF' },
             tabBarButtonTestID: 'e2e-tab-chat',
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="chat" />
@@ -451,7 +460,6 @@ function AndroidTabs() {
             ),
           }}
         />
-        <RouterTabs.Screen name="design-system" options={{ href: null }} />
       </RouterTabs>
     </ThemeProvider>
   );

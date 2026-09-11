@@ -1,3 +1,12 @@
+import { overlayRadii } from './tokens';
+import { filterInput, type InputFormat } from '../lib/input-format';
+import { AppSheet, sheetStyles } from '../components/AppSheet';
+import {
+  EmptyStateIcon,
+  emptyStateColor,
+  type EmptyStateIconKind,
+} from '../components/EmptyStateIcon';
+import { useProfileReducedMotion } from '../components/ProfileMotion';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
 import { BlurView } from 'expo-blur';
@@ -132,17 +141,18 @@ function ProfileTrashIcon({
 }
 
 function ProfileAnimatedCheck({ visible }: { visible: boolean }) {
+  const reducedMotion = useProfileReducedMotion();
   const progress = useRef(new Animated.Value(visible ? 1 : 0)).current;
 
   useEffect(() => {
     progress.stopAnimation();
     Animated.timing(progress, {
       toValue: visible ? 1 : 0,
-      duration: visible ? 180 : 130,
+      duration: reducedMotion ? 0 : visible ? 180 : 130,
       easing: Easing.bezier(0.23, 1, 0.32, 1),
       useNativeDriver: true,
     }).start();
-  }, [progress, visible]);
+  }, [progress, visible, reducedMotion]);
 
   return (
     <Animated.View
@@ -319,7 +329,12 @@ export function ProfileSettingsRow({
       onPress={onPress}
       style={[styles.settingsRow, disabled && styles.disabled]}
     >
-      <View style={styles.settingsRowLayout}>
+      <View
+        style={[
+          styles.settingsRowLayout,
+          hideIcon && styles.settingsRowWithoutIcon,
+        ]}
+      >
         {!hideIcon ? (
           <View
             style={[
@@ -412,6 +427,7 @@ export function ProfileFieldRow({
   defaultValue,
   disabled = false,
   inputMode = 'text',
+  format,
   isLast = false,
   label,
   onSubmit,
@@ -420,13 +436,23 @@ export function ProfileFieldRow({
 }: {
   defaultValue?: string;
   disabled?: boolean;
-  inputMode?: 'text' | 'numeric' | 'email' | 'tel';
+  inputMode?: 'text' | 'numeric' | 'decimal' | 'email' | 'tel';
+  format?: InputFormat;
   isLast?: boolean;
   label: string;
   onSubmit?: (value: string) => void;
   placeholder?: string;
   suffix?: string;
 }) {
+  const inputFormat =
+    format ??
+    (inputMode === 'numeric'
+      ? 'integer'
+      : inputMode === 'decimal'
+        ? 'decimal'
+        : inputMode === 'tel'
+          ? 'phone'
+          : 'text');
   const [value, setValue] = useState(defaultValue ?? '');
 
   return (
@@ -443,19 +469,23 @@ export function ProfileFieldRow({
           accessibilityLabel={label}
           editable={!disabled}
           value={value}
-          onChangeText={setValue}
-          onEndEditing={() => onSubmit?.(value.trim())}
+          onChangeText={(next) => setValue(filterInput(next, inputFormat))}
+          onEndEditing={() =>
+            onSubmit?.(filterInput(value, inputFormat).trim())
+          }
           placeholder={placeholder}
           placeholderTextColor="#989395"
           inputMode={inputMode}
           keyboardType={
             inputMode === 'numeric'
               ? 'number-pad'
-              : inputMode === 'email'
-                ? 'email-address'
-                : inputMode === 'tel'
-                  ? 'phone-pad'
-                  : 'default'
+              : inputMode === 'decimal'
+                ? 'decimal-pad'
+                : inputMode === 'email'
+                  ? 'email-address'
+                  : inputMode === 'tel'
+                    ? 'phone-pad'
+                    : 'default'
           }
           style={styles.fieldInput}
         />
@@ -483,17 +513,21 @@ function formatProfileDate(date?: Date) {
 }
 
 export function ProfileDateRow({
+  compact = false,
   disabled = false,
   isLast = false,
   label,
+  stacked = false,
   maximumDate,
   minimumDate,
   onChange,
   value,
 }: {
+  compact?: boolean;
   disabled?: boolean;
   isLast?: boolean;
   label: string;
+  stacked?: boolean;
   maximumDate?: Date;
   minimumDate?: Date;
   onChange?: (timestamp: number) => void;
@@ -508,6 +542,7 @@ export function ProfileDateRow({
     initialDate ?? maximumDate ?? new Date(),
   );
   const [pickerVisible, setPickerVisible] = useState(false);
+  const reducedMotion = useProfileReducedMotion();
 
   useEffect(() => {
     const nextDate = value ? new Date(value) : undefined;
@@ -559,21 +594,32 @@ export function ProfileDateRow({
           pressed && !disabled && styles.dateRowPressed,
         ]}
       >
-        <View style={styles.dateRowContent}>
+        <View
+          style={[
+            styles.dateRowContent,
+            stacked && styles.dateRowContentStacked,
+            compact && styles.dateRowContentCompact,
+          ]}
+        >
           <AppText
             role="label"
             color={colors.text.secondary}
-            numberOfLines={1}
-            style={styles.formLabel}
+            numberOfLines={stacked ? undefined : 1}
+            style={[styles.formLabel, stacked && styles.dateLabelStacked]}
           >
             {label}
           </AppText>
-          <View style={styles.dateValueWrap}>
+          <View
+            style={[
+              styles.dateValueWrap,
+              stacked && styles.dateValueWrapStacked,
+            ]}
+          >
             <AppText
               role="label"
               color={selectedDate ? colors.text.primary : '#989395'}
-              numberOfLines={1}
-              style={styles.dateValue}
+              numberOfLines={stacked ? undefined : 1}
+              style={[styles.dateValue, stacked && styles.dateValueStacked]}
             >
               {formatProfileDate(selectedDate)}
             </AppText>
@@ -590,84 +636,40 @@ export function ProfileDateRow({
         ) : null}
       </Pressable>
 
-      {Platform.OS === 'ios' && pickerVisible ? (
-        <Modal
-          animationType="fade"
-          transparent
-          visible
-          onRequestClose={() => setPickerVisible(false)}
-        >
-          <View
-            style={[
-              styles.dateModalRoot,
-              { paddingBottom: Math.max(insets.bottom, 12) },
-            ]}
-          >
+      {Platform.OS === 'ios' ? (
+        <AppSheet
+          visible={pickerVisible}
+          title={label}
+          onClose={() => setPickerVisible(false)}
+          footer={
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Закрыть выбор даты"
-              onPress={() => setPickerVisible(false)}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.dateSheet}>
-              <View style={styles.dateSheetHeader}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setPickerVisible(false)}
-                  hitSlop={10}
-                  style={styles.dateSheetHeaderAction}
-                >
-                  <AppText
-                    role="body"
-                    color={colors.text.secondary}
-                    style={styles.dateSheetHeaderActionLeft}
-                  >
-                    Отмена
-                  </AppText>
-                </Pressable>
-                <AppText
-                  role="body"
-                  weight="semibold"
-                  numberOfLines={1}
-                  style={styles.dateSheetTitle}
-                >
-                  {label}
-                </AppText>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    commitDate(draftDate);
-                    setPickerVisible(false);
-                  }}
-                  hitSlop={10}
-                  style={styles.dateSheetHeaderAction}
-                >
-                  <AppText
-                    role="body"
-                    weight="semibold"
-                    color={colors.brand.primary}
-                    style={styles.dateSheetHeaderActionRight}
-                  >
-                    Готово
-                  </AppText>
-                </Pressable>
-              </View>
-              <DateTimePicker
-                value={draftDate}
-                mode="date"
-                display="spinner"
-                locale="ru-RU"
-                maximumDate={maximumDate}
-                minimumDate={minimumDate}
-                themeVariant="light"
-                onChange={(_event, date) => {
-                  if (date) setDraftDate(date);
-                }}
-                style={styles.datePicker}
-              />
-            </View>
-          </View>
-        </Modal>
+              onPress={() => {
+                commitDate(draftDate);
+                setPickerVisible(false);
+              }}
+              style={sheetStyles.primary}
+            >
+              <AppText weight="medium" color="#FFFFFF">
+                Готово
+              </AppText>
+            </Pressable>
+          }
+        >
+          <DateTimePicker
+            value={draftDate}
+            mode="date"
+            display="spinner"
+            locale="ru-RU"
+            maximumDate={maximumDate}
+            minimumDate={minimumDate}
+            themeVariant="light"
+            onChange={(_event, date) => {
+              if (date) setDraftDate(date);
+            }}
+            style={styles.datePicker}
+          />
+        </AppSheet>
       ) : null}
     </>
   );
@@ -938,16 +940,32 @@ function ProfileSelectionPopover<T extends string>({
   }>;
   selectedValue: T;
 }) {
+  const reducedMotion = useProfileReducedMotion();
+  const closing = useRef(false);
   const appear = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(appear, {
       toValue: 1,
-      duration: 170,
+      duration: reducedMotion ? 0 : 170,
       easing: Easing.bezier(0.2, 0.8, 0.2, 1),
       useNativeDriver: true,
     }).start();
-  }, [appear]);
+  }, [appear, reducedMotion]);
+
+  const dismiss = (after: () => void) => {
+    if (closing.current) return;
+    closing.current = true;
+    appear.stopAnimation();
+    Animated.timing(appear, {
+      toValue: 0,
+      duration: reducedMotion ? 0 : 140,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) after();
+    });
+  };
 
   return (
     <Modal
@@ -955,12 +973,12 @@ function ProfileSelectionPopover<T extends string>({
       transparent
       statusBarTranslucent
       visible
-      onRequestClose={onClose}
+      onRequestClose={() => dismiss(onClose)}
     >
       <View style={styles.languageModal}>
         <Pressable
           accessibilityLabel={closeLabel}
-          onPress={onClose}
+          onPress={() => dismiss(onClose)}
           style={StyleSheet.absoluteFillObject}
         />
         <Animated.View
@@ -1034,7 +1052,7 @@ function ProfileSelectionPopover<T extends string>({
                   accessibilityRole="radio"
                   accessibilityLabel={`${option.label}, ${option.secondaryLabel}`}
                   accessibilityState={{ checked: selected }}
-                  onPress={() => onSelect(option.value)}
+                  onPress={() => dismiss(() => onSelect(option.value))}
                   style={({ pressed }) => [
                     styles.languageOption,
                     pressed && styles.languageOptionPressed,
@@ -1555,9 +1573,16 @@ export function DestructiveButtonPreview({
   );
 }
 
-export function ProfileEmptyMessage({ title }: { title: string }) {
+export function ProfileEmptyMessage({
+  title,
+  icon,
+}: {
+  title: string;
+  icon: EmptyStateIconKind;
+}) {
   return (
     <View style={styles.profileEmptyMessage}>
+      <EmptyStateIcon kind={icon} />
       <AppText
         role="body"
         color={colors.text.secondary}
@@ -1680,12 +1705,17 @@ export function ProfileEmptyNotifications() {
           size={26}
         />
       </View>
-      <AppText role="heading" weight="semibold" style={styles.emptyTitle}>
+      <AppText
+        role="heading"
+        weight="semibold"
+        color={colors.brand.primary}
+        style={styles.emptyTitle}
+      >
         Уведомлений нет
       </AppText>
       <AppText
         role="label"
-        color={colors.text.secondary}
+        color={colors.brand.primary}
         style={styles.emptyDescription}
       >
         Здесь появятся напоминания, результаты и системные сообщения.
@@ -1717,7 +1747,11 @@ export function ProfileKitPreview() {
         />
       </ProfileSettingsGroup>
       <ProfileSettingsGroup title="Прямое редактирование">
-        <ProfileFieldRow label="Имя или псевдоним" defaultValue="Анна" />
+        <ProfileFieldRow
+          format="name"
+          label="Имя или псевдоним"
+          defaultValue="Анна"
+        />
         <ProfileDateRow
           label="Дата рождения"
           value={new Date(1996, 4, 18).getTime()}
@@ -1725,6 +1759,7 @@ export function ProfileKitPreview() {
         />
         <ProfileFieldRow
           label="Рост"
+          inputMode="decimal"
           placeholder="Добавить"
           suffix="см"
           isLast
@@ -1887,6 +1922,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  settingsRowWithoutIcon: {
+    paddingLeft: 13,
+  },
   rowPressed: {
     backgroundColor: '#F0EDEE',
   },
@@ -1967,6 +2005,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  dateRowContentStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  dateLabelStacked: { width: '100%', fontSize: 14, lineHeight: 20 },
+  dateRowContentCompact: { paddingVertical: 12, gap: 4 },
+  dateValueWrapStacked: {
+    width: '100%',
+    flex: 0,
+    minHeight: 32,
+    justifyContent: 'space-between',
+  },
+  dateValueStacked: { fontSize: 17, lineHeight: 23, textAlign: 'left' },
   dateValueWrap: {
     minWidth: 0,
     flex: 1,
@@ -1979,54 +2033,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: 'right',
   },
-  dateModalRoot: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(30, 22, 25, 0.14)',
-  },
-  dateSheet: {
-    overflow: 'hidden',
-    borderRadius: 24,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(68, 52, 58, 0.12)',
-    backgroundColor: '#FFFFFF',
-    paddingBottom: 4,
-    shadowColor: '#261017',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.12,
-    shadowRadius: 30,
-    elevation: 12,
-  },
-  dateSheetHeader: {
-    height: 52,
-    paddingHorizontal: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E7E2E4',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateSheetHeaderAction: {
-    width: 72,
-    height: 44,
-    justifyContent: 'center',
-  },
-  dateSheetHeaderActionLeft: {
-    textAlign: 'left',
-  },
-  dateSheetHeaderActionRight: {
-    textAlign: 'right',
-  },
-  dateSheetTitle: {
-    minWidth: 0,
-    flex: 1,
-    textAlign: 'center',
-  },
   datePicker: {
     width: '100%',
     height: 216,
-    transform: [{ translateX: 14 }, { translateY: -4 }],
   },
   formLabel: {
     width: '42%',
@@ -2183,7 +2192,7 @@ const styles = StyleSheet.create({
   },
   languagePopover: {
     position: 'absolute',
-    borderRadius: 16,
+    borderRadius: overlayRadii.popover,
     ...(Platform.OS === 'android'
       ? androidShadows.floating
       : {
@@ -2194,13 +2203,7 @@ const styles = StyleSheet.create({
           elevation: 14,
         }),
   },
-  languagePopoverMaterial: {
-    width: '100%',
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.72)',
-    overflow: 'hidden',
-  },
+  languagePopoverMaterial: { ...sheetStyles.popover, width: '100%' },
   languagePopoverTint: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(250,248,249,0.68)',
@@ -2617,6 +2620,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   profileEmptyMessageText: {
+    color: emptyStateColor,
     textAlign: 'center',
   },
   profileEmptyIcon: {
@@ -2707,7 +2711,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyTitle: {
-    marginTop: spacing.md,
+    marginTop: 4,
   },
   emptyDescription: {
     maxWidth: 270,

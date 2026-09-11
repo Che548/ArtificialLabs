@@ -134,133 +134,14 @@ const analysisTabs: Array<{ key: AnalysisTabKey; label: string }> = [
   { key: 'completed', label: 'Сдано' },
 ];
 
-export function AnalysisTabs({
-  activeTab,
-  onChange,
-  variant = 1,
-}: AnalysisTabsProps) {
-  if (variant === 2) {
-    return (
-      <SegmentedSwitcher
-        accessibilityLabel="Раздел анализов"
-        options={analysisTabs.map((tab) => ({
-          value: tab.key,
-          label: tab.label,
-        }))}
-        value={activeTab}
-        onChange={onChange}
-        labelStyle={styles.tabLabel}
-      />
-    );
-  }
-
-  const isInverse = variant === 6;
-  const usesDarkActiveText = variant === 7 || variant === 9;
-
+export function AnalysisTabs({ activeTab, onChange }: AnalysisTabsProps) {
   return (
-    <View
-      accessibilityRole="tablist"
-      style={[
-        styles.tabs,
-        variant === 3 && styles.tabsUnderline,
-        variant === 4 && styles.tabsOutlined,
-        variant === 5 && styles.tabsFloating,
-        variant === 6 && styles.tabsInverse,
-        variant === 7 && styles.tabsSoft,
-        variant === 8 && styles.tabsBadged,
-        variant === 9 && styles.tabsTopAccent,
-        variant === 10 && styles.tabsCompact,
-      ]}
-    >
-      {analysisTabs.map((tab) => {
-        const active = tab.key === activeTab;
-        const displayLabel =
-          variant === 10
-            ? tab.key === 'current'
-              ? 'Сейчас'
-              : tab.key === 'upcoming'
-                ? '3 месяца'
-                : 'Архив'
-            : tab.label;
-        const inactiveColor = isInverse
-          ? 'rgba(255,255,255,0.66)'
-          : colors.text.secondary;
-        const activeColor = usesDarkActiveText
-          ? colors.text.primary
-          : variant === 3 || variant === 4 || variant === 5 || variant === 8
-            ? colors.brand.primary
-            : colors.text.inverse;
-
-        return (
-          <Pressable
-            key={tab.key}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={tab.label}
-            onPress={() => onChange(tab.key)}
-            style={styles.tabPressable}
-          >
-            {({ pressed }) => (
-              <View
-                style={[
-                  styles.tab,
-                  variant === 3 && styles.tabUnderline,
-                  variant === 4 && styles.tabOutlined,
-                  variant === 5 && styles.tabFloating,
-                  variant === 6 && styles.tabInverse,
-                  variant === 7 && styles.tabSoft,
-                  variant === 8 && styles.tabBadged,
-                  variant === 9 && styles.tabTopAccent,
-                  variant === 10 && styles.tabCompact,
-                  active && styles.tabActive,
-                  active && variant === 3 && styles.tabUnderlineActive,
-                  active && variant === 4 && styles.tabOutlinedActive,
-                  active && variant === 5 && styles.tabFloatingActive,
-                  active && variant === 6 && styles.tabInverseActive,
-                  active && variant === 7 && styles.tabSoftActive,
-                  active && variant === 8 && styles.tabBadgedActive,
-                  active && variant === 9 && styles.tabTopAccentActive,
-                  active && variant === 10 && styles.tabCompactActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <AppText
-                  weight={active ? 'medium' : 'regular'}
-                  color={active ? activeColor : inactiveColor}
-                  numberOfLines={1}
-                  style={[
-                    styles.tabLabel,
-                    variant === 10 && styles.tabLabelCompact,
-                  ]}
-                >
-                  {displayLabel}
-                </AppText>
-                {variant === 8 ? (
-                  <View
-                    style={[styles.tabBadge, active && styles.tabBadgeActive]}
-                  >
-                    <AppText
-                      numeric
-                      role="caption"
-                      color={
-                        active ? colors.text.inverse : colors.text.secondary
-                      }
-                      style={styles.tabBadgeText}
-                    >
-                      {tab.key === 'current'
-                        ? 2
-                        : tab.key === 'upcoming'
-                          ? 3
-                          : 0}
-                    </AppText>
-                  </View>
-                ) : null}
-              </View>
-            )}
-          </Pressable>
-        );
-      })}
-    </View>
+    <SegmentedSwitcher
+      accessibilityLabel="Раздел анализов"
+      options={analysisTabs.map((tab) => ({ value: tab.key, label: tab.label }))}
+      value={activeTab}
+      onChange={onChange}
+    />
   );
 }
 

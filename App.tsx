@@ -1,3 +1,7 @@
+import { TodayArticleSheet } from './components/TodayArticleSheet';
+import { todayArticles, type TodayArticle } from './lib/today-articles';
+import { AppSheet, sheetStyles } from './components/AppSheet';
+import { TopChromeBackdrop } from './components/TopChromeBackdrop';
 import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
 import { useFonts } from 'expo-font';
@@ -21,9 +25,7 @@ import {
 } from 'react';
 import type { PropsWithChildren, ReactNode } from 'react';
 import {
-  AccessibilityInfo,
   Animated,
-  Easing,
   Image,
   Modal,
   Platform,
@@ -35,6 +37,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import type {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -43,6 +46,7 @@ import type {
   ViewStyle,
 } from 'react-native';
 
+import { CycleAnimatedBackground } from './design-system/cycle-animated-background';
 import ArrowButton from './assets/figma/arrow-button.svg';
 import ArrowCard from './assets/figma/arrow-card.svg';
 import CalendarIcon from './assets/figma/calendar-icon.svg';
@@ -86,6 +90,7 @@ import {
   pregnancyWeekFromStart,
 } from './lib/product-insights';
 
+const TODAY_ACCENT = '#EA4087';
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 const FONT_SF_REGULAR = 'SFProDisplay-Regular';
@@ -419,12 +424,24 @@ function ProjectText({
 
 type FeatureCardProps = {
   title: string;
+  background: TodayArticle['background'];
   onPress?: () => void;
 };
 
-function FeatureCard({ title, onPress }: FeatureCardProps) {
+function FeatureCard({ title, background, onPress }: FeatureCardProps) {
   return (
     <View style={[styles.featureCard, styles.featureCardSoft]}>
+      <Image
+        accessible={false}
+        source={background}
+        resizeMode="cover"
+        style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
+      />
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(0,0,0,0.04)', 'rgba(0,0,0,0.32)']}
+        style={StyleSheet.absoluteFill}
+      />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={title.replace(/\n/g, ' ')}
@@ -432,7 +449,12 @@ function FeatureCard({ title, onPress }: FeatureCardProps) {
       >
         {({ pressed }) => (
           <View style={[styles.featureCardContent, pressed && styles.pressed]}>
-            <View style={styles.cardArrow}>
+            <View
+              style={[
+                styles.cardArrow,
+                { backgroundColor: 'rgba(255,255,255,0.22)' },
+              ]}
+            >
               <ArrowCard width={18.3} height={18.3} />
             </View>
             <ProjectText
@@ -492,11 +514,48 @@ function ImportantMascotCard({ onPress }: { onPress?: () => void }) {
   );
 }
 
+function TodayArticleCards({
+  onImportantPress,
+  checkupCount,
+}: {
+  onImportantPress: () => void;
+  checkupCount: number;
+}) {
+  const [article, setArticle] = useState<TodayArticle | null>(null);
+  return (
+    <>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 10, paddingRight: 2 }}
+      >
+        <ImportantMascotCard onPress={onImportantPress} />
+        {todayArticles.map((item) => (
+          <FeatureCard
+            key={item.id}
+            background={item.background}
+            title={
+              item.id === 'care-plan'
+                ? checkupCount
+                  ? `План наблюдения\nПунктов: ${checkupCount}`
+                  : 'План наблюдения\nпока пуст'
+                : item.cardTitle
+            }
+            onPress={() => setArticle(item)}
+          />
+        ))}
+      </ScrollView>
+      <TodayArticleSheet article={article} onClose={() => setArticle(null)} />
+    </>
+  );
+}
+
 function MonitoringScreen({
   headerTop,
   onCalendarPress,
   onChartsPress,
   onJournalPress,
+  onSymptomsPress,
   onNutritionPress,
   onPregnancyDatePress,
   onCheckupsPress,
@@ -505,6 +564,7 @@ function MonitoringScreen({
   onCalendarPress: () => void;
   onChartsPress: () => void;
   onJournalPress: () => void;
+  onSymptomsPress: () => void;
   onNutritionPress: () => void;
   onPregnancyDatePress: () => void;
   onCheckupsPress: () => void;
@@ -597,12 +657,7 @@ function MonitoringScreen({
         style={styles.heroImage}
       />
 
-      <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(252,231,220,1)', 'rgba(252,231,220,0)']}
-        locations={[0, 1]}
-        style={styles.headerFadeGradient}
-      />
+      <TopChromeBackdrop headerTop={headerTop} />
 
       <LiquidGlassGroup
         spacing={12}
@@ -613,7 +668,9 @@ function MonitoringScreen({
           controlStyle={styles.topCircle}
           headerElevation
           onPress={onChartsPress}
-          tintColor={colors.surface.headerGlassWash}
+          tintColor={
+            hasNativeLiquidGlass ? undefined : colors.surface.headerGlassWash
+          }
           washColor={colors.surface.headerGlassWash}
         >
           {Platform.OS === 'android' ? (
@@ -630,22 +687,48 @@ function MonitoringScreen({
           controlStyle={styles.datePill}
           headerElevation
           onPress={onCalendarPress}
-          tintColor={colors.surface.headerGlassWash}
+          tintColor={
+            hasNativeLiquidGlass ? undefined : colors.surface.headerGlassWash
+          }
           washColor={colors.surface.headerGlassWash}
         >
           <HeaderDateLabel />
         </LiquidGlassPressable>
 
         <LiquidGlassPressable
-          accessibilityLabel="Открыть календарь"
+          accessibilityLabel={
+            profile?.goal === 'pregnancy'
+              ? 'Отметить симптомы за сегодня'
+              : 'Открыть календарь'
+          }
           controlStyle={styles.topCircle}
           headerElevation
-          onPress={onCalendarPress}
-          tintColor={colors.surface.headerGlassWash}
+          onPress={
+            profile?.goal === 'pregnancy' ? onSymptomsPress : onCalendarPress
+          }
+          tintColor={
+            hasNativeLiquidGlass ? undefined : colors.surface.headerGlassWash
+          }
           washColor={colors.surface.headerGlassWash}
         >
           <View style={styles.headerIconOrientation}>
-            <CalendarIcon width={22} height={22} color="#EA4087" />
+            {profile?.goal === 'pregnancy' ? (
+              <Svg
+                width={22}
+                height={22}
+                viewBox="0 0 24 24"
+                accessible={false}
+              >
+                <Path
+                  d="M12 4v16M4 12h16"
+                  stroke="#EA4087"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                />
+              </Svg>
+            ) : (
+              <CalendarIcon width={22} height={22} color="#EA4087" />
+            )}
           </View>
         </LiquidGlassPressable>
       </LiquidGlassGroup>
@@ -916,18 +999,9 @@ function MonitoringScreen({
           <View pointerEvents="none" style={styles.metricsDivider} />
 
           <View style={styles.cardsRow}>
-            <ImportantMascotCard onPress={onCheckupsPress} />
-            <FeatureCard
-              title={'Заполнить\nпитание\nза сегодня'}
-              onPress={onNutritionPress}
-            />
-            <FeatureCard
-              title={
-                checkupProgress.total
-                  ? `План наблюдения\nПунктов: ${checkupProgress.total}`
-                  : 'План наблюдения\nпока пуст'
-              }
-              onPress={onCheckupsPress}
+            <TodayArticleCards
+              onImportantPress={onCheckupsPress}
+              checkupCount={checkupProgress.total}
             />
           </View>
         </View>
@@ -984,12 +1058,15 @@ function PlanningQuickAction({
           accessibilityLabel={label}
           controlStyle={styles.planningActionCircle}
           onPress={onPress}
-          tintColor={primary ? '#EA4087' : 'rgba(255,255,255,0.62)'}
-          washColor={primary ? 'rgba(234,64,135,0.94)' : 'rgba(255,255,255,0.22)'}
+          tintColor={primary ? TODAY_ACCENT : 'rgba(255,255,255,0.62)'}
+          washColor={primary ? `${TODAY_ACCENT}F0` : 'rgba(255,255,255,0.22)'}
           intensity={72}
         >
           {primary ? (
-            <View pointerEvents="none" style={styles.planningActionPrimaryFill} />
+            <View
+              pointerEvents="none"
+              style={styles.planningActionPrimaryFill}
+            />
           ) : null}
           {content}
         </LiquidGlassPressable>
@@ -1008,21 +1085,20 @@ function PlanningQuickAction({
 }
 
 type PlanningIntimacyOption = {
-  glyph: string;
   group: 'contact' | 'desire';
   id: string;
   label: string;
 };
 
 const planningIntimacyOptions: PlanningIntimacyOption[] = [
-  { id: 'none', group: 'contact', glyph: '—', label: 'Близости не было' },
-  { id: 'protected', group: 'contact', glyph: '✓', label: 'С защитой' },
-  { id: 'unprotected', group: 'contact', glyph: '♡', label: 'Без защиты' },
-  { id: 'withdrawal', group: 'contact', glyph: '◐', label: 'Прерванный акт' },
-  { id: 'touch', group: 'contact', glyph: '∞', label: 'Прикосновения' },
-  { id: 'high', group: 'desire', glyph: '↑', label: 'Высокое желание' },
-  { id: 'medium', group: 'desire', glyph: '•', label: 'Среднее желание' },
-  { id: 'low', group: 'desire', glyph: '↓', label: 'Низкое желание' },
+  { id: 'none', group: 'contact', label: 'Близости не было' },
+  { id: 'protected', group: 'contact', label: 'С защитой' },
+  { id: 'unprotected', group: 'contact', label: 'Без защиты' },
+  { id: 'withdrawal', group: 'contact', label: 'Прерванный акт' },
+  { id: 'touch', group: 'contact', label: 'Прикосновения' },
+  { id: 'high', group: 'desire', label: 'Высокое желание' },
+  { id: 'medium', group: 'desire', label: 'Среднее желание' },
+  { id: 'low', group: 'desire', label: 'Низкое желание' },
 ];
 
 function PlanningIntimacyModal({
@@ -1039,10 +1115,6 @@ function PlanningIntimacyModal({
     contact?: string;
     desire?: string;
   }>({});
-  const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
-  const [scrollContentHeight, setScrollContentHeight] = useState(0);
-  const scrollEnabled =
-    scrollViewportHeight > 0 && scrollContentHeight > scrollViewportHeight + 1;
   const selectedLabels = planningIntimacyOptions
     .filter((option) => selection[option.group] === option.id)
     .map((option) => option.label);
@@ -1053,422 +1125,175 @@ function PlanningIntimacyModal({
   };
 
   return (
-    <Modal
-      animationType="slide"
-      onRequestClose={close}
-      presentationStyle="overFullScreen"
-      statusBarTranslucent
-      transparent
+    <AppSheet
       visible={visible}
-    >
-      <View style={styles.planningModalRoot}>
-        <Pressable
-          accessibilityLabel="Закрыть окно"
-          onPress={close}
-          style={styles.planningModalScrim}
-        />
-        <ScrollView
-          alwaysBounceVertical={false}
-          bounces={scrollEnabled}
-          contentContainerStyle={styles.planningModalPageContent}
-          onContentSizeChange={(_width, height) =>
-            setScrollContentHeight(height)
-          }
-          onLayout={({ nativeEvent }) =>
-            setScrollViewportHeight(nativeEvent.layout.height)
-          }
-          scrollEnabled={scrollEnabled}
-          showsVerticalScrollIndicator={false}
-          style={styles.planningModalPageScroll}
-        >
-          <Pressable
-            accessibilityLabel="Закрыть окно"
-            onPress={close}
-            style={styles.planningModalDismissArea}
-          />
-          <View
-            style={[
-              styles.planningModalSheet,
-              { paddingBottom: Math.max(insets.bottom + 102, 118) },
-            ]}
-          >
-            <View style={styles.planningModalHandle} />
-
-            <View style={styles.planningModalContent}>
-              {(
-                [
-                  {
-                    group: 'contact' as const,
-                    title: 'Близость',
-                    caption: 'Выберите один вариант',
-                  },
-                  {
-                    group: 'desire' as const,
-                    title: 'Желание',
-                    caption: 'Необязательно',
-                  },
-                ] as const
-              ).map((section) => (
-                <View key={section.group} style={styles.planningOptionSection}>
-                  <View style={styles.planningOptionSectionHeader}>
-                    <AppText role="label" weight="semibold">
-                      {section.title}
-                    </AppText>
-                    <AppText role="caption" color={colors.text.secondary}>
-                      {section.caption}
+      title="Близость"
+      onClose={close}
+      footer={
+        <View style={styles.planningModalActions}>
+          <View style={styles.planningModalActionSlot}>
+            <View style={styles.planningModalCancel}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Отменить"
+                onPress={close}
+                style={StyleSheet.absoluteFillObject}
+              >
+                {({ pressed }) => (
+                  <View
+                    style={[
+                      styles.planningModalActionContent,
+                      pressed && styles.planningActionPressed,
+                    ]}
+                  >
+                    <AppText
+                      role="label"
+                      weight="medium"
+                      color={colors.text.secondary}
+                    >
+                      Отмена
                     </AppText>
                   </View>
-
-                  <View style={styles.planningOptionList}>
-                    {planningIntimacyOptions
-                      .filter((option) => option.group === section.group)
-                      .map((option) => {
-                        const selected = selection[option.group] === option.id;
-                        return (
-                          <View
-                            key={option.id}
-                            style={[
-                              styles.planningOption,
-                              selected && styles.planningOptionSelected,
-                            ]}
-                          >
-                            <Pressable
-                              accessibilityRole="radio"
-                              accessibilityState={{ selected }}
-                              accessibilityLabel={option.label}
-                              onPress={() =>
-                                setSelection((current) => ({
-                                  ...current,
-                                  [option.group]:
-                                    current[option.group] === option.id
-                                      ? undefined
-                                      : option.id,
-                                }))
-                              }
-                              style={StyleSheet.absoluteFillObject}
-                            >
-                              {({ pressed }) => (
-                                <View
-                                  style={[
-                                    styles.planningOptionContent,
-                                    pressed && styles.planningActionPressed,
-                                  ]}
-                                >
-                                  <View
-                                    style={[
-                                      styles.planningOptionIcon,
-                                      selected &&
-                                        styles.planningOptionIconSelected,
-                                    ]}
-                                  >
-                                    <AppText
-                                      weight="semibold"
-                                      style={[
-                                        styles.planningOptionGlyph,
-                                        selected &&
-                                          styles.planningOptionGlyphSelected,
-                                      ]}
-                                    >
-                                      {option.glyph}
-                                    </AppText>
-                                  </View>
-
-                                  <AppText
-                                    role="label"
-                                    weight="medium"
-                                    style={styles.planningOptionLabel}
-                                  >
-                                    {option.label}
-                                  </AppText>
-
-                                  <View
-                                    style={[
-                                      styles.planningOptionRadio,
-                                      selected &&
-                                        styles.planningOptionRadioSelected,
-                                    ]}
-                                  >
-                                    {selected ? (
-                                      <View
-                                        style={styles.planningOptionRadioDot}
-                                      />
-                                    ) : null}
-                                  </View>
-                                </View>
-                              )}
-                            </Pressable>
-                          </View>
-                        );
-                      })}
-                  </View>
-                </View>
-              ))}
+                )}
+              </Pressable>
             </View>
           </View>
-        </ScrollView>
-        <View
-          style={[
-            styles.planningModalActionsFixed,
-            { paddingBottom: Math.max(insets.bottom + 18, 34) },
-          ]}
-        >
-          <View style={styles.planningModalActions}>
-            <View style={styles.planningModalActionSlot}>
-              <View style={styles.planningModalCancel}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Отменить"
-                  onPress={close}
-                  style={StyleSheet.absoluteFillObject}
-                >
-                  {({ pressed }) => (
-                    <View
-                      style={[
-                        styles.planningModalActionContent,
-                        pressed && styles.planningActionPressed,
-                      ]}
-                    >
-                      <AppText
-                        role="label"
-                        weight="medium"
-                        color={colors.text.secondary}
-                      >
-                        Отмена
-                      </AppText>
-                    </View>
-                  )}
-                </Pressable>
-              </View>
-            </View>
 
-            <View style={styles.planningModalActionSlot}>
-              <View
-                style={[
-                  styles.planningModalSave,
-                  selectedLabels.length === 0 &&
-                    styles.planningModalSaveDisabled,
-                ]}
+          <View style={styles.planningModalActionSlot}>
+            <View
+              style={[
+                styles.planningModalSave,
+                selectedLabels.length === 0 && styles.planningModalSaveDisabled,
+              ]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Сохранить отметки"
+                accessibilityState={{ disabled: selectedLabels.length === 0 }}
+                disabled={selectedLabels.length === 0}
+                onPress={() => {
+                  void onSave(selectedLabels);
+                  close();
+                }}
+                style={StyleSheet.absoluteFillObject}
               >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Сохранить отметки"
-                  accessibilityState={{ disabled: selectedLabels.length === 0 }}
-                  disabled={selectedLabels.length === 0}
-                  onPress={() => {
-                    void onSave(selectedLabels);
-                    close();
-                  }}
-                  style={StyleSheet.absoluteFillObject}
-                >
-                  {({ pressed }) => (
-                    <View
-                      style={[
-                        styles.planningModalActionContent,
-                        pressed &&
-                          selectedLabels.length > 0 &&
-                          styles.planningActionPressed,
-                      ]}
-                    >
-                      <AppText role="label" weight="semibold" color="#FFFFFF">
-                        Сохранить
-                      </AppText>
-                    </View>
-                  )}
-                </Pressable>
-              </View>
+                {({ pressed }) => (
+                  <View
+                    style={[
+                      styles.planningModalActionContent,
+                      pressed &&
+                        selectedLabels.length > 0 &&
+                        styles.planningActionPressed,
+                    ]}
+                  >
+                    <AppText role="label" weight="semibold" color="#FFFFFF">
+                      Сохранить
+                    </AppText>
+                  </View>
+                )}
+              </Pressable>
             </View>
           </View>
         </View>
+      }
+    >
+      <View style={styles.planningModalContent}>
+        {(
+          [
+            {
+              group: 'contact' as const,
+              title: 'Близость',
+              caption: 'Выберите один вариант',
+            },
+            {
+              group: 'desire' as const,
+              title: 'Желание',
+              caption: 'Необязательно',
+            },
+          ] as const
+        ).map((section) => (
+          <View key={section.group} style={styles.planningOptionSection}>
+            <View style={styles.planningOptionSectionHeader}>
+              <AppText role="label" weight="semibold">
+                {section.title}
+              </AppText>
+              <AppText role="caption" color={colors.text.secondary}>
+                {section.caption}
+              </AppText>
+            </View>
+
+            <View style={styles.planningOptionList}>
+              {planningIntimacyOptions
+                .filter((option) => option.group === section.group)
+                .map((option, index) => {
+                  const selected = selection[option.group] === option.id;
+                  return (
+                    <View
+                      key={option.id}
+                      style={[
+                        styles.planningOption,
+                        index > 0 && styles.planningOptionDivider,
+                      ]}
+                    >
+                      <Pressable
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={option.label}
+                        onPress={() =>
+                          setSelection((current) => ({
+                            ...current,
+                            [option.group]:
+                              current[option.group] === option.id
+                                ? undefined
+                                : option.id,
+                          }))
+                        }
+                      >
+                        {({ pressed }) => (
+                          <View
+                            style={[
+                              styles.planningOptionContent,
+                              pressed && styles.planningActionPressed,
+                            ]}
+                          >
+                            <AppText
+                              role="label"
+                              weight="regular"
+                              style={styles.planningOptionLabel}
+                            >
+                              {option.label}
+                            </AppText>
+
+                            <View style={styles.planningOptionSelection}>
+                              {selected ? (
+                                <View style={styles.planningOptionCheck} />
+                              ) : null}
+                            </View>
+                          </View>
+                        )}
+                      </Pressable>
+                    </View>
+                  );
+                })}
+            </View>
+          </View>
+        ))}
       </View>
-    </Modal>
+    </AppSheet>
   );
 }
 
 function formatPlanningDateRange(start: Date, end: Date) {
-  const month = new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(end);
-  return `${start.getDate()}–${end.getDate()} ${month}`;
-}
-
-function PlanningCycleBackground() {
-  const [motionEnabled, setMotionEnabled] = useState(true);
-  const leftMotion = useRef(new Animated.Value(0)).current;
-  const topRightMotion = useRef(new Animated.Value(0)).current;
-  const bottomRightMotion = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    let mounted = true;
-
-    void AccessibilityInfo.isReduceMotionEnabled()
-      .then((reduceMotion) => {
-        if (mounted) setMotionEnabled(!reduceMotion);
-      })
-      .catch(() => undefined);
-
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      (reduceMotion) => setMotionEnabled(!reduceMotion),
-    );
-
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    const values = [leftMotion, topRightMotion, bottomRightMotion];
-
-    if (!motionEnabled) {
-      values.forEach((value) => {
-        value.stopAnimation();
-        value.setValue(0);
-      });
-      return undefined;
-    }
-
-    const easing = Easing.bezier(0.45, 0, 0.55, 1);
-    const createLoop = (value: Animated.Value, duration: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(value, {
-            toValue: 1,
-            duration,
-            easing,
-            useNativeDriver: true,
-          }),
-          Animated.timing(value, {
-            toValue: 0,
-            duration,
-            easing,
-            useNativeDriver: true,
-          }),
-        ]),
-        { resetBeforeIteration: false },
-      );
-
-    const animations = [
-      createLoop(leftMotion, 9000),
-      createLoop(topRightMotion, 11000),
-      createLoop(bottomRightMotion, 10000),
-    ];
-
-    animations.forEach((animation) => animation.start());
-
-    return () => {
-      animations.forEach((animation) => animation.stop());
-      values.forEach((value) => value.stopAnimation());
-    };
-  }, [bottomRightMotion, leftMotion, motionEnabled, topRightMotion]);
-
-  return (
-    <View pointerEvents="none" style={styles.planningBackground}>
-      <Animated.Image
-        source={require('./assets/today/cycle-sphere-left.png')}
-        resizeMode="stretch"
-        style={[
-          styles.planningSphereLeft,
-          {
-            transform: [
-              {
-                translateX: leftMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 6],
-                }),
-              },
-              {
-                translateY: leftMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -5],
-                }),
-              },
-              {
-                rotate: leftMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0deg', '-0.6deg'],
-                }),
-              },
-              {
-                scale: leftMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.985, 1.02],
-                }),
-              },
-            ],
-          },
-        ]}
-      />
-      <Animated.Image
-        source={require('./assets/today/cycle-sphere-top-right.png')}
-        resizeMode="stretch"
-        style={[
-          styles.planningSphereTopRight,
-          {
-            transform: [
-              {
-                translateX: topRightMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -6],
-                }),
-              },
-              {
-                translateY: topRightMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 5],
-                }),
-              },
-              {
-                rotate: topRightMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0deg', '0.7deg'],
-                }),
-              },
-              {
-                scale: topRightMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.985, 1.018],
-                }),
-              },
-            ],
-          },
-        ]}
-      />
-      <Animated.Image
-        source={require('./assets/today/cycle-sphere-bottom-right.png')}
-        resizeMode="stretch"
-        style={[
-          styles.planningSphereBottomRight,
-          {
-            transform: [
-              {
-                translateX: bottomRightMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 7],
-                }),
-              },
-              {
-                translateY: bottomRightMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -6],
-                }),
-              },
-              {
-                rotate: bottomRightMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0deg', '-0.6deg'],
-                }),
-              },
-              {
-                scale: bottomRightMotion.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.985, 1.022],
-                }),
-              },
-            ],
-          },
-        ]}
-      />
-    </View>
-  );
+  const formatter = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+  });
+  const startLabel =
+    start.getMonth() === end.getMonth() &&
+    start.getFullYear() === end.getFullYear()
+      ? start.getDate()
+      : formatter.format(start);
+  return `${startLabel}–${formatter.format(end)}`;
 }
 
 function PlanningMonitoringScreen({
@@ -1495,6 +1320,11 @@ function PlanningMonitoringScreen({
     ? cycleDayInsight(today, cycleHistory, today)
     : undefined;
   const forecastAvailable = Boolean(cycleInsight && !cycleInsight.delayDays);
+  const planningMode = profile?.goal === 'planning';
+  const daysUntilPeriod =
+    cycleInsight && cycleHistory
+      ? Math.max(0, cycleHistory.cycleLengthDays - cycleInsight.cycleDay + 1)
+      : undefined;
   const probabilityLabel = cycleInsight
     ? cycleInsight.probability === 'high'
       ? 'Высокая'
@@ -1530,13 +1360,8 @@ function PlanningMonitoringScreen({
 
   return (
     <View style={styles.planningCanvas}>
-      <PlanningCycleBackground />
-      <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(255,246,246,0.92)', 'rgba(255,246,246,0)']}
-        locations={[0, 1]}
-        style={styles.planningHeaderFade}
-      />
+      <CycleAnimatedBackground />
+      <TopChromeBackdrop headerTop={headerTop} />
 
       <LiquidGlassGroup
         spacing={12}
@@ -1547,11 +1372,13 @@ function PlanningMonitoringScreen({
           controlStyle={styles.topCircle}
           headerElevation
           onPress={onChartsPress}
-          tintColor={colors.surface.headerGlassWash}
+          tintColor={
+            hasNativeLiquidGlass ? undefined : colors.surface.headerGlassWash
+          }
           washColor={colors.surface.headerGlassWash}
         >
           <View style={styles.headerIconOrientation}>
-            <MonitoringIcon width={22} height={22} color="#EA4087" />
+            <MonitoringIcon width={22} height={22} color={TODAY_ACCENT} />
           </View>
         </LiquidGlassPressable>
         <LiquidGlassPressable
@@ -1559,21 +1386,25 @@ function PlanningMonitoringScreen({
           controlStyle={styles.datePill}
           headerElevation
           onPress={onCalendarPress}
-          tintColor={colors.surface.headerGlassWash}
+          tintColor={
+            hasNativeLiquidGlass ? undefined : colors.surface.headerGlassWash
+          }
           washColor={colors.surface.headerGlassWash}
         >
-          <HeaderDateLabel />
+          <HeaderDateLabel dateColor={TODAY_ACCENT} />
         </LiquidGlassPressable>
         <LiquidGlassPressable
           accessibilityLabel="Открыть календарь"
           controlStyle={styles.topCircle}
           headerElevation
           onPress={onCalendarPress}
-          tintColor={colors.surface.headerGlassWash}
+          tintColor={
+            hasNativeLiquidGlass ? undefined : colors.surface.headerGlassWash
+          }
           washColor={colors.surface.headerGlassWash}
         >
           <View style={styles.headerIconOrientation}>
-            <CalendarIcon width={22} height={22} color="#EA4087" />
+            <CalendarIcon width={22} height={22} color={TODAY_ACCENT} />
           </View>
         </LiquidGlassPressable>
       </LiquidGlassGroup>
@@ -1585,34 +1416,25 @@ function PlanningMonitoringScreen({
             : 'Цикл пока не настроен'}
         </ProjectText>
         <ProjectText style={styles.planningProbability} weight="semibold">
-          {probabilityLabel
-            ? `${probabilityLabel} вероятность`
-            : 'Вероятность не рассчитана'}
+          {planningMode
+            ? probabilityLabel
+              ? `${probabilityLabel} вероятность`
+              : 'Вероятность не рассчитана'
+            : cycleInsight?.delayDays
+              ? `Задержка ${cycleInsight.delayDays} дн.`
+              : daysUntilPeriod !== undefined
+                ? `Через ${daysUntilPeriod} дн.`
+                : 'Добавьте дату месячных'}
         </ProjectText>
         <ProjectText style={styles.planningProbabilityCaption}>
-          забеременеть
+          {planningMode
+            ? 'забеременеть'
+            : cycleInsight?.delayDays
+              ? 'от ожидаемой даты'
+              : daysUntilPeriod !== undefined
+                ? 'ожидаются месячные'
+                : 'в календаре'}
         </ProjectText>
-        <View style={styles.planningForecastMeta}>
-          <ProjectText
-            style={styles.planningForecastMetaText}
-            weight="semibold"
-          >
-            {forecastAvailable && fertileStart && fertileEnd
-              ? `Лучшие дни: ${formatPlanningDateRange(fertileStart, fertileEnd)}`
-              : cycleInsight?.delayDays
-                ? 'Отметьте новые месячные в календаре'
-                : 'Добавьте дату последних месячных'}
-          </ProjectText>
-          <ProjectText style={styles.planningForecastMetaText}>
-            {forecastAvailable && daysUntilOvulation !== undefined
-              ? daysUntilOvulation === 0
-                ? 'Овуляция ожидается сегодня'
-                : `Овуляция ожидается через ${daysUntilOvulation} дн.`
-              : cycleInsight?.delayDays
-                ? `Ожидаемая дата месячных прошла ${cycleInsight.delayDays} дн. назад`
-                : 'После этого появится прогноз цикла'}
-          </ProjectText>
-        </View>
       </View>
 
       <ScrollView
@@ -1643,14 +1465,22 @@ function PlanningMonitoringScreen({
             />
             <PlanningQuickAction
               glyph={
-                <PlanningSymptomsIcon width={28} height={28} color="#EA4087" />
+                <PlanningSymptomsIcon
+                  width={28}
+                  height={28}
+                  color={TODAY_ACCENT}
+                />
               }
               label="Симптомы"
               onPress={onSymptomsPress}
             />
             <PlanningQuickAction
               glyph={
-                <PlanningHeartIcon width={28} height={28} color="#EA4087" />
+                <PlanningHeartIcon
+                  width={28}
+                  height={28}
+                  color={TODAY_ACCENT}
+                />
               }
               label="Близость"
               onPress={onIntimacyPress}
@@ -1679,6 +1509,7 @@ function PlanningMonitoringScreen({
                     : 'Заполнить'
               }
               actionVariant="outline"
+              actionColor={TODAY_ACCENT}
               onPress={onSymptomsPress}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
             />
@@ -1700,6 +1531,7 @@ function PlanningMonitoringScreen({
                   : 'Открыть'
               }
               actionVariant="outline"
+              actionColor={TODAY_ACCENT}
               onPress={onCheckupsPress}
               actionIcon={<ArrowButton width={18.3} height={18.3} />}
             />
@@ -1713,175 +1545,100 @@ function PlanningMonitoringScreen({
             </ProjectText>
 
             <View style={styles.planningCyclesStatsCard}>
-              <View style={styles.planningCyclesRow}>
-                <View style={styles.planningCyclesMetricCopy}>
-                  <ProjectText style={styles.planningCyclesMetricLabel}>
-                    Предыдущий цикл
-                  </ProjectText>
-                  <ProjectText
-                    style={styles.planningCyclesMetricValue}
-                    weight="semibold"
-                  >
-                    {displayedCycleLength
-                      ? `${displayedCycleLength} дней`
-                      : 'Пока нет данных'}
-                  </ProjectText>
-                </View>
-                <View style={styles.planningCyclesStatus}>
-                  <View
-                    style={
-                      displayedCycleLength
-                        ? styles.planningCyclesStatusGood
-                        : styles.planningCyclesStatusPending
-                    }
-                  >
-                    <ProjectText
-                      style={
-                        displayedCycleLength
-                          ? styles.planningCyclesStatusGoodGlyph
-                          : styles.planningCyclesStatusPendingGlyph
-                      }
-                      weight="semibold"
-                    >
-                      {displayedCycleLength ? '✓' : 'i'}
-                    </ProjectText>
-                  </View>
-                  <ProjectText
-                    style={
-                      displayedCycleLength
-                        ? styles.planningCyclesStatusLabel
-                        : styles.planningCyclesStatusPendingLabel
-                    }
-                    weight="semibold"
-                  >
-                    {latestObservedCycleLength
-                      ? 'Журнал'
-                      : displayedCycleLength
-                        ? 'Профиль'
-                        : 'Наблюдаем'}
-                  </ProjectText>
-                </View>
-              </View>
-
-              <View style={styles.planningCyclesRowDivider} />
-
-              <View style={styles.planningCyclesRow}>
-                <View style={styles.planningCyclesMetricCopy}>
-                  <ProjectText style={styles.planningCyclesMetricLabel}>
-                    Предыдущие месячные
-                  </ProjectText>
-                  <ProjectText
-                    style={styles.planningCyclesMetricValue}
-                    weight="semibold"
-                  >
-                    {latestPeriodRun
-                      ? `${latestPeriodRun.lengthDays} дн.`
-                      : 'Пока нет данных'}
-                  </ProjectText>
-                </View>
-                <View style={styles.planningCyclesStatus}>
-                  <View
-                    style={
-                      latestPeriodRun
-                        ? styles.planningCyclesStatusGood
-                        : styles.planningCyclesStatusPending
-                    }
-                  >
-                    <ProjectText
-                      style={
-                        latestPeriodRun
-                          ? styles.planningCyclesStatusGoodGlyph
-                          : styles.planningCyclesStatusPendingGlyph
-                      }
-                      weight="semibold"
-                    >
-                      {latestPeriodRun ? '✓' : 'i'}
-                    </ProjectText>
-                  </View>
-                  <ProjectText
-                    style={
-                      latestPeriodRun
-                        ? styles.planningCyclesStatusLabel
-                        : styles.planningCyclesStatusPendingLabel
-                    }
-                    weight="semibold"
-                  >
-                    {latestPeriodRun ? 'Журнал' : 'Наблюдаем'}
-                  </ProjectText>
-                </View>
-              </View>
-
-              <View style={styles.planningCyclesRowDivider} />
-
-              <View style={styles.planningCyclesRow}>
-                <View style={styles.planningCyclesMetricCopy}>
-                  <ProjectText style={styles.planningCyclesMetricLabel}>
-                    Колебания длины цикла
-                  </ProjectText>
-                  <ProjectText
-                    style={styles.planningCyclesMetricValueSmall}
-                    weight="semibold"
-                  >
-                    {cycleVariation === undefined
+              {[
+                {
+                  label: 'Лучшие дни',
+                  planningOnly: true,
+                  value:
+                    forecastAvailable && fertileStart && fertileEnd
+                      ? formatPlanningDateRange(fertileStart, fertileEnd)
+                      : cycleInsight?.delayDays
+                        ? 'Отметьте новые месячные в календаре'
+                        : 'Добавьте дату последних месячных',
+                  missing: !forecastAvailable,
+                },
+                {
+                  label: 'Овуляция ожидается',
+                  planningOnly: true,
+                  value:
+                    forecastAvailable && daysUntilOvulation !== undefined
+                      ? daysUntilOvulation === 0
+                        ? 'Сегодня'
+                        : `Через ${daysUntilOvulation} дн.`
+                      : cycleInsight?.delayDays
+                        ? `Ожидаемая дата месячных прошла ${cycleInsight.delayDays} дн. назад`
+                        : 'После добавления даты месячных',
+                  missing: !forecastAvailable,
+                },
+                {
+                  label: 'Предыдущий цикл',
+                  value: displayedCycleLength
+                    ? `${displayedCycleLength} дней`
+                    : 'Пока нет данных',
+                  source: latestObservedCycleLength
+                    ? 'Из дневника'
+                    : displayedCycleLength
+                      ? 'Из профиля'
+                      : undefined,
+                  missing: !displayedCycleLength,
+                },
+                {
+                  label: 'Предыдущие месячные',
+                  value: latestPeriodRun
+                    ? `${latestPeriodRun.lengthDays} дн.`
+                    : 'Пока нет данных',
+                  source: latestPeriodRun ? 'Из дневника' : undefined,
+                  missing: !latestPeriodRun,
+                },
+                {
+                  label: 'Колебания длины цикла',
+                  value:
+                    cycleVariation === undefined
                       ? 'Нужно больше данных'
-                      : `${cycleVariation} дн.`}
-                  </ProjectText>
-                </View>
-                <View style={styles.planningCyclesStatus}>
-                  <View
-                    style={
-                      cycleVariation === undefined
-                        ? styles.planningCyclesStatusPending
-                        : styles.planningCyclesStatusGood
-                    }
-                  >
-                    <ProjectText
-                      style={
-                        cycleVariation === undefined
-                          ? styles.planningCyclesStatusPendingGlyph
-                          : styles.planningCyclesStatusGoodGlyph
-                      }
-                      weight="semibold"
-                    >
-                      {cycleVariation === undefined ? 'i' : '✓'}
-                    </ProjectText>
+                      : `${cycleVariation} дн.`,
+                  source:
+                    cycleVariation === undefined ? undefined : 'Из дневника',
+                  missing: cycleVariation === undefined,
+                },
+              ]
+                .filter((metric) => !metric.planningOnly || planningMode)
+                .map((metric, index) => (
+                  <View key={metric.label}>
+                    {index > 0 ? (
+                      <View style={styles.planningCyclesRowDivider} />
+                    ) : null}
+                    <View style={styles.planningCyclesRow}>
+                      <View style={styles.planningCyclesMetricCopy}>
+                        <ProjectText style={styles.planningCyclesMetricLabel}>
+                          {metric.label}
+                        </ProjectText>
+                        <ProjectText
+                          weight="regular"
+                          style={[
+                            styles.planningCyclesMetricValue,
+                            metric.missing && styles.planningCyclesMissing,
+                          ]}
+                        >
+                          {metric.value}
+                        </ProjectText>
+                      </View>
+                      {metric.source ? (
+                        <ProjectText style={styles.planningCyclesSource}>
+                          {metric.source}
+                        </ProjectText>
+                      ) : null}
+                    </View>
                   </View>
-                  <ProjectText
-                    style={
-                      cycleVariation === undefined
-                        ? styles.planningCyclesStatusPendingLabel
-                        : styles.planningCyclesStatusLabel
-                    }
-                    weight="semibold"
-                  >
-                    {cycleVariation === undefined ? 'Наблюдаем' : 'Журнал'}
-                  </ProjectText>
-                </View>
-              </View>
+                ))}
             </View>
           </View>
 
-          <View
-            pointerEvents="none"
-            style={[
-              styles.planningMetricsDivider,
-              styles.planningCyclesDivider,
-            ]}
-          />
+          <View pointerEvents="none" style={styles.planningCyclesDivider} />
 
           <View style={styles.planningCardsRow}>
-            <ImportantMascotCard onPress={onCheckupsPress} />
-            <FeatureCard
-              title={'Заполнить\nпитание\nза сегодня'}
-              onPress={onNutritionPress}
-            />
-            <FeatureCard
-              title={
-                checkupProgress.total
-                  ? `План наблюдения\nПунктов: ${checkupProgress.total}`
-                  : 'План наблюдения\nпока пуст'
-              }
-              onPress={onCheckupsPress}
+            <TodayArticleCards
+              onImportantPress={onCheckupsPress}
+              checkupCount={checkupProgress.total}
             />
           </View>
         </View>
@@ -1952,25 +1709,6 @@ export function PlanningTodayScreenCatalogPreview() {
             textValue: labels.join(', '),
           });
         }}
-      />
-    </FontReadyContext.Provider>
-  );
-}
-
-export function TodayScreenCatalogPreview() {
-  const insets = useSafeAreaInsets();
-  const headerTop = getHeaderTop(insets.top, 1) + 1;
-
-  return (
-    <FontReadyContext.Provider value>
-      <MonitoringScreen
-        headerTop={headerTop}
-        onCalendarPress={() => undefined}
-        onChartsPress={() => undefined}
-        onJournalPress={() => undefined}
-        onNutritionPress={() => undefined}
-        onPregnancyDatePress={() => undefined}
-        onCheckupsPress={() => undefined}
       />
     </FontReadyContext.Provider>
   );
@@ -2138,9 +1876,8 @@ export default function App() {
                 headerTop={headerTop}
                 onCalendarPress={() => setCalendarVisible(true)}
                 onChartsPress={() => setChartsVisible(true)}
-                onJournalPress={() =>
-                  openJournalFlow(new Date(), 'cycle')
-                }
+                onJournalPress={() => openJournalFlow(new Date(), 'cycle')}
+                onSymptomsPress={() => openJournalFlow(new Date(), 'cycle')}
                 onNutritionPress={() =>
                   openJournalFlow(new Date(), 'nutrition')
                 }
@@ -2166,6 +1903,7 @@ export default function App() {
           periodDateKeys={savedPeriodDateKeys}
           onSavePeriodDateKeys={savePeriodDateKeys}
           pregnancyMode={profile?.goal === 'pregnancy'}
+          highlightFertility={profile?.goal === 'planning'}
         />
         <JournalFlowModal
           visible={journalFlowDate !== null}
@@ -2495,7 +2233,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   featureCardSoft: {
-    backgroundColor: '#FDECE5',
+    backgroundColor: '#233329',
   },
   cardArrow: {
     width: 27,
@@ -2507,7 +2245,7 @@ const styles = StyleSheet.create({
   },
   featureTitle: {
     width: '100%',
-    color: '#171717',
+    color: '#FFFFFF',
     fontFamily: FONT_SF_REGULAR,
     fontSize: 13.5,
     lineHeight: 16.5,
@@ -2559,36 +2297,6 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     backgroundColor: '#FDECE5',
   },
-  planningBackground: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: DESIGN_WIDTH,
-    height: DESIGN_HEIGHT,
-    overflow: 'hidden',
-    backgroundColor: '#FDECE5',
-  },
-  planningSphereLeft: {
-    position: 'absolute',
-    left: -180,
-    top: 299,
-    width: 361.9,
-    height: 348.31,
-  },
-  planningSphereTopRight: {
-    position: 'absolute',
-    left: 57,
-    top: -290,
-    width: 585,
-    height: 600,
-  },
-  planningSphereBottomRight: {
-    position: 'absolute',
-    left: 241,
-    top: 313,
-    width: 325,
-    height: 317,
-  },
   planningHeaderFade: {
     position: 'absolute',
     left: 0,
@@ -2612,7 +2320,7 @@ const styles = StyleSheet.create({
   },
   planningProbability: {
     marginTop: 4,
-    color: '#EA4087',
+    color: TODAY_ACCENT,
     fontSize: 34,
     lineHeight: 38,
     letterSpacing: -0.9,
@@ -2624,17 +2332,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 29,
     letterSpacing: -0.48,
-  },
-  planningForecastMeta: {
-    marginTop: 16,
-    alignItems: 'center',
-    gap: 3,
-  },
-  planningForecastMetaText: {
-    color: '#5D5055',
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: -0.14,
   },
   planningActions: {
     position: 'absolute',
@@ -2670,7 +2367,7 @@ const styles = StyleSheet.create({
   planningActionPrimaryFill: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 36,
-    backgroundColor: '#EA4087',
+    backgroundColor: TODAY_ACCENT,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.82)',
   },
@@ -2680,7 +2377,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   planningAndroidActionPrimary: {
-    backgroundColor: '#EA4087',
+    backgroundColor: TODAY_ACCENT,
   },
   planningActionIcon: {
     zIndex: 1,
@@ -2711,11 +2408,11 @@ const styles = StyleSheet.create({
   },
   planningLowerScrollContent: {
     width: DESIGN_WIDTH,
-    height: 1402,
   },
   planningLowerCanvas: {
     width: DESIGN_WIDTH,
-    height: 982,
+    paddingTop: 390,
+    paddingBottom: 130,
     marginTop: 420,
   },
   planningContentShape: {
@@ -2728,7 +2425,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 180,
     width: DESIGN_WIDTH,
-    height: 802,
+    bottom: 0,
     backgroundColor: '#FFFFFF',
   },
   planningJournalArea: {
@@ -2758,29 +2455,18 @@ const styles = StyleSheet.create({
     top: 178,
   },
   planningCyclesContent: {
-    position: 'absolute',
-    left: 16,
-    top: 390,
-    width: 370,
+    marginHorizontal: 16,
   },
   planningCyclesTitle: {
-    color: '#171717',
-    fontSize: 24,
-    lineHeight: 29,
-    letterSpacing: -0.48,
+    color: '#212123',
+    fontSize: 22,
+    lineHeight: 27,
+    letterSpacing: -0.4,
   },
-  planningCyclesStatsCard: {
-    marginTop: 16,
-    overflow: 'hidden',
-    borderRadius: 30,
-    backgroundColor: '#FFF8FB',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.15)',
-  },
+  planningCyclesStatsCard: { marginTop: 12 },
   planningCyclesRow: {
-    minHeight: 82,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    minHeight: 84,
+    paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -2788,122 +2474,36 @@ const styles = StyleSheet.create({
   },
   planningCyclesRowDivider: {
     height: StyleSheet.hairlineWidth,
-    marginLeft: 18,
-    backgroundColor: 'rgba(68,48,56,0.1)',
+    backgroundColor: '#EDEDED',
   },
-  planningCyclesMetricCopy: {
-    minWidth: 0,
-    flex: 1,
-    gap: 4,
-  },
+  planningCyclesMetricCopy: { minWidth: 0, flex: 1, gap: 5 },
   planningCyclesMetricLabel: {
-    color: '#766B70',
+    color: '#736E6C',
     fontSize: 14,
-    lineHeight: 17,
-    letterSpacing: -0.1,
+    lineHeight: 18,
   },
   planningCyclesMetricValue: {
-    color: '#211B1E',
-    fontSize: 21,
-    lineHeight: 24,
-    letterSpacing: -0.32,
-  },
-  planningCyclesMetricValueSmall: {
-    color: '#211B1E',
-    fontSize: 17,
-    lineHeight: 21,
+    color: '#212123',
+    fontSize: 18,
+    lineHeight: 23,
     letterSpacing: -0.2,
   },
-  planningCyclesStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  planningCyclesStatusGood: {
-    width: 25,
-    height: 25,
-    borderRadius: 13,
-    backgroundColor: '#31B76A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  planningCyclesStatusGoodGlyph: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    lineHeight: 18,
-  },
-  planningCyclesStatusPending: {
-    width: 25,
-    height: 25,
-    borderRadius: 13,
-    backgroundColor: '#F7D6E4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  planningCyclesStatusPendingGlyph: {
-    color: '#C32E6E',
-    fontSize: 15,
-    lineHeight: 18,
-  },
-  planningCyclesStatusLabel: {
-    color: '#267B4B',
-    fontSize: 12,
-    lineHeight: 15,
-    letterSpacing: 0.18,
-    textTransform: 'uppercase',
-  },
-  planningCyclesStatusPendingLabel: {
-    color: '#A72A60',
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 0.1,
-    textTransform: 'uppercase',
-  },
+  planningCyclesMissing: { color: '#736E6C' },
+  planningCyclesSource: { color: '#736E6C', fontSize: 12, lineHeight: 16 },
   planningCyclesDivider: {
-    top: 704,
+    marginTop: 22,
+    marginHorizontal: 16,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#EDEDED',
   },
   planningCardsRow: {
-    position: 'absolute',
-    left: 16,
-    top: 724,
+    marginLeft: 16,
+    marginTop: 18,
     width: 386,
     height: 128,
     flexDirection: 'row',
     gap: 10,
-  },
-  planningModalRoot: {
-    flex: 1,
-  },
-  planningModalScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(43,31,36,0.24)',
-  },
-  planningModalSheet: {
-    width: '100%',
-    paddingTop: 10,
-    paddingHorizontal: 20,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    backgroundColor: colors.surface.raised,
-    ...shadows.floating,
-  },
-  planningModalPageScroll: {
-    flex: 1,
-  },
-  planningModalPageContent: {
-    flexGrow: 1,
-  },
-  planningModalDismissArea: {
-    flex: 1,
-    minHeight: 174,
-  },
-  planningModalHandle: {
-    width: 38,
-    height: 5,
-    marginBottom: 16,
-    borderRadius: 3,
-    backgroundColor: '#DED9DB',
-    alignSelf: 'center',
   },
   planningModalContent: {
     width: '100%',
@@ -2923,90 +2523,52 @@ const styles = StyleSheet.create({
   },
   planningOptionList: {
     width: '100%',
-    gap: 8,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
   },
   planningOption: {
     position: 'relative',
     width: '100%',
-    height: 54,
-    overflow: 'hidden',
-    borderRadius: 18,
-    backgroundColor: '#F7F3F4',
-    borderWidth: 1,
-    borderColor: 'rgba(58,42,48,0.06)',
+    minHeight: 52,
+  },
+  planningOptionDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EDEBED',
   },
   planningOptionContent: {
     flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-  },
-  planningOptionSelected: {
-    backgroundColor: '#FFF7FA',
-    borderColor: '#F2A8CB',
-  },
-  planningOptionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F5E8ED',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  planningOptionIconSelected: {
-    backgroundColor: '#EA4087',
-  },
-  planningOptionGlyph: {
-    color: '#EA4087',
-    fontSize: 17,
-    lineHeight: 20,
-  },
-  planningOptionGlyphSelected: {
-    color: '#FFFFFF',
+    gap: 12,
   },
   planningOptionLabel: {
     minWidth: 0,
     flex: 1,
+    fontSize: 16,
+    lineHeight: 22,
+    color: '#212123',
   },
-  planningOptionRadio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#C9C2C5',
-    backgroundColor: '#FFFFFF',
+  planningOptionSelection: {
+    width: 22,
+    height: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  planningOptionRadioSelected: {
+  planningOptionCheck: {
+    width: 7,
+    height: 13,
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
     borderColor: '#EA4087',
-  },
-  planningOptionRadioDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#EA4087',
+    transform: [{ rotate: '40deg' }],
+    marginTop: -4,
   },
   planningModalActions: {
     flexDirection: 'row',
     gap: 12,
-  },
-  planningModalActionsFixed: {
-    position: 'absolute',
-    zIndex: 6,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingTop: 14,
-    paddingHorizontal: 20,
-    backgroundColor: colors.surface.raised,
-    shadowColor: '#2B131B',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.07,
-    shadowRadius: 18,
-    elevation: 12,
   },
   planningModalActionSlot: {
     flex: 1,
@@ -3017,20 +2579,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  planningModalCancel: {
-    position: 'relative',
-    height: 48,
-    overflow: 'hidden',
-    borderRadius: 24,
-    backgroundColor: '#F5F1F2',
-  },
-  planningModalSave: {
-    position: 'relative',
-    height: 48,
-    overflow: 'hidden',
-    borderRadius: 24,
-    backgroundColor: '#EA4087',
-  },
+  planningModalCancel: { ...sheetStyles.secondary },
+  planningModalSave: { ...sheetStyles.primary },
   planningModalSaveDisabled: {
     opacity: 0.38,
   },

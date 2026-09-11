@@ -1,3 +1,5 @@
+import { overlayRadii } from './tokens';
+import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -93,6 +95,7 @@ type CalendarPageModalProps = {
     dateKeys: ReadonlySet<string>,
   ) => void | Promise<void>;
   pregnancyMode?: boolean;
+  highlightFertility?: boolean;
 };
 
 type CalendarPageVariant = 'backup' | 'continuous';
@@ -243,6 +246,7 @@ function buildCalculatedCycle(
 function getCalculatedDayForecast(
   date: Date,
   cycle: CycleHistory,
+  highlightFertility: boolean,
 ): DayForecast {
   const insight = cycleDayInsight(date, cycle);
 
@@ -258,7 +262,7 @@ function getCalculatedDayForecast(
     };
   }
 
-  if (insight.kind === 'ovulation') {
+  if (highlightFertility && insight.kind === 'ovulation') {
     return {
       cycleDay: insight.cycleDay,
       description: 'Предполагаемый день овуляции по истории цикла.',
@@ -267,7 +271,7 @@ function getCalculatedDayForecast(
     };
   }
 
-  if (insight.kind === 'fertile') {
+  if (highlightFertility && insight.kind === 'fertile') {
     return {
       cycleDay: insight.cycleDay,
       description: 'Фертильное окно рассчитано по истории цикла.',
@@ -1131,6 +1135,7 @@ function CalendarPageModalBase({
   periodDateKeys: savedPeriodDateKeys = EMPTY_PERIOD_DATE_KEYS,
   onSavePeriodDateKeys,
   pregnancyMode = false,
+  highlightFertility = false,
   variant,
 }: CalendarPageBaseProps) {
   const { width, height } = useWindowDimensions();
@@ -1267,26 +1272,23 @@ function CalendarPageModalBase({
             lastPeriodStartAt,
             cycleLengthDays,
           ),
-    [
-      cycleLengthDays,
-      lastPeriodStartAt,
-      pregnancyMode,
-      visiblePeriodDateKeys,
-    ],
+    [cycleLengthDays, lastPeriodStartAt, pregnancyMode, visiblePeriodDateKeys],
   );
   const calculatedForecastForDate = useMemo(
     () =>
       calculatedCycle
-        ? (date: Date) => getCalculatedDayForecast(date, calculatedCycle)
+        ? (date: Date) =>
+            getCalculatedDayForecast(date, calculatedCycle, highlightFertility)
         : (_date: Date) => null,
-    [calculatedCycle],
+    [calculatedCycle, highlightFertility],
   );
   const yearForecastForDate = useMemo(
     () =>
       calculatedCycle
-        ? (date: Date) => getCalculatedDayForecast(date, calculatedCycle)
+        ? (date: Date) =>
+            getCalculatedDayForecast(date, calculatedCycle, highlightFertility)
         : (_date: Date) => null,
-    [calculatedCycle],
+    [calculatedCycle, highlightFertility],
   );
   const headerDate = dayTitle(
     variant === 'continuous' ? initialDate : detailsDate,
@@ -1294,12 +1296,20 @@ function CalendarPageModalBase({
   const selectedForecast = pregnancyMode
     ? PREGNANCY_FORECAST
     : calculatedCycle
-      ? getCalculatedDayForecast(detailsDate, calculatedCycle)
+      ? getCalculatedDayForecast(
+          detailsDate,
+          calculatedCycle,
+          highlightFertility,
+        )
       : NO_CYCLE_FORECAST;
   const todayForecast = pregnancyMode
     ? PREGNANCY_FORECAST
     : calculatedCycle
-      ? getCalculatedDayForecast(initialDate, calculatedCycle)
+      ? getCalculatedDayForecast(
+          initialDate,
+          calculatedCycle,
+          highlightFertility,
+        )
       : NO_CYCLE_FORECAST;
   const headerForecast = selectedDate ? selectedForecast : todayForecast;
   const selectedHeaderIsFertile =
@@ -1345,7 +1355,7 @@ function CalendarPageModalBase({
     symptomDateKeys?.has(dateKey(detailsDate)) ??
     (variant === 'backup' && SYMPTOM_LOG_DATE_KEYS.has(dateKey(detailsDate)));
   const canMarkPeriod = allowPeriodMarking && !pregnancyMode;
-  const sheetBottom = Math.max(6, insets.bottom / scale - 4);
+  const sheetBottom = sizes.screenGutter;
   const returnButtonBottom = sheetBottom + DAY_DETAILS_HEIGHT + spacing.sm;
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 10,
@@ -2022,6 +2032,7 @@ function CalendarPageModalBase({
                 ]}
               />
 
+              <TopChromeBackdrop headerTop={headerTop} style={{ zIndex: 7 }} />
               {!periodMarkingMode ? (
                 <CalendarGlassGroup
                   spacing={12}
@@ -2101,116 +2112,124 @@ function CalendarPageModalBase({
               )}
 
               {!pregnancyMode ? (
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.metrics,
-                  { top: headerTop + 61 },
-                  periodMarkingMode && styles.periodModeHidden,
-                  variant === 'continuous' && {
-                    opacity: viewProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 0],
-                    }),
-                  },
-                ]}
-              >
-                <View style={styles.metricNarrow}>
-                  <AppText
-                    numeric
-                    color={
-                      selectedHeaderIsColored
-                        ? colors.text.inverse
-                        : isTodayFertile && !isTodayMenstruation
-                          ? colors.brand.success
-                          : colors.brand.primary
-                    }
-                    style={styles.metricValue}
-                  >
-                    {isTodayMenstruation
-                      ? '—'
-                      : isTodayFertile
-                        ? '+'
-                        : calculatedCycle
-                          ? delayDays || daysUntilPeriod
-                          : '—'}
-                  </AppText>
-                  <AppText
-                    role="caption"
-                    numberOfLines={1}
-                    color={selectedHeaderLabelColor}
-                    style={[
-                      styles.metricLabel,
-                      (isTodayMenstruation || isTodayFertile) &&
-                        styles.metricStatusLabel,
-                    ]}
-                  >
-                    {isTodayMenstruation
-                      ? 'Менструация'
-                      : isTodayOvulation
-                        ? 'Овуляция'
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.metrics,
+                    { top: headerTop + 61 },
+                    periodMarkingMode && styles.periodModeHidden,
+                    variant === 'continuous' && {
+                      opacity: viewProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 0],
+                      }),
+                    },
+                  ]}
+                >
+                  <View style={styles.metricNarrow}>
+                    <AppText
+                      numeric
+                      color={
+                        selectedHeaderIsColored
+                          ? colors.text.inverse
+                          : isTodayFertile && !isTodayMenstruation
+                            ? colors.brand.success
+                            : colors.brand.primary
+                      }
+                      style={styles.metricValue}
+                    >
+                      {isTodayMenstruation
+                        ? '—'
                         : isTodayFertile
-                          ? 'Фертильное окно'
-                          : delayDays > 0
-                            ? 'Задержка'
-                            : 'До месячных'}
-                  </AppText>
-                </View>
-                <View
-                  style={[
-                    styles.metricDivider,
-                    selectedHeaderIsColored && styles.metricDividerOnColor,
-                  ]}
-                />
-                <View style={styles.metricWide}>
-                  <AppText
-                    weight="medium"
-                    color={
-                      selectedHeaderIsColored
-                        ? colors.text.inverse
-                        : fertilityColor
-                    }
-                    style={styles.metricValue}
-                  >
-                    {fertilityLabel}
-                  </AppText>
-                  <AppText
-                    role="caption"
-                    numberOfLines={1}
-                    color={selectedHeaderLabelColor}
-                    style={styles.metricLabel}
-                  >
-                    Вероятность забеременеть
-                  </AppText>
-                </View>
-                <View
-                  style={[
-                    styles.metricDivider,
-                    selectedHeaderIsColored && styles.metricDividerOnColor,
-                  ]}
-                />
-                <View style={styles.metricNarrow}>
-                  <AppText
-                    numeric
-                    color={
-                      selectedHeaderIsColored
-                        ? colors.text.inverse
-                        : colors.brand.primary
-                    }
-                    style={styles.metricValue}
-                  >
-                    {calculatedCycle ? currentCycleDay : '—'}
-                  </AppText>
-                  <AppText
-                    role="caption"
-                    numberOfLines={1}
-                    color={selectedHeaderLabelColor}
-                    style={styles.metricLabel}
-                  >
-                    День цикла
-                  </AppText>
-                </View>
-              </Animated.View>
+                          ? '+'
+                          : calculatedCycle
+                            ? delayDays || daysUntilPeriod
+                            : '—'}
+                    </AppText>
+                    <AppText
+                      role="caption"
+                      numberOfLines={1}
+                      color={selectedHeaderLabelColor}
+                      style={[
+                        styles.metricLabel,
+                        (isTodayMenstruation || isTodayFertile) &&
+                          styles.metricStatusLabel,
+                      ]}
+                    >
+                      {isTodayMenstruation
+                        ? 'Менструация'
+                        : isTodayOvulation
+                          ? 'Овуляция'
+                          : isTodayFertile
+                            ? 'Фертильное окно'
+                            : delayDays > 0
+                              ? 'Задержка'
+                              : 'До месячных'}
+                    </AppText>
+                  </View>
+                  <View
+                    style={[
+                      styles.metricDivider,
+                      selectedHeaderIsColored && styles.metricDividerOnColor,
+                    ]}
+                  />
+                  <View style={styles.metricWide}>
+                    <AppText
+                      weight="medium"
+                      color={
+                        selectedHeaderIsColored
+                          ? colors.text.inverse
+                          : highlightFertility
+                            ? fertilityColor
+                            : colors.text.secondary
+                      }
+                      style={styles.metricValue}
+                    >
+                      {highlightFertility
+                        ? fertilityLabel
+                        : calculatedCycle
+                          ? `${calculatedCycle.cycleLengthDays} дн.`
+                          : '—'}
+                    </AppText>
+                    <AppText
+                      role="caption"
+                      numberOfLines={1}
+                      color={selectedHeaderLabelColor}
+                      style={styles.metricLabel}
+                    >
+                      {highlightFertility
+                        ? 'Вероятность забеременеть'
+                        : 'Длина цикла'}
+                    </AppText>
+                  </View>
+                  <View
+                    style={[
+                      styles.metricDivider,
+                      selectedHeaderIsColored && styles.metricDividerOnColor,
+                    ]}
+                  />
+                  <View style={styles.metricNarrow}>
+                    <AppText
+                      numeric
+                      color={
+                        selectedHeaderIsColored
+                          ? colors.text.inverse
+                          : colors.brand.primary
+                      }
+                      style={styles.metricValue}
+                    >
+                      {calculatedCycle ? currentCycleDay : '—'}
+                    </AppText>
+                    <AppText
+                      role="caption"
+                      numberOfLines={1}
+                      color={selectedHeaderLabelColor}
+                      style={styles.metricLabel}
+                    >
+                      День цикла
+                    </AppText>
+                  </View>
+                </Animated.View>
               ) : null}
 
               {variant === 'continuous' && viewMode === 'month' ? (
@@ -2791,7 +2810,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     padding: spacing.md,
-    borderRadius: 30,
+    borderRadius: overlayRadii.sheet,
     backgroundColor: colors.surface.raised,
     shadowColor: '#3A171C',
     shadowOffset: { width: 0, height: 0 },

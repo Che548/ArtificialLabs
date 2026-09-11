@@ -1,6 +1,10 @@
+import { filterInput } from '../lib/input-format';
+import { AppSheet, sheetStyles } from '../components/AppSheet';
+import { ProfileCollapse } from '../components/ProfileMotion';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import * as DocumentPicker from 'expo-document-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   cacheDirectory,
   readAsStringAsync,
@@ -31,24 +35,17 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
-import ProfileIcon01 from '../assets/profile/settings-icons/1.svg';
 import ProfileIcon02 from '../assets/profile/settings-icons/2.svg';
 import ProfileIcon03 from '../assets/profile/settings-icons/3.svg';
 import ProfileIcon04 from '../assets/profile/settings-icons/4.svg';
 import ProfileIcon05 from '../assets/profile/settings-icons/5.svg';
-import ProfileIcon06 from '../assets/profile/settings-icons/6.svg';
 import ProfileIcon07 from '../assets/profile/settings-icons/7.svg';
 import ProfileIcon08 from '../assets/profile/settings-icons/8.svg';
 import ProfileIcon09 from '../assets/profile/settings-icons/9.svg';
 import ProfileIcon10 from '../assets/profile/settings-icons/10.svg';
-import ProfileIcon11 from '../assets/profile/settings-icons/11.svg';
 import ProfileIcon12 from '../assets/profile/settings-icons/12.svg';
-import ProfileIcon13 from '../assets/profile/settings-icons/13.svg';
 
-import {
-  PlanningTodayScreenCatalogPreview,
-  TodayScreenCatalogPreview,
-} from '../App';
+import { PlanningTodayScreenCatalogPreview } from '../App';
 import {
   AppText,
   colors,
@@ -62,7 +59,6 @@ import {
   ProfileFieldRow,
   ProfileLanguageSelector,
   OnboardingPreviewFlow,
-  ScanConceptsLab,
   ProfileSettingsGroup,
   ProfileSettingsRow,
   ProfileToggleRow,
@@ -95,11 +91,20 @@ import type {
   LocalProfile,
   MedicalCondition,
   Medication,
-  MonitoringProgram,
 } from '../lib/health-types';
 import type { NotificationTone } from '../shared/notification-copy';
-import DesignSystemScreen from './design-system';
 import { DiagnosticsScreen } from '../components/DiagnosticsScreen';
+import {
+  AssistantDataDetails,
+  PermissionAction,
+  PermissionToggle,
+  PermissionPrivacyDetails,
+} from '../components/ProfilePermissionDetails';
+import {
+  ProfileAccountDetails,
+  ProfileContacts,
+  ProfileGoalSettings,
+} from '../components/ProfileAccountDetails';
 import { getAppVersionInfo } from '../lib/app-version';
 import { registerDiagnosticsTap } from '../lib/diagnostics-access';
 import { useUpdateManager } from '../lib/update-manager';
@@ -126,45 +131,31 @@ const e2eImportFixtureUri =
 
 type ProfileSection =
   | 'account'
-  | 'personal'
   | 'medical-history'
   | 'medications'
   | 'allergies'
   | 'documents'
-  | 'programs'
   | 'language'
   | 'permissions'
-  | 'imports'
-  | 'exports'
+  | 'data-transfer'
   | 'security'
   | 'notification-settings'
-  | 'delete-account'
   | 'onboarding'
-  | 'planning-today-ui-kit'
-  | 'scan-concepts'
-  | 'today-ui-kit'
-  | 'ui-kit';
+  | 'planning-today-ui-kit';
 
 const SECTION_TITLES: Record<ProfileSection, string> = {
   account: 'Данные профиля',
-  personal: 'Основная информация',
   'medical-history': 'Медицинская история',
   medications: 'Препараты',
   allergies: 'Аллергии и риски',
   documents: 'Документы',
-  programs: 'Программы',
   language: 'Язык и регион',
   permissions: 'Разрешения и данные',
-  imports: 'Импорт данных',
-  exports: 'Экспорт данных',
+  'data-transfer': 'Импорт и экспорт',
   security: 'Аккаунт и безопасность',
   'notification-settings': 'Настройки уведомлений',
-  'delete-account': 'Удаление аккаунта',
   onboarding: 'Онбординг',
   'planning-today-ui-kit': 'Сегодня · Планирование',
-  'scan-concepts': 'Варианты сканирования',
-  'today-ui-kit': 'Сегодня · UI kit',
-  'ui-kit': 'UI kit',
 };
 
 function formatDate(timestamp?: number) {
@@ -207,7 +198,8 @@ export default function ProfileScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const { signOut } = useAuthActions();
   const { isAuthenticated } = useConvexAuth();
-  const revokeAiChatConsent = useMutation(api.chat.revokeConsent);
+  const setAiChatEnabled = useMutation(api.chat.setEnabled);
+  const [aiChatSaving, setAiChatSaving] = useState(false);
   const revokeAiAgentConsent = useMutation(api.chat.revokeAgentConsent);
   const setRemoteAgentAutomation = useMutation(api.agent.setAutomation);
   const clearRemoteAgentData = useMutation(api.agent.clearMyData);
@@ -229,7 +221,6 @@ export default function ProfileScreen() {
     medications,
     preferences,
     profile,
-    programs,
     readOnly,
     requestAccountDeletion,
     serviceIssue,
@@ -239,17 +230,13 @@ export default function ProfileScreen() {
     saveMedication,
     savePreferences,
     setCloudSyncEnabled,
-    setProgramStatus,
     syncNow,
     syncStatus,
     updateProfile,
     viewerEmail,
     viewerPhone,
   } = useHealthStore();
-  const aiChatStatus = useQuery(
-    api.chat.status,
-    isAuthenticated && cloudProfileReady ? {} : 'skip',
-  );
+  const aiChatStatus = useQuery(api.chat.status, isAuthenticated ? {} : 'skip');
   const aiAgentStatus = useQuery(
     api.agent.status,
     isAuthenticated && cloudProfileReady ? {} : 'skip',
@@ -294,7 +281,11 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
-    if (panel && panel in SECTION_TITLES)
+    if (panel === 'delete-account') setActiveSection('security');
+    else if (panel === 'imports' || panel === 'exports')
+      setActiveSection('data-transfer');
+    else if (panel === 'personal') setActiveSection('account');
+    else if (panel && panel in SECTION_TITLES)
       setActiveSection(panel as ProfileSection);
   }, [panel]);
 
@@ -332,7 +323,7 @@ export default function ProfileScreen() {
     const frame = requestAnimationFrame(() => {
       Animated.timing(sectionProgress, {
         toValue: 1,
-        duration: 420,
+        duration: 280,
         easing: Easing.bezier(0.32, 0.72, 0, 1),
         useNativeDriver: true,
       }).start();
@@ -341,7 +332,6 @@ export default function ProfileScreen() {
     return () => cancelAnimationFrame(frame);
   }, [activeSection, reducePageMotion, sectionProgress]);
 
-  const visiblePrograms = programs.filter((program) => !program.deletedAt);
   const visibleDocuments = documents
     .filter((item) => !item.deletedAt)
     .sort((left, right) =>
@@ -376,28 +366,19 @@ export default function ProfileScreen() {
     }
   };
 
-  const confirmAiConsentRevocation = () => {
-    if (!aiChatStatus?.consentAccepted) return;
-    Alert.alert(
-      'Отозвать согласие?',
-      'Сферка перестанет отправлять текст чата в Yandex AI Studio. При следующей отправке согласие будет запрошено снова.',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Отозвать',
-          style: 'destructive',
-          onPress: () => {
-            void revokeAiChatConsent({}).catch((error) => {
-              console.error('Revoking AI chat consent failed', error);
-              Alert.alert(
-                'Не удалось отозвать согласие',
-                'Проверьте подключение и попробуйте ещё раз.',
-              );
-            });
-          },
-        },
-      ],
-    );
+  const changeAiChatEnabled = async (enabled: boolean) => {
+    if (aiChatSaving) return;
+    setAiChatSaving(true);
+    try {
+      await setAiChatEnabled({ enabled });
+    } catch {
+      Alert.alert(
+        'Не удалось изменить настройку ИИ-чата',
+        'Проверьте подключение и попробуйте ещё раз.',
+      );
+    } finally {
+      setAiChatSaving(false);
+    }
   };
 
   const confirmAgentConsentRevocation = () => {
@@ -525,7 +506,7 @@ export default function ProfileScreen() {
 
     Animated.timing(sectionProgress, {
       toValue: 0,
-      duration: 340,
+      duration: 240,
       easing: Easing.bezier(0.32, 0.72, 0, 1),
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -557,6 +538,9 @@ export default function ProfileScreen() {
         ]}
       >
         <ScrollView
+          automaticallyAdjustKeyboardInsets
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
           contentContainerStyle={[
@@ -573,6 +557,13 @@ export default function ProfileScreen() {
             onPress={() => openSection('account')}
           />
 
+          {profile ? (
+            <ProfileGoalSettings
+              profile={profile}
+              readOnly={readOnly}
+              saveProfile={updateProfile}
+            />
+          ) : null}
           <ProfileOverview
             allergyCount={allergyRisks.filter((item) => !item.deletedAt).length}
             conditionCount={
@@ -582,7 +573,6 @@ export default function ProfileScreen() {
             medicationCount={
               medications.filter((item) => !item.deletedAt).length
             }
-            programCount={visiblePrograms.length}
             onOpen={openSection}
           />
           <ProfileVersionFooter
@@ -593,9 +583,7 @@ export default function ProfileScreen() {
         </ScrollView>
       </Animated.View>
 
-      {activeSection &&
-      activeSection !== 'onboarding' &&
-      activeSection !== 'scan-concepts' ? (
+      {activeSection && activeSection !== 'onboarding' ? (
         <Animated.View
           style={[
             styles.detailPage,
@@ -611,18 +599,7 @@ export default function ProfileScreen() {
             },
           ]}
         >
-          {activeSection === 'ui-kit' ? (
-            <DesignSystemScreen onBack={closeSection} />
-          ) : activeSection === 'today-ui-kit' ? (
-            <ProfileDetailScreen
-              bottomInset={insets.bottom}
-              title={SECTION_TITLES[activeSection]}
-              topInset={insets.top}
-              onBack={closeSection}
-            >
-              <TodayProfileKitPreview />
-            </ProfileDetailScreen>
-          ) : activeSection === 'planning-today-ui-kit' ? (
+          {activeSection === 'planning-today-ui-kit' ? (
             <ProfileDetailScreen
               bottomInset={insets.bottom}
               title={SECTION_TITLES[activeSection]}
@@ -644,7 +621,8 @@ export default function ProfileScreen() {
               onBack={closeSection}
             >
               {renderProfileSectionDirect({
-                aiConsentAccepted: aiChatStatus?.consentAccepted === true,
+                aiChatEnabled: aiChatStatus?.userEnabled === true,
+                aiChatUnavailable: !aiChatStatus || aiChatSaving,
                 agentConsentAccepted: aiAgentStatus?.consentAccepted === true,
                 agentEnabled: aiAgentStatus?.enabled === true,
                 agentAutomationEnabled:
@@ -681,7 +659,6 @@ export default function ProfileScreen() {
                 notificationTone,
                 openSystemSettings: () => void Linking.openSettings(),
                 profile,
-                programs: visiblePrograms,
                 readOnly,
                 resultNotifications,
                 section: activeSection,
@@ -700,13 +677,12 @@ export default function ProfileScreen() {
                 setNotificationsEnabled,
                 setNotificationPermission: notificationManager.setEnabled,
                 setNotificationTone,
-                setProgramStatus,
                 setResultNotifications,
                 sendTestNotification: notificationManager.sendTest,
                 signOut: () => void signOutSafely(),
                 requestAccountDeletion,
                 serviceIssue,
-                revokeAiConsent: confirmAiConsentRevocation,
+                changeAiChatEnabled,
                 revokeAgentConsent: confirmAgentConsentRevocation,
                 clearAgentData: confirmAgentDataDeletion,
                 syncMessage,
@@ -732,16 +708,6 @@ export default function ProfileScreen() {
         onRequestClose={closeSection}
       >
         <OnboardingPreviewFlow onClose={closeSection} />
-      </Modal>
-
-      <Modal
-        animationType="slide"
-        presentationStyle="fullScreen"
-        statusBarTranslucent={false}
-        visible={activeSection === 'scan-concepts'}
-        onRequestClose={closeSection}
-      >
-        <ScanConceptsLab onClose={closeSection} />
       </Modal>
 
       <DiagnosticsScreen
@@ -783,28 +749,17 @@ function ProfileOverview({
   conditionCount,
   documentCount,
   medicationCount,
-  programCount,
   onOpen,
 }: {
   allergyCount: number;
   conditionCount: number;
   documentCount: number;
   medicationCount: number;
-  programCount: number;
   onOpen: (section: ProfileSection) => void;
 }) {
   return (
     <View style={styles.overview}>
       <ProfileSettingsGroup title="Профиль здоровья">
-        <ProfileSettingsRow
-          icon="person.text.rectangle.fill"
-          iconAsset={ProfileIcon01}
-          fallback="Я"
-          iconBackground={profileTones.health.tile}
-          iconColor={profileTones.health.glyph}
-          label="Основная информация"
-          onPress={() => onOpen('personal')}
-        />
         <ProfileSettingsRow
           icon="cross.case.fill"
           iconAsset={ProfileIcon02}
@@ -843,18 +798,8 @@ function ProfileOverview({
           iconColor={profileTones.health.glyph}
           label="Документы"
           value={documentCount ? String(documentCount) : 'Нет документов'}
-          onPress={() => onOpen('documents')}
-        />
-        <ProfileSettingsRow
-          icon="heart.text.square.fill"
-          iconAsset={ProfileIcon06}
-          fallback="П"
-          iconBackground={profileTones.health.tile}
-          iconColor={profileTones.health.glyph}
-          label="Программы"
-          value={programCount ? String(programCount) : 'Нет программ'}
           isLast
-          onPress={() => onOpen('programs')}
+          onPress={() => onOpen('documents')}
         />
       </ProfileSettingsGroup>
 
@@ -893,23 +838,13 @@ function ProfileOverview({
           fallback="И"
           iconBackground={profileTones.preferences.tile}
           iconColor={profileTones.preferences.glyph}
-          label="Импорт данных"
-          value="Не подключён"
+          label="Импорт и экспорт"
           isLast
-          onPress={() => onOpen('imports')}
+          onPress={() => onOpen('data-transfer')}
         />
       </ProfileSettingsGroup>
 
       <ProfileSettingsGroup title="Аккаунт">
-        <ProfileSettingsRow
-          icon="square.and.arrow.up.fill"
-          iconAsset={ProfileIcon11}
-          fallback="Э"
-          iconBackground={profileTones.account.tile}
-          iconColor={profileTones.account.glyph}
-          label="Экспорт данных"
-          onPress={() => onOpen('exports')}
-        />
         <ProfileSettingsRow
           icon="lock.shield.fill"
           iconAsset={ProfileIcon12}
@@ -917,31 +852,12 @@ function ProfileOverview({
           iconBackground={profileTones.account.tile}
           iconColor={profileTones.account.glyph}
           label="Аккаунт и безопасность"
-          onPress={() => onOpen('security')}
-        />
-        <ProfileSettingsRow
-          icon="trash.fill"
-          iconAsset={ProfileIcon13}
-          fallback="×"
-          iconBackground={profileTones.destructive.tile}
-          iconColor={profileTones.destructive.glyph}
-          label="Удаление аккаунта"
-          destructive
           isLast
-          onPress={() => onOpen('delete-account')}
+          onPress={() => onOpen('security')}
         />
       </ProfileSettingsGroup>
 
       <ProfileSettingsGroup title="Разработка">
-        <ProfileSettingsRow
-          icon="square.grid.2x2.fill"
-          fallback="UI"
-          iconBackground={profileTones.account.tile}
-          iconColor={colors.brand.primary}
-          label="UI kit"
-          value="Компоненты"
-          onPress={() => onOpen('ui-kit')}
-        />
         <ProfileSettingsRow
           icon="sparkles.rectangle.stack.fill"
           fallback="ОБ"
@@ -949,30 +865,12 @@ function ProfileOverview({
           iconColor={colors.brand.primary}
           label="Онбординг"
           value="5 вариантов"
-          onPress={() => onOpen('onboarding')}
-        />
-        <ProfileSettingsRow
-          icon="viewfinder"
-          fallback="СК"
-          iconBackground="#E7EDF0"
-          iconColor="#3E6472"
-          label="Варианты страницы Скан"
-          value="5 концептов"
           isLast
-          onPress={() => onOpen('scan-concepts')}
+          onPress={() => onOpen('onboarding')}
         />
       </ProfileSettingsGroup>
 
       <ProfileSettingsGroup title="Сохранённые экраны">
-        <ProfileSettingsRow
-          icon="heart.circle.fill"
-          fallback="СГ"
-          iconBackground="#FBE7F0"
-          iconColor={colors.brand.primary}
-          label="Страница «Сегодня»"
-          value="UI kit"
-          onPress={() => onOpen('today-ui-kit')}
-        />
         <ProfileSettingsRow
           icon="heart.circle"
           fallback="ПЛ"
@@ -984,41 +882,6 @@ function ProfileOverview({
           onPress={() => onOpen('planning-today-ui-kit')}
         />
       </ProfileSettingsGroup>
-    </View>
-  );
-}
-
-function TodayProfileKitPreview() {
-  const { width } = useWindowDimensions();
-  const previewWidth = Math.min(370, width - sizes.screenGutter * 2);
-  const previewScale = previewWidth / 402;
-
-  return (
-    <View style={styles.todayKitSection}>
-      <View style={styles.todayKitCopy}>
-        <AppText role="heading" weight="semibold">
-          Текущая версия
-        </AppText>
-        <AppText role="body" color={colors.text.secondary}>
-          Сохранённый полноэкранный образец страницы «Сегодня».
-        </AppText>
-      </View>
-      <View
-        pointerEvents="none"
-        style={[
-          styles.todayKitStage,
-          { width: previewWidth, height: 874 * previewScale },
-        ]}
-      >
-        <View
-          style={[
-            styles.todayKitCanvas,
-            { transform: [{ scale: previewScale }] },
-          ]}
-        >
-          <TodayScreenCatalogPreview />
-        </View>
-      </View>
     </View>
   );
 }
@@ -1058,8 +921,6 @@ function PlanningTodayProfileKitPreview() {
   );
 }
 
-const notificationCuteImage = require('../assets/profile/notification-tones/cute.png');
-const notificationFormalImage = require('../assets/profile/notification-tones/formal.png');
 const notificationCuteIcon = require('../assets/profile/notification-tones/cute-icon.png');
 const notificationFormalIcon = require('../assets/profile/notification-tones/formal-icon.png');
 
@@ -1069,11 +930,11 @@ const notificationTonePreviewCopy: Record<
 > = {
   formal: {
     title: 'Добрый день',
-    body: 'Я ваш личный ассистент Сферка',
+    body: 'Как вы сегодня?',
   },
   cute: {
     title: 'Привет!',
-    body: 'Я твой личный ассистент Сферка',
+    body: 'Как ты сегодня? 🌸',
   },
 };
 
@@ -1103,7 +964,7 @@ function NotificationTonePreview({ tone }: { tone: NotificationTone }) {
 
     const animation = Animated.timing(toneProgress, {
       toValue: nextValue,
-      duration: 460,
+      duration: 260,
       easing: Easing.bezier(0.4, 0, 0.2, 1),
       useNativeDriver: true,
     });
@@ -1116,14 +977,6 @@ function NotificationTonePreview({ tone }: { tone: NotificationTone }) {
     outputRange: [1, 0],
   });
   const cuteOpacity = toneProgress;
-  const formalScale = toneProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.01],
-  });
-  const cuteScale = toneProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.99, 1],
-  });
   const formalTranslateY = toneProgress.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -4],
@@ -1135,35 +988,6 @@ function NotificationTonePreview({ tone }: { tone: NotificationTone }) {
 
   return (
     <View style={styles.notificationTonePreview}>
-      <View
-        accessible
-        accessibilityLabel={
-          tone === 'formal' ? 'Сферка в формальном костюме' : 'Милая Сферка'
-        }
-        style={styles.notificationToneImageFrame}
-      >
-        <Animated.Image
-          accessibilityIgnoresInvertColors
-          accessible={false}
-          resizeMode="contain"
-          source={notificationFormalImage}
-          style={[
-            styles.notificationToneImage,
-            { opacity: formalOpacity, transform: [{ scale: formalScale }] },
-          ]}
-        />
-        <Animated.Image
-          accessibilityIgnoresInvertColors
-          accessible={false}
-          resizeMode="contain"
-          source={notificationCuteImage}
-          style={[
-            styles.notificationToneImage,
-            { opacity: cuteOpacity, transform: [{ scale: cuteScale }] },
-          ]}
-        />
-      </View>
-
       <View
         accessible
         accessibilityLabel={`${notificationTonePreviewCopy[tone].title}. ${notificationTonePreviewCopy[tone].body}`}
@@ -1277,7 +1101,32 @@ function ProfileDetailScreen({
   return (
     <View style={styles.root}>
       <StatusBar style="dark" hidden={false} />
-      <View style={[styles.detailHeader, { paddingTop: topInset + 8 }]}>
+      <View
+        style={[
+          styles.detailHeader,
+          { paddingTop: topInset + 8 },
+          styles.detailHeaderWithFade,
+        ]}
+      >
+        <View pointerEvents="none" style={styles.detailHeaderOpaque} />
+        <LinearGradient
+          pointerEvents="none"
+          colors={[
+            'rgba(245,243,243,1)',
+            'rgba(245,243,243,0.972)',
+            'rgba(245,243,243,0.896)',
+            'rgba(245,243,243,0.784)',
+            'rgba(245,243,243,0.648)',
+            'rgba(245,243,243,0.5)',
+            'rgba(245,243,243,0.352)',
+            'rgba(245,243,243,0.216)',
+            'rgba(245,243,243,0.104)',
+            'rgba(245,243,243,0.028)',
+            'rgba(245,243,243,0)',
+          ]}
+          locations={[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]}
+          style={styles.detailHeaderFade}
+        />
         <GlassControl
           accessibilityLabel="Вернуться в профиль"
           onPress={onBack}
@@ -1296,6 +1145,9 @@ function ProfileDetailScreen({
         <View style={styles.headerSpacer} />
       </View>
       <ScrollView
+        automaticallyAdjustKeyboardInsets
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
         contentInsetAdjustmentBehavior="never"
         contentContainerStyle={[
@@ -1471,9 +1323,6 @@ function PhoneVerificationRow({
 
   return (
     <View style={styles.phoneVerificationRow}>
-      <AppText role="label" color={colors.text.secondary}>
-        Телефон
-      </AppText>
       <View style={styles.phoneVerificationInputRow}>
         <TextInput
           accessibilityLabel="Российский номер телефона"
@@ -1481,7 +1330,7 @@ function PhoneVerificationRow({
           inputMode="tel"
           keyboardType="phone-pad"
           onChangeText={(value) =>
-            setInput(value.replace(/[^\d+]/g, '').slice(0, 12))
+            setInput(filterInput(value, 'phone').slice(0, 12))
           }
           onSubmitEditing={() => void requestCode()}
           placeholder="+7 999 000-00-00"
@@ -1541,7 +1390,8 @@ function PhoneVerificationRow({
 }
 
 function renderProfileSectionDirect({
-  aiConsentAccepted,
+  aiChatEnabled,
+  aiChatUnavailable,
   agentAutomationAccepted,
   agentAutomationEnabled,
   agentProviderConfigured,
@@ -1568,12 +1418,11 @@ function renderProfileSectionDirect({
   notificationTone,
   openSystemSettings,
   profile,
-  programs,
   readOnly,
   resultNotifications,
   requestAccountDeletion,
   serviceIssue,
-  revokeAiConsent,
+  changeAiChatEnabled,
   revokeAgentConsent,
   saveAllergyRisk,
   saveDocumentFromPicker,
@@ -1592,7 +1441,6 @@ function renderProfileSectionDirect({
   setNotificationsEnabled,
   setNotificationPermission,
   setNotificationTone,
-  setProgramStatus,
   setResultNotifications,
   sendTestNotification,
   signOut,
@@ -1603,7 +1451,8 @@ function renderProfileSectionDirect({
   viewerEmail,
   viewerPhone,
 }: {
-  aiConsentAccepted: boolean;
+  aiChatEnabled: boolean;
+  aiChatUnavailable: boolean;
   agentAutomationAccepted: boolean;
   agentAutomationEnabled: boolean;
   agentProviderConfigured: boolean;
@@ -1633,12 +1482,11 @@ function renderProfileSectionDirect({
   notificationTone: 'formal' | 'cute';
   openSystemSettings: () => void;
   profile: LocalProfile | null;
-  programs: MonitoringProgram[];
   readOnly: boolean;
   resultNotifications: boolean;
   requestAccountDeletion: () => Promise<boolean>;
   serviceIssue?: ServiceIssue;
-  revokeAiConsent: () => void;
+  changeAiChatEnabled: (enabled: boolean) => Promise<void>;
   revokeAgentConsent: () => void;
   saveAllergyRisk: (
     input: Omit<AllergyRisk, 'localId' | 'updatedAt'> & { localId?: string },
@@ -1678,10 +1526,6 @@ function renderProfileSectionDirect({
     enabled: boolean,
   ) => Promise<'enabled' | 'local-only' | 'denied' | 'disabled'>;
   setNotificationTone: (value: 'formal' | 'cute') => void;
-  setProgramStatus: (
-    program: MonitoringProgram,
-    status: MonitoringProgram['status'],
-  ) => Promise<void>;
   setResultNotifications: (value: boolean) => void;
   sendTestNotification: (tone: 'formal' | 'cute') => Promise<boolean>;
   signOut: () => void;
@@ -1697,134 +1541,11 @@ function renderProfileSectionDirect({
   switch (section) {
     case 'account':
       return (
-        <>
-          <ProfileSettingsGroup title="Контакты">
-            <ProfileFieldRow
-              label="E-mail"
-              inputMode="email"
-              defaultValue={viewerEmail}
-              placeholder="E-mail входа"
-              disabled
-            />
-            <PhoneVerificationRow
-              disabled={readOnly}
-              phone={viewerPhone}
-              onVerified={(phone) => saveProfile({ phone })}
-            />
-          </ProfileSettingsGroup>
-
-          <ProfileVerticalChoiceControl<HealthGoal>
-            accessibilityLabel="Цель использования"
-            defaultValue={profile?.goal ?? 'planning'}
-            disabled={readOnly}
-            grouped
-            label="Цель использования"
-            value={profile?.goal ?? 'planning'}
-            options={[
-              { value: 'planning', label: 'Планирование' },
-              { value: 'pregnancy', label: 'Беременность' },
-              { value: 'cycle', label: 'Мониторинг' },
-            ]}
-            onChange={(goal) => void saveProfile({ goal })}
-          />
-
-          <ProfileSettingsGroup title="Цикл">
-            {profile?.goal !== 'pregnancy' ? (
-              <ProfileFieldRow
-                label="Средняя длина"
-                defaultValue={
-                  profile?.cycleLengthDays
-                    ? String(profile.cycleLengthDays)
-                    : ''
-                }
-                inputMode="numeric"
-                suffix="дней"
-                disabled={readOnly}
-                onSubmit={(value) => {
-                  const cycleLengthDays = Number(value);
-                  if (
-                    Number.isInteger(cycleLengthDays) &&
-                    cycleLengthDays >= 20 &&
-                    cycleLengthDays <= 45
-                  ) {
-                    void saveProfile({ cycleLengthDays });
-                  }
-                }}
-              />
-            ) : null}
-            <ProfileDateRow
-              label={
-                profile?.goal === 'pregnancy'
-                  ? 'Начало беременности'
-                  : 'Последняя менструация'
-              }
-              value={
-                profile?.goal === 'pregnancy'
-                  ? profile?.pregnancyStartAt
-                  : profile?.lastPeriodStartAt
-              }
-              maximumDate={new Date()}
-              disabled={readOnly}
-              isLast
-              onChange={(timestamp) => {
-                if (profile?.goal === 'pregnancy') {
-                  void saveProfile({ pregnancyStartAt: timestamp });
-                } else {
-                  void saveProfile({ lastPeriodStartAt: timestamp });
-                }
-              }}
-            />
-          </ProfileSettingsGroup>
-        </>
-      );
-
-    case 'personal':
-      return (
-        <>
-          <ProfileSettingsGroup title="Личные данные">
-            <ProfileFieldRow
-              label="Имя или псевдоним"
-              defaultValue={profile?.displayName}
-              disabled={readOnly}
-              onSubmit={(displayName) => {
-                if (displayName) void saveProfile({ displayName });
-              }}
-            />
-            <ProfileDateRow
-              label="Дата рождения"
-              value={profile?.birthDate}
-              minimumDate={new Date(1900, 0, 1)}
-              maximumDate={new Date()}
-              disabled={readOnly}
-              onChange={(birthDate) => void saveProfile({ birthDate })}
-            />
-            <ProfileFieldRow
-              label="Рост"
-              defaultValue={profile?.heightCm ? String(profile.heightCm) : ''}
-              inputMode="numeric"
-              suffix="см"
-              disabled={readOnly}
-              onSubmit={(value) => {
-                const heightCm = Number(value);
-                if (heightCm >= 80 && heightCm <= 250)
-                  void saveProfile({ heightCm });
-              }}
-            />
-            <ProfileFieldRow
-              label="Вес"
-              defaultValue={profile?.weightKg ? String(profile.weightKg) : ''}
-              inputMode="numeric"
-              suffix="кг"
-              disabled={readOnly}
-              isLast
-              onSubmit={(value) => {
-                const weightKg = Number(value.replace(',', '.'));
-                if (weightKg >= 20 && weightKg <= 400)
-                  void saveProfile({ weightKg });
-              }}
-            />
-          </ProfileSettingsGroup>
-        </>
+        <ProfileAccountDetails
+          profile={profile}
+          readOnly={readOnly}
+          saveProfile={saveProfile}
+        />
       );
 
     case 'medical-history':
@@ -1907,41 +1628,12 @@ function renderProfileSectionDirect({
               ))}
             </ProfileSettingsGroup>
           ) : (
-            <ProfileEmptyMessage title="Документы пока не добавлены" />
-          )}
-        </View>
-      );
-
-    case 'programs':
-      return (
-        <>
-          {programs.length ? (
-            <ProfileSettingsGroup title="Подключённые программы">
-              {programs.map((program, index) => (
-                <ProfileToggleRow
-                  key={program.localId}
-                  label={program.title}
-                  subtitle={`Начало: ${formatDate(program.startedAt)}`}
-                  value={program.status === 'active'}
-                  disabled={readOnly}
-                  isLast={index === programs.length - 1}
-                  onChange={(enabled) =>
-                    void setProgramStatus(
-                      program,
-                      enabled ? 'active' : 'paused',
-                    )
-                  }
-                />
-              ))}
-            </ProfileSettingsGroup>
-          ) : (
-            <ProfileEmptyState
-              icon="heart.slash"
-              title="Нет подключённых программ"
-              description="Программы появятся после выбора сценария наблюдения."
+            <ProfileEmptyMessage
+              icon="documents"
+              title="Документы пока не добавлены"
             />
           )}
-        </>
+        </View>
       );
 
     case 'language':
@@ -1951,15 +1643,15 @@ function renderProfileSectionDirect({
       return (
         <>
           <ProfileSettingsGroup title="Данные">
-            <ProfileToggleRow
+            <PermissionToggle
               label="Облачная синхронизация"
-              subtitle="Только структурированные данные"
+              subtitle={!hasViewerIdentity ? 'Войдите в аккаунт' : undefined}
               testID="e2e-cloud-sync-toggle"
               value={cloudSyncEnabled}
               disabled={readOnly || !hasViewerIdentity}
               onChange={(enabled) => void setCloudSyncEnabled(enabled)}
             />
-            <ProfileToggleRow
+            <PermissionToggle
               label="Анонимная аналитика"
               value={analyticsEnabled}
               disabled={readOnly}
@@ -1969,147 +1661,136 @@ function renderProfileSectionDirect({
                 if (!value) void clearPendingTelemetryEvents();
                 void setAnalyticsConsent(value);
               }}
+              isLast={!cloudSyncEnabled}
             />
-            <ProfileToggleRow
-              label="Автономные рекомендации"
+            <ProfileCollapse open={cloudSyncEnabled}>
+              <PermissionAction
+                label={
+                  syncStatus === 'syncing'
+                    ? 'Синхронизация…'
+                    : 'Синхронизировать сейчас'
+                }
+                subtitle={
+                  syncStatus === 'offline'
+                    ? 'Нет подключения'
+                    : syncStatus === 'error'
+                      ? 'Не удалось синхронизировать'
+                      : undefined
+                }
+                testID="e2e-sync-now"
+                disabled={
+                  syncDisabled ||
+                  syncStatus === 'syncing' ||
+                  syncStatus === 'offline' ||
+                  readOnly
+                }
+                onPress={syncNow}
+                isLast
+              />
+            </ProfileCollapse>
+          </ProfileSettingsGroup>
+
+          <ProfileSettingsGroup title="Сферка и Ассистент">
+            <PermissionToggle
+              label="Ответы Сферки"
+              subtitle={aiChatUnavailable ? 'Временно недоступно' : undefined}
+              value={aiChatEnabled}
+              disabled={readOnly || aiChatUnavailable}
+              onChange={(enabled) => void changeAiChatEnabled(enabled)}
+            />
+            <PermissionToggle
+              label="Проверки плана"
               subtitle={
                 !agentEnabled
-                  ? 'Ассистент выключен администратором'
+                  ? 'Ассистент временно недоступен'
                   : !agentConsentAccepted
-                    ? 'Сначала включите Ассистента в чате'
-                    : !agentAutomationEnabled
-                      ? 'Автономные проверки временно выключены'
-                      : !agentProviderConfigured
-                        ? 'Сервис плана не настроен на сервере'
-                        : !agentAutomationAccepted && medicalRecommendations
-                          ? 'Настройка на сервере не подтверждена — включите заново'
-                          : agentLastSuccessfulRunAt
-                            ? `Последняя проверка: ${formatDate(agentLastSuccessfulRunAt)}. Фоновый запуск нерегулярный`
-                            : 'Проверка запустится при стабильном подключении; фоновые сроки не гарантируются'
+                    ? 'Разрешите доступ в чате Ассистента'
+                    : !agentAutomationEnabled || !agentProviderConfigured
+                      ? 'Сервис временно недоступен'
+                      : !agentAutomationAccepted && medicalRecommendations
+                        ? 'Выключите и включите заново'
+                        : undefined
               }
               value={medicalRecommendations}
               disabled={
                 readOnly ||
                 (!medicalRecommendations &&
-                  (!agentConsentAccepted ||
+                  (!agentEnabled ||
+                    !agentConsentAccepted ||
                     !agentAutomationEnabled ||
                     !agentProviderConfigured))
               }
-              onChange={(value) => {
-                void saveAgentAutomation(value);
-              }}
+              onChange={(enabled) => void saveAgentAutomation(enabled)}
             />
-            <ProfileToggleRow
-              label="Обновления плана"
-              subtitle="Только нейтральный текст без названий анализов"
-              value={agentNotifications}
-              disabled={
-                readOnly || !medicalRecommendations || !notificationsEnabled
-              }
-              onChange={(value) => {
-                setAgentNotifications(value);
-                void savePreferences({ agentNotifications: value });
-              }}
-              isLast
+            <ProfileCollapse open={medicalRecommendations}>
+              <PermissionToggle
+                label="Обновления плана"
+                subtitle={
+                  !notificationsEnabled
+                    ? 'Разрешите уведомления в профиле'
+                    : undefined
+                }
+                value={agentNotifications}
+                disabled={readOnly || !notificationsEnabled}
+                onChange={(value) => {
+                  setAgentNotifications(value);
+                  void savePreferences({ agentNotifications: value });
+                }}
+              />
+            </ProfileCollapse>
+            <AssistantDataDetails
+              accepted={agentConsentAccepted}
+              disabled={readOnly}
+              onRevoke={revokeAgentConsent}
+              onDelete={clearAgentData}
             />
           </ProfileSettingsGroup>
-          <ProfileActionRow
-            secondary
-            icon="sparkles"
-            label={
-              aiConsentAccepted
-                ? 'Отозвать согласие для ИИ-чата'
-                : 'Согласие для ИИ-чата не дано'
-            }
-            subtitle="Передача только видимого текста чата"
-            disabled={!aiConsentAccepted}
-            onPress={revokeAiConsent}
-          />
-          <ProfileActionRow
-            secondary
-            icon="shield.lefthalf.filled"
-            label={
-              agentConsentAccepted
-                ? 'Отключить доступ Ассистенту'
-                : 'Доступ Ассистенту не дан'
-            }
-            subtitle="Профиль, дневник, анализы, план и чаты"
-            disabled={!agentConsentAccepted}
-            onPress={revokeAgentConsent}
-            singleLineLabel
-            singleLineSubtitle
-          />
-          <ProfileActionRow
-            secondary
-            icon="list.bullet.rectangle"
-            label="Данные режима «Ассистент»"
-            subtitle="Посмотреть разрешённые категории данных"
-            onPress={() =>
-              Alert.alert(
-                'Доступ Ассистента',
-                'После отдельного согласия: параметры здоровья из профиля, записи дневника за 30 дней, подтверждённые анализы и домашние тесты, активный план. Только по запросу: старые записи дневника, другие ваши чаты и метаданные документов. Если автономные рекомендации включены, проверка плана может учитывать новые сообщения пользователя из режима «Ассистент» и только категорию и дату нового документа. Обычные чаты, ответы ИИ, названия и содержимое файлов автоматически не передаются. Имя, контакты, идентификаторы и пути к файлам недоступны.',
-              )
-            }
-          />
-          <ProfileActionRow
-            secondary
-            icon="trash"
-            label="Удалить данные Ассистента"
-            subtitle="План, правила и журнал изменений"
-            onPress={clearAgentData}
-          />
-          <ProfileActionRow
-            secondary
-            icon="gearshape.fill"
-            label={
-              Platform.OS === 'ios'
-                ? 'Разрешения iPhone'
-                : 'Разрешения устройства'
-            }
-            onPress={openSystemSettings}
-          />
-          <ProfileActionRow
-            testID="e2e-sync-now"
-            icon="arrow.triangle.2.circlepath"
-            label={
-              syncStatus === 'syncing'
-                ? 'Синхронизация…'
-                : syncStatus === 'offline'
-                  ? 'Ожидает подключения'
-                  : 'Синхронизировать сейчас'
-            }
-            subtitle={serviceIssue?.message ?? syncMessage}
-            disabled={
-              syncDisabled ||
-              syncStatus === 'syncing' ||
-              syncStatus === 'offline' ||
-              readOnly
-            }
-            onPress={syncNow}
-          />
+
+          <ProfileSettingsGroup title="Устройство и приватность">
+            <PermissionAction
+              label={
+                Platform.OS === 'ios'
+                  ? 'Разрешения iPhone'
+                  : 'Разрешения устройства'
+              }
+              onPress={openSystemSettings}
+            />
+            <PermissionPrivacyDetails />
+          </ProfileSettingsGroup>
         </>
       );
 
-    case 'imports':
-      return <DataTransferSection mode="import" />;
-
-    case 'exports':
-      return <DataTransferSection mode="export" />;
+    case 'data-transfer':
+      return <DataTransferSection />;
 
     case 'security':
       return (
         <>
-          <ConfirmedAction
-            label="Удалить локальные данные"
-            confirmation="Нажмите ещё раз: данные устройства будут удалены"
-            onConfirm={clearAllLocalData}
+          <ProfileContacts
+            email={viewerEmail}
+            phone={viewerPhone}
+            readOnly={readOnly}
+            phoneEditor={
+              <PhoneVerificationRow
+                disabled={readOnly}
+                phone={viewerPhone}
+                onVerified={(phone) => saveProfile({ phone })}
+              />
+            }
           />
-          <ProfileActionRow
-            destructive
-            icon="rectangle.portrait.and.arrow.right"
-            label="Выйти из аккаунта"
-            disabled={readOnly || !hasViewerIdentity}
-            onPress={signOut}
+          <ProfileSettingsGroup title="Аккаунт">
+            <PermissionAction
+              label="Выйти из аккаунта"
+              disabled={readOnly || !hasViewerIdentity}
+              onPress={signOut}
+              isLast
+            />
+          </ProfileSettingsGroup>
+          <AccountDataActions
+            readOnly={readOnly}
+            hasViewerIdentity={hasViewerIdentity}
+            clearLocalData={clearAllLocalData}
+            deleteAccount={requestAccountDeletion}
           />
         </>
       );
@@ -2118,8 +1799,9 @@ function renderProfileSectionDirect({
       return (
         <>
           <ProfileSettingsGroup title="Уведомления">
-            <ProfileToggleRow
-              label="Разрешить уведомления"
+            <PermissionToggle
+              label="Уведомления"
+              subtitle={notificationMessage}
               value={notificationsEnabled}
               disabled={notificationBusy || readOnly}
               testID="notification-master-toggle"
@@ -2132,23 +1814,31 @@ function renderProfileSectionDirect({
                 })()
               }
             />
-            <ProfileToggleRow
-              label="Системные"
+            <PermissionToggle
+              label="Напоминать о дневнике"
               value={notificationsEnabled && journalNotifications}
-              disabled={!notificationsEnabled}
+              disabled={readOnly || notificationBusy || !notificationsEnabled}
               onChange={(value) => {
                 setJournalNotifications(value);
                 void savePreferences({ journalNotifications: value });
               }}
             />
-            <ProfileToggleRow
+            <PermissionToggle
               label="Результаты и анализы"
               value={notificationsEnabled && resultNotifications}
-              disabled={!notificationsEnabled}
+              disabled={readOnly || notificationBusy || !notificationsEnabled}
               onChange={(value) => {
                 setResultNotifications(value);
                 void savePreferences({ resultNotifications: value });
               }}
+            />
+            <PermissionAction
+              label={
+                Platform.OS === 'ios'
+                  ? 'Настройки уведомлений iPhone'
+                  : 'Настройки устройства'
+              }
+              onPress={openSystemSettings}
               isLast
             />
           </ProfileSettingsGroup>
@@ -2163,6 +1853,7 @@ function renderProfileSectionDirect({
                   { label: 'Милый', value: 'cute' },
                 ]}
                 onChange={(value) => {
+                  if (readOnly) return;
                   setNotificationTone(value);
                   void savePreferences({ notificationTone: value });
                 }}
@@ -2170,56 +1861,6 @@ function renderProfileSectionDirect({
               <NotificationTonePreview tone={notificationTone} />
             </View>
           </ProfileSettingsGroup>
-          <ProfileActionRow
-            secondary
-            icon="bell.badge.fill"
-            label="Отправить тестовое уведомление"
-            testID="e2e-notification-test"
-            disabled={notificationBusy || !notificationsEnabled}
-            onPress={() => void sendTestNotification(notificationTone)}
-          />
-          {notificationMessage ? (
-            <ProfileEmptyMessage title={notificationMessage} />
-          ) : null}
-          <ProfileActionRow
-            secondary
-            icon="gearshape.fill"
-            label={
-              Platform.OS === 'ios'
-                ? 'Открыть настройки iPhone'
-                : 'Открыть настройки устройства'
-            }
-            onPress={openSystemSettings}
-          />
-        </>
-      );
-
-    case 'delete-account':
-      return (
-        <>
-          <ProfileActionRow
-            destructive
-            icon="trash.fill"
-            label="Удалить аккаунт и все данные"
-            disabled={readOnly || !hasViewerIdentity}
-            onPress={() =>
-              Alert.alert(
-                'Удалить аккаунт?',
-                'Данные можно будет восстановить в течение 30 дней.',
-                [
-                  { text: 'Отмена', style: 'cancel' },
-                  {
-                    text: 'Удалить',
-                    style: 'destructive',
-                    onPress: () => void requestAccountDeletion(),
-                  },
-                ],
-              )
-            }
-          />
-          {serviceIssue ? (
-            <ProfileEmptyMessage title={serviceIssue.message} />
-          ) : null}
         </>
       );
   }
@@ -2305,12 +1946,7 @@ function parseMedicationDosage(value?: string) {
 }
 
 function sanitizeMedicationDoseAmount(value: string) {
-  const cleaned = value.replace(/[^\d.,]/g, '');
-  const separatorIndex = cleaned.search(/[.,]/);
-  if (separatorIndex < 0) return cleaned;
-  return `${cleaned.slice(0, separatorIndex + 1)}${cleaned
-    .slice(separatorIndex + 1)
-    .replace(/[.,]/g, '')}`;
+  return filterInput(value, 'decimal');
 }
 
 function parseMedicationFrequency(value?: string): MedicationFrequency {
@@ -2342,8 +1978,6 @@ function parseMedicationFrequency(value?: string): MedicationFrequency {
 function MedicalCrudSection(props: MedicalCrudProps) {
   const insets = useSafeAreaInsets();
   const [editorVisible, setEditorVisible] = useState(false);
-  const [reduceEditorMotion, setReduceEditorMotion] = useState(false);
-  const editorProgress = useRef(new Animated.Value(0)).current;
   const [selectedId, setSelectedId] = useState<string>();
   const [primary, setPrimary] = useState('');
   const [secondary, setSecondary] = useState('');
@@ -2372,15 +2006,6 @@ function MedicalCrudSection(props: MedicalCrudProps) {
         ? 'Добавить препарат'
         : 'Добавить аллергию';
 
-  useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceEditorMotion);
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      setReduceEditorMotion,
-    );
-    return () => subscription.remove();
-  }, []);
-
   const clearEditor = () => {
     setEditorVisible(false);
     setSelectedId(undefined);
@@ -2390,48 +2015,8 @@ function MedicalCrudSection(props: MedicalCrudProps) {
     setMedicationFrequency('day');
   };
 
-  const openEditor = () => {
-    editorProgress.stopAnimation();
-    setEditorVisible(true);
-
-    if (reduceEditorMotion) {
-      editorProgress.setValue(1);
-      return;
-    }
-
-    editorProgress.setValue(0);
-    requestAnimationFrame(() => {
-      Animated.spring(editorProgress, {
-        toValue: 1,
-        stiffness: 270,
-        damping: 30,
-        mass: 1,
-        overshootClamping: false,
-        restDisplacementThreshold: 0.5,
-        restSpeedThreshold: 0.5,
-        useNativeDriver: true,
-      }).start();
-    });
-  };
-
-  const reset = () => {
-    editorProgress.stopAnimation();
-
-    if (reduceEditorMotion) {
-      editorProgress.setValue(0);
-      clearEditor();
-      return;
-    }
-
-    Animated.timing(editorProgress, {
-      toValue: 0,
-      duration: 220,
-      easing: Easing.bezier(0.32, 0.72, 0, 1),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) clearEditor();
-    });
-  };
+  const openEditor = () => setEditorVisible(true);
+  const reset = clearEditor;
 
   const select = (item: MedicalCondition | Medication | AllergyRisk) => {
     setSelectedId(item.localId);
@@ -2569,143 +2154,33 @@ function MedicalCrudSection(props: MedicalCrudProps) {
           </ProfileSettingsGroup>
         </View>
       ) : (
-        <ProfileEmptyMessage title="Записей пока нет" />
+        <ProfileEmptyMessage
+          icon={
+            props.kind === 'medication'
+              ? 'medication'
+              : props.kind === 'allergy'
+                ? 'allergy'
+                : 'history'
+          }
+          title="Записей пока нет"
+        />
       )}
-      <Modal
-        animationType="none"
-        transparent
-        statusBarTranslucent
+      <AppSheet
         visible={editorVisible}
-        onRequestClose={reset}
-      >
-        <KeyboardAvoidingView
-          behavior="padding"
-          style={styles.medicalEditorModalRoot}
-        >
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.medicalEditorBackdropVisual,
-              {
-                opacity: editorProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 0.28],
-                }),
-              },
-            ]}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Закрыть форму"
-            onPress={reset}
-            style={styles.medicalEditorBackdrop}
-          />
-          <Animated.View
-            style={[
-              styles.inlineEditor,
-              styles.medicalEditorSheet,
-              { paddingBottom: Math.max(insets.bottom, spacing.md) },
-              {
-                transform: [
-                  {
-                    translateY: editorProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [520, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <View style={styles.medicalEditorHeader}>
-              <AppText
-                role="heading"
-                weight="semibold"
-                style={styles.medicalEditorTitle}
-              >
-                {selected ? 'Изменить запись' : addLabel}
-              </AppText>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Закрыть форму"
-                hitSlop={12}
-                onPress={reset}
-                style={styles.medicalEditorClose}
-              >
-                <AppText role="heading" color={colors.text.secondary}>
-                  ×
-                </AppText>
-              </Pressable>
-            </View>
-            <TextInput
-              editable={!props.readOnly}
-              testID="e2e-medical-primary"
-              value={primary}
-              onChangeText={setPrimary}
-              placeholder={primaryLabel}
-              placeholderTextColor="#989395"
-              style={styles.inlineInput}
-            />
-            {props.kind === 'medication' ? (
-              <>
-                <View style={styles.medicationDoseRow}>
-                  <TextInput
-                    editable={!props.readOnly}
-                    inputMode="decimal"
-                    keyboardType="decimal-pad"
-                    testID="e2e-medical-secondary"
-                    value={secondary}
-                    onChangeText={(value) =>
-                      setSecondary(sanitizeMedicationDoseAmount(value))
-                    }
-                    placeholder="Количество"
-                    placeholderTextColor="#989395"
-                    style={[styles.inlineInput, styles.medicationDoseInput]}
-                  />
-                  <SegmentedSwitcher
-                    accessibilityLabel="Единица измерения дозировки"
-                    options={medicationDoseUnits}
-                    value={medicationDoseUnit}
-                    onChange={setMedicationDoseUnit}
-                    style={styles.medicationDoseUnits}
-                  />
-                </View>
-                <View style={styles.medicationFrequencyBlock}>
-                  <AppText
-                    role="caption"
-                    color={colors.text.secondary}
-                    style={styles.medicationFrequencyLabel}
-                  >
-                    Периодичность
-                  </AppText>
-                  <SegmentedSwitcher
-                    accessibilityLabel="Периодичность приёма препарата"
-                    options={medicationFrequencyOptions}
-                    value={medicationFrequency}
-                    onChange={setMedicationFrequency}
-                  />
-                </View>
-              </>
-            ) : (
-              <TextInput
-                editable={!props.readOnly}
-                testID="e2e-medical-secondary"
-                value={secondary}
-                onChangeText={setSecondary}
-                placeholder={secondaryLabel}
-                placeholderTextColor="#989395"
-                style={styles.inlineInput}
-              />
-            )}
+        surface="white"
+        title={selected ? 'Изменить запись' : addLabel}
+        onClose={reset}
+        footer={
+          <>
             <View style={styles.medicalEditorActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Назад"
+                accessibilityLabel="Отмена"
                 onPress={reset}
                 style={styles.medicalEditorSecondaryAction}
               >
                 <AppText role="body" weight="semibold">
-                  Назад
+                  Отмена
                 </AppText>
               </Pressable>
               <Pressable
@@ -2726,7 +2201,15 @@ function MedicalCrudSection(props: MedicalCrudProps) {
                     styles.medicalEditorPrimaryActionDisabled,
                 ]}
               >
-                <AppText role="body" weight="semibold" color="#FFFFFF">
+                <AppText
+                  role="body"
+                  weight="semibold"
+                  color={
+                    props.readOnly || !primary.trim() || !medicationDoseValid
+                      ? colors.text.secondary
+                      : '#FFFFFF'
+                  }
+                >
                   Сохранить
                 </AppText>
               </Pressable>
@@ -2739,9 +2222,70 @@ function MedicalCrudSection(props: MedicalCrudProps) {
                 onConfirm={remove}
               />
             ) : null}
-          </Animated.View>
-        </KeyboardAvoidingView>
-      </Modal>
+          </>
+        }
+      >
+        <TextInput
+          editable={!props.readOnly}
+          testID="e2e-medical-primary"
+          value={primary}
+          onChangeText={setPrimary}
+          placeholder={primaryLabel}
+          placeholderTextColor="#989395"
+          style={styles.inlineInput}
+        />
+        {props.kind === 'medication' ? (
+          <>
+            <View style={styles.medicationDoseRow}>
+              <TextInput
+                editable={!props.readOnly}
+                inputMode="decimal"
+                keyboardType="decimal-pad"
+                testID="e2e-medical-secondary"
+                value={secondary}
+                onChangeText={(value) =>
+                  setSecondary(sanitizeMedicationDoseAmount(value))
+                }
+                placeholder="Количество"
+                placeholderTextColor="#989395"
+                style={[styles.inlineInput, styles.medicationDoseInput]}
+              />
+              <SegmentedSwitcher
+                accessibilityLabel="Единица измерения дозировки"
+                options={medicationDoseUnits}
+                value={medicationDoseUnit}
+                onChange={setMedicationDoseUnit}
+                style={styles.medicationDoseUnits}
+              />
+            </View>
+            <View style={styles.medicationFrequencyBlock}>
+              <AppText
+                role="caption"
+                color={colors.text.secondary}
+                style={styles.medicationFrequencyLabel}
+              >
+                Периодичность
+              </AppText>
+              <SegmentedSwitcher
+                accessibilityLabel="Периодичность приёма препарата"
+                options={medicationFrequencyOptions}
+                value={medicationFrequency}
+                onChange={setMedicationFrequency}
+              />
+            </View>
+          </>
+        ) : (
+          <TextInput
+            editable={!props.readOnly}
+            testID="e2e-medical-secondary"
+            value={secondary}
+            onChangeText={setSecondary}
+            placeholder={secondaryLabel}
+            placeholderTextColor="#989395"
+            style={styles.inlineInput}
+          />
+        )}
+      </AppSheet>
     </View>
   );
 }
@@ -2758,13 +2302,15 @@ const csvCategories: Array<{
   { value: 'allergyRisks', label: 'Аллергии' },
 ];
 
-function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
+function DataTransferSection() {
   const store = useHealthStore();
   const [format, setFormat] = useState<'json' | 'csv'>('json');
   const [category, setCategory] = useState<HealthEntityName>('journalEntries');
+  const [categoryExpanded, setCategoryExpanded] = useState(false);
   const [preview, setPreview] =
     useState<ReturnType<typeof parseImportPayload>>();
-  const [message, setMessage] = useState<string>();
+  const [importMessage, setImportMessage] = useState<string>();
+  const [exportMessage, setExportMessage] = useState<string>();
   const [busy, setBusy] = useState(false);
 
   const snapshot = {
@@ -2787,46 +2333,65 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
   };
 
   const pickImport = async () => {
-    setMessage(undefined);
-    const picked = e2eImportFixtureUri
-      ? undefined
-      : await DocumentPicker.getDocumentAsync({
-          copyToCacheDirectory: true,
-          multiple: false,
-          type: ['application/json', 'text/csv', 'text/comma-separated-values'],
-        });
-    const asset = e2eImportFixtureUri
-      ? { uri: e2eImportFixtureUri }
-      : picked?.canceled
-        ? undefined
-        : picked?.assets[0];
-    if (!asset) return;
+    if (busy || store.readOnly) return;
+    setBusy(true);
+    setImportMessage(undefined);
+    setPreview(undefined);
     try {
+      const picked = e2eImportFixtureUri
+        ? undefined
+        : await DocumentPicker.getDocumentAsync({
+            copyToCacheDirectory: true,
+            multiple: false,
+            type: [
+              'application/json',
+              'text/csv',
+              'text/comma-separated-values',
+            ],
+          });
+      const asset = e2eImportFixtureUri
+        ? { uri: e2eImportFixtureUri }
+        : picked?.canceled
+          ? undefined
+          : picked?.assets[0];
+      if (!asset) return;
       const parsed = parseImportPayload(await readAsStringAsync(asset.uri));
+      if (!parsed.total) {
+        setImportMessage('В файле нет записей для импорта.');
+        return;
+      }
       setPreview(parsed);
-      setMessage(`Проверено записей: ${parsed.total}`);
-    } catch (error) {
-      console.error('Import validation failed', error);
-      setPreview(undefined);
-      setMessage('Файл не соответствует формату ArtificialLabs JSON/CSV.');
+    } catch {
+      setImportMessage(
+        'Не удалось прочитать файл. Выберите JSON или CSV, экспортированный из Сферы.',
+      );
+    } finally {
+      setBusy(false);
     }
   };
 
   const applyImport = async () => {
-    if (!preview) return;
+    if (!preview || busy || store.readOnly) return;
     setBusy(true);
+    setImportMessage(undefined);
     try {
       await store.importData(preview);
-      setMessage(`Импортировано записей: ${preview.total}`);
+      setImportMessage(`Импортировано записей: ${preview.total}`);
       setPreview(undefined);
+    } catch {
+      setImportMessage(
+        'Импорт не завершён. Часть записей могла сохраниться — повторите попытку.',
+      );
     } finally {
       setBusy(false);
     }
   };
 
   const exportData = async () => {
+    if (busy || store.readOnly) return;
+    setExportMessage(undefined);
     if (!cacheDirectory) {
-      setMessage('Экспорт файлов недоступен на этой платформе.');
+      setExportMessage('Экспорт файлов недоступен на этой платформе.');
       return;
     }
     setBusy(true);
@@ -2839,89 +2404,247 @@ function DataTransferSection({ mode }: { mode: 'import' | 'export' }) {
       const uri = `${cacheDirectory}artificiallabs-export-${Date.now()}.${extension}`;
       await writeAsStringAsync(uri, content);
       if (__DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1') {
-        setMessage('Файл подготовлен для экспорта.');
+        setExportMessage('Файл подготовлен для экспорта.');
         return;
       }
       if (!(await Sharing.isAvailableAsync())) {
-        setMessage(`Файл подготовлен: ${uri}`);
+        setExportMessage(
+          'На этом устройстве недоступно сохранение через меню «Поделиться».',
+        );
         return;
       }
       await Sharing.shareAsync(uri, {
-        dialogTitle: 'Экспорт ArtificialLabs',
+        dialogTitle: 'Экспорт данных Сферы',
         mimeType: format === 'json' ? 'application/json' : 'text/csv',
       });
-      setMessage('Файл подготовлен для экспорта.');
+      setExportMessage('Файл подготовлен для экспорта.');
     } catch (error) {
       console.error('Export failed', error);
-      setMessage('Не удалось подготовить файл экспорта.');
+      setExportMessage('Не удалось подготовить файл экспорта.');
     } finally {
       setBusy(false);
     }
   };
 
-  if (mode === 'import') {
-    return (
-      <View style={styles.medicalHistoryLayout}>
-        <ProfileEmptyMessage title="Поддерживаются ArtificialLabs JSON и CSV" />
-        <ProfileActionRow
-          icon="square.and.arrow.down"
-          label="Выбрать файл"
+  return (
+    <>
+      <ProfileSettingsGroup title="Импорт">
+        <PermissionAction
+          label={preview ? 'Выбрать другой файл' : 'Выбрать файл'}
+          subtitle="JSON или CSV из Сферы"
           disabled={store.readOnly || busy}
           onPress={() => void pickImport()}
+          isLast
         />
         {preview ? (
-          <ProfileActionRow
-            icon="checkmark"
-            label={`Импортировать ${preview.total} записей`}
-            disabled={busy}
-            onPress={() => void applyImport()}
-          />
+          <>
+            <View style={styles.transferDetails}>
+              <AppText style={styles.transferCaption}>
+                {`Готово к импорту: ${preview.total}`}
+              </AppText>
+              <AppText
+                style={styles.transferCaption}
+                color={colors.text.secondary}
+              >
+                Записи будут добавлены или обновлены. Профиль из файла может
+                заменить текущий.
+              </AppText>
+            </View>
+            <PermissionAction
+              label="Импортировать данные"
+              disabled={store.readOnly || busy}
+              onPress={() => void applyImport()}
+            />
+            <PermissionAction
+              label="Отменить выбор"
+              disabled={busy}
+              onPress={() => {
+                setPreview(undefined);
+                setImportMessage(undefined);
+              }}
+              isLast
+            />
+          </>
         ) : null}
-        {message ? (
-          <AppText role="label" color={colors.text.secondary}>
-            {message}
-          </AppText>
+        {importMessage ? (
+          <View style={styles.transferDetails}>
+            <AppText
+              style={styles.transferCaption}
+              color={colors.text.secondary}
+            >
+              {importMessage}
+            </AppText>
+          </View>
         ) : null}
-      </View>
-    );
-  }
+      </ProfileSettingsGroup>
 
-  return (
-    <View style={styles.medicalHistoryLayout}>
-      <ProfileChoiceControl
-        accessibilityLabel="Формат экспорта"
-        defaultValue="json"
-        label="Формат"
-        value={format}
-        options={[
-          { value: 'json', label: 'JSON' },
-          { value: 'csv', label: 'CSV' },
-        ]}
-        onChange={setFormat}
-      />
-      {format === 'csv' ? (
-        <ProfileVerticalChoiceControl
-          accessibilityLabel="Категория CSV"
-          defaultValue="journalEntries"
-          label="Категория"
-          value={category}
-          options={csvCategories}
-          onChange={setCategory}
+      <ProfileSettingsGroup title="Экспорт">
+        <View style={styles.transferControls}>
+          <ProfileChoiceControl
+            accessibilityLabel="Формат экспорта"
+            defaultValue="json"
+            value={format}
+            options={[
+              { value: 'json', label: 'JSON' },
+              { value: 'csv', label: 'CSV' },
+            ]}
+            onChange={(value) => {
+              if (!busy) {
+                setFormat(value);
+                setExportMessage(undefined);
+              }
+            }}
+          />
+          <AppText style={styles.transferCaption} color={colors.text.secondary}>
+            {format === 'json'
+              ? 'Все разделы и профиль в одном файле.'
+              : 'Один раздел в формате таблицы Сферы.'}
+          </AppText>
+          <AppText style={styles.transferCaption} color={colors.text.secondary}>
+            Фото и исходные файлы документов не включаются.
+          </AppText>
+        </View>
+        {format === 'csv' ? (
+          <>
+            <PermissionAction
+              label={
+                csvCategories.find((item) => item.value === category)?.label ??
+                'Дневник'
+              }
+              subtitle="Раздел для экспорта"
+              isLast
+              expanded={categoryExpanded}
+              disabled={busy || store.readOnly}
+              onPress={() => setCategoryExpanded(!categoryExpanded)}
+            />
+            <ProfileCollapse open={categoryExpanded}>
+              <View style={styles.transferDetails}>
+                <ProfileVerticalChoiceControl
+                  accessibilityLabel="Раздел для экспорта"
+                  defaultValue="journalEntries"
+                  value={category}
+                  options={csvCategories}
+                  grouped
+                  disabled={busy || store.readOnly}
+                  onChange={(value) => {
+                    setCategory(value);
+                    setCategoryExpanded(false);
+                  }}
+                />
+              </View>
+            </ProfileCollapse>
+          </>
+        ) : null}
+        <PermissionAction
+          label="Экспортировать файл"
+          disabled={store.readOnly || busy}
+          onPress={() => void exportData()}
+          isLast
         />
-      ) : null}
-      <ProfileEmptyMessage title="Исходные файлы и локальные URI в экспорт не включаются" />
-      <ProfileActionRow
-        icon="square.and.arrow.up"
-        label="Подготовить экспорт"
-        disabled={store.readOnly || busy}
-        onPress={() => void exportData()}
+        {exportMessage ? (
+          <View style={styles.transferDetails}>
+            <AppText
+              style={styles.transferCaption}
+              color={colors.text.secondary}
+            >
+              {exportMessage}
+            </AppText>
+          </View>
+        ) : null}
+      </ProfileSettingsGroup>
+    </>
+  );
+}
+
+function AccountDataActions({
+  readOnly,
+  hasViewerIdentity,
+  clearLocalData,
+  deleteAccount,
+}: {
+  readOnly: boolean;
+  hasViewerIdentity: boolean;
+  clearLocalData: () => Promise<void>;
+  deleteAccount: () => Promise<boolean>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string>();
+  const running = useRef(false);
+  const perform = async (kind: 'local' | 'account') => {
+    if (
+      running.current ||
+      readOnly ||
+      (kind === 'account' && !hasViewerIdentity)
+    )
+      return;
+    running.current = true;
+    setBusy(true);
+    setMessage(undefined);
+    try {
+      if (kind === 'local') {
+        await clearLocalData();
+        setMessage('Данные на устройстве удалены.');
+      } else if (!(await deleteAccount())) {
+        setMessage('Не удалось удалить аккаунт. Попробуйте позже.');
+      }
+    } catch {
+      setMessage('Не удалось завершить удаление. Попробуйте позже.');
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  };
+  return (
+    <ProfileSettingsGroup title="Удаление данных">
+      <PermissionAction
+        label="Удалить данные с устройства"
+        subtitle="Только локальные записи и файлы"
+        destructive
+        disabled={readOnly || busy}
+        onPress={() =>
+          Alert.alert(
+            'Удалить данные с устройства?',
+            'Локальные записи, фото и файлы будут удалены. Данные, не сохранённые в облаке или экспорте, восстановить не получится.',
+            [
+              { text: 'Отмена', style: 'cancel' },
+              {
+                text: 'Удалить',
+                style: 'destructive',
+                onPress: () => void perform('local'),
+              },
+            ],
+          )
+        }
+      />
+      <PermissionAction
+        label="Удалить аккаунт"
+        subtitle="Аккаунт и все его данные"
+        destructive
+        disabled={readOnly || busy || !hasViewerIdentity}
+        onPress={() =>
+          Alert.alert(
+            'Удалить аккаунт?',
+            'Аккаунт и его данные будут удалены. Восстановление доступно в течение 30 дней.',
+            [
+              { text: 'Отмена', style: 'cancel' },
+              {
+                text: 'Удалить',
+                style: 'destructive',
+                onPress: () => void perform('account'),
+              },
+            ],
+          )
+        }
+        isLast
       />
       {message ? (
-        <AppText role="label" color={colors.text.secondary}>
-          {message}
-        </AppText>
+        <View style={styles.transferDetails}>
+          <AppText style={styles.transferCaption} color={colors.text.secondary}>
+            {message}
+          </AppText>
+        </View>
       ) : null}
-    </View>
+    </ProfileSettingsGroup>
   );
 }
 
@@ -2956,13 +2679,31 @@ function ConfirmedAction({
 }
 
 const styles = StyleSheet.create({
+  transferControls: {
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    gap: 12,
+  },
+  transferDetails: {
+    paddingHorizontal: 14,
+    paddingBottom: 16,
+    gap: 6,
+  },
+  transferCaption: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
   phoneVerificationRow: {
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    gap: 12,
+    paddingLeft: 14,
+    paddingRight: 18,
+    paddingBottom: 16,
   },
   phoneVerificationInput: {
-    minHeight: 48,
+    height: 48,
+    paddingVertical: 0,
+    paddingBottom: Platform.OS === 'ios' ? 6 : 0,
+    textAlignVertical: 'center',
     borderRadius: radii.md,
     backgroundColor: '#F0EEF0',
     color: colors.text.primary,
@@ -3041,6 +2782,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  detailHeaderWithFade: {
+    backgroundColor: 'transparent',
+    paddingBottom: 32,
+  },
+  detailHeaderOpaque: {
+    position: 'absolute',
+    top: 0,
+    bottom: 80,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgb(245,243,243)',
+  },
+  detailHeaderFade: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+  },
   backButton: {
     width: 48,
     height: 48,
@@ -3086,25 +2846,11 @@ const styles = StyleSheet.create({
   },
   notificationToneBlock: {
     gap: spacing.md,
-    padding: spacing.md,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
   },
   notificationTonePreview: {
     gap: spacing.md,
-  },
-  notificationToneImageFrame: {
-    width: '100%',
-    aspectRatio: 1.75,
-    alignSelf: 'center',
-    overflow: 'hidden',
-    borderRadius: 24,
-    backgroundColor: '#FDECE5',
-  },
-  notificationToneImage: {
-    position: 'absolute',
-    top: '2.5%',
-    left: '2.5%',
-    width: '95%',
-    height: '95%',
   },
   notificationExampleCard: {
     borderWidth: 1,
@@ -3170,81 +2916,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     padding: spacing.md,
   },
-  medicalEditorModalRoot: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  medicalEditorBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  medicalEditorBackdropVisual: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#1C181A',
-  },
-  medicalEditorSheet: {
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    paddingTop: 10,
-    shadowColor: '#2B2025',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  medicalEditorHeader: {
-    minHeight: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  medicalEditorTitle: {
-    flex: 1,
-    fontSize: 20,
-    lineHeight: 25,
-  },
-  medicalEditorClose: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   medicalEditorActions: {
     width: '100%',
-    height: 46,
+    minHeight: 50,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 15,
   },
-  medicalEditorSecondaryAction: {
-    height: 46,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 23,
-    borderWidth: 1,
-    borderColor: '#EEE3E7',
-    backgroundColor: '#F7F1F3',
-  },
-  medicalEditorPrimaryAction: {
-    height: 46,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 23,
-    backgroundColor: colors.brand.primary,
-  },
-  medicalEditorPrimaryActionDisabled: {
-    opacity: 0.55,
-  },
+  medicalEditorSecondaryAction: { ...sheetStyles.secondary, flex: 1 },
+  medicalEditorPrimaryAction: { ...sheetStyles.primary, flex: 1 },
+  medicalEditorPrimaryActionDisabled: sheetStyles.disabled,
   compactConfirmedAction: {
-    height: 46,
+    minHeight: 50,
     borderRadius: 23,
   },
   inlineInput: {
-    minHeight: 48,
+    height: 48,
     borderRadius: radii.md,
     backgroundColor: '#F6F3F4',
     paddingHorizontal: spacing.md,
+    paddingVertical: 0,
+    // UITextField centers its line box, whose glyphs sit below the visual
+    // midpoint. Balance that baseline inset without moving the field itself.
+    paddingBottom: Platform.OS === 'ios' ? 6 : 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    fontSize: 16,
     color: colors.text.primary,
   },
   medicationDoseRow: {

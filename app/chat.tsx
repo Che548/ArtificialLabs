@@ -1,3 +1,5 @@
+import { AppSheet, sheetStyles } from '../components/AppSheet';
+import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -13,6 +15,7 @@ import {
   Easing,
   Keyboard,
   KeyboardAvoidingView,
+  type KeyboardEvent,
   Linking,
   Modal,
   Platform,
@@ -41,6 +44,7 @@ import {
   type ChatSuggestion,
   sizes,
 } from '../design-system';
+import { SferkaAssistantFeed } from '../components/SferkaAssistantFeed';
 import { api } from '../convex/_generated/api';
 import { buildAgentContextEnvelope } from '../lib/agent-context-builder';
 import { assistantQuestionNeedsBodyMetrics } from '../lib/agent-context-policy';
@@ -62,6 +66,8 @@ import {
 } from '../lib/chat-generation-state';
 import { useHealthStore } from '../lib/health-store';
 import type { AgentSourceRef, ChatMessage } from '../lib/health-types';
+
+const composerGutter = 20;
 
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
@@ -153,61 +159,57 @@ function AiChatConsentSheet({
   visible: boolean;
 }) {
   return (
-    <Modal
-      animationType="fade"
-      transparent
+    <AppSheet
       visible={visible}
-      statusBarTranslucent
-      onRequestClose={onCancel}
-    >
-      <View style={styles.consentBackdrop}>
-        <View accessibilityViewIsModal style={styles.consentSheet}>
-          <AppText role="heading" weight="semibold" style={styles.consentTitle}>
-            {assistant
-              ? 'Данные для режима «Ассистент»'
-              : 'Передача текста в Yandex AI Studio'}
-          </AppText>
-          <AppText style={styles.consentBody}>
-            {assistant
-              ? 'Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый текст чата; возраст, цель, параметры тела и данные цикла или беременности; указанные заболевания, лекарства и аллергии; записи дневника не старше 30 дней; подтверждённые результаты анализов и домашние тесты; активный план. По запросу Ассистент сможет искать более старые записи, другие ваши чаты и метаданные документов. Если вы отдельно включите автономные рекомендации, при проверке плана также могут передаваться новые сообщения, написанные вами в режиме «Ассистент», и факт появления нового документа с его категорией и датой. Обычные чаты, ответы ИИ, названия и содержимое файлов при такой проверке не передаются. Содержимое файлов, имя, контакты, пути к файлам, идентификаторы аккаунта и устройства не передаются. Логирование запросов у Yandex отключено.'
-              : 'Для ответа Сферка отправит ваше сообщение и до 20 последних сообщений этого чата через наш сервер в Yandex AI Studio. Структурированные данные профиля, анализы и файлы автоматически не передаются — отправляется только видимый текст чата. Логирование запросов у Yandex отключено. История хранится зашифрованно на устройстве и синхронизируется только при включённой облачной синхронизации.'}
-          </AppText>
+      title={
+        assistant
+          ? 'Данные для режима «Ассистент»'
+          : 'Передача текста в Yandex AI Studio'
+      }
+      onClose={onCancel}
+      dismissDisabled={accepting}
+      footer={
+        <View style={styles.consentActions}>
           <Pressable
-            accessibilityRole="link"
-            accessibilityLabel="Открыть политику конфиденциальности"
-            onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+            accessibilityRole="button"
+            disabled={accepting}
+            onPress={onCancel}
+            style={styles.consentCancelButton}
           >
-            <AppText weight="medium" style={styles.consentLink}>
-              Политика конфиденциальности
+            <AppText weight="medium">Отмена</AppText>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: accepting }}
+            disabled={accepting}
+            onPress={onAccept}
+            style={[
+              styles.consentAcceptButton,
+              accepting && styles.consentButtonDisabled,
+            ]}
+          >
+            <AppText weight="semibold" color={colors.text.inverse}>
+              {accepting ? 'Сохраняем…' : 'Согласиться'}
             </AppText>
           </Pressable>
-          <View style={styles.consentActions}>
-            <Pressable
-              accessibilityRole="button"
-              disabled={accepting}
-              onPress={onCancel}
-              style={styles.consentCancelButton}
-            >
-              <AppText weight="medium">Отмена</AppText>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: accepting }}
-              disabled={accepting}
-              onPress={onAccept}
-              style={[
-                styles.consentAcceptButton,
-                accepting && styles.consentButtonDisabled,
-              ]}
-            >
-              <AppText weight="semibold" color={colors.text.inverse}>
-                {accepting ? 'Сохраняем…' : 'Согласиться'}
-              </AppText>
-            </Pressable>
-          </View>
         </View>
-      </View>
-    </Modal>
+      }
+    >
+      <AppText style={styles.consentBody}>
+        {assistant
+          ? 'Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый текст чата; возраст, цель, параметры тела и данные цикла или беременности; указанные заболевания, лекарства и аллергии; записи дневника не старше 30 дней; подтверждённые результаты анализов и домашние тесты; активный план. По запросу Ассистент сможет искать более старые записи, другие ваши чаты и метаданные документов. Если вы отдельно включите автономные рекомендации, при проверке плана также могут передаваться новые сообщения, написанные вами в режиме «Ассистент», и факт появления нового документа с его категорией и датой. Обычные чаты, ответы ИИ, названия и содержимое файлов при такой проверке не передаются. Содержимое файлов, имя, контакты, пути к файлам, идентификаторы аккаунта и устройства не передаются. Логирование запросов у Yandex отключено.'
+          : 'Для ответа Сферка отправит ваше сообщение и до 20 последних сообщений этого чата через наш сервер в Yandex AI Studio. Структурированные данные профиля, анализы и файлы автоматически не передаются — отправляется только видимый текст чата. Логирование запросов у Yandex отключено. История хранится зашифрованно на устройстве и синхронизируется только при включённой облачной синхронизации.'}
+      </AppText>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel="Открыть политику конфиденциальности"
+        onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+      >
+        <AppText weight="medium" style={styles.consentLink}>
+          Политика конфиденциальности
+        </AppText>
+      </Pressable>
+    </AppSheet>
   );
 }
 
@@ -233,10 +235,7 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const aiEligible = Platform.OS !== 'web' && isAuthenticated && !readOnly;
-  const chatStatus = useQuery(
-    api.chat.status,
-    aiEligible && cloudProfileReady ? {} : 'skip',
-  );
+  const chatStatus = useQuery(api.chat.status, aiEligible ? {} : 'skip');
   const agentStatus = useQuery(
     api.agent.status,
     aiEligible && cloudProfileReady ? {} : 'skip',
@@ -250,7 +249,12 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ScreenMessage[]>([]);
   const [conversationId, setConversationId] = useState<string>();
   const [composerFocused, setComposerFocused] = useState(false);
+  const [keyboardShown, setKeyboardShown] = useState(() =>
+    Keyboard.isVisible(),
+  );
   const [headerMode, setHeaderMode] = useState<ChatHeaderMode>('chat');
+  const [displayedMode, setDisplayedMode] = useState<ChatHeaderMode>('chat');
+  const modeContentOpacity = useRef(new Animated.Value(1)).current;
   const [conversationVisible, setConversationVisible] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRendered, setHistoryRendered] = useState(false);
@@ -267,15 +271,22 @@ export default function ChatScreen() {
   const [pendingConsentRequest, setPendingConsentRequest] =
     useState<PendingConsentRequest>();
   const compactHeight = window.height < 760;
-  const composerBottom =
-    Platform.OS === 'android'
+  const composerBottom = keyboardShown
+    ? composerGutter
+    : Platform.OS === 'android'
       ? Math.max(insets.bottom, 8) + 60 + 12
       : Math.max(insets.bottom, 12) + (!hasNativeLiquidGlass ? 72 : 58);
-  const conversationComposerBottom = Math.max(insets.bottom + 4, 16) - 12;
+  const conversationComposerBottom = keyboardShown
+    ? composerGutter
+    : Math.max(insets.bottom + 4, 16) - 12;
   const historyPanelWidth = Math.min(window.width * 0.76, 318);
   const headerTop = getHeaderTop(insets.top);
-  const suggestionsVisible = !composerFocused;
+  const keyboardActive = composerFocused || keyboardShown;
+  const suggestionsVisible = !keyboardActive;
   const suggestionsProgress = useRef(new Animated.Value(1)).current;
+  const emptyStateProgress = useRef(
+    new Animated.Value(keyboardShown ? 0 : 1),
+  ).current;
   const conversationProgress = useRef(new Animated.Value(0)).current;
   const historyProgress = useRef(new Animated.Value(0)).current;
   const copyNoticeProgress = useRef(new Animated.Value(0)).current;
@@ -286,7 +297,10 @@ export default function ChatScreen() {
   const activeGeneration = useRef<ActiveGeneration | undefined>(undefined);
   const knownUserMessages = useRef(new Map<string, ChatMessage>());
   const chatMessagesRef = useRef(chatMessages);
-  const aiReady = aiEligible && chatStatus?.enabled === true;
+  const aiReady =
+    aiEligible &&
+    chatStatus?.enabled === true &&
+    chatStatus?.userEnabled === true;
   const agentReady =
     aiEligible &&
     healthStore.ready &&
@@ -296,7 +310,7 @@ export default function ChatScreen() {
   const selectedConsentAccepted =
     headerMode === 'assistant'
       ? agentStatus?.consentAccepted === true
-      : chatStatus?.consentAccepted === true;
+      : chatStatus?.userEnabled === true;
   const availabilityNotice =
     Platform.OS === 'web'
       ? 'ИИ-чат доступен в приложении для iOS и Android после входа.'
@@ -304,8 +318,8 @@ export default function ChatScreen() {
         ? 'Проверяем доступность ИИ-чата…'
         : !isAuthenticated || readOnly
           ? 'Войдите в аккаунт, чтобы получать ответы Сферки.'
-          : !cloudProfileReady
-            ? 'ИИ-чат станет доступен после включения облачной синхронизации.'
+          : headerMode === 'assistant' && !cloudProfileReady
+            ? 'Для режима «Ассистент» включите облачную синхронизацию в профиле. Обычный чат работает без неё.'
             : headerMode === 'assistant' && !agentStatus
               ? 'Проверяем доступность Ассистента…'
               : headerMode === 'chat' && !chatStatus
@@ -314,7 +328,9 @@ export default function ChatScreen() {
                   ? 'Ассистент пока выключен администратором.'
                   : headerMode === 'chat' && !chatStatus?.enabled
                     ? 'ИИ-чат пока выключен администратором.'
-                    : undefined;
+                    : headerMode === 'chat' && chatStatus?.userEnabled === false
+                      ? 'ИИ-чат выключен. Включите его в профиле → Разрешения и данные.'
+                      : undefined;
   const persistedRecentChats = useMemo<ChatHistoryItem[]>(
     () =>
       chatConversations
@@ -435,6 +451,38 @@ export default function ChatScreen() {
     },
     [],
   );
+
+  useEffect(() => {
+    const updateKeyboard = (shown: boolean) => (event: KeyboardEvent) => {
+      if (Platform.OS === 'ios') Keyboard.scheduleLayoutAnimation(event);
+      setKeyboardShown(shown);
+      if (!shown) setComposerFocused(false);
+    };
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      updateKeyboard(true),
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      updateKeyboard(false),
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const animation = Animated.timing(emptyStateProgress, {
+      toValue: keyboardActive ? 0 : 1,
+      duration: reduceMotion ? 0 : keyboardActive ? 180 : 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [emptyStateProgress, keyboardActive, reduceMotion]);
 
   useEffect(() => {
     if (!conversationVisible) return undefined;
@@ -1099,7 +1147,7 @@ export default function ChatScreen() {
     const retryConsentAccepted =
       retryMode === 'assistant'
         ? agentStatus?.consentAccepted
-        : chatStatus?.consentAccepted;
+        : chatStatus?.userEnabled;
     if (!retryReady) {
       Alert.alert(
         'ИИ-чат недоступен',
@@ -1259,37 +1307,34 @@ export default function ChatScreen() {
     });
   };
 
-  const changeMode = (nextMode: ChatHeaderMode) => {
-    if (nextMode === headerMode || generationInFlight.current) return;
-    const activate = () => {
-      setHeaderMode(nextMode);
-      if (
-        nextMode === 'assistant' &&
-        agentReady &&
-        agentStatus?.consentAccepted === false
-      ) {
-        setPendingConsentRequest({ kind: 'mode', mode: 'assistant' });
-        setConsentVisible(true);
-      }
-    };
-    if (conversationVisible && messages.length) {
-      Alert.alert(
-        'Начать новый разговор?',
-        'Режимы «Чат» и «Ассистент» используют разные разрешения на данные.',
-        [
-          { text: 'Отмена', style: 'cancel' },
-          {
-            text: 'Начать',
-            onPress: () => {
-              closeConversation();
-              activate();
-            },
-          },
-        ],
-      );
+  // Keep the outgoing view mounted until it is invisible. Stopping the
+  // previous animation makes rapid reversals continue from the current opacity.
+  useEffect(() => {
+    if (reduceMotion) {
+      modeContentOpacity.stopAnimation();
+      setDisplayedMode(headerMode);
+      modeContentOpacity.setValue(1);
       return;
     }
-    activate();
+    const changing = displayedMode !== headerMode;
+    const animation = Animated.timing(modeContentOpacity, {
+      toValue: changing ? 0 : 1,
+      duration: changing ? 130 : 220,
+      easing: changing ? Easing.inOut(Easing.quad) : Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (finished && changing) setDisplayedMode(headerMode);
+    });
+    return () => animation.stop();
+  }, [displayedMode, headerMode, modeContentOpacity, reduceMotion]);
+
+  const changeMode = (nextMode: ChatHeaderMode) => {
+    if (nextMode === headerMode || generationInFlight.current) return;
+    Keyboard.dismiss();
+    setComposerFocused(false);
+    if (conversationVisible) closeConversation();
+    setHeaderMode(nextMode);
   };
 
   const historySurfaceMotionStyle =
@@ -1320,7 +1365,6 @@ export default function ChatScreen() {
     <KeyboardAvoidingView
       style={styles.drawerRoot}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
     >
       {historyRendered ? (
         <ChatHistoryPanel
@@ -1341,11 +1385,15 @@ export default function ChatScreen() {
         key={`chat-surface-${surfaceResetKey}`}
         style={[
           styles.chatSurface,
+          displayedMode === 'assistant' && {
+            backgroundColor: colors.surface.canvas,
+          },
           historyRendered && styles.chatSurfaceRaised,
           historySurfaceMotionStyle,
         ]}
       >
         <StatusBar style="dark" />
+        <TopChromeBackdrop headerTop={headerTop} />
 
         <View
           onTouchStart={dismissComposer}
@@ -1353,121 +1401,154 @@ export default function ChatScreen() {
         >
           <ChatHeader
             activeMode={headerMode}
+            hideHistory={headerMode === 'assistant'}
             onModeChange={changeMode}
             onHistory={openHistory}
             onCalendar={chooseHistoryPeriod}
           />
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          onTouchStart={dismissComposer}
-          contentContainerStyle={[
-            styles.scrollContent,
-            {
-              paddingTop: insets.top + 80,
-              paddingBottom: composerBottom + 152,
-            },
-          ]}
+        <Animated.View
+          style={{ flex: 1, opacity: modeContentOpacity }}
+          pointerEvents={displayedMode === headerMode ? 'auto' : 'none'}
+          accessibilityElementsHidden={displayedMode !== headerMode}
+          importantForAccessibility={
+            displayedMode === headerMode ? 'auto' : 'no-hide-descendants'
+          }
         >
-          <View
-            style={[
-              styles.emptyStage,
-              {
-                paddingTop: Math.max(135 - insets.top, 32),
-              },
-            ]}
-          >
-            <ChatEmptyState compact={compactHeight} />
-          </View>
-        </ScrollView>
-
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.bottomDock,
-            {
-              bottom: composerBottom,
-            },
-          ]}
-        >
-          <Animated.View
-            pointerEvents={suggestionsVisible ? 'auto' : 'none'}
-            style={[
-              styles.suggestionsMotion,
-              {
-                height: suggestionsProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 100],
-                }),
-                opacity: suggestionsProgress.interpolate({
-                  inputRange: [0, 0.28, 1],
-                  outputRange: [0, 0, 1],
-                }),
-              },
-            ]}
-          >
-            <ChatSuggestionList
-              suggestions={suggestions}
-              onSelect={(suggestion) => {
-                const reminder = activeReminders.find(
-                  (item) => suggestion.id === `reminder:${item.localId}`,
-                );
-                if (reminder) void markReminderRead(reminder);
-                setDraft(suggestion.title);
-              }}
+          {displayedMode === 'assistant' ? (
+            <SferkaAssistantFeed
+              topInset={headerTop + 72}
+              bottomInset={composerBottom + 16}
             />
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.suggestionsGradientMask,
-                {
-                  opacity: suggestionsProgress.interpolate({
-                    inputRange: [0, 0.16, 0.78, 1],
-                    outputRange: [0, 1, 1, 0],
-                  }),
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']}
-                locations={[0, 1]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={StyleSheet.absoluteFillObject}
-              />
-            </Animated.View>
-          </Animated.View>
-          {availabilityNotice ? (
-            <AppText role="caption" style={styles.availabilityNotice}>
-              {availabilityNotice}
-            </AppText>
-          ) : null}
-          <ChatComposer
-            disabled={!selectedModeReady || generationState === 'thinking'}
-            value={draft}
-            onChangeText={setDraft}
-            onSubmit={send}
-            onFocus={() => {
-              setComposerFocused(true);
-            }}
-            onBlur={() => setComposerFocused(false)}
-            onAdd={explainAttachments}
-            onVoice={() =>
-              Alert.alert(
-                'Голосовой ввод',
-                'Голосовой режим пока не подключён.',
-              )
-            }
-          />
-          <AppText numberOfLines={2} role="caption" style={styles.aiDisclaimer}>
-            {
-              'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
-            }
-          </AppText>
-        </View>
+          ) : (
+            <>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                onTouchStart={dismissComposer}
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  {
+                    paddingTop: insets.top + 80,
+                    paddingBottom: composerBottom + 152,
+                  },
+                ]}
+              >
+                <Animated.View
+                  pointerEvents={keyboardActive ? 'none' : 'auto'}
+                  accessibilityElementsHidden={keyboardActive}
+                  importantForAccessibility={
+                    keyboardActive ? 'no-hide-descendants' : 'auto'
+                  }
+                  style={[
+                    styles.emptyStage,
+                    {
+                      opacity: emptyStateProgress,
+                      paddingTop: Math.max(135 - insets.top, 32),
+                    },
+                  ]}
+                >
+                  <ChatEmptyState compact={compactHeight} />
+                </Animated.View>
+              </ScrollView>
+
+              <View
+                pointerEvents="box-none"
+                style={[
+                  styles.bottomDock,
+                  {
+                    bottom: composerBottom,
+                  },
+                ]}
+              >
+                <Animated.View
+                  pointerEvents={suggestionsVisible ? 'auto' : 'none'}
+                  style={[
+                    styles.suggestionsMotion,
+                    {
+                      height: suggestionsProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 100],
+                      }),
+                      opacity: suggestionsProgress.interpolate({
+                        inputRange: [0, 0.28, 1],
+                        outputRange: [0, 0, 1],
+                      }),
+                    },
+                  ]}
+                >
+                  <ChatSuggestionList
+                    suggestions={suggestions}
+                    onSelect={(suggestion) => {
+                      const reminder = activeReminders.find(
+                        (item) => suggestion.id === `reminder:${item.localId}`,
+                      );
+                      if (reminder) void markReminderRead(reminder);
+                      setDraft(suggestion.title);
+                    }}
+                  />
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.suggestionsGradientMask,
+                      {
+                        opacity: suggestionsProgress.interpolate({
+                          inputRange: [0, 0.16, 0.78, 1],
+                          outputRange: [0, 1, 1, 0],
+                        }),
+                      },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']}
+                      locations={[0, 1]}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  </Animated.View>
+                </Animated.View>
+                {availabilityNotice ? (
+                  <AppText role="caption" style={styles.availabilityNotice}>
+                    {availabilityNotice}
+                  </AppText>
+                ) : null}
+                <ChatComposer
+                  disabled={
+                    !selectedModeReady || generationState === 'thinking'
+                  }
+                  value={draft}
+                  onChangeText={setDraft}
+                  onSubmit={send}
+                  onFocus={() => {
+                    setComposerFocused(true);
+                  }}
+                  onBlur={() => setComposerFocused(false)}
+                  onAdd={explainAttachments}
+                  onVoice={() =>
+                    Alert.alert(
+                      'Голосовой ввод',
+                      'Голосовой режим пока не подключён.',
+                    )
+                  }
+                />
+                {!keyboardShown ? (
+                  <AppText
+                    numberOfLines={2}
+                    role="caption"
+                    style={styles.aiDisclaimer}
+                  >
+                    {
+                      'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
+                    }
+                  </AppText>
+                ) : null}
+              </View>
+            </>
+          )}
+        </Animated.View>
 
         {historyRendered ? (
           <Pressable
@@ -1487,7 +1568,6 @@ export default function ChatScreen() {
         <KeyboardAvoidingView
           style={[styles.conversationModal, styles.drawerRoot]}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           {historyRendered ? (
             <ChatHistoryPanel
@@ -1521,6 +1601,7 @@ export default function ChatScreen() {
               ]}
             />
 
+            <TopChromeBackdrop headerTop={headerTop} />
             <View style={[styles.headerWrap, { top: headerTop }]}>
               <ChatHeader
                 activeMode={headerMode}
@@ -1709,15 +1790,17 @@ export default function ChatScreen() {
                   )
                 }
               />
-              <AppText
-                numberOfLines={2}
-                role="caption"
-                style={styles.aiDisclaimer}
-              >
-                {
-                  'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
-                }
-              </AppText>
+              {!keyboardShown ? (
+                <AppText
+                  numberOfLines={2}
+                  role="caption"
+                  style={styles.aiDisclaimer}
+                >
+                  {
+                    'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
+                  }
+                </AppText>
+              ) : null}
             </Animated.View>
             {historyRendered ? (
               <Pressable
@@ -1801,8 +1884,8 @@ const styles = StyleSheet.create({
   },
   bottomDock: {
     position: 'absolute',
-    left: 20,
-    right: 20,
+    left: composerGutter,
+    right: composerGutter,
     zIndex: 30,
     alignItems: 'center',
     gap: 10,
@@ -1836,24 +1919,6 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 8,
   },
-  consentBackdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    padding: 12,
-    backgroundColor: 'rgba(33,33,35,0.38)',
-  },
-  consentSheet: {
-    gap: 18,
-    paddingHorizontal: 22,
-    paddingTop: 24,
-    paddingBottom: 22,
-    borderRadius: 40,
-    backgroundColor: colors.surface.raised,
-  },
-  consentTitle: {
-    fontSize: 22,
-    lineHeight: 27,
-  },
   consentBody: {
     color: colors.text.secondary,
     fontSize: 16,
@@ -1867,23 +1932,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-  consentCancelButton: {
-    flex: 1,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 24,
-    backgroundColor: '#F0EEF0',
-  },
-  consentAcceptButton: {
-    flex: 1,
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    borderRadius: 25,
-    backgroundColor: colors.brand.primary,
-  },
+  consentCancelButton: { ...sheetStyles.secondary, flex: 1 },
+  consentAcceptButton: { ...sheetStyles.primary, flex: 1 },
   consentButtonDisabled: {
     opacity: 0.52,
   },

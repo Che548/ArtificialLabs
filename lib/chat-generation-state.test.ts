@@ -21,3 +21,7 @@ test('rate-limit errors expose a safe rounded retry delay', () => {
     /provider|yandex|api/i,
   );
 });
+
+test('disabled chat explains how to enable it in settings', () => {
+  assert.match(chatGenerationErrorText('USER_DISABLED'), /Разрешения и данные/);
+});

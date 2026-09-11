@@ -69,8 +69,8 @@ export const generateInternal = internalAction({
       userId: args.userId,
     });
     if (!access.ok) {
-      if (access.reason === 'CONSENT_REQUIRED') {
-        return { ok: false as const, code: 'CONSENT_REQUIRED' as const };
+      if (access.reason === 'USER_DISABLED') {
+        return { ok: false as const, code: 'USER_DISABLED' as const };
       }
       throw new Error(access.reason);
     }
@@ -109,8 +109,8 @@ export const generateInternal = internalAction({
       userId: args.userId,
     });
     if (!currentAccess.ok) {
-      if (currentAccess.reason === 'CONSENT_REQUIRED')
-        return { ok: false as const, code: 'CONSENT_REQUIRED' as const };
+      if (currentAccess.reason === 'USER_DISABLED')
+        return { ok: false as const, code: 'USER_DISABLED' as const };
       throw new Error(currentAccess.reason);
     }
     if (!isAiChatFeatureEnabled())

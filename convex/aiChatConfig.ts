@@ -14,6 +14,7 @@ export const AI_CHAT_RATE_LIMITS = {
 
 export type AiChatFailureCode =
   | 'CONSENT_REQUIRED'
+  | 'USER_DISABLED'
   | 'RATE_LIMITED'
   | 'CONTENT_FILTERED'
   | 'PROVIDER_UNAVAILABLE'

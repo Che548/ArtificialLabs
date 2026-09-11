@@ -23,7 +23,6 @@ export function ConnectivityProvider({ children }: PropsWithChildren) {
   const value = useMemo<ConnectivityValue>(() => {
     // A hermetic Android E2E client reaches Convex through `adb reverse` even
     // when the emulator cannot validate its synthetic internet connection.
-    // Keep the production connectivity path unchanged.
     const usesReversedE2EBackend =
       Platform.OS === 'android' &&
       process.env.EXPO_PUBLIC_E2E_MODE === '1' &&

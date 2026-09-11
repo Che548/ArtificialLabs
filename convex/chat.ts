@@ -143,6 +143,7 @@ export const status = query({
       .unique();
     const consentAccepted = Boolean(
       consent &&
+      consent.acceptedAt !== undefined &&
       consent.provider === AI_CHAT_CONSENT_PROVIDER &&
       consent.policyVersion === AI_CHAT_CONSENT_POLICY_VERSION &&
       !consent.revokedAt,
@@ -152,8 +153,35 @@ export const status = query({
       enabled: isAiChatFeatureEnabled(),
       policyVersion: AI_CHAT_CONSENT_POLICY_VERSION,
       consentAccepted,
+      userEnabled: consent?.userEnabled ?? !consent?.revokedAt,
       acceptedAt: consentAccepted ? consent?.acceptedAt : undefined,
     };
+  },
+});
+
+// Absence of a preference enables ordinary text chat. Do not manufacture a
+// consent timestamp: medical data access is controlled separately by agent.ts.
+export const setEnabled = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, args) => {
+    const userId = await requireActiveAccount(ctx);
+    const existing = await ctx.db
+      .query('aiChatConsents')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .unique();
+    const updatedAt = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, { userEnabled: args.enabled, updatedAt });
+    } else {
+      await ctx.db.insert('aiChatConsents', {
+        userId,
+        provider: AI_CHAT_CONSENT_PROVIDER,
+        policyVersion: AI_CHAT_CONSENT_POLICY_VERSION,
+        userEnabled: args.enabled,
+        updatedAt,
+      });
+    }
+    return { enabled: args.enabled };
   },
 });
 
@@ -174,6 +202,7 @@ export const acceptConsent = mutation({
       provider: AI_CHAT_CONSENT_PROVIDER,
       policyVersion: AI_CHAT_CONSENT_POLICY_VERSION,
       acceptedAt,
+      userEnabled: true,
       revokedAt: undefined,
       updatedAt: acceptedAt,
     };
@@ -195,17 +224,24 @@ export const revokeConsent = mutation({
       .query('aiChatConsents')
       .withIndex('by_user', (q) => q.eq('userId', userId))
       .unique();
-    if (!existing?.revokedAt) {
-      const revokedAt = Date.now();
-      if (existing) {
-        await ctx.db.patch(existing._id, {
-          revokedAt,
-          updatedAt: revokedAt,
-        });
-      }
-      return { revoked: Boolean(existing), revokedAt };
+    const revokedAt = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        userEnabled: false,
+        revokedAt,
+        updatedAt: revokedAt,
+      });
+    } else {
+      await ctx.db.insert('aiChatConsents', {
+        userId,
+        provider: AI_CHAT_CONSENT_PROVIDER,
+        policyVersion: AI_CHAT_CONSENT_POLICY_VERSION,
+        userEnabled: false,
+        revokedAt,
+        updatedAt: revokedAt,
+      });
     }
-    return { revoked: true, revokedAt: existing.revokedAt };
+    return { revoked: true, revokedAt };
   },
 });
 
@@ -227,14 +263,9 @@ export const generationAccess = internalQuery({
       .query('aiChatConsents')
       .withIndex('by_user', (q) => q.eq('userId', args.userId))
       .unique();
-    const consentAccepted = Boolean(
-      consent &&
-      consent.provider === AI_CHAT_CONSENT_PROVIDER &&
-      consent.policyVersion === AI_CHAT_CONSENT_POLICY_VERSION &&
-      !consent.revokedAt,
-    );
-    if (!consentAccepted) {
-      return { ok: false as const, reason: 'CONSENT_REQUIRED' as const };
+    const userEnabled = consent?.userEnabled ?? !consent?.revokedAt;
+    if (!userEnabled) {
+      return { ok: false as const, reason: 'USER_DISABLED' as const };
     }
 
     return { ok: true as const };
