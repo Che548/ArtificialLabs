@@ -70,6 +70,7 @@
     "tailwindcss": "^3.4.19",
     "tsx": "^4.23.2",
     "typescript": "~5.9.2",
+    "vite": "8.3.0",
     "vitest": "^4.1.10"
   },
   "scripts": {
@@ -83,6 +84,7 @@
     "ota:test": "npm --prefix infra/updates test",
     "ota:publish:preview": "node scripts/ota-release.mjs publish --channel=preview",
     "typecheck": "tsc --noEmit",
+    "typecheck:convex": "tsc --noEmit -p convex/tsconfig.json",
     "test:contacts": "vitest run convex/emailChange.test.ts convex/passwordRecovery.test.ts",
     "test:contacts:ui": "playwright test --config tests/contact-ui/playwright.config.ts",
     "check:expo": "expo install --check",
@@ -108,7 +110,7 @@
     "preview:admin-ui": "node scripts/admin-ui-preview.mjs",
     "test:android-config": "node --test plugins/with-android-config-changes.test.js",
     "test:ios-config": "node --test plugins/with-ios-health-backup-exclusion.test.js && tsx --test tests/unit/ios-release-config.test.ts",
-    "verify": "npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run doctor && npm run build:expo-web && npm --prefix admin run verify"
+    "verify": "npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run typecheck:convex && npm run doctor && npm run build:expo-web && npm --prefix admin run verify"
   },
   "engines": {
     "node": ">=20.19.4"
