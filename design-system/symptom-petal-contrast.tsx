@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import { Image, StyleSheet, View } from "react-native";
 import Svg, { G, Path, Rect, Text as SvgText } from "react-native-svg";
 
@@ -477,7 +478,7 @@ function PetalWheelPreview({ config }: { config: VariantConfig }) {
                     stroke={config.textStroke}
                     strokeWidth={config.textStrokeWidth}
                     strokeLinejoin="round"
-                    fontFamily={fonts.sfSemibold}
+                    {...fontStyle(fonts.sfSemibold)}
                     fontSize={13.5}
                   >
                     {label}
@@ -490,7 +491,7 @@ function PetalWheelPreview({ config }: { config: VariantConfig }) {
                     y={text.y + 6.3}
                     textAnchor="middle"
                     fill={config.shadowText}
-                    fontFamily={fonts.sfSemibold}
+                    {...fontStyle(fonts.sfSemibold)}
                     fontSize={13.5}
                   >
                     {label}
@@ -503,7 +504,7 @@ function PetalWheelPreview({ config }: { config: VariantConfig }) {
                   textAnchor="middle"
                   fill={config.text}
                   fillOpacity={config.textOpacity ?? 1}
-                  fontFamily={fonts.sfSemibold}
+                  {...fontStyle(fonts.sfSemibold)}
                   fontSize={13.5}
                 >
                   {label}
@@ -623,7 +624,7 @@ function ProgressPetalWheelPreview({
                         y={labelPoint.y - 15}
                         textAnchor="middle"
                         fill={stateStyle.text}
-                        fontFamily={fonts.sfBold}
+                        {...fontStyle(fonts.sfBold)}
                         fontSize={13}
                       >
                         ✓
@@ -637,7 +638,7 @@ function ProgressPetalWheelPreview({
                   y={labelPoint.y + 5}
                   textAnchor="middle"
                   fill={stateStyle.text}
-                  fontFamily={fonts.sfSemibold}
+                  {...fontStyle(fonts.sfSemibold)}
                   fontSize={13.5}
                 >
                   {label}

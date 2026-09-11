@@ -351,7 +351,10 @@ android_dev_url="exp+private-expo://expo-development-client/?url=http%3A%2F%2F12
 if [[ -z "$scan_fixture_source" ]]; then
   maestro --device "$ios_device" test .maestro/reset.yml
 fi
-xcrun simctl openurl "$ios_device" "$ios_dev_url"
+if ! open_ios_dev_url "$ios_dev_url"; then
+  record_environment_blocked "iOS Simulator did not accept the initial development URL"
+  exit 75
+fi
 if [[ "$android_ready" -eq 1 ]]; then
   adb -s "$android_device" shell am start -a android.intent.action.VIEW -d "$android_dev_url" "$android_package" \
     >"$E2E_REPORT_DIR/android-launch.log" 2>&1 &

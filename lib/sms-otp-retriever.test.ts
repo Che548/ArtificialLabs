@@ -6,7 +6,7 @@ import { extractSixDigitOtp } from './sms-otp-parser';
 test('extracts a six-digit code without exposing the rest of the SMS', () => {
   assert.equal(
     extractSixDigitOtp(
-      '<#> Sfera code: 123456\n@artificiallabs.bebra42.ru #123456 Y4QO6pOIVxj',
+      '<#> Sfera code: 123456\n@artificiallabs.bebra42.ru #123456 mO/iDxNc1rb',
     ),
     '123456',
   );

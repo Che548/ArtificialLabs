@@ -529,10 +529,12 @@ export const recentErrors = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
     await requireAdmin(ctx);
-    return await ctx.db
+    const rows = await ctx.db
       .query('telemetryEvents')
       .withIndex('by_outcome_time', (q) => q.eq('outcome', 'error'))
       .order('desc')
       .take(Math.max(1, Math.min(limit ?? 20, 50)));
+    return rows.map(row => ({ errorCode: row.errorCode, platform: row.platform,
+      appVersion: row.appVersion, algorithmVersion: row.algorithmVersion, occurredAt: row.occurredAt }));
   },
 });

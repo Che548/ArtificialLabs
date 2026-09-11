@@ -1,3 +1,5 @@
+import { bundledFonts } from '../lib/bundled-fonts';
+import { fontStyle } from '../lib/font-style';
 import type { BlurTint } from 'expo-blur';
 import { useFonts } from 'expo-font';
 import Constants from 'expo-constants';
@@ -58,7 +60,7 @@ import { loadScanHistory, saveScanToHistory } from '../services/scanning';
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 const FONT_SF_REGULAR = 'SFProDisplay-Regular';
-const FONT_YARO_RG = 'YaroRg';
+const FONT_YARO_RG = 'Comfortaa-Regular';
 const IOS_PAGE_DURATION = 280;
 const IOS_PAGE_EXIT_DURATION = 220;
 const IOS_PAGE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
@@ -368,12 +370,7 @@ export default function ScanScreen() {
   const historyCorrectionProgress = useRef(new Animated.Value(0)).current;
   const photoPickerBusy = useRef(false);
   const [fontsLoaded] = useFonts(
-    Platform.OS === 'web'
-      ? {
-          [FONT_SF_REGULAR]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
-          [FONT_YARO_RG]: require('../assets/fonts/Yaro-Rg-Regular.otf'),
-        }
-      : {},
+    Platform.OS === 'web' ? bundledFonts : {},
   );
   const symptomDateKeys = useMemo(
     () =>
@@ -662,7 +659,7 @@ export default function ScanScreen() {
                         importantForAccessibility="no"
                         style={[
                           styles.scanButtonLabel,
-                          { fontFamily: sfRegular },
+                          { ...fontStyle(sfRegular) },
                         ]}
                       >
                         Начать сканирование
@@ -684,7 +681,7 @@ export default function ScanScreen() {
                   <Text
                     style={[
                       styles.galleryButtonLabel,
-                      { fontFamily: sfRegular },
+                      { ...fontStyle(sfRegular) },
                       pressed && styles.galleryButtonLabelPressed,
                     ]}
                   >
@@ -708,7 +705,7 @@ export default function ScanScreen() {
                   <Text
                     style={[
                       styles.galleryButtonLabel,
-                      { fontFamily: sfRegular },
+                      { ...fontStyle(sfRegular) },
                     ]}
                   >
                     Тестовый снимок
@@ -722,14 +719,14 @@ export default function ScanScreen() {
                 <Text
                   style={[
                     styles.sphere,
-                    { fontFamily: yaro },
+                    { ...fontStyle(yaro) },
                     Platform.OS === 'android' && styles.sphereAndroid,
                   ]}
                 >
                   сфера.
                 </Text>
                 <Text
-                  style={[styles.scannerDescription, { fontFamily: sfRegular }]}
+                  style={[styles.scannerDescription, { ...fontStyle(sfRegular) }]}
                 >
                   Мгновенный анализ тестов на{'\n'}
                   овуляцию или беременность
@@ -1353,7 +1350,7 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     color: '#ffffff',
-    fontFamily: FONT_SF_REGULAR,
+    ...fontStyle(FONT_SF_REGULAR),
     fontSize: 15,
     lineHeight: 17,
     letterSpacing: -0.3,

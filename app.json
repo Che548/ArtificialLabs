@@ -42,13 +42,14 @@
       [
         "expo-font",
         {
-          "fonts": [
+          "android": { "fonts": [
             "./assets/fonts/SF-Pro-Display-Regular.otf",
             "./assets/fonts/SF-Pro-Display-Medium.otf",
             "./assets/fonts/SF-Pro-Display-Semibold.otf",
             "./assets/fonts/SF-Pro-Display-Bold.otf",
-            "./assets/fonts/Yaro-Rg-Regular.otf"
-          ]
+            "./assets/fonts/Comfortaa-Regular.ttf"
+          ] },
+          "ios": { "fonts": ["./assets/fonts/Comfortaa-Regular.ttf"] }
         }
       ],
       "expo-router",
@@ -63,17 +64,21 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Разрешите приложению «сфера.» выбирать фотографии тестов из медиатеки."
+          "photosPermission": "Разрешите приложению «сфера.» выбирать фотографии тестов из медиатеки.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-camera",
         {
           "cameraPermission": "Разрешите приложению «сфера.» использовать камеру для сканирования QR-кодов и тестов.",
+          "microphonePermission": false,
           "recordAudioAndroid": false
         }
       ],
       "./plugins/with-camera-controls",
+      "./plugins/with-ios-health-backup-exclusion",
+      "./plugins/with-ios-system-fonts",
       "./plugins/with-android-config-changes",
       [
         "expo-sqlite",

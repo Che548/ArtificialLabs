@@ -13,7 +13,8 @@ appId: ${MAESTRO_APP_ID || "engineering.brainwaves.sfera"}
       - tapOn: 'Continue'
       - back
 - extendedWaitUntil:
-    visible: 'сфера.'
+    visible:
+      id: 'e2e-auth-identifier'
     timeout: 120000
 - tapOn:
     id: 'e2e-auth-identifier'
@@ -26,8 +27,10 @@ appId: ${MAESTRO_APP_ID || "engineering.brainwaves.sfera"}
     id: 'e2e-auth-switch-flow'
 - tapOn:
     id: 'e2e-auth-submit'
-- assertVisible:
-    id: 'e2e-onboarding-next'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-onboarding-next'
+    timeout: 60000
 - tapOn:
     id: 'e2e-onboarding-next'
 - assertVisible: 'Немного о вас'

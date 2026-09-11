@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { requireUserId } from './lib/access';
+import { uncountAccount } from './lib/accountCounts';
 
 const RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -99,6 +100,8 @@ async function deleteProfileData(ctx: MutationCtx, profileId: string) {
 }
 
 export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
+  const emailChanges = await ctx.db.query('emailChangeChallenges').withIndex('by_user', q => q.eq('userId', userId as never)).collect();
+  for (const change of emailChanges) await ctx.db.delete(change._id);
   const profile = await ctx.db
     .query('profiles')
     .withIndex('by_user', (q) => q.eq('userId', userId as never))
@@ -163,6 +166,7 @@ export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
     .filter((q) => q.eq(q.field('userId'), userId))
     .collect();
   for (const run of agentRuns) await ctx.db.delete(run._id);
+  await uncountAccount(ctx, userId as never);
   await ctx.db.delete(userId as never);
 }
 

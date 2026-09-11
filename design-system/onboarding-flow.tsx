@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OnboardingSymbol as SymbolView } from './onboarding-symbol';
@@ -1437,7 +1438,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     textAlign: 'center',
     color: colors.text.primary,
-    fontFamily: fonts.sfSemibold,
+    ...fontStyle(fonts.sfSemibold),
     fontSize: 32,
     lineHeight: 36,
     fontVariant: ['tabular-nums'],
@@ -1468,7 +1469,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FCEAF2',
   },
   fieldBlock: { padding: 14, gap: 8, borderRadius: 22, backgroundColor: '#FFFFFF' },
-  field: { height: 46, borderRadius: 14, paddingHorizontal: 13, backgroundColor: '#F2EFF0', color: colors.text.primary, fontFamily: fonts.sfRegular, fontSize: 16 },
+  field: { height: 46, borderRadius: 14, paddingHorizontal: 13, backgroundColor: '#F2EFF0', color: colors.text.primary, ...fontStyle(fonts.sfRegular), fontSize: 16 },
   dateStepCard: {
     minHeight: 104,
     paddingVertical: 0,
@@ -1552,7 +1553,7 @@ const styles = StyleSheet.create({
   noteText: { flex: 1, lineHeight: 17 },
   completeScreen: { paddingHorizontal: 30, paddingTop: 2, alignItems: 'center' },
   completeGlyph: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brand.primary, marginBottom: 11 },
-  completeTitle: { textAlign: 'center', fontFamily: fonts.sfSemibold },
+  completeTitle: { textAlign: 'center', ...fontStyle(fonts.sfSemibold) },
   completeText: { marginTop: 9, textAlign: 'center', lineHeight: 22 },
   diseaseModalRoot: {
     flex: 1,
@@ -1594,7 +1595,7 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     backgroundColor: '#F3EFF0',
     color: colors.text.primary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 16,
   },
   diseaseActions: { flexDirection: 'row', gap: 12, paddingTop: 8 },

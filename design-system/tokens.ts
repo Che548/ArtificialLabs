@@ -5,7 +5,7 @@ export const fonts = {
   sfMedium: 'SFProDisplay-Medium',
   sfSemibold: 'SFProDisplay-Semibold',
   sfBold: 'SFProDisplay-Bold',
-  yaroRegular: 'YaroRg',
+  yaroRegular: 'Comfortaa-Regular',
 } as const;
 
 export const colors = {

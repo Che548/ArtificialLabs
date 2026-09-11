@@ -3,6 +3,7 @@ appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
 # The auth flows finish inside Profile > Permissions.
 - tapOn:
     text: 'Вернуться в профиль'
+- runFlow: profile-contacts.yml
 
 # Seed a deterministic local-first care plan through the same validated import
 # UI a user would use. Fresh accounts intentionally have no demo plan.
@@ -37,7 +38,12 @@ appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
     timeout: 30000
 - tapOn:
     text: 'Закрыть календарь'
-- waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible: 'Закрыть календарь'
+    timeout: 30000
+- extendedWaitUntil:
+    visible: 'Анализы'
+    timeout: 30000
 - tapOn: 'Анализы'
 - tapOn: 'Ближайшие'
 - assertVisible: 'Гистероскопия'

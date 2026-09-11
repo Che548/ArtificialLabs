@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1223,41 +1224,41 @@ export function ChatMessageBubble({
   const markdownStyles: Partial<MarkdownStyles> = {
     body: {
       color: colors.text.primary,
-      fontFamily: fonts.sfRegular,
+      ...fontStyle(fonts.sfRegular),
       fontSize: config.messageFontSize,
       lineHeight: config.messageLineHeight,
       letterSpacing: config.messageLetterSpacing,
     },
     text: {
       color: colors.text.primary,
-      fontFamily: fonts.sfRegular,
+      ...fontStyle(fonts.sfRegular),
       fontSize: config.messageFontSize,
       lineHeight: config.messageLineHeight,
       letterSpacing: config.messageLetterSpacing,
     },
     paragraph: { marginTop: 0, marginBottom: 10 },
     heading1: {
-      fontFamily: fonts.sfSemibold,
+      ...fontStyle(fonts.sfSemibold),
       fontSize: config.messageFontSize + 6,
       lineHeight: config.messageLineHeight + 7,
       marginTop: 10,
       marginBottom: 8,
     },
     heading2: {
-      fontFamily: fonts.sfSemibold,
+      ...fontStyle(fonts.sfSemibold),
       fontSize: config.messageFontSize + 4,
       lineHeight: config.messageLineHeight + 5,
       marginTop: 8,
       marginBottom: 7,
     },
     heading3: {
-      fontFamily: fonts.sfSemibold,
+      ...fontStyle(fonts.sfSemibold),
       fontSize: config.messageFontSize + 2,
       lineHeight: config.messageLineHeight + 3,
       marginTop: 7,
       marginBottom: 6,
     },
-    strong: { fontFamily: fonts.sfSemibold },
+    strong: { ...fontStyle(fonts.sfSemibold) },
     em: { fontStyle: 'italic' },
     link: { color: colors.brand.primary, textDecorationLine: 'underline' },
     blockquote: {
@@ -1267,13 +1268,13 @@ export function ChatMessageBubble({
       marginVertical: 8,
     },
     codeInline: {
-      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      ...fontStyle(Platform.OS === 'ios' ? 'Menlo' : 'monospace'),
       backgroundColor: '#F3F0F1',
       borderRadius: 4,
       paddingHorizontal: 4,
     },
     codeBlock: {
-      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      ...fontStyle(Platform.OS === 'ios' ? 'Menlo' : 'monospace'),
       fontSize: Math.max(13, config.messageFontSize - 2),
       lineHeight: config.messageLineHeight,
       backgroundColor: '#F3F0F1',
@@ -1281,7 +1282,7 @@ export function ChatMessageBubble({
       padding: 12,
     },
     fence: {
-      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      ...fontStyle(Platform.OS === 'ios' ? 'Menlo' : 'monospace'),
       fontSize: Math.max(13, config.messageFontSize - 2),
       lineHeight: config.messageLineHeight,
       backgroundColor: '#F3F0F1',
@@ -2300,7 +2301,7 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     color: colors.brand.primarySoft,
-    fontFamily: fonts.yaroRegular,
+    ...fontStyle(fonts.yaroRegular),
     fontSize: 34.125,
     lineHeight: 37.5,
     letterSpacing: -0.68,
@@ -2393,14 +2394,14 @@ const styles = StyleSheet.create({
     top: 22,
     width: 150,
     color: colors.text.primary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 18,
     lineHeight: 21.6,
     letterSpacing: -0.36,
   },
   attachmentFallbackIcon: {
     color: colors.text.primary,
-    fontFamily: fonts.sfSemibold,
+    ...fontStyle(fonts.sfSemibold),
     fontSize: 17,
     lineHeight: 19,
   },
@@ -2478,7 +2479,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingVertical: Platform.OS === 'ios' ? 7.9 : 0,
     color: colors.text.primary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 16,
     lineHeight: 19.2,
     letterSpacing: -0.32,
@@ -2515,7 +2516,7 @@ const styles = StyleSheet.create({
   },
   sendFallback: {
     color: colors.text.inverse,
-    fontFamily: fonts.sfSemibold,
+    ...fontStyle(fonts.sfSemibold),
     fontSize: 17,
     lineHeight: 19,
   },
@@ -2713,7 +2714,7 @@ const styles = StyleSheet.create({
   },
   messageFallbackIcon: {
     color: colors.text.primary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 19,
     lineHeight: 22,
   },
@@ -2725,7 +2726,7 @@ const styles = StyleSheet.create({
   },
   historyBrand: {
     color: colors.brand.primarySoft,
-    fontFamily: fonts.yaroRegular,
+    ...fontStyle(fonts.yaroRegular),
     fontSize: 30,
     lineHeight: 34,
     letterSpacing: -0.6,
@@ -2814,7 +2815,7 @@ const styles = StyleSheet.create({
   },
   historyMoreFallback: {
     color: colors.text.primary,
-    fontFamily: fonts.sfSemibold,
+    ...fontStyle(fonts.sfSemibold),
     fontSize: 16,
     lineHeight: 18,
     letterSpacing: 1.2,

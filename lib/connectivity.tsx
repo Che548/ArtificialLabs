@@ -1,3 +1,4 @@
+import { fontStyle } from './font-style';
 import { useConvexConnectionState } from 'convex/react';
 import { useNetworkState } from 'expo-network';
 import { createContext, useContext, useMemo } from 'react';
@@ -96,13 +97,13 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#6D470B',
-    fontFamily: 'SFProDisplay-Semibold',
+    ...fontStyle('SFProDisplay-Semibold'),
     fontSize: 13,
     lineHeight: 16,
   },
   message: {
     color: '#735C38',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 12,
     lineHeight: 15,
   },

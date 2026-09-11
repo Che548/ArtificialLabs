@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import { useConvexAuth, useConvexConnectionState } from 'convex/react';
 import Constants from 'expo-constants';
 import { useNetworkState } from 'expo-network';
@@ -249,24 +250,24 @@ function Action({ title, disabled, onPress }: { title: string; disabled?: boolea
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F3F1F2' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12, backgroundColor: '#FFFEFE' },
-  heading: { color: '#2F292C', fontFamily: 'SFProDisplay-Semibold', fontSize: 24 },
+  heading: { color: '#2F292C', ...fontStyle('SFProDisplay-Semibold'), fontSize: 24 },
   close: { paddingHorizontal: 12, paddingVertical: 8 },
-  closeText: { color: '#EA4087', fontFamily: 'SFProDisplay-Semibold', fontSize: 15 },
+  closeText: { color: '#EA4087', ...fontStyle('SFProDisplay-Semibold'), fontSize: 15 },
   content: { padding: 16, gap: 14 },
   section: { borderRadius: 18, backgroundColor: '#FFFFFF', padding: 15, gap: 9 },
-  sectionTitle: { color: '#2F292C', fontFamily: 'SFProDisplay-Semibold', fontSize: 17, marginBottom: 2 },
+  sectionTitle: { color: '#2F292C', ...fontStyle('SFProDisplay-Semibold'), fontSize: 17, marginBottom: 2 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  label: { width: 126, color: '#736E6C', fontFamily: 'SFProDisplay-Regular', fontSize: 12, lineHeight: 16 },
-  value: { minWidth: 0, flex: 1, color: '#2F292C', fontFamily: 'SFProDisplay-Medium', fontSize: 12, lineHeight: 16 },
-  note: { color: '#8A737D', fontFamily: 'SFProDisplay-Regular', fontSize: 11, lineHeight: 15 },
+  label: { width: 126, color: '#736E6C', ...fontStyle('SFProDisplay-Regular'), fontSize: 12, lineHeight: 16 },
+  value: { minWidth: 0, flex: 1, color: '#2F292C', ...fontStyle('SFProDisplay-Medium'), fontSize: 12, lineHeight: 16 },
+  note: { color: '#8A737D', ...fontStyle('SFProDisplay-Regular'), fontSize: 11, lineHeight: 15 },
   channelRow: { flexDirection: 'row', gap: 8 },
   channel: { flex: 1, alignItems: 'center', borderRadius: 14, backgroundColor: '#F3EFF1', paddingVertical: 10 },
   channelActive: { backgroundColor: '#EA4087' },
-  channelText: { color: '#736E6C', fontFamily: 'SFProDisplay-Semibold', fontSize: 13 },
+  channelText: { color: '#736E6C', ...fontStyle('SFProDisplay-Semibold'), fontSize: 13 },
   channelTextActive: { color: '#FFFFFF' },
   actions: { gap: 8 },
   action: { alignItems: 'center', borderRadius: 16, backgroundColor: '#EA4087', paddingVertical: 13 },
-  actionText: { color: '#FFFFFF', fontFamily: 'SFProDisplay-Semibold', fontSize: 14 },
+  actionText: { color: '#FFFFFF', ...fontStyle('SFProDisplay-Semibold'), fontSize: 14 },
   disabled: { opacity: 0.45 },
-  privacy: { color: '#8A8386', fontFamily: 'SFProDisplay-Regular', fontSize: 11, lineHeight: 15, textAlign: 'center' },
+  privacy: { color: '#8A8386', ...fontStyle('SFProDisplay-Regular'), fontSize: 11, lineHeight: 15, textAlign: 'center' },
 });

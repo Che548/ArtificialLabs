@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
@@ -950,11 +951,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(33,33,35,0.08)',
     backgroundColor: '#F5F3F3',
     color: colors.text.primary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 17,
   },
   numericField: {
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 18,
     letterSpacing: 0.5,
   },

@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
 import { useState } from 'react';
@@ -354,7 +355,7 @@ const styles = StyleSheet.create({
   },
   variantName: {
     color: colors.text.primary,
-    fontFamily: fonts.sfMedium,
+    ...fontStyle(fonts.sfMedium),
     fontSize: 15,
     lineHeight: 18,
     letterSpacing: -0.3,
@@ -391,19 +392,19 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     maxWidth: '100%',
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 9,
     lineHeight: 11,
     letterSpacing: -0.12,
     textAlign: 'center',
   },
   tabLabelActive: {
-    fontFamily: fonts.sfSemibold,
+    ...fontStyle(fonts.sfSemibold),
   },
   fallbackIcon: {
     width: 24,
     height: 24,
-    fontFamily: fonts.sfMedium,
+    ...fontStyle(fonts.sfMedium),
     fontSize: 20,
     lineHeight: 24,
     textAlign: 'center',

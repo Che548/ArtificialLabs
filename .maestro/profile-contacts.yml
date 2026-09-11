@@ -1,0 +1,31 @@
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
+---
+# Signed-in disposable account, Profile main screen. No real SMS/email is sent.
+- tapOn: 'Открыть данные профиля'
+- tapOn:
+    id: 'profile-add-phone'
+- assertVisible:
+    id: 'contact-phone-input'
+- tapOn:
+    id: 'contact-phone-input'
+- inputText: '9990000001'
+- tapOn:
+    id: 'contact-modal-close'
+- tapOn:
+    id: 'profile-change-email'
+- tapOn:
+    id: 'email-change-address'
+- inputText: 'fixture@example.test'
+- tapOn:
+    id: 'email-change-password'
+- inputText: 'FixturePassword123!'
+- assertVisible:
+    id: 'email-change-submit'
+- tapOn:
+    id: 'contact-modal-close'
+- tapOn:
+    id: 'profile-change-email'
+- assertNotVisible: 'fixture@example.test'
+- tapOn:
+    id: 'contact-modal-close'
+- tapOn: 'Вернуться в профиль'

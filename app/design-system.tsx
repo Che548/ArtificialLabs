@@ -1,3 +1,4 @@
+import { bundledFonts } from '../lib/bundled-fonts';
 import { useFonts } from 'expo-font';
 import { GlassContainer } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -608,15 +609,7 @@ export default function DesignSystemScreen({
   const [analysisPreviewTab, setAnalysisPreviewTab] =
     useState<AnalysisTabKey>('current');
   const [fontsLoaded] = useFonts(
-    Platform.OS === 'web'
-      ? {
-          [fonts.sfRegular]: require('../assets/fonts/SF-Pro-Display-Regular.otf'),
-          [fonts.sfMedium]: require('../assets/fonts/SF-Pro-Display-Medium.otf'),
-          [fonts.sfSemibold]: require('../assets/fonts/SF-Pro-Display-Semibold.otf'),
-          [fonts.sfBold]: require('../assets/fonts/SF-Pro-Display-Bold.otf'),
-          [fonts.yaroRegular]: require('../assets/fonts/Yaro-Rg-Regular.otf'),
-        }
-      : {},
+    Platform.OS === 'web' ? bundledFonts : {},
   );
 
   if (!fontsLoaded) {

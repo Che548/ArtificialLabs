@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useAction } from 'convex/react';
 import { StatusBar } from 'expo-status-bar';
@@ -817,14 +818,14 @@ const styles = StyleSheet.create({
   },
   devLoginLabel: {
     color: '#EA4087',
-    fontFamily: 'SFProDisplay-Medium',
+    ...fontStyle('SFProDisplay-Medium'),
     fontSize: 13,
     lineHeight: 16,
   },
   brand: {
     width: 244,
     color: '#EA4087',
-    fontFamily: 'YaroRg',
+    ...fontStyle('Comfortaa-Regular'),
     fontSize: 34,
     lineHeight: 46,
     textAlign: 'center',
@@ -835,7 +836,7 @@ const styles = StyleSheet.create({
     top: 48,
     width: 244,
     color: '#EA4087',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 20.7,
     lineHeight: 24,
     textAlign: 'center',
@@ -857,7 +858,7 @@ const styles = StyleSheet.create({
     top: 214,
     width: 349,
     color: '#6F6A70',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 14,
     lineHeight: 18,
     textAlign: 'center',
@@ -885,13 +886,13 @@ const styles = StyleSheet.create({
   },
   channelLabel: {
     color: '#8F8A90',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 14,
     lineHeight: 18,
   },
   channelLabelSelected: {
     color: '#242124',
-    fontFamily: 'SFProDisplay-Medium',
+    ...fontStyle('SFProDisplay-Medium'),
   },
   fieldGroup: {
     position: 'absolute',
@@ -914,7 +915,7 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     color: '#242124',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 14,
     lineHeight: 18,
   },
@@ -925,7 +926,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     backgroundColor: '#F0EEF0',
     color: '#242124',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 14,
     lineHeight: 18,
   },
@@ -962,14 +963,14 @@ const styles = StyleSheet.create({
   },
   checkboxMark: {
     color: '#FFFFFF',
-    fontFamily: 'SFProDisplay-Semibold',
+    ...fontStyle('SFProDisplay-Semibold'),
     fontSize: 14,
     lineHeight: 16,
   },
   consentText: {
     width: 315,
     color: '#242124',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 13.5,
     lineHeight: 16,
   },
@@ -988,7 +989,7 @@ const styles = StyleSheet.create({
     top: 674,
     width: 349,
     color: '#D93838',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 13,
     lineHeight: 17,
   },
@@ -1004,7 +1005,7 @@ const styles = StyleSheet.create({
     top: 365,
     width: 349,
     color: '#6F6A70',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 13,
     lineHeight: 18,
   },
@@ -1027,7 +1028,7 @@ const styles = StyleSheet.create({
   },
   smsHintText: {
     color: '#6F6A70',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 12,
     lineHeight: 16,
   },
@@ -1050,7 +1051,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonLabel: {
     color: '#FFFFFF',
-    fontFamily: 'SFProDisplay-Medium',
+    ...fontStyle('SFProDisplay-Medium'),
     fontSize: 15,
     lineHeight: 18,
   },
@@ -1068,7 +1069,7 @@ const styles = StyleSheet.create({
   },
   flowSwitcherText: {
     color: '#242124',
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 18,
     lineHeight: 22,
   },

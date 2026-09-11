@@ -1,0 +1,41 @@
+/* Operational console: readable, flat surfaces and consistent controls. */
+.admin-shell { background:#f3f5f7; color:#24303e; font-size:14px; }
+.admin-shell .topbar { height:64px; background:#fff; border-color:#dce2e8; backdrop-filter:none; }
+.admin-shell .topbar>strong { font-size:16px; }
+.admin-frame { height:calc(100dvh - 64px); grid-template-columns:232px minmax(0,1fr); }
+.admin-frame>nav { background:#f8fafc; border-color:#dce2e8; padding:18px 12px; gap:5px; }
+.admin-frame>nav button,.admin-frame>nav a { font-size:14px; min-height:42px; }
+.admin-frame>nav button.active { color:#0f665e; background:#e1f1ee; }
+.admin-content { padding:28px clamp(18px,3vw,44px) 64px; }
+.admin-shell .muted { font-size:13px; line-height:1.6; }
+.admin-shell .page-title h1 { font-size:28px; letter-spacing:-.025em; }
+.admin-shell .panel,.admin-shell .metric-card { border:1px solid #dce2e8; border-radius:6px; box-shadow:none; }
+.admin-shell .panel { padding:20px; margin-bottom:18px; }
+.admin-shell h2,.admin-shell .panel>h2,.admin-shell .form-grid>h2 { font-size:17px; }
+.admin-shell .metric-card span { font-size:12px; letter-spacing:.02em; text-transform:none; }
+.admin-shell .metric-card strong { font-size:30px; font-variant-numeric:tabular-nums; }
+.admin-shell button { min-height:38px; font-size:13px; cursor:pointer; }
+.admin-shell button:disabled { opacity:.55; cursor:wait; }
+.admin-shell .primary { background:#0f766e!important; border-color:#0f766e!important; }
+.admin-shell label { font-size:13px; }
+.admin-shell input,.admin-shell select,.admin-shell textarea { font-size:14px; min-height:40px; }
+.admin-shell :focus-visible { outline:3px solid #0f766e; outline-offset:3px; }
+.admin-shell .table-wrap th { font-size:12px; background:#f8fafc; white-space:nowrap; text-transform:none; letter-spacing:0; }
+.admin-shell .table-wrap td { font-size:13px; line-height:1.55; overflow-wrap:anywhere; }
+.admin-shell .table-wrap th,.admin-shell .table-wrap td { padding:13px 12px; border-color:#e5eaf0; }
+.admin-shell .table-wrap tbody tr:hover { background:#f8fafc; }
+.admin-shell .table-wrap code { font-size:11px; }
+.admin-shell .status,.admin-shell .service b { font-size:11px; text-transform:none; }
+.admin-shell .empty,.data-state { padding:28px 12px; font-size:14px; line-height:1.7; }
+.admin-shell .inline-message { font-size:13px; }
+.period-filter { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+.period-filter select { padding:8px 12px; border:1px solid #cbd5df; border-radius:5px; background:#fff; }
+.account-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.connection-warning { background:#fff1d6; color:#754b0c; padding:12px 16px; border:1px solid #e8d5b3; border-radius:5px; margin-bottom:16px; line-height:1.6; }
+.admin-shell .connection { font-size:12px; color:#596777; }
+.admin-shell .connection .service { display:flex; align-items:center; border:0; padding:0; gap:8px; }
+.admin-shell .connection .service small { display:none; }
+.admin-shell .service small,.admin-shell .sms-balance-meta,.admin-shell .sms-explanation,.admin-shell .sms-message,.admin-shell .resend-quota-details { font-size:12px; }
+.admin-shell .status.pending_deletion { background:#fff1d6; color:#8b570d; }
+@media(max-width:900px) { .admin-frame { grid-template-columns:1fr; } .admin-frame>nav { width:260px; } }
+@media(max-width:620px) { .admin-content { padding:20px 12px 48px; } .account-metrics { grid-template-columns:1fr; } .admin-shell button { min-height:44px; } .admin-shell .panel { padding:14px; } .admin-shell .page-title h1 { font-size:24px; } }

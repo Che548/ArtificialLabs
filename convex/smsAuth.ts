@@ -1,4 +1,5 @@
 import { ConvexError, v } from 'convex/values';
+import { uncountAccount } from './lib/accountCounts';
 
 import { internal } from './_generated/api';
 import {
@@ -478,6 +479,7 @@ export const cleanupUnverifiedAccounts = internalMutation({
           .unique(),
       ]);
       if (otherAccounts.length === 0 && sessions.length === 0 && !profile) {
+        await uncountAccount(ctx, user._id);
         await ctx.db.delete(user._id);
       }
     }

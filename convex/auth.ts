@@ -10,6 +10,7 @@ import {
 import { internal } from './_generated/api';
 import { generateSixDigitCode, normalizeRussianPhone } from './lib/sms';
 import { sendPhoneVerification } from './smsAuth';
+import { countAccount, uncountAccount } from './lib/accountCounts';
 
 const PhoneProvider = Phone({
   maxAge: 5 * 60,
@@ -120,6 +121,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
             sessions.length === 0 &&
             !medicalProfile
           ) {
+            await uncountAccount(ctx, args.existingUserId);
             await ctx.db.delete(args.existingUserId);
           }
         }
@@ -134,9 +136,12 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       };
       if (userId) {
         await ctx.db.patch(userId, userData);
+        await countAccount(ctx, userId);
         return userId;
       }
-      return await ctx.db.insert('users', userData);
+      const created = await ctx.db.insert('users', userData);
+      await countAccount(ctx, created);
+      return created;
     },
   },
 });

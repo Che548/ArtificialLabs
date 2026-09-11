@@ -85,6 +85,19 @@ const agentRuleCondition = v.object({
 
 export default defineSchema({
   ...authTables,
+  emailChangeChallenges: defineTable({
+    userId: v.id('users'), sessionId: v.id('authSessions'), accountId: v.id('authAccounts'),
+    oldEmail: v.string(), newEmail: v.string(), credentialHash: v.string(),
+    codeHash: v.string(), generation: v.string(), expiresAt: v.number(), retryAt: v.number(),
+    failedAttempts: v.number(), status: v.union(v.literal('sending'), v.literal('pending'), v.literal('failed'), v.literal('consumed')),
+    createdAt: v.number(), purgeAt: v.number(),
+  }).index('by_user', ['userId']).index('by_expiry', ['purgeAt']),
+  emailChangeAttempts: defineTable({
+    bucket: v.string(), attemptedAt: v.number(), expiresAt: v.number(),
+  }).index('by_bucket_time', ['bucket', 'attemptedAt']).index('by_expiry', ['expiresAt']),
+  adminAccountLedger: defineTable({ userId: v.id('users') }).index('by_user', ['userId']),
+  adminAccountCounts: defineTable({ key: v.string(), count: v.number() }).index('by_key', ['key']),
+  adminAccountMigration: defineTable({ key: v.string(), cursor: v.union(v.string(), v.null()), complete: v.boolean() }).index('by_key', ['key']),
   profiles: defineTable({
     userId: v.id('users'),
     displayName: v.string(),

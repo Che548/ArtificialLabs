@@ -113,7 +113,9 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
   server-side. Public catalog data must not expose personal or medical data.
 - Expo web remains a read-only development demonstration. The deployed web
   image is the separate login-protected `admin/` package; it must never expose
-  account, camera, journal, lab, scan, chat, or other personal medical data.
+  camera, journal, lab, scan, chat, or other personal medical data. The protected
+  admin account directory may expose only account ID, email, registration date
+  and account status, read-only, to active administrators.
 - StripCV performs on-device computer-vision analysis. Persist its source,
   algorithm version, quality flags, signal ratio, and numeric confidence, while
   keeping the final value explicitly user-confirmed. Never describe it as a
@@ -132,7 +134,7 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
   exposed to clients, Git or build artifacts. Email verification and OCR remain
   deferred milestones. The admin console manages only catalogs, lots,
   calibrations, published content, privacy-safe aggregates, monitoring and
-  admin access.
+  admin access and the restricted read-only account directory described above.
 
 ## Admin console
 
