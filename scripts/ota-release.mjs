@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { prepareAndroidOtaInputs } from './android-ota-inputs.mjs';
 
 const command = process.argv[2];
 const args = Object.fromEntries(
@@ -72,6 +73,7 @@ function runtimeFor(platform, env) {
 }
 
 async function publishPlatform(platform, channel) {
+  if (platform === 'android') prepareAndroidOtaInputs();
   if (platform === 'ios' && process.platform !== 'darwin') {
     throw new Error('iOS OTA publishing must run on macOS so its fingerprint matches the native build');
   }
@@ -121,6 +123,7 @@ if (command === 'publish') {
   const channel = args.channel;
   if (channel !== 'preview') throw new Error('New bundles may only be published to preview');
   assertMain();
+  run(process.execPath, ['--test', 'scripts/android-ota-inputs.test.mjs']);
   for (const platform of ['ios', 'android']) await publishPlatform(platform, channel);
 } else if (command === 'promote') {
   if (!args.ios || !args.android) throw new Error('--ios=<update-id> and --android=<update-id> are required');

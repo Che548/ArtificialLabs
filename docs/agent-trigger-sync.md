@@ -29,3 +29,8 @@ rejection, ownership, partial progress and guarded acknowledgement.
 Server changes alone cannot repair an old client's local merge implementation.
 The client reconciliation and split-batch behavior require a compatible app
 update. Never clear user data or reinstall to work around the conflict.
+
+Android OTA preparation reproduces the manifest transformation performed by
+masked-view 0.3.2's upstream Gradle script on AGP >= 7. This runs before the
+normal fingerprint resolver, with pinned input/output checksums; no runtime
+override is used. The regression test is part of the OTA workflow.
