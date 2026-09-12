@@ -23,6 +23,19 @@ async function apply(existing: Record<string, unknown>, patchInput = input) {
 }
 
 describe('profile subscription convergence', () => {
+  test('two devices with different consent receipt times converge', async () => {
+    let current: Record<string, unknown> = { ...input, consentToCloudSyncAt: 1 };
+    let writes = 0;
+    for (const consentToCloudSyncAt of [5, 1, 5, 1, 5, 1]) {
+      const patch = await apply(current, { ...input, consentToCloudSyncAt });
+      for (const [, fields] of patch.mock.calls) {
+        current = { ...current, ...fields };
+        writes += 1;
+      }
+    }
+    expect(current.consentToCloudSyncAt).toBe(5);
+    expect(writes).toBe(1);
+  });
   test('repeated identical saves never write or re-invalidate subscriptions', async () => {
     for (let n = 0; n < 10; n++) {
       expect(await apply({ ...input, lastMedicalSyncAt: 100 })).not.toHaveBeenCalled();

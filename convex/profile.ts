@@ -96,12 +96,25 @@ export const save = mutation({
       }
       // Old native clients save their profile after every subscription refresh.
       // An identical write must not invalidate that subscription again.
+      // Each opted-in device has its own receipt time. Keep the newest receipt
+      // instead of letting two devices overwrite it back and forth. Revocation
+      // remains the separate revokeCloudSync mutation, never a profile replay.
+      const patch = { ...args };
       if (
-        Object.entries(args).some(
+        args.consentToCloudSyncAt !== undefined &&
+        existing.consentToCloudSyncAt !== undefined
+      ) {
+        patch.consentToCloudSyncAt = Math.max(
+          args.consentToCloudSyncAt,
+          existing.consentToCloudSyncAt,
+        );
+      }
+      if (
+        Object.entries(patch).some(
           ([key, value]) => existing[key as keyof typeof existing] !== value,
         )
       ) {
-        await ctx.db.patch(existing._id, args);
+        await ctx.db.patch(existing._id, patch);
       }
       return existing._id;
     }
