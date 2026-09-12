@@ -18,7 +18,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -487,16 +486,18 @@ export function AuthScreen({
             },
           ]}
         >
-          <TouchableWithoutFeedback
-            accessible={false}
-            onPress={Keyboard.dismiss}
-            touchSoundDisabled
-          >
+          <View style={styles.canvas}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.canvas}
             >
-              <View style={styles.content}>
+              {/* Keep keyboard dismissal behind the form so it cannot claim scroll gestures. */}
+              <Pressable
+                accessible={false}
+                onPress={Keyboard.dismiss}
+                style={StyleSheet.absoluteFill}
+              />
+              <View pointerEvents="box-none" style={styles.content}>
                 {devLoginEnabled ? (
                   <View style={styles.devLoginSlot}>
                     <Pressable
@@ -677,10 +678,13 @@ export function AuthScreen({
                 ) : null}
 
                 {flow === 'signUp' && !recoveryMode ? (
+                  <View style={styles.consents}>
                   <ScrollView
-                    style={styles.consents}
+                    style={styles.consentScroll}
                     contentContainerStyle={styles.consentContent}
                     keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    nestedScrollEnabled
                   >
                     <View style={styles.consentRow}>
                       <Checkbox
@@ -729,6 +733,7 @@ export function AuthScreen({
                       </Text>
                     </View>
                   </ScrollView>
+                  </View>
                 ) : null}
 
                 {visibleError ? (
@@ -797,7 +802,7 @@ export function AuthScreen({
                 </Pressable>
               </View>
             </KeyboardAvoidingView>
-          </TouchableWithoutFeedback>
+          </View>
         </View>
       </View>
     </View>
@@ -975,6 +980,9 @@ const styles = StyleSheet.create({
   consentContent: {
     gap: 18,
     paddingVertical: 4,
+  },
+  consentScroll: {
+    flex: 1,
   },
   consentRow: {
     width: 349,

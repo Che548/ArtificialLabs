@@ -491,6 +491,13 @@ async function writeLocalRecord<K extends HealthEntityName>(
           item.localId,
         )
       : null;
+  // Match the SQL last-write-wins guard before validating state transitions.
+  // A delayed cloud snapshot is not an attempt to undo a newer local run.
+  // Read inside this write transaction, not from the earlier merge snapshot.
+  if (
+    !enqueue && existingAgentRow &&
+    item.updatedAt < (JSON.parse(existingAgentRow.payload) as { updatedAt: number }).updatedAt
+  ) return;
   if (entity === 'carePlanItems') {
     const candidate = item as HealthEntityMap['carePlanItems'];
     if (!candidate.deletedAt && !validateCarePlanItem(candidate))

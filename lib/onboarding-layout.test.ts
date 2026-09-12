@@ -44,3 +44,12 @@ test('onboarding leaves a usable scroll viewport on phone, Fold and keyboard-res
 test('ordinary tall phone retains the reference header position', () => {
   assert.equal(onboardingLayout(402, 874, 62, 34, 32).panelHeaderTop, 486);
 });
+
+test('registration consent scrolling is not wrapped by a keyboard-dismiss touch responder', () => {
+  const auth = readFileSync(new URL('../components/AuthScreen.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(auth, /TouchableWithoutFeedback/);
+  assert.match(auth, /<Pressable\s+accessible=\{false\}\s+onPress=\{Keyboard.dismiss\}\s+style=\{StyleSheet.absoluteFill\}/);
+  assert.match(auth, /<View pointerEvents="box-none" style=\{styles.content\}>/);
+  assert.match(auth, /<View style=\{styles.consents\}>\s*<ScrollView\s+style=\{styles.consentScroll\}/);
+  assert.match(auth, /keyboardDismissMode="on-drag"\s+nestedScrollEnabled/);
+});

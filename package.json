@@ -75,6 +75,7 @@
     "vitest": "^4.1.10"
   },
   "scripts": {
+    "test:android-registration": "tsx --test lib/onboarding-layout.test.ts && vitest run lib/local-database-merge.test.ts",
     "start": "EXPO_PUBLIC_GIT_COMMIT=$(git rev-parse HEAD) expo start",
     "android": "EXPO_PUBLIC_GIT_COMMIT=$(git rev-parse HEAD) PATH=/opt/homebrew/opt/node@22/bin:$PATH expo run:android",
     "ios": "EXPO_PUBLIC_GIT_COMMIT=$(git rev-parse HEAD) PATH=/opt/homebrew/opt/node@22/bin:$PATH LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 expo run:ios",
@@ -118,7 +119,7 @@
     "preview:admin-ui": "node scripts/admin-ui-preview.mjs",
     "test:android-config": "node --test plugins/with-android-config-changes.test.js",
     "test:ios-config": "node --test plugins/with-ios-health-backup-exclusion.test.js && tsx --test tests/unit/ios-release-config.test.ts",
-    "verify": "npm run test:document-policy && npm run test:chat-feedback && npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run typecheck:convex && npm run doctor && npm run build:expo-web && npm --prefix admin run verify"
+    "verify": "npm run test:android-registration && npm run test:document-policy && npm run test:chat-feedback && npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run typecheck:convex && npm run doctor && npm run build:expo-web && npm --prefix admin run verify"
   },
   "engines": {
     "node": ">=20.19.4"
