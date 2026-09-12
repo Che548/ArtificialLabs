@@ -255,3 +255,187 @@ activation stays in Profile and the existing disclosure sheets. Regression
 coverage fixes all three onboarding defaults to false and rejects automatic
 consent calls. Focused privacy/chat/layout tests passed 24/24 and TypeScript
 passed. No previously stored real-account consent or preferences were changed.
+
+## Merged-source verification (04:12 follow-up)
+
+Root `npm run verify` passed without competing native builds, including all
+38 contact tests and the admin export. The earlier timeout is not suppressed.
+Fresh admin UI passed 6/6. Chrome/WebKit desktop and narrow-screen checks passed
+4/4; the read-only demo notice now occupies its own layout row rather than
+overlapping navigation, with a bounding-box regression assertion.
+
+Merged Fold phases passed native keyboard, conversation/history/rename and
+local-proxy outage/recovery (`035400`, `035520`, `035730`). Document runs
+`035807` and `040246` ended while the native test driver was still performing
+an assertion/scroll; both have failed status and exact account cleanup. The
+second run failed before OCR started. ADB disconnect logs alone do not establish
+the root cause. Neither run verified a live Fold posture transition.
+
+An explicitly selected independent Android UI driver is available through
+`E2E_ANDROID_DOCUMENT_DRIVER=adb`. It uses the disposable emulator's native
+UIAutomator hierarchy for selectors and scroll bounds, retains OCR text,
+offline save, reopen and process-restart assertions, and writes screenshots only
+to ignored private output. It does not silently retry a failed Maestro test or
+replace a native test with browser emulation. Its execution result is pending.
+The merged iOS package is rebuilding; pre-merge native passes are not evidence
+for the new binary. Main push and preview publication remain gated.
+
+## Registration UX revision and latest native evidence
+
+The user approved automatic feature activation after the existing signup choice
+for the upcoming demo; Apple submission work remains separate. The signup text
+now discloses cloud sync, Yandex AI Studio, data categories and purposes. A
+device-only registration receipt survives the email-verification step. A new
+owner/freshness/version-checked mutation applies chat and assistant consent
+atomically; old accounts, mismatched email, stale receipts and revocations are
+not migrated. Analytics and document interpretation are not activated. See
+`registration-consent.md`. Four backend tests and four onboarding/registration
+tests passed; full `verify` passed. A subsequent automation guard also requires
+cloud opt-in, a prepared cloud profile and completed onboarding; TypeScript and
+the UI-policy regression passed after that guard.
+
+The merged iOS native build succeeded. iPhone SE passed every native phase:
+keyboard (`041724`), conversation/history (`041822`), local-proxy recovery and
+OCR offline save/reopen/full restart (`041954`), with exact account cleanup.
+These runs used ordinary login before the new registration revision; they do
+not verify the new signup/email-code/activation path.
+
+The independent Fold driver stopped at its first hierarchy parse, before any
+document interaction. No OCR or posture pass is claimed for that attempt.
+Diagnostics now distinguish a failed UIAutomator dump from malformed XML and
+retain invalid XML only in ignored private output. Fold stability, the ordinary
+iPhone merged run, the new registration native flow and final release checks
+remain outstanding. No main push, preview OTA or store publication occurred.
+
+## 04:57 follow-up: registration and Android driver
+
+The ordinary iPhone 17 Pro merged run passed all native phases, including
+conversation/history (`043505`) and document offline save/reopen/full process
+restart (`043642`), with exact disposable account cleanup. Like the SE run,
+this uses a preverified login fixture, not the new signup/email-code flow.
+
+Registration backend coverage is now 6/6, including independent chat and agent
+revocation replay tests that verify neither stored consent is changed. Device
+receipt storage passed 2/2, contact UI 6/6 and Chrome/WebKit registration/read-only
+UI 6/6. The browser signup test does not submit or send email. Full `npm test`
+passed before the two additional revocation tests; those passed separately.
+
+Independent Fold attempts exposed a concrete runner defect: the API 36 legacy
+UIAutomator WatcherResultPrinter aborts on missing `android.test.RepetitiveTest`
+yet prints `OK (1 test)`. Snapshot assertions correctly rejected these runs.
+The explicitly selected driver now uses the documented simple result reporter,
+rejects aborted/error output, and requires actual XML returned in the same
+instrumentation response. This does not change the app or weaken UI assertions.
+One separate attempt failed the preflight guest-network probe; its readiness
+check now has five bounded attempts and requires a real HTTP 204 status.
+All failed attempts completed exact fixture cleanup. A fresh Fold run is pending;
+no native Fold/OCR/posture success or publication is claimed from these fixes.
+
+Final `npm run verify` passed after the registration UI/automation changes and
+both revocation tests (`/tmp/sfera-demo-final-verify.log`), including the admin
+verification/export. The simple Android reporter removed the missing-class
+failure but the next snapshot still failed. Device logs established an ENOENT
+write at `/data/local/tmp/local/tmp/sfera-document-ui.xml`: the shell runner
+relocates Android's data directory. It was not evidence of a missing UI root.
+The helper now matches UiDevice's Environment-based destination, creates its
+temporary parent, and reads/deletes that same exact file. A bounded ten-second
+snapshot wait remains; Java build and host syntax/parser checks pass. The next
+device run, not those build checks, must establish native success.
+
+The Environment-based snapshot correction allowed the next Fold run to verify
+recognition, expected numeric text, offline draft persistence and reopening
+(`adb-document-ocr-synthetic.png`, `adb-document-ocr-restored.png`, 05:03).
+That attempt then failed at the test harness's `monkey` launch command after
+force-stop, so full cold restart and posture remain unpassed. The runner now
+launches the exact manifest MainActivity via `am start` and preserves private
+ADB failure diagnostics. Exact cleanup passed. Remote main was rechecked and
+remains `9fe6ef896a0567c7212a47937b954e695cca52ca`.
+
+The next independent Fold document phase passed in full: recognition, numeric
+assertions, offline draft save, reopen and cold process restart. It closes the
+document viewer after the final screenshot so the separate posture scenario can
+reach chat navigation. Evidence: `adb-document-ocr-cold-restart.png` in the same
+private Android report directory. Live folding is a separate, still pending
+phase; this document pass does not count it or native signup as passed.
+
+## Latest gate status
+
+The live Fold 2→0 transition retained both draft lines. The post-transition
+screenshot shows the real keyboard, cursor and send button, but Maestro stopped
+at its focused-state assertion. This is not recorded as a passing automated
+posture test. The revised assertion verifies real editing of the retained input
+instead of relying only on focus metadata. Its next run stopped earlier in
+`chat-keyboard` while launching the app after Home, before reaching the revised
+posture step. It did pass typing/wrapping, keyboard dismissal and draft retention
+before that stop. Exact account cleanup passed on both attempts. Neither
+automated background/return nor the revised folding check is marked passed.
+
+Three additional isolated integration tests execute the real OnboardingScreen
+completion callback, native receipt logic (mock SecureStore), and real consent
+mutation in convex-test. They passed absent-session rejection/receipt retention,
+authenticated activation/consumption, no-receipt login/recovery behavior and
+local-failure retry with no duplicate grants. No email or SMS is sent. This does
+not establish a native email-code end-to-end pass.
+
+Auth-task coordination confirmed no outstanding peer edits or planned deploy;
+their commits are preserved. REQUIRED=1/ALLOW_LEGACY=1 and the two exact review
+exceptions must remain intact. Main push, preview OTA and store publication
+remain on hold. Ordinary Android merged-source full QA and native signup are
+still unverified; no production readiness or Apple approval is claimed.
+
+Final verification after adding those integration tests passed again, including
+the admin verify/export. `git diff --check` passed. The disposable emulator is
+stopped and ADB lists no attached devices. No code was pushed or newly deployed.
+
+## Continued Android verification
+
+The Android runner now preserves the shared scenarios while splitting Home and
+resume into two bounded Maestro sessions. Between them ADB starts the exact
+manifest Activity without force-stop. Tests verify that all shared assertions,
+screenshots and the real Home action are retained; iOS scenarios are unchanged.
+Fold's main keyboard/background/return scenario passed with this runner.
+
+Posture QA now captures the entire draft before inserting synthetic text, then
+requires an exact full-text comparison after removing that one insertion. This
+does not assume that tapping a multiline input places the caret at its end.
+The app's outside-tap dismissal no longer exits early on cached focus=false;
+that stale flag could leave the actual keyboard open after a Fold resize. The
+real handler is regression-tested for both cached focus states.
+
+The complete Fold 2→0 run then passed, including OCR, offline save/reopen/cold
+restart, retained multiline draft, native editing, visible send action and
+keyboard dismissal/navigation (`2026-09-12_054134`), followed by exact cleanup.
+The ordinary Android full run is next; it is not implied by this Fold pass.
+
+Registration activation additionally requires the user's stored email
+verification timestamp, not just a session accepted under legacy compatibility.
+The rejected attempt retains its receipt and performs no cloud/local activation.
+Seven backend plus three onboarding integration tests passed. Full npm test and
+TypeScript passed before the small outside-tap fix; its focused test passed
+afterward. Final full checks will be repeated after native runs.
+
+## Final integration checks before main push
+
+The ordinary Android run passed all phases: main keyboard and Home/resume
+(`054512`), conversation/history/rename (`054700`, `054820`), backend proxy
+interruption/recovery (`054856`), and local document OCR/offline save/reopen/cold
+restart. Exact disposable account cleanup completed. Together with the Fold
+`054134` run this clears the earlier Android driver/posture blockers.
+
+The latest iPhone SE rerun completed every mandatory command in keyboard
+(`055243`) and conversation/history (`055458`); platform-inapplicable commands
+were skipped. Screenshots were visually checked on SE and ordinary Android:
+the real keyboard, multiline caret and send action remain visible. Earlier
+merged iPhone 17 Pro and SE OCR/recovery passes are recorded above; the final
+outside-tap change was rerun on SE, not on iPhone 17 Pro.
+
+Fresh `npm test`, `npm run verify` (including admin verify/export), Chrome/WebKit
+6/6, contact UI 6/6 and isolated admin UI 6/6 passed. Diff whitespace checks
+passed. Contact UI uses test fixtures: native email delivery/code/automatic
+registration activation is still not an end-to-end verified scenario. No
+physical Android, physical iPhone or mobile Safari pass is claimed. Backend
+proxy interruption is not an airplane-mode test.
+
+Only source/admin/backend publication is being prepared. OCR interpretation
+remains disabled; OTA/store publishing and Apple submission are separate.
+Docker context excludes private test artifacts, environment files and sessions.

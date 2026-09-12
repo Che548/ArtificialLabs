@@ -90,7 +90,7 @@
     "test:contacts:ui": "playwright test --config tests/contact-ui/playwright.config.ts",
     "test:chat-feedback": "tsx --test lib/chat-availability.test.ts lib/chat-consent.test.ts lib/connectivity-policy.test.ts lib/chat-layout.test.ts lib/onboarding-layout.test.ts",
     "test:chat-feedback:web": "playwright test --config tests/chat-web/playwright.config.ts",
-    "test:document-policy": "node --test scripts/native-qa-config.test.mjs && tsx --test shared/care-plan-policy.test.ts shared/document-policy.test.ts lib/document-recognition.test.ts && vitest run tests/unit/yandex-provider.test.ts convex/documentInterpretation.test.ts convex/testing.test.ts",
+    "test:document-policy": "node --test scripts/native-qa-config.test.mjs scripts/android-ui-tree.test.mjs scripts/android-resume-flow.test.mjs && tsx --test shared/care-plan-policy.test.ts shared/document-policy.test.ts lib/document-recognition.test.ts && vitest run tests/unit/yandex-provider.test.ts convex/documentInterpretation.test.ts convex/testing.test.ts convex/registrationConsent.test.ts lib/registration-consent.test.ts lib/registration-onboarding.test.ts",
     "check:expo": "expo install --check",
     "doctor": "npx --yes expo-doctor@latest",
     "build:expo-web": "expo export --platform web --output-dir dist",

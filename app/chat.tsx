@@ -665,8 +665,8 @@ export default function ChatScreen() {
   }, [suggestionsProgress, suggestionsVisible]);
 
   const dismissComposer = () => {
-    if (!composerFocused) return;
-
+    // Native focus/keyboard events can arrive in a different order during a
+    // Fold resize. An explicit outside tap must not depend on cached focus.
     Keyboard.dismiss();
     setComposerFocused(false);
   };

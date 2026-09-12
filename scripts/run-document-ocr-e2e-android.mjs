@@ -1,10 +1,11 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { assertConsistentAdbServer, localMetroLaunchAsset, nativeQaScenarios, OCR_MATRIX_FIXTURES } from './native-qa-config.mjs';
+import { splitAndroidResumeFlow } from './android-resume-flow.mjs';
 
 process.umask(0o077);
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -36,6 +37,7 @@ const log = openSync(join(report, 'runner-private.log'), 'w', 0o600);
 const tag = randomUUID().replaceAll('-', '').slice(0, 12);
 const temporaryFixture = `/data/local/tmp/sfera-ocr-${tag}.pdf`;
 const env = { ...process.env, PATH: `${join(sdk, 'platform-tools')}:${process.env.PATH}`, ANDROID_HOME: sdk,
+  MAESTRO_CLI_NO_ANALYTICS: 'true', MAESTRO_DISABLE_UPDATE_CHECK: 'true',
   CI: '1', EXPO_PUBLIC_E2E_MODE: '1', MAESTRO_APP_ID: app, E2E_ALLOW_TRANSPORT_FAULTS: '1',
   E2E_EMAIL: `artificiallabs-e2e+${tag}-native@example.test`, E2E_PASSWORD: `E2e${tag}Aa1`, E2E_REPORT_DIR: report,
   E2E_CONVEX_PROXY_PORT: '3350', E2E_CONVEX_SITE_PROXY_PORT: '3351',
@@ -47,6 +49,7 @@ const env = { ...process.env, PATH: `${join(sdk, 'platform-tools')}:${process.en
 env.EXPO_PUBLIC_E2E_EMAIL = env.E2E_EMAIL;
 delete env.E2E_CONVEX_TLS_CERT; delete env.E2E_CONVEX_TLS_KEY;
 let emulator, metro, proxy;
+const temporaryFlows = [];
 function command(bin, args, timeout = 120000) {
   const result = spawnSync(bin, args, { cwd: root, env, stdio: ['ignore', log, log], timeout, detached: bin.endsWith('/maestro') });
   if (result.status !== 0) throw new Error(`${bin} failed (exit=${result.status}, signal=${result.signal ?? 'none'}, error=${result.error?.code ?? 'none'}); inspect the private E2E log.`);
@@ -77,6 +80,10 @@ try {
   device(['shell', 'wm', 'dismiss-keyguard']);
   spawnSync(adb, ['-s', serial, 'uninstall', app], { stdio: 'ignore', timeout: 30000 });
   device(['install', '-r', apk]);
+  if (env.E2E_ANDROID_DOCUMENT_DRIVER === 'adb') {
+    command(process.execPath, ['scripts/build-android-ui-driver.mjs']);
+    device(['push', join(root, 'output/builds/android-ui-driver/driver.jar'), '/data/local/tmp/sfera-ui-driver.jar']);
+  }
   device(['shell', 'settings', 'put', 'secure', 'show_ime_with_hard_keyboard', '1']);
   // Keep app network traffic independent of the ADB test-driver transport.
   // The Android emulator's reserved host alias reaches loopback-only servers.
@@ -105,8 +112,17 @@ try {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   if (!ready) throw new Error('QA Metro/proxy did not become ready.');
-  const guestProbe = spawnSync(adb, ['-s', serial, 'shell', "printf 'GET /__e2e_proxy_health HTTP/1.0\\r\\n\\r\\n' | toybox nc -w 5 10.0.2.2 3350"], { encoding: 'utf8', timeout: 15000, maxBuffer: 65536 });
-  if (guestProbe.status !== 0 || !guestProbe.stdout.includes('204')) throw new Error('The emulator cannot reach the local QA proxy via its host alias.');
+  // Android's boot property can precede guest-network readiness. Keep this
+  // precondition bounded and require the actual HTTP status, not any "204".
+  let guestReady = false;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const guestProbe = spawnSync(adb, ['-s', serial, 'shell', "printf 'GET /__e2e_proxy_health HTTP/1.0\\r\\n\\r\\n' | toybox nc -w 5 10.0.2.2 3350"], { encoding: 'utf8', timeout: 10000, maxBuffer: 65536 });
+    guestReady = guestProbe.status === 0 && /^HTTP\/1\.[01] 204\b/m.test(guestProbe.stdout);
+    if (guestReady) break;
+    console.log(`Guest proxy readiness pending (attempt ${attempt + 1}/5, ADB exit ${guestProbe.status ?? 'timeout'}).`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  if (!guestReady) throw new Error('The emulator cannot reach the local QA proxy via its host alias.');
   console.log('Warming Android manifest and its exact local launch asset.');
   const response = await fetch('http://127.0.0.1:8083/', { headers: { 'expo-platform': 'android', accept: 'application/expo+json' }, signal: AbortSignal.timeout(300000) });
   if (!response.ok) throw new Error('Android manifest failed.');
@@ -120,7 +136,22 @@ try {
   } else {
     for (const phase of ['android-ocr-auth', ...nativeQaScenarios(env.E2E_QA_SCENARIOS)]) {
       console.log(`Android QA phase: ${phase}`);
-      command(join(homedir(), '.maestro/bin/maestro'), ['--device', serial, 'test', `.maestro/${phase}.yml`, '--test-output-dir', join(report, 'artifacts'), '--env', `MAESTRO_APP_ID=${app}`, '--env', `E2E_PASSWORD=${env.E2E_PASSWORD}`], 360000);
+      if (phase === 'document-ocr' && env.E2E_ANDROID_DOCUMENT_DRIVER === 'adb') {
+        command(process.execPath, ['scripts/android-document-ui-qa.mjs'], 540000);
+      } else if (phase === 'chat-keyboard' || phase === 'chat-conversation') {
+        const runtime = join(root, '.maestro/runtime');
+        mkdirSync(runtime, { recursive: true, mode: 0o700 });
+        const split = splitAndroidResumeFlow(readFileSync(join(root, `.maestro/${phase}.yml`), 'utf8'), join(root, '.maestro'));
+        for (const step of ['before', 'after']) {
+          const flow = join(runtime, `${tag}-${phase}-${step}.yml`);
+          temporaryFlows.push(flow);
+          writeFileSync(flow, split[step], { mode: 0o600 });
+          if (step === 'after') device(['shell', 'am', 'start', '-W', '-n', `${app}/.MainActivity`, '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LAUNCHER']);
+          command(join(homedir(), '.maestro/bin/maestro'), ['--device', serial, 'test', flow, '--test-output-dir', join(report, 'artifacts'), '--env', `MAESTRO_APP_ID=${app}`], 240000);
+        }
+      } else {
+        command(join(homedir(), '.maestro/bin/maestro'), ['--device', serial, 'test', `.maestro/${phase}.yml`, '--test-output-dir', join(report, 'artifacts'), '--env', `MAESTRO_APP_ID=${app}`, '--env', `E2E_PASSWORD=${env.E2E_PASSWORD}`], 360000);
+      }
       console.log(`Android QA passed: ${phase}`);
     }
     if (env.E2E_QA_FOLD_TRANSITION === '1') {
@@ -151,12 +182,16 @@ try {
   }
 }
 finally {
+  for (const flow of temporaryFlows) try { unlinkSync(flow); } catch {}
   try { command(process.execPath, ['--import', 'tsx', 'tests/e2e/native-account.ts', 'cleanup']); console.log('Exact disposable account cleanup passed.'); }
   catch { console.error('Disposable account cleanup requires attention.'); process.exitCode = 1; }
   if (metro) try { process.kill(-metro.pid, 'SIGTERM'); } catch {}
   proxy?.kill('SIGTERM');
   if (emulator) {
     spawnSync(adb, ['-s', serial, 'shell', 'rm', '-f', temporaryFixture], { stdio: 'ignore', timeout: 10000 });
+    if (env.E2E_ANDROID_DOCUMENT_DRIVER === 'adb') {
+      spawnSync(adb, ['-s', serial, 'shell', 'rm', '-f', '/data/local/tmp/sfera-ui-driver.jar', '/data/local/tmp/sfera-document-ui.xml'], { stdio: 'ignore', timeout: 10000 });
+    }
     spawnSync(adb, ['-s', serial, 'uninstall', app], { stdio: 'ignore', timeout: 30000 });
     spawnSync(adb, ['-s', serial, 'reverse', '--remove-all'], { stdio: 'ignore', timeout: 10000 });
     spawnSync(adb, ['-s', serial, 'emu', 'kill'], { stdio: 'ignore', timeout: 10000 });

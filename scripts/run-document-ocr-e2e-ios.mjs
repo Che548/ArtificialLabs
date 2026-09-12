@@ -34,6 +34,7 @@ if (existsSync(adb)) {
 }
 const tag = randomUUID().replaceAll('-', '').slice(0, 12);
 const env = { ...process.env, E2E_EMAIL: `artificiallabs-e2e+${tag}-native@example.test`, E2E_PASSWORD: `E2e${tag}Aa1`, E2E_REPORT_DIR: report,
+  MAESTRO_CLI_NO_ANALYTICS: 'true', MAESTRO_DISABLE_UPDATE_CHECK: 'true',
   CI: '1', EXPO_PUBLIC_E2E_MODE: '1', E2E_ALLOW_TRANSPORT_FAULTS: '1', E2E_CONVEX_PROXY_PORT: '3350', E2E_CONVEX_SITE_PROXY_PORT: '3351', E2E_CONVEX_IOS_PROXY_PORT: '3352',
   EXPO_PUBLIC_E2E_IOS_CONVEX_URL: 'https://localhost:3352', EXPO_PUBLIC_CONVEX_URL: process.env.CONVEX_SELF_HOSTED_URL,
 };
