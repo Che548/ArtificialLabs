@@ -22,7 +22,7 @@ export function BetaInstall() {
     const detected = detectBetaPlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
     if (!chosen.current) setSelected(detected);
     setDesktop(detected === 'all');
-    setUrl(new URL('/beta/', window.location.origin).href);
+    setUrl(new URL(window.location.hostname === 'sfera.brainwaves.engineering' ? '/' : '/beta/', window.location.origin).href);
   }, []);
 
   async function copyLink() {
@@ -36,13 +36,18 @@ export function BetaInstall() {
 
   return <main className="beta-page">
     <header className="beta-header">
-      <a href="/beta/" className="beta-brand" aria-label="Сфера — установка беты">сфера.</a>
+      <a href={url || '/beta/'} className="beta-brand" aria-label="Сфера — установка беты">ArtificialLabs</a>
+      <span className="beta-mark" aria-hidden="true"><i /><i /></span>
       <Badge>Тестовая версия</Badge>
     </header>
     <section className="beta-intro">
-      <p className="beta-eyebrow">ПРИГЛАШЕНИЕ К ТЕСТИРОВАНИЮ</p>
-      <h1>Попробуйте бету «сфера.»</h1>
-      <p>Установите приложение на телефон. Всего несколько шагов.</p>
+      <div className="beta-intro-copy">
+        <p className="beta-eyebrow">01 / ОТКРЫТОЕ ТЕСТИРОВАНИЕ</p>
+        <p className="beta-lead">Здоровье начинается<br />с внимания к себе.</p>
+        <h1>сфера<span>.</span></h1>
+        <p>Попробуйте бету «сфера.» — установите приложение на телефон за несколько шагов.</p>
+      </div>
+      <div className="beta-geometry" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>
     </section>
     <div className="beta-platforms" role="group" aria-label="Платформа">
       {([['all', 'Все устройства'], ['apple', 'iPhone / iPad'], ['android', 'Android']] as const).map(([value, label]) =>
@@ -51,12 +56,12 @@ export function BetaInstall() {
     </div>
     <div className="beta-grid">
       <section className="beta-install-panel" hidden={selected === 'android'} aria-labelledby="beta-apple">
-        <span className="beta-step-label">APPLE</span><h2 id="beta-apple">iPhone и iPad</h2>
+        <span className="beta-step-label">02 / APPLE</span><h2 id="beta-apple">iPhone и iPad</h2>
         <p>Установите TestFlight → откройте бету → нажмите «Установить».</p>
         <a className="button button-primary button-md" href="https://testflight.apple.com/join/Aq5UurM8">Открыть в TestFlight <span aria-hidden="true">↗</span></a>
       </section>
       <section className="beta-install-panel" hidden={selected === 'apple'} aria-labelledby="beta-android">
-        <span className="beta-step-label">GOOGLE PLAY</span><h2 id="beta-android">Android</h2>
+        <span className="beta-step-label">03 / GOOGLE PLAY</span><h2 id="beta-android">Android</h2>
         <p>Вступите в группу, затем присоединитесь к тестированию.</p>
         <div className="beta-actions">
           <a className="button button-secondary button-md" href="https://groups.google.com/g/sfera-brainwaves-beta" target="_blank" rel="noopener noreferrer">1. Вступить в группу <span aria-hidden="true">↗</span></a>
@@ -68,7 +73,7 @@ export function BetaInstall() {
     </div>
     {desktop && url && <section className="beta-share" aria-label="Открыть на телефоне">
       <QRCodeSVG value={url} size={176} level="M" marginSize={4} title="QR-код страницы установки беты" />
-      <div><h2>Откройте на телефоне</h2><p>Наведите камеру на QR-код — покажем инструкцию для вашего устройства.</p>
+      <div><span className="beta-step-label">04 / ПРОДОЛЖИТЬ НА ТЕЛЕФОНЕ</span><h2>Один код.<br />Ваше устройство.</h2><p>Наведите камеру на QR-код — покажем инструкцию для вашего устройства.</p>
         <Button onClick={() => void copyLink()}>Скопировать ссылку</Button>
         <a className="beta-share-url" href={url}>{url}</a>
         <p className="beta-copy-status" role="status">{copyStatus}</p>

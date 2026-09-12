@@ -11,14 +11,14 @@ test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, 
   page.on('websocket', socket => external.push(socket.url()));
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/beta/');
-  await expect(page.getByRole('heading', { name: 'Попробуйте бету «сфера.»' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'сфера.', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Открыть в TestFlight' })).toHaveAttribute('href', apple);
   await expect(page.getByRole('link', { name: '1. Вступить в группу' })).toHaveAttribute('href', group);
   await expect(page.getByRole('link', { name: '2. Установить бету' })).toHaveAttribute('href', play);
   await expect(page.locator('.beta-share svg')).toBeVisible();
   await page.locator('.beta-share svg').screenshot({ path: 'output/playwright/beta-qr.png' });
   await page.getByRole('button', { name: 'Скопировать ссылку' }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(new URL('/beta/', base).href);
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(new URL(new URL(base).hostname === 'sfera.brainwaves.engineering' ? '/' : '/beta/', base).href);
   await expect(page.getByRole('status')).toHaveText('Ссылка скопирована');
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
   await page.reload();
