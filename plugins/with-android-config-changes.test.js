@@ -15,10 +15,11 @@ test('release optimization enables code and resource shrinking together', () => 
 test('optimizing preset preserves project keep rules and is idempotent', () => {
   const source = `proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"`;
   const result = configureReleaseOptimization(source);
-  assert.equal(
-    result,
+  assert.ok(result.startsWith(
     `proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"\n            proguardFile file("../../plugins/android-reflection.pro")`,
-  );
+  ));
+  assert.match(result, /endsWith\('UpdatesResources'\)/);
+  assert.match(result, /outputs\.upToDateWhen \{ false \}/);
   assert.equal(configureReleaseOptimization(result), result);
 });
 

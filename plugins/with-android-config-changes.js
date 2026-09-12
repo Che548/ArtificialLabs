@@ -14,11 +14,19 @@ function configureReleaseOptimization(contents) {
     'getDefaultProguardFile("proguard-android-optimize.txt")',
   );
   const reflectionRules = 'proguardFile file("../../plugins/android-reflection.pro")';
-  if (optimized.includes(reflectionRules)) return optimized;
-  return optimized.replace(
+  const withReflection = optimized.includes(reflectionRules) ? optimized : optimized.replace(
     /(proguardFiles[^\n]+)/,
     `$1\n            ${reflectionRules}`,
   );
+  const marker = '// Always regenerate Expo Updates assets for the current source.';
+  if (withReflection.includes(marker)) return withReflection;
+  // SDK 54 declares the project/entry paths as inputs, not their contents.
+  // An incremental build can otherwise package the previous native fingerprint.
+  return `${withReflection}\n\n${marker}
+tasks.matching { it.name.startsWith('create') && it.name.endsWith('UpdatesResources') }.configureEach {
+    outputs.upToDateWhen { false }
+}
+`;
 }
 
 const releaseOptimizationProperties = {
