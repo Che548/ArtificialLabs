@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 
 import { api, internal } from './_generated/api';
 import schema from './schema';
+import { reconcileCarePlan } from '../lib/care-plan';
+import { createEmptySnapshot } from '../lib/health-types';
 
 const modules = import.meta.glob('./**/*.ts');
 
@@ -34,6 +36,123 @@ async function createUser(t: ReturnType<typeof convexTest>, email: string) {
 }
 
 describe('health ownership and sync', () => {
+  test('plan reminders converge after disable, enable and cloud round trips', async () => {
+    const t = convexTest(schema, modules);
+    const { client } = await createUser(t, 'plan-sync@example.test');
+    const now = Date.UTC(2026, 8, 12);
+    const snapshot = createEmptySnapshot();
+    snapshot.profile = {
+      displayName: 'Synthetic',
+      goal: 'cycle',
+      onboardingCompleted: true,
+      updatedAt: 1,
+    };
+    snapshot.preferences = [
+      {
+        localId: 'preferences',
+        medicalRecommendations: true,
+        updatedAt: 1,
+        notificationsEnabled: false,
+        journalNotifications: false,
+        resultNotifications: false,
+        notificationTone: 'formal',
+        anonymousAnalytics: false,
+        language: 'ru',
+        region: 'RU',
+      },
+    ];
+    snapshot.carePlanItems = [
+      {
+        localId: 'synthetic-plan',
+        catalogKey: 'catalog-13b9fcd436cb',
+        title: 'Synthetic',
+        category: 'test',
+        description: '',
+        status: 'upcoming',
+        riskTier: 'low',
+        dueAt: now + 90 * 86400000,
+        scheduleBasis: 'user',
+        confidence: 1,
+        provisional: false,
+        requiresClinician: true,
+        evidenceRefs: [],
+        rationale: '',
+        policyVersion: 'test',
+        catalogVersion: 'test',
+        updatedAt: 1,
+      },
+    ];
+    const syncReminders = async (at: number) => {
+      const changes = reconcileCarePlan(snapshot, at).reminders;
+      await client.mutation(api.health.syncBatch, {
+        ...emptyBatch(),
+        reminders: changes,
+      });
+      snapshot.reminders = (await client.query(
+        api.health.snapshot,
+        {},
+      ))!.reminders.map(
+        ({ _id, _creationTime, profileId, ...record }) => record,
+      );
+      return changes;
+    };
+    expect(await syncReminders(now)).toHaveLength(1);
+    for (let cycle = 1; cycle <= 2; cycle++) {
+      snapshot.preferences[0].medicalRecommendations = false;
+      expect(await syncReminders(now + cycle * 1000)).toHaveLength(1);
+      expect(snapshot.reminders[0].deletedAt).toBeDefined();
+      snapshot.preferences[0].medicalRecommendations = true;
+      expect(await syncReminders(now + cycle * 1000 + 100)).toHaveLength(1);
+      expect(snapshot.reminders[0].deletedAt).toBeUndefined();
+      expect(snapshot.reminders).toHaveLength(1);
+      expect(await syncReminders(now + cycle * 1000 + 200)).toHaveLength(0);
+    }
+  });
+
+  test('stale or duplicate plan reminder writes cannot undo newer deletion', async () => {
+    const t = convexTest(schema, modules);
+    const alice = await createUser(t, 'reminder-alice@example.test');
+    const bob = await createUser(t, 'reminder-bob@example.test');
+    const reminder = {
+      localId: 'agent-prep_test',
+      type: 'checkup' as const,
+      title: 'Synthetic',
+      body: '',
+      dueAt: 100,
+      updatedAt: 10,
+    };
+    await alice.client.mutation(api.health.syncBatch, {
+      ...emptyBatch(),
+      reminders: [{ ...reminder, deletedAt: 20, updatedAt: 20 }],
+    });
+    for (const updatedAt of [10, 20]) {
+      await alice.client.mutation(api.health.syncBatch, {
+        ...emptyBatch(),
+        reminders: [{ ...reminder, updatedAt }],
+      });
+      expect(
+        (await alice.client.query(api.health.snapshot, {}))!.reminders[0]
+          .deletedAt,
+      ).toBe(20);
+    }
+    await bob.client.mutation(api.health.syncBatch, {
+      ...emptyBatch(),
+      reminders: [{ ...reminder, updatedAt: 30 }],
+    });
+    expect(
+      (await alice.client.query(api.health.snapshot, {}))!.reminders[0]
+        .deletedAt,
+    ).toBe(20);
+    await alice.client.mutation(api.health.syncBatch, {
+      ...emptyBatch(),
+      reminders: [{ ...reminder, updatedAt: 30 }],
+    });
+    expect(
+      (await alice.client.query(api.health.snapshot, {}))!.reminders[0]
+        .deletedAt,
+    ).toBeUndefined();
+  });
+
   test('isolates complete CRUD snapshots between users', async () => {
     const t = convexTest(schema, modules);
     const alice = await createUser(t, 'alice@example.test');

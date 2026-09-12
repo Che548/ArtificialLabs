@@ -411,8 +411,16 @@ async function upsertLocal(
     )
   )
     throw new Error('AGENT_TRIGGER_IMMUTABLE');
-  if (existing) await ctx.db.patch(existing._id, item as never);
-  else await ctx.db.insert(table, { ...item, profileId } as never);
+  if (existing) {
+    // Plan reconciliation reuses reminder IDs after recommendations are enabled
+    // again. A missing deletedAt in a newer reminder means it is active; patch
+    // otherwise preserves the old tombstone and starts a recreate/sync loop.
+    const patch =
+      table === 'reminders' && item.localId.startsWith('agent-prep_')
+        ? { ...item, deletedAt: item.deletedAt }
+        : item;
+    await ctx.db.patch(existing._id, patch as never);
+  } else await ctx.db.insert(table, { ...item, profileId } as never);
 }
 
 export const syncBatch = mutation({
