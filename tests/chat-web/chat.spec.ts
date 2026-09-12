@@ -1,5 +1,23 @@
 import { expect, test } from '@playwright/test';
 
+test('registration discloses AI/cloud in the existing unchecked choice', async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/chat');
+  const consent = page.getByTestId('e2e-auth-consent-personal');
+  await expect(consent).not.toBeChecked();
+  await expect(consent).toHaveAccessibleName(/облачную синхронизацию и ИИ Яндекс AI Studio/);
+  await expect(page.getByTestId('e2e-auth-submit')).toBeDisabled();
+  await page.getByTestId('e2e-auth-identifier').fill('synthetic@example.test');
+  await page.getByTestId('e2e-auth-password').fill('SyntheticUiOnly123');
+  await expect(page.getByTestId('e2e-auth-submit')).toBeDisabled();
+  await consent.check();
+  await page.getByTestId('e2e-auth-consent-agreement').check();
+  await expect(page.getByTestId('e2e-auth-submit')).toBeEnabled();
+  await expect(page.getByTestId('e2e-auth-consent-agreement').getByText('✓', { exact: true })).toHaveCSS('opacity', '1');
+  await page.screenshot({ path: `output/playwright/registration-${info.project.name}-390.png` });
+  // UI only: no signup, email delivery, cloud activation or AI call is made.
+});
+
 for (const viewport of [
   { width: 1280, height: 900 },
   { width: 390, height: 844 },
@@ -33,6 +51,11 @@ for (const viewport of [
       page.getByText('Нет подключения', { exact: true }),
     ).toHaveCount(0);
     expect(errors).toEqual([]);
+    const notice = await page.getByTestId('web-demo-notice').boundingBox();
+    const content = await page.getByTestId('web-demo-content').boundingBox();
+    expect(notice).not.toBeNull();
+    expect(content).not.toBeNull();
+    expect(content!.y).toBeGreaterThanOrEqual(notice!.y + notice!.height);
     await page.screenshot({
       path: `output/playwright/chat-${info.project.name}-${viewport.width}.png`,
       animations: 'disabled',

@@ -11,11 +11,13 @@ export function mayScheduleAgentCatchUp({
   inFlight,
   isKnown,
   isOffline,
+  backendConnected = false,
 }: {
   enabled: boolean;
   inFlight: boolean;
   isKnown: boolean;
   isOffline: boolean;
+  backendConnected?: boolean;
 }) {
-  return enabled && isKnown && !isOffline && !inFlight;
+  return enabled && (isKnown || backendConnected) && !isOffline && !inFlight;
 }

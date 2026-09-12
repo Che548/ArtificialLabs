@@ -516,14 +516,17 @@ function WebDemo() {
       <NotificationManagerProvider>
         <AppGate allowEmptyProfile>
           <View className="flex-1">
-            <Tabs />
             <View
+              testID="web-demo-notice"
               pointerEvents="none"
-              className="absolute left-3 right-3 top-3 z-50 items-center rounded-full bg-ink/90 px-4 py-2"
+              className="items-center bg-ink/90 px-4 py-2"
             >
               <Text className="font-sf-medium text-[12px] text-white">
                 Web demo · медицинские данные не сохраняются
               </Text>
+            </View>
+            <View testID="web-demo-content" className="flex-1">
+              <Tabs />
             </View>
           </View>
         </AppGate>

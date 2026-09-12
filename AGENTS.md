@@ -122,6 +122,12 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
   diagnostic result.
 - Cloud synchronization is an explicit per-device opt-in. Authentication alone
   must not start medical snapshot reads or outbox writes.
+  The approved registration UX may collect this choice in the existing unchecked
+  signup consent, with visible cloud/AI/provider/data/purpose disclosure. A
+  versioned local receipt may activate chat, assistant and sync after email
+  verification for that newly created account on that device, without repeated
+  dialogs. Never infer it from signIn, recovery or older accounts; never replay
+  it over a revocation. Analytics and document interpretation remain separate.
 - Offline and temporary server failures must never reject a completed local
   write. Keep the SQLCipher outbox pending, show a non-blocking connection
   status, retry transient transport failures with bounded backoff, and trigger

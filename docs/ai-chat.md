@@ -27,6 +27,11 @@ rechecks it before delivering a response. Assistant medical context still
 requires opt-in cloud sync and its separate consent. The new assistant welcome
 feed and animations coexist with the composer and preserved chat history.
 
+New native registrations can collect the disclosed chat/assistant/cloud choice
+in the existing signup checkbox and apply its owner-bound device receipt after
+email verification, without repeated dialogs. This is not an automatic grant
+for existing accounts or a sign-in side effect; see `registration-consent.md`.
+
 ## Deployment configuration
 
 Provision a dedicated service account with `ai.languageModels.user`. Restrict

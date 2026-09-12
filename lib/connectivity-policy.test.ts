@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { resolveConnectivity } from './connectivity-policy';
+import { mayScheduleAgentCatchUp } from './agent-automation-policy';
 
 const connected = {
   isAndroidReversedE2E: false,
@@ -11,6 +12,15 @@ const connected = {
   convexIsWebSocketConnected: true,
   convexConnectionRetries: 0,
 };
+
+test('opted-in background catch-up can use a proven backend despite an uncertain OS probe', () => {
+  const state = resolveConnectivity({ ...connected, networkIsInternetReachable: false });
+  const input = { ...state, backendConnected: state.backendStatus === 'connected', enabled: true, inFlight: false };
+  assert.equal(mayScheduleAgentCatchUp(input), true);
+  assert.equal(mayScheduleAgentCatchUp({ ...input, enabled: false }), false);
+  assert.equal(mayScheduleAgentCatchUp({ ...input, inFlight: true }), false);
+  assert.equal(mayScheduleAgentCatchUp({ ...input, isKnown: false, backendConnected: false }), false);
+});
 
 test('does not report no internet when only Convex is unavailable', () => {
   assert.deepEqual(

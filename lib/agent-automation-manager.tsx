@@ -62,7 +62,7 @@ function agentError(error: unknown) {
 export function AgentAutomationManager({ children }: PropsWithChildren) {
   const convex = useConvex();
   const { isAuthenticated } = useConvexAuth();
-  const { isKnown, isOffline } = useConnectivity();
+  const { isKnown, isOffline, backendStatus } = useConnectivity();
   const healthStore = useHealthStore();
   const {
     applyAgentPlanProposal,
@@ -102,6 +102,9 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
     !readOnly &&
     ready &&
     isAuthenticated &&
+    healthStore.cloudSyncEnabled &&
+    healthStore.cloudProfileReady &&
+    healthStore.profile?.onboardingCompleted &&
     !accountDeletion.pendingDeletion &&
     status?.enabled &&
     status.automationEnabled &&
@@ -128,6 +131,7 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
         inFlight: inFlight.current,
         isKnown,
         isOffline,
+        backendConnected: backendStatus === 'connected',
       })
     )
       return undefined;
@@ -246,6 +250,7 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
     accountDeletion.pendingDeletion,
     convex,
     enabled,
+    backendStatus,
     isKnown,
     isOffline,
     planInputRevision,

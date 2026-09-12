@@ -45,6 +45,7 @@ import type * as passwordRecovery from "../passwordRecovery.js";
 import type * as phoneChange from "../phoneChange.js";
 import type * as profile from "../profile.js";
 import type * as publicCatalog from "../publicCatalog.js";
+import type * as registrationConsent from "../registrationConsent.js";
 import type * as reviewAccess from "../reviewAccess.js";
 import type * as seed from "../seed.js";
 import type * as smsAuth from "../smsAuth.js";
@@ -95,6 +96,7 @@ declare const fullApi: ApiFromModules<{
   phoneChange: typeof phoneChange;
   profile: typeof profile;
   publicCatalog: typeof publicCatalog;
+  registrationConsent: typeof registrationConsent;
   reviewAccess: typeof reviewAccess;
   seed: typeof seed;
   smsAuth: typeof smsAuth;

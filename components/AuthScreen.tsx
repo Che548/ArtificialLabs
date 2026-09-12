@@ -30,6 +30,7 @@ import { useConnectivity } from '../lib/connectivity';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import { classifyServiceIssue } from '../lib/service-errors';
 import { listenForSmsOtp, startSmsRetriever } from '../lib/sms-otp-retriever';
+import { rememberRegistrationConsent, clearRegistrationConsent } from '../lib/registration-consent';
 
 type AuthChannel = 'email' | 'phone';
 type AuthFlow = 'signIn' | 'signUp';
@@ -116,6 +117,7 @@ function Checkbox({
       accessibilityLabel={label}
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
+      aria-checked={checked}
       hitSlop={10}
       onPress={onPress}
       style={styles.checkboxHitArea}
@@ -414,6 +416,9 @@ export function AuthScreen({
     setSubmitting(true);
 
     try {
+      if (flow === 'signUp' && channel === 'email' && personalDataConsent && agreementAccepted) {
+        await rememberRegistrationConsent(normalizedIdentifier);
+      }
       await signIn(channel === 'phone' ? 'phone-password' : 'password', data);
       onAuthenticated?.();
     } catch (cause) {
@@ -425,6 +430,7 @@ export function AuthScreen({
         setFlow('signIn');
         return;
       }
+      if (flow === 'signUp') await clearRegistrationConsent();
       const issue = classifyServiceIssue(cause, isOffline);
       setError(
         issue.retryable
@@ -679,7 +685,7 @@ export function AuthScreen({
                     <View style={styles.consentRow}>
                       <Checkbox
                         checked={personalDataConsent}
-                        label="Согласие на обработку персональных данных"
+                        label="Согласие на обработку данных, облачную синхронизацию и ИИ Яндекс AI Studio"
                         testID="e2e-auth-consent-personal"
                         onPress={() =>
                           setPersonalDataConsent((current) => !current)
@@ -689,8 +695,15 @@ export function AuthScreen({
                         style={[styles.consentText, styles.personalConsentText]}
                       >
                         Я даю согласие ООО «БРЭЙНВЕЙВС ИНЖИНИРИНГ» на обработку моих
-                        персональных данных в целях обработки обращения, связи
-                        со мной и подготовки ответа. Я ознакомлен(а) с{' '}
+                        персональных данных для работы приложения. На этом устройстве
+                        будут включены облачная синхронизация и ИИ: тексты чатов и
+                        сведения профиля, дневника, анализов, плана и подтверждённые
+                        сведения о документах могут передаваться Яндекс AI Studio
+                        для ответов и автоматического подбора рекомендаций.
+                        Исходные фото, PDF и непроверенный текст распознавания не
+                        передаются. Отключить ИИ и синхронизацию можно в профиле.
+                        Отдельная интерпретация документов требует отдельного выбора.
+                        Я ознакомлен(а) с{' '}
                         <LegalLink url={privacyPolicyUrl}>
                           Политикой обработки персональных данных
                         </LegalLink>

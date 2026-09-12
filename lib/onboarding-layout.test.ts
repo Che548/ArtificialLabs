@@ -4,14 +4,30 @@ import { readFileSync } from 'node:fs';
 import { LOCAL_ONBOARDING_PRIVACY } from '../shared/onboarding-privacy';
 import { onboardingLayout } from './onboarding-layout';
 
-test('new onboarding UI never manufactures cloud or provider consent', () => {
+test('onboarding defaults stay local unless an explicit new-registration receipt is accepted', () => {
   assert.deepEqual(LOCAL_ONBOARDING_PRIVACY, {
     cloudSyncEnabled: false, anonymousAnalytics: false, medicalRecommendations: false,
   });
   const screen = readFileSync(new URL('../components/OnboardingScreen.tsx', import.meta.url), 'utf8');
   const flow = readFileSync(new URL('../design-system/onboarding-flow.tsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(screen, /useMutation|acceptAgentConsent|acceptChatConsent|setAutomation/);
+  assert.doesNotMatch(screen, /acceptAgentConsent|acceptChatConsent|setAutomation/);
+  assert.match(screen, /receipt \? await acceptRegistrationConsent\(receipt\) : undefined/);
+  assert.match(screen, /activation\?\.accepted === true/);
   assert.match(flow, /\.\.\.LOCAL_ONBOARDING_PRIVACY/);
+  const automation = readFileSync(new URL('./agent-automation-manager.tsx', import.meta.url), 'utf8');
+  assert.match(automation, /healthStore\.cloudSyncEnabled &&/);
+  assert.match(automation, /healthStore\.cloudProfileReady &&/);
+  assert.match(automation, /healthStore\.profile\?\.onboardingCompleted &&/);
+});
+
+test('signup choice survives email verification but is not created by login or recovery', () => {
+  const auth = readFileSync(new URL('../components/AuthScreen.tsx', import.meta.url), 'utf8');
+  const submit = auth.slice(auth.indexOf('const submit = async'));
+  assert.match(submit, /flow === 'signUp' && channel === 'email' && personalDataConsent && agreementAccepted/);
+  assert.match(submit, /rememberRegistrationConsent\(normalizedIdentifier\)/);
+  assert.doesNotMatch(auth.slice(0, auth.indexOf('const submit = async')), /await rememberRegistrationConsent/);
+  const pending = submit.indexOf('if (pending)');
+  assert.ok(pending >= 0 && submit.indexOf('return;', pending) < submit.indexOf('await clearRegistrationConsent()', pending));
 });
 
 test('onboarding leaves a usable scroll viewport on phone, Fold and keyboard-resized windows', () => {
