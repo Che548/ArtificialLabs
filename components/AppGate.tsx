@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import type { PropsWithChildren } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useAuthActions } from '@convex-dev/auth/react';
 
 import { useHealthStore } from '../lib/health-store';
 import { OnboardingScreen } from './OnboardingScreen';
@@ -12,6 +13,24 @@ export function AppGate({
   const { accountDeletion, ready, profile, restoreAccount, serviceIssue } =
     useHealthStore();
   const [restoring, setRestoring] = useState(false);
+  const { signOut } = useAuthActions();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutIssue, setSignOutIssue] = useState<string>();
+  const signOutInFlight = useRef(false);
+  const leavePendingAccount = async () => {
+    if (signOutInFlight.current || restoring) return;
+    signOutInFlight.current = true;
+    setSigningOut(true);
+    setSignOutIssue(undefined);
+    try {
+      await signOut();
+    } catch {
+      setSignOutIssue('Не удалось выйти. Разблокируйте устройство и попробуйте ещё раз.');
+    } finally {
+      signOutInFlight.current = false;
+      setSigningOut(false);
+    }
+  };
   if (!ready) {
     return (
       <View className="flex-1 items-center justify-center bg-surface-canvas">
@@ -40,8 +59,8 @@ export function AppGate({
           </Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: restoring }}
-            disabled={restoring}
+            accessibilityState={{ disabled: restoring || signingOut }}
+            disabled={restoring || signingOut}
             onPress={() => {
               setRestoring(true);
               void restoreAccount().finally(() => setRestoring(false));
@@ -56,12 +75,24 @@ export function AppGate({
               </Text>
             )}
           </Pressable>
-          {serviceIssue ? (
+          <Pressable
+            testID="e2e-pending-deletion-sign-out"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: restoring || signingOut }}
+            disabled={restoring || signingOut}
+            onPress={() => void leavePendingAccount()}
+            className="mt-3 h-12 items-center justify-center rounded-full border border-brand-primary"
+          >
+            <Text className="font-sf-medium text-[16px] text-ink">
+              {signingOut ? 'Выходим…' : 'Выйти из аккаунта'}
+            </Text>
+          </Pressable>
+          {signOutIssue || serviceIssue ? (
             <Text
               accessibilityRole="alert"
               className="mt-3 font-sf text-[13px] leading-5 text-[#9A5E12]"
             >
-              {serviceIssue.message}
+              {signOutIssue ?? serviceIssue?.message}
             </Text>
           ) : null}
         </View>
