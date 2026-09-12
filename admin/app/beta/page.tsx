@@ -3,11 +3,11 @@ import localFont from 'next/font/local';
 import { BetaInstall } from '@/components/beta-install';
 import './beta.css';
 
-const comfortaa = localFont({
-  src: '../../../assets/fonts/Comfortaa-Regular.ttf',
-  weight: '400',
+const stackSans = localFont({
+  src: '../../../ArtificialLabs/Resources/Fonts/StackSansNotch-VariableFont_wght.ttf',
+  weight: '200 700',
   style: 'normal',
-  variable: '--beta-logo-font',
+  variable: '--beta-brand-font',
   display: 'swap',
 });
 
@@ -18,5 +18,5 @@ export const metadata: Metadata = {
 };
 
 export default function BetaPage() {
-  return <div className={comfortaa.variable}><BetaInstall /></div>;
+  return <div className={stackSans.variable}><BetaInstall /></div>;
 }

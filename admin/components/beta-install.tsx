@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Badge, Button } from './ui';
-import { comfortaaLicense } from '../../lib/font-license';
+import sferaLogo from '../assets/sfera-logo.png';
 
 type Platform = 'all' | 'apple' | 'android';
 
@@ -43,11 +43,10 @@ export function BetaInstall() {
     </header>
     <section className="beta-intro">
       <div className="beta-intro-copy">
-        <p className="beta-eyebrow">01 / ОТКРЫТОЕ ТЕСТИРОВАНИЕ</p>
         <p className="beta-lead">Приложение для внимания<br />к себе и своему здоровью.</p>
         <p className="beta-description">Открытая бета для iPhone и Android.<br />Попробуйте и поделитесь впечатлениями.</p>
         <div className="beta-signs" aria-hidden="true"><i /><i /><i /><i /></div>
-        <h1>сфера<span>.</span></h1>
+        <h1 aria-label="сфера."><img src={sferaLogo.src} width={sferaLogo.width} height={sferaLogo.height} alt="сфера." /></h1>
       </div>
       <svg className="beta-geometry" viewBox="0 0 640 640" aria-hidden="true" focusable="false">
         {Array.from({ length: 16 }, (_, index) => <g key={index} transform={`rotate(${index * 22.5} 320 320)`}>
@@ -67,12 +66,12 @@ export function BetaInstall() {
     </div>
     <div className="beta-grid">
       <section className="beta-install-panel" hidden={selected === 'android'} aria-labelledby="beta-apple">
-        <span className="beta-step-label">02 / APPLE</span><h2 id="beta-apple">iPhone и iPad</h2>
+        <h2 id="beta-apple">iPhone и iPad</h2>
         <p>Установите TestFlight → откройте бету → нажмите «Установить».</p>
         <a className="button button-primary button-md" href="https://testflight.apple.com/join/Aq5UurM8">Открыть в TestFlight <span aria-hidden="true">↗</span></a>
       </section>
       <section className="beta-install-panel" hidden={selected === 'apple'} aria-labelledby="beta-android">
-        <span className="beta-step-label">03 / GOOGLE PLAY</span><h2 id="beta-android">Android</h2>
+        <h2 id="beta-android">Android</h2>
         <p>Вступите в группу, затем присоединитесь к тестированию.</p>
         <div className="beta-actions">
           <a className="button button-secondary button-md" href="https://groups.google.com/g/sfera-brainwaves-beta" target="_blank" rel="noopener noreferrer">1. Вступить в группу <span aria-hidden="true">↗</span></a>
@@ -84,14 +83,14 @@ export function BetaInstall() {
     </div>
     {desktop && url && <section className="beta-share" aria-label="Открыть на телефоне">
       <QRCodeSVG value={url} size={176} level="M" marginSize={4} title="QR-код страницы установки беты" />
-      <div><span className="beta-step-label">04 / ПРОДОЛЖИТЬ НА ТЕЛЕФОНЕ</span><h2>Один код.<br />Ваше устройство.</h2><p>Наведите камеру на QR-код — покажем инструкцию для вашего устройства.</p>
+      <div><p>Наведите камеру на QR-код, чтобы открыть страницу на телефоне.</p>
         <Button onClick={() => void copyLink()}>Скопировать ссылку</Button>
         <a className="beta-share-url" href={url}>{url}</a>
         <p className="beta-copy-status" role="status">{copyStatus}</p>
       </div>
     </section>}
     <footer className="beta-footer"><p>Бета может содержать ошибки. Спасибо, что помогаете нам сделать приложение лучше.</p>
-      <details className="beta-license"><summary>Шрифт и лицензия</summary><pre>{comfortaaLicense}</pre></details>
+      <a className="beta-license" href="/beta-assets/StackSansNotch-OFL.txt">Лицензия шрифта Stack Sans Notch</a>
     </footer>
   </main>;
 }

@@ -12,15 +12,19 @@ test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, 
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/beta/');
   await expect(page.getByRole('heading', { name: 'сфера.', exact: true })).toBeVisible();
-  const logoFont = await page.locator('h1').evaluate(async element => {
+  const logoFont = await page.locator('.beta-brand').evaluate(async element => {
     const style = getComputedStyle(element);
     const primaryFamily = style.fontFamily.split(',')[0];
-    const faces = await document.fonts.load(`400 80px ${primaryFamily}`, 'сфера.');
+    const faces = await document.fonts.load(`600 18px ${primaryFamily}`, 'ArtificialLabs');
     return { family: style.fontFamily, weight: style.fontWeight, spacing: style.letterSpacing,
       loaded: faces.length > 0 && faces.every(face => face.status === 'loaded') };
   });
-  expect(logoFont.family.toLowerCase()).toContain('comfortaa');
-  expect(logoFont).toMatchObject({ weight: '400', spacing: 'normal', loaded: true });
+  expect(logoFont.family.toLowerCase()).toContain('stack');
+  expect(logoFont).toMatchObject({ weight: '600', spacing: 'normal', loaded: true });
+  await expect(page.locator('h1 img')).toBeVisible();
+  expect(await page.locator('h1 img').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+  await expect(page.locator('.beta-step-label,.beta-eyebrow')).toHaveCount(0);
+  await expect(page.getByText('Один код.', { exact: false })).toHaveCount(0);
   await expect(page.locator('svg.beta-geometry')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.getByRole('link', { name: 'Открыть в TestFlight' })).toHaveAttribute('href', apple);
   await expect(page.getByRole('link', { name: '1. Вступить в группу' })).toHaveAttribute('href', group);
