@@ -725,19 +725,6 @@ export default function AnalysesScreen() {
           style={styles.summaryWrap}
         />
 
-        <AppText
-          style={{
-            marginHorizontal: 24,
-            marginBottom: 16,
-            fontSize: 13,
-            lineHeight: 19,
-          }}
-        >
-          Рекомендации для обсуждения с врачом, не назначения. Новые
-          предложения: до {CARE_PLAN_LIMITS.current} активных и до{' '}
-          {CARE_PLAN_LIMITS.upcoming} будущих анализов. Если обоснованных
-          рекомендаций меньше, список не дополняется ради количества.
-        </AppText>
 
         <View style={styles.tabsWrap}>
           <AnalysisTabs activeTab={activeTab} onChange={setActiveTab} />

@@ -13,8 +13,13 @@ test('decorative chat hero cannot overlap the measured dock on short screens', (
   assert.equal(chatEmptyHeroFits(667, 20, 84, 300, false), false);
   assert.equal(chatEmptyHeroFits(701, 24, 96, 300, false), false);
   assert.equal(chatEmptyHeroFits(874, 62, 106, 200, false), true);
-  assert.equal(chatEmptyHeroFits(874, 62, 106, 360, false), false);
+  assert.equal(chatEmptyHeroFits(874, 62, 106, 360, false), true);
   assert.equal(chatEmptyHeroFits(1200, 24, 8, 150, true), false);
   assert.equal(chatEmptyHeroFits(1200, 24, 96, 150, false, true), false);
   assert.equal(chatEmptyHeroFits(874, 62, 106, 200, false, true), false);
+});
+
+ test('consent panel leaves room for the compact greeting on iPhone', () => {
+  assert.equal(chatEmptyHeroFits(852, 59, 106, 320, false), true);
+  assert.equal(chatEmptyHeroFits(852, 59, 106, 320, true), false);
 });

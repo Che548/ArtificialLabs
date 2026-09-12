@@ -183,8 +183,8 @@ function AiChatConsentSheet({
       visible={visible}
       title={
         assistant
-          ? 'Данные для режима «Ассистент»'
-          : 'Передача текста в Yandex AI Studio'
+          ? 'Согласие для Ассистента'
+          : 'Согласие для чата'
       }
       onClose={onCancel}
       dismissDisabled={accepting}
@@ -215,14 +215,17 @@ function AiChatConsentSheet({
         </View>
       }
     >
+      <AppText style={styles.consentIntro}>Ответы с помощью Yandex AI Studio</AppText>
       <AppText style={styles.consentBody}>
         {assistant
-          ? 'Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый текст чата; возраст, цель, параметры тела и данные цикла или беременности; указанные заболевания, лекарства и аллергии; записи дневника не старше 30 дней; подтверждённые результаты анализов и домашние тесты; активный план. По запросу Ассистент сможет искать более старые записи, другие ваши чаты и метаданные документов. Если вы отдельно включите автономные рекомендации, при проверке плана также могут передаваться новые сообщения, написанные вами в режиме «Ассистент», и факт появления нового документа с его категорией и датой. Обычные чаты, ответы ИИ, названия и содержимое файлов при такой проверке не передаются. Содержимое файлов, имя, контакты, пути к файлам, идентификаторы аккаунта и устройства не передаются. Логирование запросов у Yandex отключено.'
-          : 'Для ответа Сферка отправит ваше сообщение и до 20 последних сообщений этого чата через наш сервер в Yandex AI Studio. Структурированные данные профиля, анализы и файлы автоматически не передаются — отправляется только видимый текст чата. Логирование запросов у Yandex отключено. История хранится зашифрованно на устройстве и синхронизируется только при включённой облачной синхронизации.'}
+          ? 'Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый текст чата; возраст, цель, параметры тела и данные цикла или беременности; указанные заболевания, лекарства и аллергии; записи дневника не старше 30 дней; подтверждённые результаты анализов и домашние тесты; активный план. По запросу Ассистент сможет искать более старые записи, другие ваши чаты и метаданные документов.\n\nЕсли вы отдельно включите автономные рекомендации, при проверке плана также могут передаваться новые сообщения, написанные вами в режиме «Ассистент», и факт появления нового документа с его категорией и датой. Обычные чаты, ответы ИИ, названия и содержимое файлов при такой проверке не передаются.\n\nСодержимое файлов, имя, контакты, пути к файлам, идентификаторы аккаунта и устройства не передаются.\n\nЛогирование запросов у Yandex отключено.'
+          : 'Для ответа Сферка отправит ваше сообщение и до 20 последних сообщений этого чата через наш сервер в Yandex AI Studio.\n\nСтруктурированные данные профиля, анализы и файлы автоматически не передаются — отправляется только видимый текст чата.\n\nЛогирование запросов у Yandex отключено. История хранится зашифрованно на устройстве и синхронизируется только при включённой облачной синхронизации.'}
       </AppText>
-      <LegalDocumentsButton documentId="privacy" label="Политика обработки персональных данных" />
-      <LegalDocumentsButton documentId="ai" label="Правила ИИ функций Sfera" />
-      <LegalDocumentsButton documentId="health" label="Форма согласия на данные о здоровье" />
+      <View style={styles.consentDocuments}>
+        <LegalDocumentsButton variant="row" documentId="privacy" label="Политика конфиденциальности" />
+        <LegalDocumentsButton variant="row" documentId="ai" label="Правила работы ИИ" />
+        <LegalDocumentsButton variant="row" documentId="health" label="Согласие на данные о здоровье" />
+      </View>
       {error ? (
         <View accessibilityRole="alert">
           <AppText style={styles.availabilityNotice}>{error}</AppText>
@@ -316,6 +319,7 @@ export default function ChatScreen() {
   const [generationState, setGenerationState] =
     useState<ChatGenerationState>('idle');
   const [consentVisible, setConsentVisible] = useState(false);
+  const [reviewedConsentModes, setReviewedConsentModes] = useState<string[]>([]);
   const [consentAccepting, setConsentAccepting] = useState(false);
   const consentInFlight = useRef(false);
   const [consentError, setConsentError] = useState<string>();
@@ -390,6 +394,8 @@ export default function ChatScreen() {
     keyboardShown,
     !!draft.trim(),
   );
+  const compactHero = compactHeight ||
+    window.height - composerBottom - mainDockHeight - insets.top - 80 < 340;
   const historyPanelWidth = Math.min(window.width * 0.76, 318);
   const headerTop = getHeaderTop(insets.top);
   const keyboardActive = composerFocused || keyboardShown;
@@ -1325,13 +1331,10 @@ export default function ChatScreen() {
     }
   };
 
+  const composerVisible = availability.action !== 'consent' || reviewedConsentModes.includes(headerMode);
+
   const availabilityPanel = (
-    <View accessibilityLiveRegion="polite" style={{ width: '100%', gap: 4 }}>
-      {availabilityNotice || chatNotice ? (
-        <AppText role="caption" style={styles.availabilityNotice}>
-          {availabilityNotice ?? chatNotice}
-        </AppText>
-      ) : null}
+    <View accessibilityLiveRegion="polite" style={styles.availabilityPanel}>
       {availability.action ? (
         <Pressable
           accessibilityRole="button"
@@ -1350,19 +1353,25 @@ export default function ChatScreen() {
               setStatusAttempt((attempt) => attempt + 1);
             } else {
               setConsentError(undefined);
+              setReviewedConsentModes((modes) => modes.includes(headerMode) ? modes : [...modes, headerMode]);
               setPendingConsentRequest({ kind: 'mode', mode: headerMode });
               setConsentVisible(true);
             }
           }}
         >
-          <AppText weight="semibold">
+          <AppText weight="medium" color="#FFFFFF" style={{ textAlign: 'center' }}>
             {availability.action === 'profile'
               ? 'Открыть настройки профиля'
               : availability.action === 'retry'
                 ? 'Повторить проверку'
-                : 'Ознакомиться и дать согласие'}
+                : 'Ознакомиться с условиями'}
           </AppText>
         </Pressable>
+      ) : null}
+      {availabilityNotice || chatNotice ? (
+        <AppText role="caption" style={styles.availabilityNotice}>
+          {availabilityNotice ?? chatNotice}
+        </AppText>
       ) : null}
     </View>
   );
@@ -1627,14 +1636,14 @@ export default function ChatScreen() {
                     {
                       opacity: emptyStateProgress,
                       paddingTop: emptyHeroVisible
-                        ? Math.max(135 - insets.top, 32)
+                        ? compactHero ? 8 : Math.max(135 - insets.top, 32)
                         : 0,
-                      minHeight: emptyHeroVisible ? 390 : 0,
+                      minHeight: emptyHeroVisible ? (compactHero ? 228 : 390) : 0,
                     },
                   ]}
                 >
                   {emptyHeroVisible ? (
-                    <ChatEmptyState compact={compactHeight} />
+                    <ChatEmptyState compact={compactHero} />
                   ) : null}
                 </Animated.View>
               </ScrollView>
@@ -1700,7 +1709,7 @@ export default function ChatScreen() {
               </Animated.View>
             </Animated.View>
             {availabilityPanel}
-            <ChatComposer
+            {composerVisible ? <ChatComposer
               inputTestID="chat-main-input"
               editable={
                 !readOnly && !consentAccepting && generationState !== 'thinking'
@@ -1720,8 +1729,8 @@ export default function ChatScreen() {
                   'Голосовой режим пока не подключён.',
                 )
               }
-            />
-            {!keyboardShown ? (
+            /> : null}
+            {composerVisible && !keyboardShown ? (
               <AppText
                 numberOfLines={2}
                 role="caption"
@@ -1960,7 +1969,7 @@ export default function ChatScreen() {
                   </AppText>
                 </Animated.View>
               ) : null}
-              <ChatComposer
+              {composerVisible ? <ChatComposer
                 inputTestID="chat-conversation-input"
                 editable={
                   !readOnly &&
@@ -1982,8 +1991,8 @@ export default function ChatScreen() {
                     'Голосовой режим пока не подключён.',
                   )
                 }
-              />
-              {!keyboardShown ? (
+              /> : null}
+              {composerVisible && !keyboardShown ? (
                 <AppText
                   numberOfLines={2}
                   role="caption"
@@ -2110,19 +2119,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
   },
+  availabilityPanel: { width: '100%', gap: 10 },
   availabilityNotice: {
     width: '100%',
     paddingHorizontal: 10,
-    color: colors.brand.burgundy,
+    color: colors.text.secondary,
     textAlign: 'center',
   },
   availabilityAction: {
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 16,
-    backgroundColor: '#F0EEF0',
-    paddingHorizontal: 12,
+    backgroundColor: colors.brand.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
   },
   aiDisclaimer: {
     width: '100%',
@@ -2143,10 +2154,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowRadius: 14,
     elevation: 8,
   },
+  consentIntro: { fontSize: 15, lineHeight: 21, color: colors.brand.primary },
+  consentDocuments: { gap: 8 },
   consentBody: {
     color: colors.text.secondary,
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 23,
   },
   consentLink: {
     color: colors.brand.primary,

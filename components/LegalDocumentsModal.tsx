@@ -190,9 +190,11 @@ export function LegalDocumentsModal({
 export function LegalDocumentsButton({
   documentId = 'index',
   label = 'Правовая информация',
+  variant = 'link',
 }: {
   documentId?: Exclude<LegalDocumentSelection, null>;
   label?: string;
+  variant?: 'link' | 'row';
 }) {
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
@@ -203,11 +205,12 @@ export function LegalDocumentsButton({
         accessibilityRole="link"
         testID={`legal-open-${documentId}`}
         onPress={() => setSelection(documentId)}
-        style={styles.entry}
+        style={[styles.entry, variant === 'row' && styles.entryRow]}
       >
-        <LegalText color={colors.brand.primary} style={styles.entryLabel}>
+        <LegalText color={variant === 'row' ? colors.text.primary : colors.brand.primary} style={[styles.entryLabel, variant === 'row' && styles.entryRowLabel]}>
           {label}
         </LegalText>
+        {variant === 'row' ? <LegalText color={colors.text.secondary}>›</LegalText> : null}
       </Pressable>
       <LegalDocumentsModal
         selection={selection}
@@ -248,6 +251,8 @@ const createStyles = (colors: ThemeColors) =>
     },
     rowLabel: { flex: 1, fontSize: 17, lineHeight: 24 },
     entry: { minHeight: 44, justifyContent: 'center', paddingVertical: 10 },
+    entryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, minHeight: 52, borderRadius: 18, backgroundColor: colors.surface.raised },
+    entryRowLabel: { flex: 1, textDecorationLine: 'none' },
     entryLabel: {
       fontSize: 15,
       lineHeight: 22,

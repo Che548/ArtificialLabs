@@ -6,5 +6,5 @@ export function chatComposerInset(platform: string, bottomInset: number, keyboar
 
 export function chatEmptyHeroFits(height: number, topInset: number, composerBottom: number, dockHeight: number, keyboardVisible: boolean, hasDraft = false) {
   return !hasDraft && !keyboardVisible && height - composerBottom - dockHeight >=
-    topInset + 80 + Math.max(135 - topInset, 32) + 260;
+    topInset + 80 + 16 + 220;
 }
