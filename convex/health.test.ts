@@ -5,6 +5,64 @@ import { api, internal } from './_generated/api';
 import schema from './schema';
 import { reconcileCarePlan } from '../lib/care-plan';
 import { createEmptySnapshot } from '../lib/health-types';
+import { mergeAgentTriggerReplicas } from '../lib/agent-trigger-sync';
+
+function syntheticTrigger() {
+  const snapshot = createEmptySnapshot();
+  snapshot.profile = { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, updatedAt: 1 };
+  snapshot.preferences = [{ localId: 'preferences', medicalRecommendations: true, updatedAt: 1, notificationsEnabled: false, journalNotifications: false, resultNotifications: false, notificationTone: 'formal', anonymousAnalytics: false, language: 'ru', region: 'RU' }];
+  return {
+    ...reconcileCarePlan(snapshot, Date.UTC(2026, 8, 12)).triggers[0],
+    conditions: [{ field: 'preferences.medicalRecommendations' as const, operator: 'eq' as const, value: true }],
+    disengagementConditions: [{ field: 'preferences.medicalRecommendations' as const, operator: 'eq' as const, value: false }],
+  };
+}
+
+test('terminal replica states converge in either order without reactivation or policy edits', () => {
+  const base = syntheticTrigger();
+  for (const a of ['active', 'suspended', 'expired', 'completed'] as const) {
+    for (const b of ['active', 'suspended', 'expired', 'completed'] as const) {
+      const left = { ...base, status: a };
+      const right = { ...base, status: b, updatedAt: base.updatedAt + 1 };
+      const merged = mergeAgentTriggerReplicas(left, right)!;
+      expect(merged).toEqual(mergeAgentTriggerReplicas(right, left));
+      expect(mergeAgentTriggerReplicas(merged, right)).toEqual(merged);
+      if (a !== 'active' || b !== 'active') expect(merged.status).not.toBe('active');
+    }
+  }
+  expect(mergeAgentTriggerReplicas(base, { ...base, maxRuns: base.maxRuns + 1 })).toBeUndefined();
+  expect(mergeAgentTriggerReplicas(base, { ...base, conditions: [] })).toBeUndefined();
+  expect(mergeAgentTriggerReplicas(base, { ...base, nextEvaluationAt: base.nextEvaluationAt - 1 })).toBeUndefined();
+  expect(mergeAgentTriggerReplicas(base, { ...base, deletedAt: base.updatedAt })).toBeUndefined();
+  const completed = { ...base, status: 'completed' as const, runCount: 1,
+    lastRunAt: base.updatedAt + 100, updatedAt: base.updatedAt + 100 };
+  const suspended = { ...base, status: 'suspended' as const, updatedAt: base.updatedAt + 200 };
+  const mergedRun = mergeAgentTriggerReplicas(completed, suspended)!;
+  expect(mergedRun.status).toBe('completed');
+  expect(mergedRun.runCount).toBe(1);
+  expect(mergedRun.lastRunAt).toBe(completed.lastRunAt);
+  expect(mergeAgentTriggerReplicas(suspended, completed)).toEqual(mergedRun);
+  expect(mergeAgentTriggerReplicas(base, { ...completed, lastRunAt: undefined })).toBeUndefined();
+});
+
+test('sync accepts terminal-state conflicts without blocking journal records or allowing changed rules', async () => {
+  const t = convexTest(schema, modules);
+  const { client } = await createUser(t, 'replica@example.test');
+  await client.mutation(api.profile.save, { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, consentToCloudSyncAt: 1, updatedAt: 2 });
+  const base = syntheticTrigger();
+  const suspended = { ...base, status: 'suspended' as const, updatedAt: base.updatedAt + 1 };
+  const expired = { ...base, status: 'expired' as const, updatedAt: base.updatedAt + 2 };
+  await client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [suspended] });
+  const batch = { ...emptyBatch(), agentTriggers: [expired], journalEntries: [{ localId: 'synthetic-note', kind: 'note' as const, label: 'Synthetic', source: 'manual' as const, occurredAt: 1, updatedAt: 1 }] };
+  await client.mutation(api.health.syncBatch, batch);
+  await client.mutation(api.health.syncBatch, batch);
+  const snapshot = (await client.query(api.health.snapshot, {}))!;
+  expect(snapshot.agentTriggers?.[0]?.status).toBe('expired');
+  expect(snapshot.journalEntries).toHaveLength(1);
+  await client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [suspended] });
+  expect((await client.query(api.health.snapshot, {}))!.agentTriggers?.[0]?.status).toBe('expired');
+  await expect(client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [{ ...expired, maxRuns: expired.maxRuns + 1, updatedAt: expired.updatedAt + 1 }] })).rejects.toThrow();
+});
 
 const modules = import.meta.glob('./**/*.ts');
 

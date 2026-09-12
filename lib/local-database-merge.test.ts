@@ -12,7 +12,7 @@ vi.mock('expo-sqlite', () => ({ openDatabaseAsync: async () => ({
     ? { payload: state.payload } : { value: '1' },
   runAsync: state.run,
 }) }));
-import { saveLocalRecord } from './local-database.native';
+import { acknowledgeOutbox, saveLocalRecord } from './local-database.native';
 
 function trigger() {
   const snapshot = createEmptySnapshot();
@@ -22,17 +22,34 @@ function trigger() {
 }
 beforeEach(() => state.run.mockClear());
 
+test('acknowledgement matches the sent payload rather than deleting a newer edit by ID', async () => {
+  const payload = trigger();
+  await acknowledgeOutbox([17], [{ id: 17, entity: 'agentTriggers', payload }]);
+  expect(state.run).toHaveBeenCalledWith(
+    'DELETE FROM outbox WHERE id = ? AND updated_at = ? AND payload = ?',
+    17, payload.updatedAt, JSON.stringify(payload),
+  );
+});
+
 test('an older remote trigger cannot roll back a completed local run or its outbox', async () => {
   const remote = trigger();
-  state.payload = JSON.stringify({ ...remote, status: 'completed', runCount: 1, updatedAt: remote.updatedAt + 1000 });
+  state.payload = JSON.stringify({ ...remote, status: 'completed', runCount: 1, lastRunAt: remote.updatedAt + 1000, updatedAt: remote.updatedAt + 1000 });
   await expect(saveLocalRecord('agentTriggers', remote, false)).resolves.toBeUndefined();
+  expect(state.run.mock.calls.every(([sql]) => !String(sql).includes('INSERT INTO outbox'))).toBe(true);
+});
+
+test('remote policy edits and local reactivation still enforce trigger immutability', async () => {
+  const original = trigger();
+  state.payload = JSON.stringify({ ...original, status: 'completed', runCount: 1, updatedAt: original.updatedAt + 1000 });
+  await expect(saveLocalRecord('agentTriggers', { ...original, maxRuns: original.maxRuns + 1, updatedAt: original.updatedAt + 1000 }, false)).rejects.toThrow('AGENT_TRIGGER_IMMUTABLE');
+  await expect(saveLocalRecord('agentTriggers', original)).rejects.toThrow('AGENT_TRIGGER_IMMUTABLE');
   expect(state.run).not.toHaveBeenCalled();
 });
 
-test('current remote and local attempts still enforce trigger immutability', async () => {
+test('remote terminal conflict merges safely without deleting or enqueuing outbox records', async () => {
   const original = trigger();
-  state.payload = JSON.stringify({ ...original, status: 'completed', runCount: 1, updatedAt: original.updatedAt + 1000 });
-  await expect(saveLocalRecord('agentTriggers', { ...original, updatedAt: original.updatedAt + 1000 }, false)).rejects.toThrow('AGENT_TRIGGER_IMMUTABLE');
-  await expect(saveLocalRecord('agentTriggers', original)).rejects.toThrow('AGENT_TRIGGER_IMMUTABLE');
-  expect(state.run).not.toHaveBeenCalled();
+  state.payload = JSON.stringify({ ...original, status: 'suspended' });
+  await saveLocalRecord('agentTriggers', { ...original, status: 'expired', updatedAt: original.updatedAt + 1 }, false);
+  expect(state.run).toHaveBeenCalled();
+  expect(state.run.mock.calls.every(([sql]) => !String(sql).includes('outbox'))).toBe(true);
 });

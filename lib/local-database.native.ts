@@ -20,7 +20,8 @@ import type {
 } from './telemetry-types';
 import { createEmptySnapshot, newLocalId } from './health-types';
 import { createChatTombstones } from './chat-deletion';
-import { sanitizeCloudRecord, utf8ByteLength } from './cloud-sync';
+import { sanitizeCloudRecord, utf8ByteLength, type CloudOutboxRow } from './cloud-sync';
+import { mergeAgentTriggerReplicas } from './agent-trigger-sync';
 import {
   isAllowedAgentTriggerMutation,
   isAllowedCarePlanMutation,
@@ -494,6 +495,14 @@ async function writeLocalRecord<K extends HealthEntityName>(
   // Match the SQL last-write-wins guard before validating state transitions.
   // A delayed cloud snapshot is not an attempt to undo a newer local run.
   // Read inside this write transaction, not from the earlier merge snapshot.
+  if (!enqueue && existingAgentRow && entity === 'agentTriggers') {
+    const merged = mergeAgentTriggerReplicas(
+      JSON.parse(existingAgentRow.payload) as AgentTrigger,
+      item as AgentTrigger,
+    );
+    if (!merged) throw new Error('AGENT_TRIGGER_IMMUTABLE');
+    item = merged as HealthEntityMap[K];
+  }
   if (
     !enqueue && existingAgentRow &&
     item.updatedAt < (JSON.parse(existingAgentRow.payload) as { updatedAt: number }).updatedAt
@@ -515,7 +524,7 @@ async function writeLocalRecord<K extends HealthEntityName>(
     if (!candidate.deletedAt && !validateAgentTrigger(candidate))
       throw new Error('INVALID_AGENT_TRIGGER_RECORD');
     if (
-      existingAgentRow &&
+      enqueue && existingAgentRow &&
       !isAllowedAgentTriggerMutation(
         JSON.parse(existingAgentRow.payload) as AgentTrigger,
         candidate,
@@ -795,10 +804,21 @@ export async function searchLocalAgentIndex({
   );
 }
 
-export async function acknowledgeOutbox(ids: number[]) {
+export async function acknowledgeOutbox(ids: number[], sentRows?: CloudOutboxRow[]) {
   if (!ids.length) return;
   const placeholders = ids.map(() => '?').join(',');
   await withWriteTransaction(async (db) => {
+    if (sentRows) {
+      for (const row of sentRows) {
+        if (!ids.includes(row.id)) continue;
+        // An edit made while the request was in flight retains its outbox row.
+        await db.runAsync(
+          'DELETE FROM outbox WHERE id = ? AND updated_at = ? AND payload = ?',
+          row.id, row.payload.updatedAt, JSON.stringify(row.payload),
+        );
+      }
+      return;
+    }
     await db.runAsync(`DELETE FROM outbox WHERE id IN (${placeholders})`, ids);
   });
 }

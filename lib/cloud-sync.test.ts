@@ -9,6 +9,30 @@ import {
   type CloudOutboxRow,
 } from './cloud-sync';
 import type { LocalProfile } from './health-types';
+import { createEmptySnapshot } from './health-types';
+import { reconcileCarePlan } from './care-plan';
+
+test('a rejected rule keeps its outbox row but does not block ordinary records', async () => {
+  const snapshot = createEmptySnapshot();
+  snapshot.profile = { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, updatedAt: 1 };
+  snapshot.preferences = [{ localId: 'preferences', medicalRecommendations: true, updatedAt: 1, notificationsEnabled: false, journalNotifications: false, resultNotifications: false, notificationTone: 'formal', anonymousAnalytics: false, language: 'ru', region: 'RU' }];
+  const agentRow: CloudOutboxRow = { id: 2, entity: 'agentTriggers', payload: reconcileCarePlan(snapshot).triggers[0] };
+  let pending = [agentRow, row];
+  let rejectRule = true;
+  const acknowledged: number[] = [];
+  const run = () => synchronizeMedicalCloud({ profile, saveProfile: async () => {},
+    loadPendingOutbox: async () => pending,
+    pushBatch: async (batch) => { if (batch.agentTriggers.length && rejectRule) throw new Error('AGENT_TRIGGER_IMMUTABLE'); },
+    acknowledge: async (ids) => { acknowledged.push(...ids); pending = pending.filter((entry) => !ids.includes(entry.id)); },
+  });
+  await assert.rejects(run(), /AGENT_TRIGGER_IMMUTABLE/);
+  assert.deepEqual(acknowledged, [row.id]);
+  assert.deepEqual(pending, [agentRow]);
+  rejectRule = false;
+  await run();
+  assert.deepEqual(acknowledged, [row.id, agentRow.id]);
+  assert.deepEqual(pending, []);
+});
 
 const profile: LocalProfile = {
   displayName: 'Test',

@@ -349,7 +349,13 @@ export function HealthStoreProvider({
   useEffect(() => {
     if (!remoteSnapshot || !canUseCloud) return;
     const { profile: _profile, ...records } = remoteSnapshot;
-    void mergeRemoteSnapshot(records as never).then(refresh);
+    let active = true;
+    void mergeRemoteSnapshot(records as never).then(refresh).catch((error) => {
+      if (!active) return;
+      setServiceIssue(classifyServiceIssue(error, offlineRef.current));
+      setSyncStatus('error');
+    });
+    return () => { active = false; };
   }, [canUseCloud, refresh, remoteSnapshot]);
 
   useEffect(() => {
