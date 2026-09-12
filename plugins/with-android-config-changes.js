@@ -9,9 +9,15 @@ const {
 function configureReleaseOptimization(contents) {
   // The default non-optimizing preset contains -dontoptimize. Keep the
   // project's/SDK's JNI and reflection rules, but allow R8 to optimize code.
-  return contents.replaceAll(
+  const optimized = contents.replaceAll(
     'getDefaultProguardFile("proguard-android.txt")',
     'getDefaultProguardFile("proguard-android-optimize.txt")',
+  );
+  const reflectionRules = 'proguardFile file("../../plugins/android-reflection.pro")';
+  if (optimized.includes(reflectionRules)) return optimized;
+  return optimized.replace(
+    /(proguardFiles[^\n]+)/,
+    `$1\n            ${reflectionRules}`,
   );
 }
 
