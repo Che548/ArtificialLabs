@@ -271,6 +271,10 @@ export default defineSchema({
     revokedAt: v.optional(v.number()),
     updatedAt: v.number(),
   }).index('by_user', ['userId']),
+  documentOcrConsents: defineTable({ userId:v.id('users'), policyVersion:v.string(), acceptedAt:v.number(), revokedAt:v.optional(v.number()) }).index('by_user',['userId']),
+  documentOcrJobs: defineTable({ userId:v.id('users'), jobId:v.string(), pageCount:v.number(), createdAt:v.number(),
+    attempts:v.array(v.object({requestId:v.string(),page:v.number(),at:v.number(),status:v.union(v.literal('pending'),v.literal('complete'),v.literal('failed'))}))
+  }).index('by_user_job',['userId','jobId']).index('by_user_created',['userId','createdAt']),
   documentInterpretationConsents: defineTable({
     userId: v.id('users'), policyVersion: v.string(), acceptedAt: v.number(), revokedAt: v.optional(v.number()),
   }).index('by_user', ['userId']),
