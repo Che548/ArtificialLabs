@@ -1,3 +1,6 @@
+import { AndroidMaterialBackdrop } from './android-material';
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { EmptyStateIcon, emptyStateColor } from '../components/EmptyStateIcon';
 import { fontStyle } from '../lib/font-style';
 import type { BlurTint } from 'expo-blur';
@@ -35,7 +38,6 @@ import type {
 } from 'react-native';
 
 import {
-  androidMaterials,
   androidShadows,
   colors,
   fonts,
@@ -62,6 +64,9 @@ export function EdgeFadeGradient({
   height,
   style,
 }: EdgeFadeGradientProps) {
+  const { colors } = useAppTheme();
+  const { mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (Platform.OS === 'android' && edge === 'bottom') return null;
 
   const isTop = edge === 'top';
@@ -72,14 +77,14 @@ export function EdgeFadeGradient({
       colors={
         isTop
           ? [
-              'rgba(255,255,255,0.70)',
-              'rgba(255,255,255,0.70)',
-              'rgba(255,255,255,0)',
+              `rgba(${mode === 'dark' ? '22,20,23' : '255,255,255'},0.70)`,
+              `rgba(${mode === 'dark' ? '22,20,23' : '255,255,255'},0.70)`,
+              `rgba(${mode === 'dark' ? '22,20,23' : '255,255,255'},0)`,
             ]
           : [
-              'rgba(255,255,255,0)',
-              'rgba(255,255,255,1)',
-              'rgba(255,255,255,1)',
+              `rgba(${mode === 'dark' ? '22,20,23' : '255,255,255'},0)`,
+              `rgba(${mode === 'dark' ? '22,20,23' : '255,255,255'},1)`,
+              `rgba(${mode === 'dark' ? '22,20,23' : '255,255,255'},1)`,
             ]
       }
       locations={isTop ? [0, 0.38, 1] : [0, 0.62, 1]}
@@ -111,6 +116,8 @@ export function SegmentedSwitcher<T extends string>({
   style?: StyleProp<ViewStyle>;
   value: T;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const activeIndex = Math.max(
     0,
     options.findIndex((option) => option.value === value),
@@ -159,9 +166,9 @@ export function SegmentedSwitcher<T extends string>({
         <LiquidGlassSurface
           radius={22}
           variant="clear"
-          tintColor="rgba(115,115,122,0.12)"
+          tintColor={colors.surface.canvas === '#161417' ? 'rgba(22,20,23,0.72)' : 'rgba(115,115,122,0.12)'}
           intensity={42}
-          washColor="rgba(115,115,122,0.07)"
+          washColor={colors.surface.canvas === '#161417' ? 'rgba(22,20,23,0.72)' : 'rgba(115,115,122,0.07)'}
         />
       </View>
       {segmentWidth > 0 ? (
@@ -181,10 +188,11 @@ export function SegmentedSwitcher<T extends string>({
         >
           <LiquidGlassSurface
             radius={19}
+            androidTone="strong"
             variant="regular"
-            tintColor="rgba(255,255,255,0.24)"
+            tintColor={colors.surface.canvas === '#161417' ? 'rgba(59,54,60,0.70)' : 'rgba(255,255,255,0.24)'}
             intensity={70}
-            washColor="rgba(255,255,255,0.30)"
+            washColor={colors.surface.canvas === '#161417' ? 'rgba(59,54,60,0.70)' : 'rgba(255,255,255,0.30)'}
           />
         </Animated.View>
       ) : null}
@@ -489,6 +497,8 @@ export function ScanBackgroundMotion({
   height = 389,
   flipY = true,
 }: ScanBackgroundMotionProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const progress = useRef(new Animated.Value(0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
   const isActive =
@@ -725,7 +735,7 @@ type AppTextProps = PropsWithChildren<{
   color?: string;
   numberOfLines?: number;
   onTextLayout?: TextProps['onTextLayout'];
-}>;
+} & Pick<TextProps, 'accessibilityRole' | 'selectable' | 'accessibilityElementsHidden' | 'importantForAccessibility'>>;
 
 const sfByWeight = {
   regular: fonts.sfRegular,
@@ -740,36 +750,21 @@ export function AppText({
   role = 'body',
   weight = 'regular',
   numeric = false,
-  color = colors.text.primary,
+  color,
   numberOfLines,
   onTextLayout,
+  ...textProps
 }: AppTextProps) {
-  const content =
-    typeof children === 'string' || typeof children === 'number'
-      ? String(children)
-          .split(/(сфера\.?)/gi)
-          .map((segment, index) =>
-            /^сфера\.?$/i.test(segment) ? (
-              <Text
-                key={`${segment}-${index}`}
-                style={{ ...fontStyle(fonts.yaroRegular) }}
-              >
-                {segment}
-              </Text>
-            ) : (
-              segment
-            ),
-          )
-      : children;
-
+  const { colors } = useAppTheme();
   return (
     <Text
+      {...textProps}
       numberOfLines={numberOfLines}
       onTextLayout={onTextLayout}
       style={[
         typeScale[role],
         {
-          color,
+          color: color ?? colors.text.primary,
           ...fontStyle(sfByWeight[weight]),
           fontVariant: numeric ? ['tabular-nums'] : undefined,
           includeFontPadding: false,
@@ -777,7 +772,7 @@ export function AppText({
         style,
       ]}
     >
-      {content}
+      {children}
     </Text>
   );
 }
@@ -793,8 +788,10 @@ export function HeaderDateLabel({
   date = new Date(),
   dateColor = colors.brand.primary,
   label = 'Сегодня',
-  labelColor = colors.text.secondary,
+  labelColor,
 }: HeaderDateLabelProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const dateParts = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
     month: 'long',
@@ -817,7 +814,7 @@ export function HeaderDateLabel({
       </AppText>
       <AppText
         role="caption"
-        color={labelColor}
+        color={labelColor ?? colors.text.secondary}
         style={styles.headerDateCaption}
       >
         {label}
@@ -844,14 +841,16 @@ export function LiquidGlassSurface({
   style,
   variant = 'clear',
   tintColor,
-  colorScheme = 'light',
-  fallbackTint = 'systemUltraThinMaterialLight',
+  colorScheme = 'auto',
+  fallbackTint,
   intensity = 58,
   washColor = 'transparent',
   radius = radii.pill,
   showFallbackDecoration = true,
   androidTone = 'light',
 }: LiquidGlassSurfaceProps) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View
       pointerEvents={hasNativeLiquidGlass ? 'box-none' : 'none'}
@@ -866,7 +865,7 @@ export function LiquidGlassSurface({
         <GlassView
           glassEffectStyle={variant}
           tintColor={tintColor}
-          colorScheme={colorScheme}
+          colorScheme={colorScheme === "auto" ? mode : colorScheme}
           isInteractive
           style={[StyleSheet.absoluteFillObject, { borderRadius: radius }]}
         >
@@ -877,13 +876,7 @@ export function LiquidGlassSurface({
       ) : (
         <>
           {Platform.OS === 'android' ? (
-            <View
-              style={[
-                StyleSheet.absoluteFillObject,
-                androidMaterials[androidTone],
-                { borderRadius: radius },
-              ]}
-            />
+            <AndroidMaterialBackdrop radius={radius} tone={androidTone} washColor={washColor} />
           ) : Platform.OS === 'web' ? (
             <View style={[StyleSheet.absoluteFill, styles.webGlassFallback]} />
           ) : (
@@ -891,8 +884,8 @@ export function LiquidGlassSurface({
               decoration={showFallbackDecoration}
               intensity={intensity}
               radius={radius}
-              tint={fallbackTint}
-              tone="light"
+              tint={fallbackTint ?? (mode === "dark" ? "systemUltraThinMaterialDark" : "systemUltraThinMaterialLight")}
+              tone={mode}
               washColor={washColor}
             />
           )}
@@ -944,12 +937,13 @@ export function GlassControl({
   tintColor,
   washColor = 'transparent',
 }: GlassControlProps) {
+  const styles = useThemeStyles(createStyles);
   if (hasNativeLiquidGlass) {
     return (
       <GlassView
         glassEffectStyle="clear"
         tintColor={tintColor}
-        colorScheme="light"
+        colorScheme="auto"
         isInteractive
         style={[style, elevated && shadows.control]}
       >
@@ -970,11 +964,11 @@ export function GlassControl({
       <View
         style={[
           style,
-          androidMaterials.light,
           styles.androidGlassControlBorder,
           elevated && androidShadows.control,
         ]}
       >
+        <AndroidMaterialBackdrop washColor={washColor} />
         <Pressable
           cssInterop={false}
           accessibilityRole="button"
@@ -992,7 +986,7 @@ export function GlassControl({
   }
 
   return (
-    <View style={[style, styles.fallbackGlassHost, shadows.control]}>
+    <View style={[styles.fallbackGlassHost, style, elevated && shadows.control]}>
       <FallbackGlassBackdrop
         intensity={58}
         radius={radii.pill}
@@ -1033,6 +1027,8 @@ export function PrimaryButton({
   onPress,
   compact = false,
 }: PrimaryButtonProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View
       style={[
@@ -1073,6 +1069,7 @@ type AppCardProps = PropsWithChildren<{
 }>;
 
 export function AppCard({ children, style, tone = 'white' }: AppCardProps) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View
       style={[
@@ -1094,6 +1091,8 @@ type ProgressMeterProps = {
 };
 
 export function ProgressMeter({ value, total = 24 }: ProgressMeterProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View
       accessibilityRole="progressbar"
@@ -1182,6 +1181,7 @@ export function MetricActionButton({
   variant = 'solid',
   onPress,
 }: MetricActionButtonProps) {
+  const styles = useThemeStyles(createStyles);
   const usesLightText =
     variant === 'solid' ||
     variant === 'burgundy' ||
@@ -1213,7 +1213,7 @@ export function MetricActionButton({
   const content =
     variant === 'split' ? (
       <>
-        <AppText style={styles.metricButtonLabel} color={labelColor}>
+        <AppText style={styles.metricButtonLabel} color={labelColor ?? colors.text.secondary}>
           {label}
         </AppText>
         <View style={styles.metricButtonSplitIcon}>{arrow}</View>
@@ -1221,13 +1221,13 @@ export function MetricActionButton({
     ) : variant === 'iconLeading' ? (
       <>
         <View style={styles.metricButtonLeadingIcon}>{arrow}</View>
-        <AppText style={styles.metricButtonLabel} color={labelColor}>
+        <AppText style={styles.metricButtonLabel} color={labelColor ?? colors.text.secondary}>
           {label}
         </AppText>
       </>
     ) : (
       <>
-        <AppText style={styles.metricButtonLabel} color={labelColor}>
+        <AppText style={styles.metricButtonLabel} color={labelColor ?? colors.text.secondary}>
           {label}
         </AppText>
         {arrow}
@@ -1263,7 +1263,7 @@ export function MetricActionButton({
             {variant === 'glass' ? (
               <LiquidGlassSurface
                 variant="regular"
-                colorScheme="light"
+                colorScheme="auto"
                 tintColor="rgba(255,255,255,0.12)"
                 radius={24}
               >
@@ -1306,6 +1306,8 @@ export function ScanActionGroup({
   actions,
   variant = 'solidPills',
 }: ScanActionGroupProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const isSegmented =
     variant === 'segmentedSolid' || variant === 'segmentedSoft';
   const usesLightText =
@@ -1353,7 +1355,7 @@ export function ScanActionGroup({
                 styles.scanActionLabel,
                 variant === 'floating' && styles.scanActionLabelFloating,
               ]}
-              color={labelColor}
+              color={labelColor ?? colors.text.secondary}
             >
               {action.label}
             </AppText>
@@ -1385,7 +1387,7 @@ export function ScanActionGroup({
             {variant === 'glassPills' ? (
               <LiquidGlassSurface
                 variant="regular"
-                colorScheme="light"
+                colorScheme="auto"
                 tintColor="rgba(255,255,255,0.18)"
                 radius={24}
               >
@@ -1436,6 +1438,8 @@ export function InstructionCard({
   height = 150,
   illustration,
 }: InstructionCardProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (variant === 'illustrated') {
     return (
       <View
@@ -1617,7 +1621,7 @@ export function InstructionCard({
         <View style={styles.instructionGlassBackdrop} />
         <LiquidGlassSurface
           variant="regular"
-          colorScheme="light"
+          colorScheme="auto"
           tintColor="rgba(255,255,255,0.20)"
           washColor="rgba(255,255,255,0.20)"
           radius={30}
@@ -1881,6 +1885,8 @@ export function InstructionIntroCard({
   variant = 'classic',
   height = 150,
 }: InstructionIntroCardProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (variant === 'split') {
     return (
       <View
@@ -2025,6 +2031,7 @@ export function InstructionCarousel({
   illustrations,
   introCard,
 }: InstructionCarouselProps) {
+  const styles = useThemeStyles(createStyles);
   return (
     <ScrollView
       horizontal
@@ -2087,6 +2094,8 @@ export function InstructionNavigation({
   onPrevious,
   onNext,
 }: InstructionNavigationProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const renderButton = (
     direction: 'left' | 'right',
     disabled: boolean,
@@ -2160,7 +2169,7 @@ export function InstructionNavigation({
               {variant === 'glass' ? (
                 <LiquidGlassSurface
                   variant="regular"
-                  colorScheme="light"
+                  colorScheme="auto"
                   tintColor="rgba(255,255,255,0.20)"
                   radius={20}
                 >
@@ -2202,6 +2211,8 @@ export function JournalAssessment({
   actionColor,
   onPress,
 }: JournalAssessmentProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
   const completedDays = Math.round((value / total) * 7);
   const completedLevels = Math.round((value / total) * 5);
@@ -2746,6 +2757,8 @@ export function ScanTooltip({
   singleLine = false,
   variant = 'glass',
 }: ScanTooltipProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const content = scanTooltipContent[kind];
   const tooltipMessage = message ?? content.message;
   const floatingTextLimit = Math.max(1, floatingMaxWidth - 77);
@@ -2968,7 +2981,9 @@ const scanHistoryRecords: ScanHistoryRecord[] = [
   },
 ];
 
-function HistoryChevron({ color = colors.text.secondary }: { color?: string }) {
+function HistoryChevron({ color: suppliedColor }: { color?: string }) {
+  const { colors } = useAppTheme();
+  const color = suppliedColor ?? colors.text.secondary;
   return (
     <Svg width={18} height={18} viewBox="0 0 18 18">
       <Path
@@ -2984,6 +2999,7 @@ function HistoryChevron({ color = colors.text.secondary }: { color?: string }) {
 }
 
 function HistoryFilterGlyph() {
+  const { colors } = useAppTheme();
   return (
     <Svg width={18} height={18} viewBox="0 0 18 18">
       <Path
@@ -3006,6 +3022,8 @@ function HistoryStatus({
   compact?: boolean;
   plain?: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const positive = result !== 'Отрицательный';
   const color = positive ? colors.brand.primary : colors.text.secondary;
   const backgroundColor = positive
@@ -3032,7 +3050,7 @@ function HistoryStatus({
 function HistoryFilter({
   labels = ['Все', 'Овуляция', 'Беременность'],
   active = 0,
-  activeColor = colors.brand.burgundy,
+  activeColor: suppliedActiveColor,
   glass = false,
   onChange,
 }: {
@@ -3042,14 +3060,17 @@ function HistoryFilter({
   glass?: boolean;
   onChange?: (index: number) => void;
 }) {
+  const { colors } = useAppTheme();
+  const activeColor = suppliedActiveColor ?? colors.brand.burgundy;
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.historyFilter, glass && styles.historyFilterGlass]}>
       {glass ? (
         <LiquidGlassSurface
           variant="clear"
           tintColor="rgba(255,255,255,0.34)"
-          colorScheme="light"
-          fallbackTint="systemUltraThinMaterialLight"
+          colorScheme="auto"
+          fallbackTint={colors.surface.canvas === "#161417" ? "systemUltraThinMaterialDark" : "systemUltraThinMaterialLight"}
           intensity={64}
           washColor="rgba(255,255,255,0.16)"
           radius={19}
@@ -3070,7 +3091,7 @@ function HistoryFilter({
             <LiquidGlassSurface
               variant="clear"
               tintColor={activeColor}
-              colorScheme="light"
+              colorScheme="auto"
               fallbackTint="systemMaterialLight"
               intensity={72}
               washColor="rgba(211,20,113,0.78)"
@@ -3104,6 +3125,8 @@ function HistoryFilter({
 }
 
 function HistoryHeader({ subtitle }: { subtitle?: string }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.historyHeader}>
       <View style={styles.historyHeaderCopy}>
@@ -3124,6 +3147,8 @@ function HistoryHeader({ subtitle }: { subtitle?: string }) {
 }
 
 function TimelineHistory() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <>
       <HistoryHeader subtitle="3 результата в июле" />
@@ -3169,6 +3194,8 @@ function TimelineHistory() {
 }
 
 function CardsHistory() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <>
       <HistoryHeader subtitle="Последние результаты" />
@@ -3243,6 +3270,8 @@ function CardsHistory() {
 }
 
 function CompactHistory() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <>
       <HistoryHeader subtitle="Журнал результатов" />
@@ -3338,6 +3367,8 @@ const calendarDays = [
 ];
 
 function CalendarHistory() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <>
       <HistoryHeader subtitle="Июль 2026" />
@@ -3419,6 +3450,8 @@ function CalendarHistory() {
 }
 
 function InsightsHistory() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const chart = [34, 46, 30, 58, 44, 72, 88];
 
   return (
@@ -3516,6 +3549,8 @@ function InsightsHistory() {
 }
 
 function GroupedHistory() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <>
       <HistoryHeader subtitle="Сгруппировано по дням" />
@@ -3568,6 +3603,8 @@ function GroupedHistory() {
 }
 
 function TestTypesHistory() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const ovulationRecords = scanHistoryRecords.filter(
     (record) => record.type === 'Ovulation LH',
   );
@@ -3657,6 +3694,8 @@ function TestTypesHistory() {
 }
 
 function ArchiveHistory() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <>
       <HistoryHeader subtitle="Архив за 2026 год" />
@@ -3750,6 +3789,8 @@ function ArchiveHistory() {
 }
 
 function ComparisonHistory() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const current = scanHistoryRecords[0];
   const previous = scanHistoryRecords[2];
 
@@ -3852,6 +3893,8 @@ function GalleryHistory({
   showFilter?: boolean;
   onResultPress?: (record: ScanHistoryRecord) => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const [activeTab, setActiveTab] = useState(0);
   const filteredRecords = [...records]
     .sort((left, right) => right.capturedAt - left.capturedAt)
@@ -3986,6 +4029,7 @@ export function ScanHistoryPreview({
   standalone?: boolean;
   onResultPress?: (record: ScanHistoryRecord) => void;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View
       style={[
@@ -4015,6 +4059,8 @@ export function ScanHistoryPreview({
 }
 
 export function TokenLabel({ children }: PropsWithChildren) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <AppText
       role="caption"
@@ -4026,7 +4072,7 @@ export function TokenLabel({ children }: PropsWithChildren) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   segmentedSwitcher: {
     width: '100%',
     height: 44,
@@ -4035,7 +4081,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 22,
-    backgroundColor: 'transparent',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : 'rgba(115,115,122,0.10)',
   },
   segmentedSwitcherIndicator: {
     position: 'absolute',
@@ -4043,11 +4089,12 @@ const styles = StyleSheet.create({
     top: 3,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'transparent',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(255,255,255,0.62)',
     shadowColor: '#251119',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
+    ...(Platform.OS === 'android' ? { boxShadow: '0 1px 4px rgba(37,17,25,0.08)' } : {}),
   },
   segmentedSwitcherOptionSlot: {
     zIndex: 1,
@@ -4179,7 +4226,7 @@ const styles = StyleSheet.create({
   },
   androidGlassControlBorder: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.88)',
+    borderColor: colors.surface.canvas === '#161417' ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.88)',
   },
   androidGlassMaterialFill: {
     flex: 1,
@@ -4267,7 +4314,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   journalTitle: {
-    color: '#5D5D5D',
+    color: colors.surface.canvas === '#161417' ? colors.text.secondary : '#5D5D5D',
     fontSize: 13,
     lineHeight: 15,
     letterSpacing: -0.26,
@@ -4289,7 +4336,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   journalResult: {
-    color: '#5D5D5D',
+    color: colors.surface.canvas === '#161417' ? colors.text.secondary : '#5D5D5D',
     fontSize: 12.5,
     lineHeight: 15,
     letterSpacing: -0.25,
@@ -4350,7 +4397,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.success,
   },
   weekDayLabel: {
-    color: '#5D5D5D',
+    color: colors.surface.canvas === '#161417' ? colors.text.secondary : '#5D5D5D',
     fontSize: 11,
     lineHeight: 12,
     letterSpacing: -0.22,
@@ -4431,7 +4478,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   ringTitle: {
-    color: '#5D5D5D',
+    color: colors.surface.canvas === '#161417' ? colors.text.secondary : '#5D5D5D',
     fontSize: 15,
     lineHeight: 17,
     letterSpacing: -0.3,
@@ -4457,7 +4504,7 @@ const styles = StyleSheet.create({
   },
   comparisonLabel: {
     width: 45,
-    color: '#5D5D5D',
+    color: colors.surface.canvas === '#161417' ? colors.text.secondary : '#5D5D5D',
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.24,
@@ -5890,7 +5937,7 @@ const styles = StyleSheet.create({
     minHeight: 584,
     padding: spacing.md,
     borderRadius: radii.lg,
-    backgroundColor: '#FAF8F8',
+    backgroundColor: (colors.surface.canvas === '#161417' ? colors.surface.canvas : '#FAF8F8'),
     gap: spacing.md,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
@@ -5928,7 +5975,7 @@ const styles = StyleSheet.create({
     height: 38,
     padding: 3,
     borderRadius: 19,
-    backgroundColor: '#EEEAEA',
+    backgroundColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#EEEAEA'),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
@@ -5966,7 +6013,7 @@ const styles = StyleSheet.create({
     width: 1,
     flex: 1,
     marginTop: spacing.xs,
-    backgroundColor: '#DED7D5',
+    backgroundColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#DED7D5'),
   },
   timelineContent: {
     flex: 1,
@@ -6035,7 +6082,7 @@ const styles = StyleSheet.create({
   compactTable: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DCD6D4',
+    borderColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#DCD6D4'),
   },
   compactTableHeader: {
     height: 34,
@@ -6053,7 +6100,7 @@ const styles = StyleSheet.create({
   },
   compactRowBorder: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#DED8D6',
+    borderTopColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#DED8D6'),
   },
   compactDate: {
     width: 48,
@@ -6198,7 +6245,7 @@ const styles = StyleSheet.create({
     width: StyleSheet.hairlineWidth,
     height: 48,
     marginHorizontal: spacing.md,
-    backgroundColor: '#DCD6D4',
+    backgroundColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#DCD6D4'),
   },
   insightsRecent: {
     gap: spacing.xs,
@@ -6265,7 +6312,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.raised,
     justifyContent: 'space-between',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DED8D6',
+    borderColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#DED8D6'),
   },
   testTypeSummaryActive: {
     backgroundColor: colors.brand.burgundy,
@@ -6359,7 +6406,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     backgroundColor: colors.surface.raised,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DED8D6',
+    borderColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#DED8D6'),
   },
   comparisonMetricRow: {
     marginTop: spacing.xs,
@@ -6384,7 +6431,7 @@ const styles = StyleSheet.create({
     height: 3,
     marginTop: spacing.lg,
     borderRadius: 2,
-    backgroundColor: '#E8E1DF',
+    backgroundColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#E8E1DF'),
   },
   comparisonLineFill: {
     position: 'absolute',
@@ -6428,7 +6475,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.raised,
     gap: spacing.xs,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DED8D6',
+    borderColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#DED8D6'),
   },
   comparisonResultCurrent: {
     backgroundColor: colors.surface.rose,
@@ -6519,7 +6566,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DED8D6',
+    borderColor: (colors.surface.canvas === '#161417' ? colors.surface.divider : '#DED8D6'),
   },
   galleryThumbnail: {
     width: 92,
@@ -6535,3 +6582,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

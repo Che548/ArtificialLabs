@@ -1,3 +1,5 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
@@ -95,6 +97,8 @@ export function AnalysisMetricTile({
   label,
   accent = 'primary',
 }: AnalysisMetricTileProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.metricTile}>
       <View
@@ -176,6 +180,8 @@ function MetricCompact({
   inverse?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.metricCompact, style]}>
       <AppText
@@ -204,6 +210,8 @@ function MetricsBentoHero({
   style?: StyleProp<ViewStyle>;
   inverse?: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={style}>
       <AppText
@@ -246,6 +254,8 @@ export function AnalysisMetricsBentoBlock({
 }: {
   variant?: AnalysisMetricsBentoVariant;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (variant === 1) {
     return (
       <View style={styles.metricsBento}>
@@ -425,6 +435,8 @@ export function AnalysisMetricsBentoBlock({
 export function AnalysisMetricsBlock({
   variant = 1,
 }: AnalysisMetricsBlockProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (variant === 1) {
     return (
       <View style={styles.metricsTilesRow}>
@@ -1089,6 +1101,8 @@ function AnalysisReferenceCardAction({
   onView?: () => void;
   variant: AnalysisCardVariant;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (variant === 10 || variant >= 16) {
     return null;
   }
@@ -1143,6 +1157,8 @@ function AnalysisProminentAction({
   onView?: () => void;
   variant: AnalysisCardVariant;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View
       style={[
@@ -1192,6 +1208,8 @@ function MinimalCalendarAction({
   title: string;
   onView?: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const isDark = variant === 27;
   const isIconOnly = variant === 30;
 
@@ -1239,6 +1257,8 @@ function AnalysisCalendarRibbonDetails({
   title: string;
   onView?: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const dates = [8, 9, 10, 11, 12, 13, 14];
   const weekdays = ['Сб', 'Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт'];
   const action = (
@@ -1623,6 +1643,8 @@ function AnalysisReferenceCardDetails({
   title: string;
   onView?: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const statusNumber = status.match(/\d+/)?.[0] ?? status;
 
   if (variant >= 26) {
@@ -2520,6 +2542,8 @@ export function AnalysisReferenceCard({
   variant = 1,
   actionVariant = 10,
 }: AnalysisReferenceCardProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View
       style={[
@@ -2751,6 +2775,8 @@ export function AnalysisCardAction({
   icon,
   onPress,
 }: AnalysisCardActionProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const text = label;
   const lightText = inverse || [1, 2, 6, 11, 15].includes(variant);
   const darkText = variant === 9;
@@ -2842,6 +2868,8 @@ function AnalysisCardMeta({
   validityLabel: string;
   validityValue: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (variant === 2) {
     return (
       <View style={styles.metaChips}>
@@ -3106,7 +3134,7 @@ export function AnalysisPlanCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   metricTile: {
     minHeight: 112,
     flex: 1,
@@ -3374,7 +3402,7 @@ const styles = StyleSheet.create({
   metricsBento07Mini: {
     flex: 1,
     borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
@@ -3452,7 +3480,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 52,
     borderRadius: radii.pill,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
@@ -3894,7 +3922,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: '#DCD7D9',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     padding: spacing.md,
   },
   metricsReportTicketHeader: {
@@ -3979,7 +4007,7 @@ const styles = StyleSheet.create({
     height: 46,
     borderWidth: 0,
     borderRadius: 14,
-    backgroundColor: '#F0EEF0',
+    backgroundColor: colors.surface.canvas,
     padding: 4,
   },
   tabRegistration: {
@@ -4146,7 +4174,7 @@ const styles = StyleSheet.create({
     height: 210,
     overflow: 'hidden',
     borderRadius: 36,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCard02: {
     borderRadius: 28,
@@ -4305,31 +4333,31 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#EAE8E9',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCard27: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#EAE8E9',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCard28: {
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#EAE8E9',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCard29: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#EAE8E9',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCard30: {
     borderRadius: 24,
     borderWidth: 1,
     borderColor: '#EAE8E9',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCard31: {
     borderRadius: 28,
@@ -4344,7 +4372,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 44,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(216,13,114,0.12)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCard33: {
     borderRadius: 22,
@@ -4356,7 +4384,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: 'rgba(33,31,32,0.13)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCard35: {
     borderRadius: 34,
@@ -4484,7 +4512,7 @@ const styles = StyleSheet.create({
   exactCardButtonOutline: {
     borderWidth: 1,
     borderColor: 'rgba(216,13,114,0.34)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCardButtonSoft: {
     width: 30,
@@ -4502,7 +4530,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(216,13,114,0.24)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCardButtonDark: {
     width: 30,
@@ -4522,7 +4550,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 3,
     borderColor: '#F8D8E7',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCardButtonMinimal: {
     left: 303,
@@ -4534,7 +4562,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(216,13,114,0.28)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCardButtonValidity: {
     width: 31,
@@ -4554,7 +4582,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     borderWidth: 2,
     borderColor: '#F5D4E3',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCardButtonPriority: {
     width: 30,
@@ -4820,7 +4848,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     paddingHorizontal: 11,
     ...shadows.card,
   },
@@ -4967,7 +4995,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#D8D1D4',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactRouteNodeComplete: {
     borderColor: colors.brand.burgundy,
@@ -5001,7 +5029,7 @@ const styles = StyleSheet.create({
   },
   exactPriorityBadge: {
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     paddingHorizontal: 9,
     paddingVertical: 5,
   },
@@ -5082,7 +5110,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.brand.primary,
     borderRadius: 19,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -5160,7 +5188,7 @@ const styles = StyleSheet.create({
   exactCalendarRibbonToday: {
     borderWidth: 1,
     borderColor: 'rgba(216,13,114,0.28)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactCalendarRibbonDeadline: {
     backgroundColor: colors.brand.primary,
@@ -5252,7 +5280,7 @@ const styles = StyleSheet.create({
   exactWeekCountdownToday: {
     borderWidth: 1,
     borderColor: 'rgba(216,13,114,0.30)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactWeekCountdownEnd: {
     backgroundColor: colors.brand.primary,
@@ -5310,7 +5338,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(130,53,55,0.14)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     paddingHorizontal: 12,
   },
   exactTicketDate: {
@@ -5363,7 +5391,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 17,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   exactGaugeCopy: {
     flex: 1,
@@ -5564,7 +5592,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 1,
     borderColor: '#BDB8BA',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     marginBottom: 2,
   },
   minimalCalendarJourneyDotActive: {
@@ -5630,7 +5658,7 @@ const styles = StyleSheet.create({
   calendarDateToday: {
     borderWidth: 1,
     borderColor: 'rgba(216,13,114,0.30)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   calendarDateDeadline: {
     backgroundColor: colors.brand.primary,
@@ -5754,7 +5782,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 2,
     borderColor: '#D9C9D0',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   calendarValidityDotActive: {
     zIndex: 1,
@@ -5813,7 +5841,7 @@ const styles = StyleSheet.create({
   calendarAvailabilityDayDisabled: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#DDD5D8',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   calendarAvailabilityDayDeadline: {
     backgroundColor: colors.brand.burgundy,
@@ -5841,7 +5869,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 2,
     borderColor: '#D9CCD2',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   calendarResultDotActive: {
     borderColor: '#F3C7DB',
@@ -5964,7 +5992,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(33,33,35,0.12)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -6001,7 +6029,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: 'rgba(130,53,55,0.16)',
-    backgroundColor: '#F5F3F3',
+    backgroundColor: colors.surface.canvas,
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -6390,7 +6418,7 @@ const styles = StyleSheet.create({
     minHeight: 38,
     borderWidth: 1.5,
     borderColor: colors.brand.primary,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   cardActionSoft: {
     minHeight: 38,
@@ -6400,7 +6428,7 @@ const styles = StyleSheet.create({
     minHeight: 38,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(130,53,55,0.10)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     ...shadows.card,
   },
   cardActionWide: {
@@ -6414,7 +6442,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(216,13,114,0.22)',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     paddingHorizontal: 5,
     paddingRight: 5,
   },
@@ -6464,7 +6492,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(216,13,114,0.28)',
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     paddingHorizontal: 5,
     paddingRight: 5,
   },
@@ -6827,3 +6855,5 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.985 }],
   },
 });
+
+const styles = createStyles(defaultThemeColors);

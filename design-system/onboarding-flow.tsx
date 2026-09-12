@@ -1,5 +1,7 @@
+import { useProfileAppearance, useProfileStyles } from '../lib/profile-appearance';
+import type { ThemeColors } from '../lib/theme';
 import { fontStyle } from '../lib/font-style';
-import { AppSheet, sheetStyles } from '../components/AppSheet';
+import { AppSheet, sheetStyles, useSheetStyles } from '../components/AppSheet';
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from '@react-native-community/datetimepicker';
@@ -125,6 +127,8 @@ function OnboardingShell({
   onNext: () => void;
   step: number;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const scale = width / 402;
@@ -137,13 +141,16 @@ function OnboardingShell({
 
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" />
+      <StatusBar style={colors.surface.canvas === "#161417" ? "light" : "dark"} />
       <Image
         accessibilityIgnoresInvertColors
         resizeMode="cover"
-        source={require('../assets/figma/onboarding/background.png')}
+        source={colors.surface.canvas === '#161417'
+          ? require('../assets/figma/onboarding/background-dark.png')
+          : require('../assets/figma/onboarding/background.png')}
         style={[
           styles.referenceBackground,
+          { opacity: 1 },
           {
             height: 868 * scale,
             top: -126 * scale,
@@ -153,6 +160,7 @@ function OnboardingShell({
       />
 
       <ContentShape
+        color={onboardingPageColor(colors)}
         pointerEvents="none"
         height={361 * scale}
         style={[styles.contentShape, { top: 413 * scale }]}
@@ -202,13 +210,13 @@ function OnboardingShell({
       </ScrollView>
 
       <LinearGradient
-        colors={['#FFFFFF', 'rgba(255,255,255,0)']}
+        colors={[onboardingPageColor(colors), `${onboardingPageColor(colors)}00`]}
         pointerEvents="none"
         style={[styles.contentTopFade, { top: scrollTop }]}
       />
 
       <LinearGradient
-        colors={['rgba(255,255,255,0)', '#FFFFFF']}
+        colors={[`${onboardingPageColor(colors)}00`, onboardingPageColor(colors)]}
         pointerEvents="none"
         style={[styles.contentBottomFade, { bottom: scrollBottom }]}
       />
@@ -238,6 +246,7 @@ function OnboardingShell({
         <View style={[styles.actionRow, { gap: 15 * scale }]}>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={backLabel}
             onPress={onBack}
             style={styles.secondaryAction}
           >
@@ -273,6 +282,8 @@ function GoalGlyph({
   goal: (typeof goals)[number];
   selected: boolean;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   return (
     <View style={[styles.goalGlyph, selected && styles.goalGlyphSelected]}>
       <SymbolView
@@ -286,6 +297,7 @@ function GoalGlyph({
 }
 
 function Check({ selected }: { selected: boolean }) {
+  const styles = useProfileStyles(createStyles);
   return (
     <View style={[styles.radio, selected && styles.radioSelected]}>
       {selected ? <View style={styles.radioDot} /> : null}
@@ -302,6 +314,8 @@ function GoalVariant({
   onChange: (goal: OnboardingGoal) => void;
   variant: FirstStepVariant;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   if (variant === 2) {
     return (
       <View style={styles.variantTwoList}>
@@ -508,6 +522,8 @@ function NumberWheel({
   value: number;
   onChange: (value: number) => void;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const [draftValue, setDraftValue] = useState(String(value));
   const [editing, setEditing] = useState(false);
 
@@ -599,6 +615,8 @@ function CycleMeasure({
   onChange: (value: number) => void;
   onUnknownChange: (unknown: boolean) => void;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const transition = useRef(new Animated.Value(unknown ? 1 : 0)).current;
 
   useEffect(() => {
@@ -732,6 +750,8 @@ function ChoiceRow({
   selected: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const selection = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
   useEffect(() => {
@@ -751,11 +771,11 @@ function ChoiceRow({
         {
           backgroundColor: selection.interpolate({
             inputRange: [0, 1],
-            outputRange: ['#FFFFFF', '#FFF7FA'],
+            outputRange: [colors.surface.raised, colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF7FA'],
           }),
           borderColor: selection.interpolate({
             inputRange: [0, 1],
-            outputRange: ['#E9E2E4', colors.brand.primary],
+            outputRange: [colors.surface.canvas === '#161417' ? colors.surface.divider : '#E9E2E4', colors.brand.primary],
           }),
           transform: [
             {
@@ -785,6 +805,8 @@ function GoalPill({
   selected: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const Icon = item.assetIcon;
   const selection = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
@@ -807,11 +829,11 @@ function GoalPill({
         {
           backgroundColor: selection.interpolate({
             inputRange: [0, 1],
-            outputRange: ['#FFFFFF', '#FFF7FA'],
+            outputRange: [colors.surface.raised, colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF7FA'],
           }),
           borderColor: selection.interpolate({
             inputRange: [0, 1],
-            outputRange: ['#E5E1E3', '#F2A8CB'],
+            outputRange: [colors.surface.canvas === '#161417' ? colors.surface.divider : '#E5E1E3', colors.surface.canvas === '#161417' ? colors.brand.primary : '#F2A8CB'],
           }),
           transform: [
             {
@@ -841,6 +863,8 @@ function AnimatedFactorPill({
   selected: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const selection = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
   useEffect(() => {
@@ -862,11 +886,11 @@ function AnimatedFactorPill({
         {
           backgroundColor: selection.interpolate({
             inputRange: [0, 1],
-            outputRange: ['#FFFFFF', '#FFF7FA'],
+            outputRange: [colors.surface.raised, colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF7FA'],
           }),
           borderColor: selection.interpolate({
             inputRange: [0, 1],
-            outputRange: ['#E5E1E3', '#F2A8CB'],
+            outputRange: [colors.surface.canvas === '#161417' ? colors.surface.divider : '#E5E1E3', colors.surface.canvas === '#161417' ? colors.brand.primary : '#F2A8CB'],
           }),
           transform: [
             {
@@ -930,6 +954,8 @@ function DiseasePickerModal({
   selected: Set<string>;
   visible: boolean;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const insets = useSafeAreaInsets();
   const canSave = selected.size > 0 || customValue.trim().length > 0;
   return (
@@ -983,7 +1009,7 @@ function DiseasePickerModal({
           autoCapitalize="sentences"
           onChangeText={onCustomValueChange}
           placeholder="Введите название заболевания"
-          placeholderTextColor="#9A9495"
+          placeholderTextColor={colors.text.secondary}
           returnKeyType="done"
           style={styles.diseaseInput}
           value={customValue}
@@ -1000,6 +1026,8 @@ export function OnboardingPreviewFlow({
   onClose: () => void;
   onComplete?: (result: OnboardingFlowResult) => Promise<void> | void;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const [step, setStep] = useState(1);
   const [goal, setGoal] = useState<OnboardingGoal>('planning');
   const [birthYear, setBirthYear] = useState(1996);
@@ -1400,6 +1428,8 @@ export function OnboardingPreviewFlow({
                           </Pressable>
                         ) : (
                           <DateTimePicker
+                            themeVariant={colors.surface.canvas === "#161417" ? "dark" : "light"}
+                            locale="ru-RU"
                             value={date}
                             mode="date"
                             display="compact"
@@ -1455,6 +1485,8 @@ export function OnboardingPreviewFlow({
                   {pregnancyDateKind !== 'unknown' ? (
                     <View style={styles.questionBlock}>
                       <DateTimePicker
+                            themeVariant={colors.surface.canvas === "#161417" ? "dark" : "light"}
+                            locale="ru-RU"
                         value={date}
                         mode="date"
                         display={Platform.OS === 'ios' ? 'compact' : 'default'}
@@ -1557,8 +1589,15 @@ export function OnboardingPreviewFlow({
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF', overflow: 'hidden' },
+const onboardingPageColor = (colors: ThemeColors) =>
+  colors.surface.canvas === '#161417' ? colors.surface.canvas : colors.surface.raised;
+
+const createStyles = (colors: ThemeColors) => {
+  const darkCardOutline = colors.surface.canvas === '#161417'
+    ? { borderWidth: 1, borderColor: colors.surface.divider }
+    : {};
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: onboardingPageColor(colors), overflow: 'hidden' },
   referenceBackground: { position: 'absolute', left: 0 },
   contentShape: { position: 'absolute', zIndex: 2, left: 0 },
   progressPill: {
@@ -1571,7 +1610,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.80)',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.headerGlassWash : 'rgba(255,255,255,0.80)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.92)',
     ...shadows.floating,
@@ -1597,13 +1636,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 23,
     borderWidth: 1,
-    borderColor: '#E5E1E3',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#E5E1E3',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
-  goalPillSelected: { borderColor: '#F2A8CB', backgroundColor: '#FFF7FA' },
+  goalPillSelected: { borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#F2A8CB', backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF7FA' },
   goalPillText: { fontSize: 18, lineHeight: 22 },
   contentTopFade: {
     position: 'absolute',
@@ -1632,7 +1671,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 3,
     borderRadius: 2,
-    backgroundColor: '#E4E1E2',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.state.disabled : '#E4E1E2',
   },
   stepSegmentActive: { backgroundColor: colors.brand.primary },
   actionSurface: {
@@ -1642,7 +1681,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     justifyContent: 'flex-end',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: onboardingPageColor(colors),
   },
   actionRow: { height: 46, flexDirection: 'row' },
   secondaryAction: {
@@ -1650,9 +1689,9 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F7F1F3',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F7F1F3',
     borderWidth: 1,
-    borderColor: '#EEE3E7',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#EEE3E7',
   },
   primaryAction: {
     flex: 1,
@@ -1674,7 +1713,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECE7E9',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#ECE7E9',
   },
   variantChipActive: { backgroundColor: colors.brand.primary },
   goalCards: { gap: 9 },
@@ -1685,14 +1724,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : 'rgba(255,255,255,0.92)',
     borderWidth: 1,
-    borderColor: '#EEE7E9',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#EEE7E9',
     ...shadows.card,
   },
   goalCardSelected: {
     borderColor: colors.brand.primary,
-    backgroundColor: '#FFF7FA',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF7FA',
   },
   goalGlyph: {
     width: 40,
@@ -1700,7 +1739,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F7E4EC',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F7E4EC',
   },
   goalGlyphSelected: { backgroundColor: colors.brand.primary },
   goalText: { flex: 1, gap: 2 },
@@ -1710,7 +1749,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#C8C1C3',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#C8C1C3',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1721,11 +1760,11 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: colors.brand.primary,
   },
-  variantTwoList: { borderTopWidth: 1, borderColor: '#DDD6D8' },
+  variantTwoList: { borderTopWidth: 1, borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#DDD6D8' },
   editorialChoice: {
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderColor: '#DDD6D8',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#DDD6D8',
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
@@ -1733,7 +1772,7 @@ const styles = StyleSheet.create({
   editorialChoiceSelected: {
     paddingHorizontal: 12,
     marginHorizontal: -12,
-    backgroundColor: '#FFF7FA',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF7FA',
   },
   editorialText: { flex: 1 },
   variantThreeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
@@ -1743,13 +1782,13 @@ const styles = StyleSheet.create({
     padding: 13,
     borderRadius: 22,
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     borderWidth: 1,
-    borderColor: '#ECE5E7',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#ECE5E7',
   },
   posterChoiceWide: { width: '100%', minHeight: 104 },
   posterChoiceSelected: {
-    backgroundColor: '#FCE6EF',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FCE6EF',
     borderColor: colors.brand.primary,
   },
   posterTitle: { maxWidth: 190 },
@@ -1770,26 +1809,28 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EEE8EA',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#EEE8EA',
     borderWidth: 4,
-    borderColor: '#FFFFFF',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#FFFFFF',
   },
   pathIndexSelected: { backgroundColor: colors.brand.primary },
   pathCard: {
+    ...darkCardOutline,
     flex: 1,
     padding: 12,
     borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   pathCardSelected: {
-    backgroundColor: '#FCEAF1',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FCEAF1',
     borderWidth: 1,
     borderColor: colors.brand.primary,
   },
   compactPanel: {
+    ...darkCardOutline,
     padding: 7,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     ...shadows.card,
   },
   compactEyebrow: { paddingHorizontal: 10, paddingTop: 9, paddingBottom: 5 },
@@ -1801,13 +1842,14 @@ const styles = StyleSheet.create({
     gap: 10,
     borderRadius: 18,
   },
-  compactChoiceSelected: { backgroundColor: '#FAEDF2' },
+  compactChoiceSelected: { backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FAEDF2' },
   compactChoiceText: { flex: 1 },
   wheelBlock: {
+    ...darkCardOutline,
     padding: 14,
     gap: 10,
     borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     ...shadows.card,
   },
   wheelBlockCompact: {
@@ -1833,7 +1875,7 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8EDF1',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#F8EDF1',
   },
   wheelButtonCompact: { width: 34, height: 34, borderRadius: 17 },
   wheelValue: { alignItems: 'center' },
@@ -1854,6 +1896,7 @@ const styles = StyleSheet.create({
   metricCardStage: { height: 126, position: 'relative' },
   metricStateLayer: { ...StyleSheet.absoluteFillObject },
   unknownMeasureCard: {
+    ...darkCardOutline,
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 10,
     paddingVertical: 12,
@@ -1861,7 +1904,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     ...shadows.card,
   },
   unknownMeasureLabel: {
@@ -1877,19 +1920,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FCEAF2',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FCEAF2',
   },
   fieldBlock: {
+    ...darkCardOutline,
     padding: 14,
     gap: 8,
     borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   field: {
     height: 46,
     borderRadius: 14,
     paddingHorizontal: 13,
-    backgroundColor: '#F2EFF0',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : '#F2EFF0',
     color: colors.text.primary,
     ...fontStyle(fonts.sfRegular),
     fontSize: 16,
@@ -1918,9 +1962,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FCEAF2',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FCEAF2',
     borderWidth: 1,
-    borderColor: '#F1D8E3',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#F1D8E3',
     elevation: 1,
   },
   dateRestoreAction: {
@@ -1930,7 +1974,7 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FCEAF2',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FCEAF2',
   },
   dateUnknownAction: {
     alignSelf: 'center',
@@ -1941,15 +1985,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     borderWidth: 1,
-    borderColor: '#F1D8E3',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#F1D8E3',
   },
   questionBlock: {
+    ...darkCardOutline,
     padding: 14,
     gap: 10,
     borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   simpleChoiceList: { gap: 8 },
   simpleChoice: {
@@ -1958,13 +2003,13 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     borderWidth: 1,
-    borderColor: '#E9E2E4',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#E9E2E4',
   },
   simpleChoiceSelected: {
     borderColor: colors.brand.primary,
-    backgroundColor: '#FFF7FA',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF7FA',
   },
   simpleChoiceText: { flex: 1 },
   calendar: { alignSelf: 'stretch' },
@@ -1976,17 +2021,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     borderWidth: 1,
-    borderColor: '#E9E2E4',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#E9E2E4',
   },
-  factorChoiceSelected: { borderColor: '#E9A4C3', backgroundColor: '#FFF7FA' },
+  factorChoiceSelected: { borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#E9A4C3', backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF7FA' },
   checkbox: {
     width: 22,
     height: 22,
     borderRadius: 7,
     borderWidth: 1.5,
-    borderColor: '#C8C1C3',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#C8C1C3',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2007,13 +2052,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E1E3',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#E5E1E3',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
-  factorPillSelected: { borderColor: '#F2A8CB', backgroundColor: '#FFF7FA' },
+  factorPillSelected: { borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#F2A8CB', backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF7FA' },
   factorPillText: { flexShrink: 1, fontSize: 13, lineHeight: 16 },
   textAction: { alignSelf: 'center', paddingVertical: 2, paddingHorizontal: 8 },
   note: {
@@ -2021,7 +2066,7 @@ const styles = StyleSheet.create({
     gap: 9,
     padding: 12,
     borderRadius: 16,
-    backgroundColor: '#F9EAF0',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F9EAF0',
   },
   noteText: { flex: 1, lineHeight: 17 },
   completeScreen: {
@@ -2052,13 +2097,14 @@ const styles = StyleSheet.create({
     height: 50,
     paddingHorizontal: 15,
     borderRadius: 17,
-    backgroundColor: '#F3EFF0',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F3EFF0',
     color: colors.text.primary,
     ...fontStyle(fonts.sfRegular),
     fontSize: 16,
   },
   diseaseActions: { flexDirection: 'row', gap: 12, paddingTop: 8 },
-  diseaseClearAction: { ...sheetStyles.secondary, flex: 1 },
+  diseaseClearAction: { ...sheetStyles.secondary, backgroundColor: colors.surface.divider, flex: 1 },
   diseaseSaveAction: { ...sheetStyles.primary, flex: 1 },
   diseaseSaveActionDisabled: { opacity: 0.38 },
-});
+  });
+};

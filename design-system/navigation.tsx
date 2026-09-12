@@ -1,3 +1,5 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { fontStyle } from '../lib/font-style';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
@@ -252,6 +254,7 @@ function NavbarSymbol({
   color: string;
   fallback: string;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <SymbolView
       name={name}
@@ -270,6 +273,8 @@ export function NavbarIconVariantPreview({
 }: {
   variant: NavbarIconVariant;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const [activeTab, setActiveTab] = useState<NavbarTabKey>('today');
 
   return (
@@ -334,6 +339,7 @@ export function NavbarIconVariantPreview({
 }
 
 export function NavbarIconVariantsCatalog() {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.catalog}>
       {navbarIconVariants.map((variant) => (
@@ -343,7 +349,7 @@ export function NavbarIconVariantsCatalog() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   catalog: {
     gap: spacing.xl,
   },
@@ -410,3 +416,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+const styles = createStyles(defaultThemeColors);

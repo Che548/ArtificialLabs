@@ -1,5 +1,11 @@
+import { useDailySymptomsPrompt } from '../lib/daily-symptoms-prompt-context';
+import SymptomsIcon from '../assets/today/planning-symptoms.svg';
+import { ProfileAppearanceScope } from '../lib/profile-appearance';
+import { LegalDocumentsButton } from '../components/LegalDocumentsModal';
+import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from '../design-system/tokens';
 import { filterInput } from '../lib/input-format';
-import { AppSheet, sheetStyles } from '../components/AppSheet';
+import { AppSheet, sheetStyles, useSheetStyles } from '../components/AppSheet';
 import { ProfileCollapse } from '../components/ProfileMotion';
 import { fontStyle } from '../lib/font-style';
 import { FontLicenses } from '../components/FontLicenses';
@@ -41,6 +47,7 @@ import ProfileIcon02 from '../assets/profile/settings-icons/2.svg';
 import ProfileIcon03 from '../assets/profile/settings-icons/3.svg';
 import ProfileIcon04 from '../assets/profile/settings-icons/4.svg';
 import ProfileIcon05 from '../assets/profile/settings-icons/5.svg';
+import ProfileInterfaceIcon from '../assets/profile/settings-icons/interface.svg';
 import ProfileIcon07 from '../assets/profile/settings-icons/7.svg';
 import ProfileIcon08 from '../assets/profile/settings-icons/8.svg';
 import ProfileIcon09 from '../assets/profile/settings-icons/9.svg';
@@ -141,6 +148,7 @@ type ProfileSection =
   | 'permissions'
   | 'data-transfer'
   | 'security'
+  | 'interface'
   | 'notification-settings'
   | 'onboarding'
   | 'planning-today-ui-kit';
@@ -156,6 +164,7 @@ const SECTION_TITLES: Record<ProfileSection, string> = {
   'data-transfer': 'Импорт и экспорт',
   security: 'Аккаунт и безопасность',
   'notification-settings': 'Настройки уведомлений',
+  interface: 'Интерфейс',
   onboarding: 'Онбординг',
   'planning-today-ui-kit': 'Сегодня · Планирование',
 };
@@ -191,6 +200,11 @@ function ProfileHistoryBackIcon() {
 }
 
 export default function ProfileScreen() {
+  return <ProfileAppearanceScope><ProfileContent /></ProfileAppearanceScope>;
+}
+
+function ProfileContent() {
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { panel, sourceId } = useLocalSearchParams<{
@@ -283,7 +297,8 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
-    if (panel === 'delete-account') setActiveSection('security');
+    if (panel === 'interface') setActiveSection('interface');
+    else if (panel === 'delete-account') setActiveSection('security');
     else if (panel === 'imports' || panel === 'exports')
       setActiveSection('data-transfer');
     else if (panel === 'personal') setActiveSection('account');
@@ -518,7 +533,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" hidden={false} />
+      <ThemeStatusBar hidden={false} />
       <Animated.View
         pointerEvents={activeSection ? 'none' : 'auto'}
         style={[
@@ -577,6 +592,7 @@ export default function ProfileScreen() {
             }
             onOpen={openSection}
           />
+          <LegalDocumentsButton />
           <ProfileVersionFooter
             onPress={handleVersionPress}
             updateCreatedAt={updateManager.currentUpdateCreatedAt}
@@ -623,7 +639,7 @@ export default function ProfileScreen() {
               topInset={insets.top}
               onBack={closeSection}
             >
-              {renderProfileSectionDirect({
+              {<ProfileSectionContent {...{
                 aiChatEnabled: aiChatStatus?.userEnabled === true,
                 aiChatUnavailable: !aiChatStatus || aiChatSaving,
                 agentConsentAccepted: aiAgentStatus?.consentAccepted === true,
@@ -697,7 +713,7 @@ export default function ProfileScreen() {
                 syncStatus,
                 viewerEmail,
                 viewerPhone,
-              })}
+              }} />}
             </ProfileDetailScreen>
           )}
         </Animated.View>
@@ -730,6 +746,8 @@ function ProfileVersionFooter({
   updateCreatedAt?: number;
   updateId?: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const version = getAppVersionInfo({ updateCreatedAt, updateId });
   return (
     <Pressable
@@ -760,9 +778,21 @@ function ProfileOverview({
   medicationCount: number;
   onOpen: (section: ProfileSection) => void;
 }) {
+  const openSymptomsPrompt = useDailySymptomsPrompt();
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.overview}>
       <ProfileSettingsGroup title="Профиль здоровья">
+        <ProfileSettingsRow
+          icon="heart.fill"
+          iconAsset={SymptomsIcon}
+          fallback="С"
+          iconBackground={profileTones.health.tile}
+          iconColor={profileTones.health.glyph}
+          label="Отметить симптомы"
+          onPress={openSymptomsPrompt}
+        />
         <ProfileSettingsRow
           icon="cross.case.fill"
           iconAsset={ProfileIcon02}
@@ -807,6 +837,15 @@ function ProfileOverview({
       </ProfileSettingsGroup>
 
       <ProfileSettingsGroup title="Настройки">
+        <ProfileSettingsRow
+          icon="circle.lefthalf.filled"
+          iconAsset={ProfileInterfaceIcon}
+          fallback="◐"
+          iconBackground={profileTones.preferences.tile}
+          iconColor={profileTones.preferences.glyph}
+          label="Интерфейс"
+          onPress={() => onOpen('interface')}
+        />
         <ProfileSettingsRow
           icon="globe.europe.africa.fill"
           iconAsset={ProfileIcon07}
@@ -890,6 +929,8 @@ function ProfileOverview({
 }
 
 function PlanningTodayProfileKitPreview() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const { width } = useWindowDimensions();
   const previewWidth = Math.min(370, width - sizes.screenGutter * 2);
   const previewScale = previewWidth / 402;
@@ -942,6 +983,8 @@ const notificationTonePreviewCopy: Record<
 };
 
 function NotificationTonePreview({ tone }: { tone: NotificationTone }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const toneProgress = useRef(
     new Animated.Value(tone === 'cute' ? 1 : 0),
   ).current;
@@ -1101,9 +1144,12 @@ function ProfileDetailScreen({
   title: string;
   topInset: number;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+  const { mode } = useAppTheme();
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" hidden={false} />
+      <ThemeStatusBar hidden={false} />
       <View
         style={[
           styles.detailHeader,
@@ -1115,17 +1161,17 @@ function ProfileDetailScreen({
         <LinearGradient
           pointerEvents="none"
           colors={[
-            'rgba(245,243,243,1)',
-            'rgba(245,243,243,0.972)',
-            'rgba(245,243,243,0.896)',
-            'rgba(245,243,243,0.784)',
-            'rgba(245,243,243,0.648)',
-            'rgba(245,243,243,0.5)',
-            'rgba(245,243,243,0.352)',
-            'rgba(245,243,243,0.216)',
-            'rgba(245,243,243,0.104)',
-            'rgba(245,243,243,0.028)',
-            'rgba(245,243,243,0)',
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},1)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.972)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.896)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.784)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.648)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.5)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.352)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.216)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.104)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.028)`,
+            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0)`,
           ]}
           locations={[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]}
           style={styles.detailHeaderFade}
@@ -1178,6 +1224,8 @@ function PhoneVerificationRow({
   onVerified: (phone: string) => Promise<void>;
   phone?: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const { signIn } = useAuthActions();
   const getSmsStatus = useAction(api.smsAuth.status);
   const prepareSmsDelivery = useAction(api.smsAuth.prepareDelivery);
@@ -1343,7 +1391,7 @@ function PhoneVerificationRow({
           }
           onSubmitEditing={() => void requestCode()}
           placeholder="+7 999 000-00-00"
-          placeholderTextColor="#989395"
+          placeholderTextColor={colors.text.secondary}
           returnKeyType="send"
           style={[
             styles.phoneVerificationInput,
@@ -1366,7 +1414,7 @@ function PhoneVerificationRow({
             }
             onSubmitEditing={() => void verifyCode()}
             placeholder="000000"
-            placeholderTextColor="#989395"
+            placeholderTextColor={colors.text.secondary}
             returnKeyType="done"
             style={[
               styles.phoneVerificationInput,
@@ -1399,7 +1447,7 @@ function PhoneVerificationRow({
   );
 }
 
-function renderProfileSectionDirect({
+function ProfileSectionContent({
   aiChatEnabled,
   aiChatUnavailable,
   agentAutomationAccepted,
@@ -1546,6 +1594,8 @@ function renderProfileSectionDirect({
   viewerEmail?: string;
   viewerPhone?: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const hasViewerIdentity = Boolean(viewerEmail || viewerPhone);
 
   switch (section) {
@@ -1805,6 +1855,9 @@ function renderProfileSectionDirect({
         </>
       );
 
+    case 'interface':
+      return <InterfaceSettings />;
+
     case 'notification-settings':
       return (
         <>
@@ -1986,6 +2039,8 @@ function parseMedicationFrequency(value?: string): MedicationFrequency {
 }
 
 function MedicalCrudSection(props: MedicalCrudProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [editorVisible, setEditorVisible] = useState(false);
   const [selectedId, setSelectedId] = useState<string>();
@@ -2241,7 +2296,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
           value={primary}
           onChangeText={setPrimary}
           placeholder={primaryLabel}
-          placeholderTextColor="#989395"
+          placeholderTextColor={colors.text.secondary}
           style={styles.inlineInput}
         />
         {props.kind === 'medication' ? (
@@ -2257,7 +2312,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
                   setSecondary(sanitizeMedicationDoseAmount(value))
                 }
                 placeholder="Количество"
-                placeholderTextColor="#989395"
+                placeholderTextColor={colors.text.secondary}
                 style={[styles.inlineInput, styles.medicationDoseInput]}
               />
               <SegmentedSwitcher
@@ -2291,7 +2346,7 @@ function MedicalCrudSection(props: MedicalCrudProps) {
             value={secondary}
             onChangeText={setSecondary}
             placeholder={secondaryLabel}
-            placeholderTextColor="#989395"
+            placeholderTextColor={colors.text.secondary}
             style={styles.inlineInput}
           />
         )}
@@ -2313,6 +2368,8 @@ const csvCategories: Array<{
 ];
 
 function DataTransferSection() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const store = useHealthStore();
   const [format, setFormat] = useState<'json' | 'csv'>('json');
   const [category, setCategory] = useState<HealthEntityName>('journalEntries');
@@ -2577,6 +2634,8 @@ function AccountDataActions({
   clearLocalData: () => Promise<void>;
   deleteAccount: () => Promise<boolean>;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
   const running = useRef(false);
@@ -2669,6 +2728,7 @@ function ConfirmedAction({
   label: string;
   onConfirm: () => Promise<void>;
 }) {
+  const styles = useThemeStyles(createStyles);
   const [armed, setArmed] = useState(false);
   return (
     <ProfileActionRow
@@ -2688,7 +2748,7 @@ function ConfirmedAction({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   transferControls: {
     paddingHorizontal: 14,
     paddingTop: 16,
@@ -2715,7 +2775,7 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 6 : 0,
     textAlignVertical: 'center',
     borderRadius: radii.md,
-    backgroundColor: '#F0EEF0',
+    backgroundColor: colors.surface.canvas,
     color: colors.text.primary,
     paddingHorizontal: spacing.md,
     ...fontStyle('SFProDisplay-Regular'),
@@ -2751,7 +2811,7 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
-    backgroundColor: '#F3F1F2',
+    backgroundColor: colors.surface.canvas,
   },
   profilePage: {
     flex: 1,
@@ -2759,7 +2819,7 @@ const styles = StyleSheet.create({
   detailPage: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 20,
-    backgroundColor: '#F3F1F2',
+    backgroundColor: colors.surface.canvas,
     shadowColor: '#2F151B',
     shadowOffset: { width: -8, height: 0 },
     shadowOpacity: 0.12,
@@ -2787,7 +2847,7 @@ const styles = StyleSheet.create({
     top: 0,
     paddingHorizontal: sizes.screenGutter,
     paddingBottom: 10,
-    backgroundColor: 'rgba(245,243,243,0.94)',
+    backgroundColor: `${colors.surface.canvas}f0`,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -2802,7 +2862,7 @@ const styles = StyleSheet.create({
     bottom: 80,
     left: 0,
     right: 0,
-    backgroundColor: 'rgb(245,243,243)',
+    backgroundColor: colors.surface.canvas,
   },
   detailHeaderFade: {
     position: 'absolute',
@@ -2842,7 +2902,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     overflow: 'hidden',
     borderRadius: 37,
-    backgroundColor: '#FDECE5',
+    backgroundColor: colors.surface.warm,
     shadowColor: '#2F151B',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
@@ -2864,9 +2924,9 @@ const styles = StyleSheet.create({
   },
   notificationExampleCard: {
     borderWidth: 1,
-    borderColor: '#EEE7E9',
+    borderColor: colors.surface.divider,
     borderRadius: radii.lg,
-    backgroundColor: '#FFFEFE',
+    backgroundColor: colors.surface.raised,
     padding: spacing.md,
   },
   notificationExampleBody: {
@@ -2880,7 +2940,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     overflow: 'hidden',
     borderRadius: 14,
-    backgroundColor: '#FDECE5',
+    backgroundColor: colors.surface.warm,
   },
   notificationExampleIconImage: {
     position: 'absolute',
@@ -2923,7 +2983,7 @@ const styles = StyleSheet.create({
   inlineEditor: {
     gap: spacing.sm,
     borderRadius: radii.lg,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     padding: spacing.md,
   },
   medicalEditorActions: {
@@ -2933,9 +2993,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 15,
   },
-  medicalEditorSecondaryAction: { ...sheetStyles.secondary, flex: 1 },
+  medicalEditorSecondaryAction: { ...sheetStyles.secondary, backgroundColor: colors.surface.divider, flex: 1 },
   medicalEditorPrimaryAction: { ...sheetStyles.primary, flex: 1 },
-  medicalEditorPrimaryActionDisabled: sheetStyles.disabled,
+  medicalEditorPrimaryActionDisabled: { backgroundColor: colors.surface.divider },
   compactConfirmedAction: {
     minHeight: 50,
     borderRadius: 23,
@@ -2943,7 +3003,7 @@ const styles = StyleSheet.create({
   inlineInput: {
     height: 48,
     borderRadius: radii.md,
-    backgroundColor: '#F6F3F4',
+    backgroundColor: colors.surface.canvas,
     paddingHorizontal: spacing.md,
     paddingVertical: 0,
     // UITextField centers its line box, whose glyphs sit below the visual
@@ -2978,7 +3038,7 @@ const styles = StyleSheet.create({
   dangerIntro: {
     borderRadius: radii.lg,
     padding: spacing.md,
-    backgroundColor: '#FDEAEA',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#FDEAEA' : colors.surface.rose,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(217,56,56,0.24)',
   },
@@ -2987,3 +3047,24 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+const styles = createStyles(defaultThemeColors);
+
+function InterfaceSettings() {
+  const { mode, setMode } = useAppTheme();
+  return (
+    <ProfileSettingsGroup title="Оформление" footer="Светлая тема включена по умолчанию. Выбранная тема сохраняется на этом устройстве.">
+      <ProfileVerticalChoiceControl
+        accessibilityLabel="Тема приложения"
+        defaultValue="light"
+        value={mode}
+        grouped
+        options={[
+          { label: 'Светлая тема', value: 'light' },
+          { label: 'Тёмная тема', value: 'dark' },
+        ]}
+        onChange={setMode}
+      />
+    </ProfileSettingsGroup>
+  );
+}

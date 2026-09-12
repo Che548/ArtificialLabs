@@ -1,3 +1,5 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { fontStyle } from '../lib/font-style';
 import { useEffect, useState } from 'react';
 import { AppState, Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
@@ -30,6 +32,7 @@ export function AnalysisReferencePlanCard({
   readOnly?: boolean;
   resultActionLabel?: string;
 }) {
+  const s = useThemeStyles(createS);
   const [now, setNow] = useState(Date.now);
   const showDeadline = !isCompleted && dueAt !== undefined && Number.isFinite(dueAt);
   useEffect(() => {
@@ -82,20 +85,22 @@ export function AnalysisReferencePlanCard({
   );
 }
 
-const s = StyleSheet.create({
+const createS = (colors: ThemeColors) => StyleSheet.create({
   card: {minHeight: 106,
-    borderRadius: 30, backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 30, backgroundColor: colors.surface.raised, paddingHorizontal: 16, paddingVertical: 8,
     ...shadows.card},
   content: {flexDirection: 'row', alignItems: 'center', gap: 10},
   deadline: {gap: 5, marginTop: 4, paddingBottom: 8},
-  deadlineText: {...fontStyle(fonts.sfRegular), fontSize: 11, lineHeight: 14, color: '#736E6C'},
-  deadlineValue: {...fontStyle(fonts.sfMedium), color: '#212123'},
-  timeTrack: {height: 3, borderRadius: 2, backgroundColor: '#F3E8ED', overflow: 'hidden'},
+  deadlineText: {...fontStyle(fonts.sfRegular), fontSize: 11, lineHeight: 14, color: colors.text.secondary},
+  deadlineValue: {...fontStyle(fonts.sfMedium), color: colors.text.primary},
+  timeTrack: {height: 3, borderRadius: 2, backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F3E8ED', overflow: 'hidden'},
   timeFill: {height: '100%', borderRadius: 2, backgroundColor: '#EA4087'},
   image: {width: 88, height: 88, marginLeft: -10, marginRight: -4},
   heading: {flex: 1, minWidth: 0, gap: 4, marginRight: 6},
-  title: {...fontStyle(fonts.sfMedium), fontSize: 19, lineHeight: 24, letterSpacing: -0.35, color: '#171717'},
-  subtitle: {...fontStyle(fonts.sfRegular), fontSize: 15, lineHeight: 19, letterSpacing: -0.25, color: '#606060'},
+  title: {...fontStyle(fonts.sfMedium), fontSize: 19, lineHeight: 24, letterSpacing: -0.35, color: colors.text.primary},
+  subtitle: {...fontStyle(fonts.sfRegular), fontSize: 15, lineHeight: 19, letterSpacing: -0.25, color: colors.text.secondary},
   arrow: {width: 30, height: 30, borderRadius: 15, backgroundColor: '#D80B76', alignItems: 'center', justifyContent: 'center'},
   pressed: {opacity: 0.7},
 });
+
+const s = createS(defaultThemeColors);

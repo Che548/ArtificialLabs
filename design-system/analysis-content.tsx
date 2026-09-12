@@ -1,3 +1,5 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from './components';
@@ -59,6 +61,8 @@ const referenceArticles = [
 ] as const;
 
 function Kicker({ children }: { children: string }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <AppText
       role="caption"
@@ -78,6 +82,8 @@ function HeaderLine({
   label?: string;
   meta?: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.headerLine}>
       <Kicker>{label}</Kicker>
@@ -99,6 +105,8 @@ function TextAction({
   onPress?: () => void;
   quiet?: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <Pressable
       cssInterop={false}
@@ -137,6 +145,8 @@ function EmptyCopy({
   onPress?: () => void;
   compact?: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.emptyCopy, compact && styles.emptyCopyCompact]}>
       <AppText role="heading" weight="semibold">
@@ -154,6 +164,8 @@ function EmptyCopy({
 }
 
 function ProgressRequirement() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.requirement}>
       <View style={styles.requirementTrack}>
@@ -172,6 +184,8 @@ function ProgressRequirement() {
 }
 
 function ValuePair({ empty = false }: { empty?: boolean }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.valuePair}>
       <View style={styles.valueCell}>
@@ -226,6 +240,8 @@ function MetricRow({
   note: string;
   accent?: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.metricRow}>
       <View style={styles.metricRowCopy}>
@@ -249,6 +265,8 @@ function MetricRow({
 }
 
 function StatusPill({ children }: { children: string }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.statusPill}>
       <View style={styles.statusDot} />
@@ -264,6 +282,8 @@ export function AnalysisPersonalBlock({
   state = 'ready',
   onPress,
 }: PersonalBlockProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const empty = state === 'insufficient';
 
   if (variant === 1) {
@@ -649,6 +669,8 @@ function ArticleRow({
   onPress?: () => void;
   showIndex?: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <Pressable
       cssInterop={false}
@@ -691,6 +713,7 @@ function ArticleList({
   onPress?: () => void;
   showIndex?: boolean;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.articleList}>
       {indexes.map((index) => (
@@ -710,6 +733,8 @@ export function AnalysisReferenceBlock({
   variant = 1,
   onPress,
 }: ReferenceBlockProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (variant === 1) {
     return (
       <View style={styles.referenceSurface}>
@@ -1040,7 +1065,7 @@ export function AnalysisReferenceBlock({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   pressed: {
     opacity: motion.pressedOpacity,
     transform: [{ scale: 0.994 }],
@@ -1063,7 +1088,7 @@ const styles = StyleSheet.create({
   },
   textActionQuiet: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(33,33,35,0.12)',
+    borderTopColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(33,33,35,0.12)',
     paddingTop: spacing.sm,
   },
   copyBlock: {
@@ -1086,7 +1111,7 @@ const styles = StyleSheet.create({
     width: 370,
     padding: spacing.md,
     borderRadius: 30,
-    backgroundColor: '#FFF3F7',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF3F7',
     gap: spacing.md,
   },
   nextStepSurface: {
@@ -1101,7 +1126,7 @@ const styles = StyleSheet.create({
     width: 370,
     padding: spacing.md,
     borderRadius: 30,
-    backgroundColor: '#F8F5F6',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F8F5F6',
     gap: spacing.md,
   },
   minimalPersonal: {
@@ -1111,7 +1136,7 @@ const styles = StyleSheet.create({
   },
   minimalRule: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#D9D3D5',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D9D3D5',
   },
   emptyCopy: {
     gap: spacing.xs,
@@ -1126,13 +1151,13 @@ const styles = StyleSheet.create({
     height: 4,
     overflow: 'hidden',
     borderRadius: 2,
-    backgroundColor: '#ECE7E9',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#ECE7E9',
   },
   requirementFill: {
     width: 10,
     height: '100%',
     borderRadius: 2,
-    backgroundColor: '#D8D0D3',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D8D0D3',
   },
   requirementLabels: {
     flexDirection: 'row',
@@ -1149,11 +1174,11 @@ const styles = StyleSheet.create({
     minHeight: 94,
     padding: spacing.sm,
     borderRadius: radii.md,
-    backgroundColor: '#F6F3F4',
+    backgroundColor: colors.surface.canvas,
     justifyContent: 'center',
   },
   valueCellCurrent: {
-    backgroundColor: '#FFF1F6',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF1F6',
   },
   valuePairArrow: {
     width: 24,
@@ -1205,7 +1230,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D9D3D5',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D9D3D5',
     flexDirection: 'row',
     alignItems: 'stretch',
   },
@@ -1216,7 +1241,7 @@ const styles = StyleSheet.create({
   overviewDivider: {
     width: StyleSheet.hairlineWidth,
     marginHorizontal: spacing.sm,
-    backgroundColor: '#D9D3D5',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D9D3D5',
   },
   largeValueLayout: {
     minHeight: 146,
@@ -1254,7 +1279,7 @@ const styles = StyleSheet.create({
     height: 8,
     marginTop: 5,
     borderRadius: 4,
-    backgroundColor: '#C9C1C4',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#C9C1C4',
   },
   timelineDotCurrent: {
     backgroundColor: colors.brand.primary,
@@ -1262,7 +1287,7 @@ const styles = StyleSheet.create({
   timelineLine: {
     flex: 1,
     width: 1,
-    backgroundColor: '#D9D3D5',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D9D3D5',
   },
   timelineDate: {
     flex: 1,
@@ -1317,7 +1342,7 @@ const styles = StyleSheet.create({
     minHeight: 96,
     padding: spacing.sm,
     borderRadius: radii.md,
-    backgroundColor: '#FFF1F6',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF1F6',
     justifyContent: 'center',
   },
   prepWindowValue: {
@@ -1329,7 +1354,7 @@ const styles = StyleSheet.create({
     width: 370,
     padding: spacing.md,
     borderRadius: 30,
-    backgroundColor: '#FFF3F7',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF3F7',
     gap: spacing.md,
   },
   checklist: {
@@ -1400,7 +1425,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: 1,
     marginTop: spacing.xs,
-    backgroundColor: '#D9D3D5',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D9D3D5',
   },
   pathCopy: {
     flex: 1,
@@ -1415,12 +1440,12 @@ const styles = StyleSheet.create({
     minHeight: 34,
     paddingHorizontal: spacing.sm,
     borderRadius: radii.pill,
-    backgroundColor: '#F1EDEF',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F1EDEF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   topicPillActive: {
-    backgroundColor: '#FFF1F6',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF1F6',
   },
   contextSurface: {
     width: 370,
@@ -1439,7 +1464,7 @@ const styles = StyleSheet.create({
     width: 78,
     minHeight: 78,
     borderRadius: radii.md,
-    backgroundColor: '#FFF1F6',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF1F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1449,12 +1474,12 @@ const styles = StyleSheet.create({
   },
   collectionList: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#D9D3D5',
+    borderTopColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D9D3D5',
   },
   collectionRow: {
     minHeight: 66,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#D9D3D5',
+    borderBottomColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D9D3D5',
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
@@ -1467,7 +1492,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D9D3D5',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D9D3D5',
     flexDirection: 'row',
     gap: spacing.md,
   },
@@ -1476,3 +1501,5 @@ const styles = StyleSheet.create({
     gap: spacing.xxs,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

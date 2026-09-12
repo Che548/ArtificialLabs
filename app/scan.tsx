@@ -1,3 +1,7 @@
+import { AndroidMaterialBackdrop } from '../design-system/android-material';
+import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from '../design-system/tokens';
+import { BrandLogo } from '../components/BrandLogo';
 import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import { bundledFonts } from '../lib/bundled-fonts';
 import { fontStyle } from '../lib/font-style';
@@ -32,15 +36,11 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
-import { CycleAnimatedBackground } from '../design-system/cycle-animated-background';
-import BuyIcon from '../assets/figma/scan-screen/buy.svg';
-import HistoryIcon from '../assets/figma/scan-screen/history.svg';
-import InfoIcon from '../assets/figma/scan-screen/info.svg';
 import ScanIcon from '../assets/figma/scan-screen/scan.svg';
 import {
   CalendarPageModal,
   AppHeader,
-  androidMaterials,
+  androidTabBarContentHeight,
   androidShadows,
   colors,
   EdgeFadeGradient,
@@ -62,13 +62,10 @@ import { loadScanHistory, saveScanToHistory } from '../services/scanning';
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 const FONT_SF_REGULAR = 'SFProDisplay-Regular';
-const FONT_YARO_RG = 'Comfortaa-Regular';
 const IOS_PAGE_DURATION = 280;
 const IOS_PAGE_EXIT_DURATION = 220;
 const IOS_PAGE_EASING = Easing.bezier(0.32, 0.72, 0, 1);
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
-const RAPIDBIO_INFO_URL = 'https://rapidbio.ru/';
-const RAPIDBIO_STORE_URL = 'https://rapidbio-tests.ru/';
 const e2eScanFixtureUri =
   __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
     ? Platform.OS === 'ios'
@@ -109,6 +106,7 @@ function LiquidGlassSurface({
   highlight = 'light',
   radius = 999,
 }: LiquidGlassSurfaceProps) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View
       pointerEvents={hasNativeLiquidGlass ? 'box-none' : 'none'}
@@ -137,15 +135,7 @@ function LiquidGlassSurface({
       ) : (
         <>
           {Platform.OS === 'android' ? (
-            <View
-              style={[
-                StyleSheet.absoluteFillObject,
-                highlight === 'dark'
-                  ? androidMaterials.dark
-                  : androidMaterials.light,
-                { borderRadius: radius },
-              ]}
-            />
+            <AndroidMaterialBackdrop radius={radius} tone={highlight} washColor={washColor} />
           ) : Platform.OS === 'web' ? (
             <View
               style={[
@@ -187,12 +177,14 @@ function GlassControl({
   onPress,
   style,
 }: GlassControlProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (hasNativeLiquidGlass) {
     return (
       <GlassView
         glassEffectStyle="clear"
         tintColor={colors.surface.headerGlassWash}
-        colorScheme="light"
+        colorScheme={colors.surface.canvas === "#161417" ? "dark" : "light"}
         isInteractive
         style={[style, styles.glassShadow]}
       >
@@ -210,7 +202,8 @@ function GlassControl({
 
   if (Platform.OS === 'android') {
     return (
-      <View style={[style, androidMaterials.light]}>
+      <View style={style}>
+        <AndroidMaterialBackdrop washColor={colors.surface.headerGlassWash} />
         <Pressable
           cssInterop={false}
           accessibilityRole="button"
@@ -254,34 +247,8 @@ function GlassControl({
   );
 }
 
-type ActionButtonProps = {
-  icon: React.ReactNode;
-  label: string;
-  onPress: () => void;
-};
-
-function ActionButton({ icon, label, onPress }: ActionButtonProps) {
-  const width = label === 'Инфо' ? 109 : label === 'Купить' ? 114 : 128;
-
-  return (
-    <View style={[styles.actionButton, { width }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        onPress={onPress}
-      >
-        {({ pressed }) => (
-          <View style={[styles.actionButtonContent, pressed && styles.pressed]}>
-            <View style={styles.actionIconCircle}>{icon}</View>
-            <Text style={styles.actionLabel}>{label}</Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
-  );
-}
-
 function ScannerCorners() {
+  const styles = useThemeStyles(createStyles);
   return (
     <Svg
       pointerEvents="none"
@@ -291,32 +258,66 @@ function ScannerCorners() {
       style={styles.scannerCorners}
     >
       <Path
-        d="M79 6H43C22.6 6 6 22.6 6 43v36"
+        d="M79 38H43C22.6 38 6 54.6 6 75v36"
         fill="none"
-        stroke="#F2A8CB"
-        strokeWidth={6}
+        stroke="#EA4087"
+        strokeWidth={4.5}
         strokeLinecap="round"
       />
       <Path
-        d="M259 6h36c20.4 0 37 16.6 37 37v36"
+        d="M259 38h36c20.4 0 37 16.6 37 37v36"
         fill="none"
-        stroke="#F2A8CB"
-        strokeWidth={6}
+        stroke="#EA4087"
+        strokeWidth={4.5}
         strokeLinecap="round"
       />
       <Path
-        d="M79 338H43c-20.4 0-37-16.6-37-37v-36"
+        d="M79 306H43c-20.4 0-37-16.6-37-37v-36"
         fill="none"
-        stroke="#F2A8CB"
-        strokeWidth={6}
+        stroke="#EA4087"
+        strokeWidth={4.5}
         strokeLinecap="round"
       />
       <Path
-        d="M259 338h36c20.4 0 37-16.6 37-37v-36"
+        d="M259 306h36c20.4 0 37-16.6 37-37v-36"
         fill="none"
-        stroke="#F2A8CB"
-        strokeWidth={6}
+        stroke="#EA4087"
+        strokeWidth={4.5}
         strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+const TEST_SHOP_URL = 'https://en.rapidbio.ru/';
+
+function confirmTestShopNavigation() {
+  Alert.alert(
+    'Купить тесты',
+    'Вы перейдёте на сайт Rapid Bio (en.rapidbio.ru) в браузере, чтобы купить тесты.',
+    [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Перейти на сайт',
+        onPress: () => {
+          void Linking.openURL(TEST_SHOP_URL).catch(() => {
+            Alert.alert('Не удалось открыть сайт', 'Попробуйте ещё раз позже.');
+          });
+        },
+      },
+    ],
+  );
+}
+
+function TestShopIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M3 3h2l2.4 12.1a2 2 0 0 0 2 1.6H18a2 2 0 0 0 2-1.6L21.5 7H6M10 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+        stroke="#EA4087"
+        strokeWidth={1.7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </Svg>
   );
@@ -338,6 +339,8 @@ function HistoryBackIcon() {
 }
 
 export default function ScanScreen() {
+  const { mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const { journalId } = useLocalSearchParams<{ journalId?: string }>();
   const {
     addJournalEntry,
@@ -378,9 +381,7 @@ export default function ScanScreen() {
   const historyResultProgress = useRef(new Animated.Value(0)).current;
   const historyCorrectionProgress = useRef(new Animated.Value(0)).current;
   const photoPickerBusy = useRef(false);
-  const [fontsLoaded] = useFonts(
-    Platform.OS === 'web' ? bundledFonts : {},
-  );
+  const [fontsLoaded] = useFonts(Platform.OS === 'web' ? bundledFonts : {});
   const symptomDateKeys = useMemo(
     () =>
       new Set(
@@ -498,18 +499,15 @@ export default function ScanScreen() {
 
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
   const headerTop = getHeaderTop(insets.top, scale);
-  const scannerTop = Math.max(108, headerTop + 70);
+  const scannerTop = Math.max(132, headerTop + 84);
+  const contentPanelTop = scannerTop + 482 + (e2eScanFixtureUri ? 44 : 0);
+  const navbarClearance =
+    (Math.max(insets.bottom, 8) + (Platform.OS === 'android' ? androidTabBarContentHeight : 64)) / scale;
   const sfRegular = fontsLoaded
     ? FONT_SF_REGULAR
     : Platform.OS === 'ios'
       ? 'System'
       : 'sans-serif';
-  const yaro = fontsLoaded
-    ? FONT_YARO_RG
-    : Platform.OS === 'ios'
-      ? 'System'
-      : 'sans-serif';
-
   const pickScanPhoto = async () => {
     if (photoPickerBusy.current) {
       return;
@@ -548,14 +546,6 @@ export default function ScanScreen() {
       );
     } finally {
       photoPickerBusy.current = false;
-    }
-  };
-
-  const openExternalUrl = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch (cause) {
-      console.error('Opening Rapid Bio link failed', cause);
     }
   };
 
@@ -615,7 +605,7 @@ export default function ScanScreen() {
     <View
       style={[styles.root, Platform.OS === 'android' && styles.androidRoot]}
     >
-      <StatusBar style="dark" hidden={false} />
+      <ThemeStatusBar hidden={false} />
 
       <View
         style={{
@@ -625,25 +615,25 @@ export default function ScanScreen() {
       >
         <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
           <View style={styles.canvas}>
-            <CycleAnimatedBackground />
-
             <TopChromeBackdrop headerTop={headerTop} style={{ zIndex: 4 }} />
             <AppHeader
               style={[styles.header, { top: headerTop }]}
               onHistory={() => setHistoryVisible(true)}
               onDate={() => setCalendarVisible(true)}
-              onCalendar={() => setCalendarVisible(true)}
+              rightContent={<TestShopIcon />}
+              rightAccessibilityLabel="Купить тесты"
+              onRightAction={confirmTestShopNavigation}
             />
 
             <View style={[styles.scannerStage, { top: scannerTop }]}>
               <ScannerCorners />
 
-              <Image
-                accessibilityIgnoresInvertColors
-                source={require('../assets/scan/mascot-test.png')}
-                resizeMode="contain"
-                style={styles.scanMascot}
-              />
+              <View style={styles.scanIntro}>
+                <BrandLogo width={160} style={{ marginTop: 3 }} />
+                <Text style={[styles.scanDescription, fontStyle(sfRegular)]}>
+                  Мгновенная интерпретация{'\n'}экспресс-тестов
+                </Text>
+              </View>
 
               <View style={styles.scanButton}>
                 <Pressable
@@ -720,48 +710,20 @@ export default function ScanScreen() {
               ) : null}
             </View>
 
-            <View style={styles.scanContentPanel}>
-              <View style={styles.scanBrandCopy}>
-                <Text
-                  style={[
-                    styles.sphere,
-                    { ...fontStyle(yaro) },
-                    Platform.OS === 'android' && styles.sphereAndroid,
-                  ]}
-                >
-                  сфера.
-                </Text>
-                <Text
-                  style={[styles.scannerDescription, { ...fontStyle(sfRegular) }]}
-                >
-                  Мгновенный анализ тестов на{'\n'}
-                  овуляцию или беременность
-                </Text>
-              </View>
-            </View>
-
-            <View
+            {mode !== 'dark' ? <View
               style={[
-                styles.actions,
-                Platform.OS === 'android' && styles.actionsAndroid,
+                styles.scanContentPanel,
+                { top: contentPanelTop, bottom: navbarClearance },
               ]}
             >
-              <ActionButton
-                label="Инфо"
-                onPress={() => void openExternalUrl(RAPIDBIO_INFO_URL)}
-                icon={<InfoIcon width={19} height={19} />}
+              <Image
+                accessibilityIgnoresInvertColors
+                accessible={false}
+                source={require('../assets/scan/test-strips.png')}
+                resizeMode="contain"
+                style={styles.testStrips}
               />
-              <ActionButton
-                label="Купить"
-                onPress={() => void openExternalUrl(RAPIDBIO_STORE_URL)}
-                icon={<BuyIcon width={19} height={19} />}
-              />
-              <ActionButton
-                label="История"
-                onPress={() => setHistoryVisible(true)}
-                icon={<HistoryIcon width={19} height={19} />}
-              />
-            </View>
+            </View> : null}
 
             <EdgeFadeGradient
               edge="bottom"
@@ -929,7 +891,7 @@ export default function ScanScreen() {
         }}
       >
         <View style={styles.historyModalRoot}>
-          <StatusBar style="dark" hidden={false} />
+          <ThemeStatusBar hidden={false} />
           <View
             style={{
               width: DESIGN_WIDTH * scale,
@@ -1067,12 +1029,12 @@ export default function ScanScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fee8e3',
+    backgroundColor: colors.surface.raised,
   },
   flowModalRoot: {
     flex: 1,
@@ -1084,35 +1046,35 @@ const styles = StyleSheet.create({
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
-    borderRadius: 40,
+    borderRadius: Platform.OS === 'android' ? 0 : 40,
     backgroundColor: '#170C11',
   },
   historyModalRoot: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FAF8F8',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FAF8F8',
   },
   historyModalCanvas: {
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
-    borderRadius: 40,
-    backgroundColor: '#FAF8F8',
+    borderRadius: Platform.OS === 'android' ? 0 : 40,
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FAF8F8',
   },
   historyBasePage: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FAF8F8',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FAF8F8',
   },
   historyResultOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 10,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF8F5',
   },
   historyCorrectionOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 20,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF8F5',
   },
   historyBackButton: {
     position: 'absolute',
@@ -1141,8 +1103,8 @@ const styles = StyleSheet.create({
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
-    borderRadius: 40,
-    backgroundColor: '#FDE9E3',
+    borderRadius: Platform.OS === 'android' ? 0 : 40,
+    backgroundColor: colors.surface.raised,
   },
   androidRoot: {
     justifyContent: 'flex-start',
@@ -1199,7 +1161,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 999,
     borderWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.52)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(255,255,255,0.52)',
   },
   fallbackPressed: {
     opacity: Platform.OS === 'android' ? 0.94 : 1,
@@ -1219,45 +1181,34 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
   },
-  scanMascot: {
+  scanIntro: {
     position: 'absolute',
-    zIndex: 3,
-    left: 75,
-    top: 82,
-    width: 216,
-    height: 138,
+    top: 124,
+    left: 0,
+    width: 338,
+    alignItems: 'center',
+    gap: 10,
   },
-  sphere: {
+  scanDescription: {
     color: '#EA4087',
-    fontSize: 34.125,
-    lineHeight: 37.5,
-    letterSpacing: -0.68,
-  },
-  sphereAndroid: {
-    width: 320,
+    fontSize: 20,
+    lineHeight: 22,
+    letterSpacing: -0.5,
     textAlign: 'center',
-  },
-  scannerDescription: {
-    width: 320,
-    color: '#EA4087',
-    textAlign: 'center',
-    fontSize: 21.5,
-    lineHeight: 24,
-    letterSpacing: -0.43,
   },
   scanButton: {
     position: 'absolute',
     zIndex: 2,
-    left: 59,
-    top: 205,
-    width: 220,
+    left: -16,
+    top: 340,
+    width: 370,
     height: 46,
     borderRadius: 23,
     overflow: 'hidden',
     backgroundColor: '#EA4087',
   },
   scanButtonContent: {
-    width: 220,
+    width: 370,
     height: 46,
     paddingHorizontal: 14,
     flexDirection: 'row',
@@ -1275,9 +1226,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 4,
     left: 89,
-    top: 258,
+    top: 394,
     width: 160,
-    height: 28,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1292,7 +1243,7 @@ const styles = StyleSheet.create({
   },
   e2eFixtureButton: {
     position: 'absolute',
-    top: 286,
+    top: 470,
     alignSelf: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1300,66 +1251,20 @@ const styles = StyleSheet.create({
   scanContentPanel: {
     position: 'absolute',
     left: 0,
-    top: 520,
+    bottom: 0,
     width: DESIGN_WIDTH,
-    height: 354,
-    borderTopLeftRadius: 46,
-    borderTopRightRadius: 46,
-    backgroundColor: '#FFFFFF',
-  },
-  scanBrandCopy: {
-    position: 'absolute',
-    left: 41,
-    top: 62,
-    width: 320,
-    alignItems: 'center',
-    gap: 7,
-  },
-  actions: {
-    position: 'absolute',
-    left: 16,
-    top: 732,
-    width: 370,
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  actionsAndroid: {
-    top: 760,
-  },
-  actionButton: {
-    height: 48,
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#EA4087',
-  },
-  actionButtonContent: {
-    width: '100%',
-    height: 48,
-    paddingLeft: 5,
-    paddingRight: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.surface.divider,
+    backgroundColor: colors.surface.raised,
   },
-  actionIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionLabel: {
-    color: '#ffffff',
-    ...fontStyle(FONT_SF_REGULAR),
-    fontSize: 15,
-    lineHeight: 17,
-    letterSpacing: -0.3,
+  testStrips: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_WIDTH * 410 / 2010,
   },
   pressed: {
     opacity: 0.72,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

@@ -1,3 +1,5 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { GlassContainer, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -40,6 +42,8 @@ export function AppHeader({
   rightContent?: ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const content = (
     <>
       {hideLeftControl ? (
@@ -134,7 +138,7 @@ export function AppHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
     width: 370,
     height: 48,
@@ -156,9 +160,9 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'android' ? androidShadows.control : shadows.control),
     ...(Platform.OS === 'android'
       ? {
-          backgroundColor: 'rgba(255,250,252,0.76)',
+          backgroundColor: colors.surface.canvas === '#161417' ? 'rgba(24,21,26,0.92)' : 'rgba(255,250,252,0.76)',
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.90)',
+          borderColor: colors.surface.canvas === '#161417' ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.90)',
         }
       : null),
   },
@@ -188,3 +192,5 @@ const styles = StyleSheet.create({
     transform: [{ scaleY: -1 }],
   },
 });
+
+const styles = createStyles(defaultThemeColors);

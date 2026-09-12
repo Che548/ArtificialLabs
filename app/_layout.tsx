@@ -1,10 +1,10 @@
+import { AppThemeProvider, useAppTheme, ThemeStatusBar } from '../lib/theme';
 import { bundledFonts } from '../lib/bundled-fonts';
 import { fontStyle } from '../lib/font-style';
 import { ConvexAuthProvider, useAuthToken } from '@convex-dev/auth/react';
-import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useConvexAuth } from 'convex/react';
 import { useFonts } from 'expo-font';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs as RouterTabs } from 'expo-router';
 import {
   Badge,
@@ -40,8 +40,8 @@ import { TelemetryManager } from '../lib/telemetry-manager';
 import { authTokenStorage } from '../lib/secure-storage';
 import { UpdateManagerProvider } from '../lib/update-manager';
 import {
-  androidMaterials,
   androidTabBarBaseStyle,
+  androidTabBarContentHeight,
 } from '../design-system/tokens';
 import AndroidAnalysisIcon from '../assets/android-icons/analysis.svg';
 import AndroidChatIcon from '../assets/android-icons/chat.svg';
@@ -55,7 +55,6 @@ import AndroidActiveScanIcon from '../assets/android-icons/active/scan.svg';
 import AndroidActiveTodayIcon from '../assets/android-icons/active/today.svg';
 
 const activeTint = '#EA4087';
-const activeCapsuleTint = '#FBE7F0';
 const inactiveTint = '#736E6C';
 const androidTabBackground = '#FFF5F1';
 const androidTabIndicator = '#F7DDEA';
@@ -84,9 +83,10 @@ const tabIcons = {
 } as const;
 
 function IOSNativeTabs() {
+  const { mode, colors } = useAppTheme();
   const assistantUnread = useAssistantUnread();
   return (
-    <ThemeProvider value={DefaultTheme}>
+    <ThemeProvider value={mode === 'dark' ? DarkTheme : DefaultTheme}>
       <NativeTabs
         tintColor={activeTint}
         badgeBackgroundColor={activeTint}
@@ -94,9 +94,9 @@ function IOSNativeTabs() {
         backgroundColor={
           Platform.OS === 'android'
             ? androidTabBackground
-            : 'rgba(255,255,255,0.20)'
+            : colors.surface.glassWash
         }
-        blurEffect="systemUltraThinMaterialLight"
+        blurEffect={mode === "dark" ? "systemUltraThinMaterialDark" : "systemUltraThinMaterialLight"}
         shadowColor="rgba(0,0,0,0.18)"
         indicatorColor={androidTabIndicator}
         labelVisibilityMode={Platform.OS === 'android' ? 'labeled' : undefined}
@@ -294,16 +294,6 @@ function AndroidTabButton({
               : undefined;
   const resolvedTestID = testID ?? fallbackTestID;
   const selected = ariaSelected ?? accessibilityState?.selected ?? false;
-  const progress = useRef(new Animated.Value(selected ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.timing(progress, {
-      toValue: selected ? 1 : 0,
-      duration: 210,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [progress, selected]);
 
   return (
     <Pressable
@@ -320,22 +310,6 @@ function AndroidTabButton({
       testID={resolvedTestID}
     >
       <View pointerEvents="none" style={styles.androidTabButtonContent}>
-        <Animated.View
-          style={[
-            styles.androidActiveTabSurface,
-            {
-              opacity: progress,
-              transform: [
-                {
-                  scale: progress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.92, 1],
-                  }),
-                },
-              ],
-            },
-          ]}
-        />
         {children}
       </View>
     </Pressable>
@@ -343,6 +317,7 @@ function AndroidTabButton({
 }
 
 function AndroidTabs() {
+  const { mode, colors } = useAppTheme();
   const assistantUnread = useAssistantUnread();
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 8);
@@ -355,7 +330,7 @@ function AndroidTabs() {
   };
 
   return (
-    <ThemeProvider value={DefaultTheme}>
+    <ThemeProvider value={mode === 'dark' ? DarkTheme : DefaultTheme}>
       <RouterTabs
         screenOptions={({ route }) => ({
           headerShown: false,
@@ -375,7 +350,7 @@ function AndroidTabs() {
           tabBarStyle: [
             androidTabBarBaseStyle,
             {
-              height: 60 + bottomInset,
+              height: androidTabBarContentHeight + bottomInset,
               paddingBottom: bottomInset,
             },
           ],
@@ -400,7 +375,7 @@ function AndroidTabs() {
           options={{
             title: 'Сферка',
             tabBarBadge: assistantUnread ? 1 : undefined,
-            tabBarBadgeStyle: { backgroundColor: activeTint, color: '#FFFFFF' },
+            tabBarBadgeStyle: styles.androidTabBadge,
             tabBarButtonTestID: 'e2e-tab-chat',
             tabBarIcon: ({ focused }) => (
               <AndroidTabIcon focused={focused} route="chat" />
@@ -468,21 +443,18 @@ function AndroidTabs() {
 }
 
 function AndroidTabBarMaterial() {
+  const { mode } = useAppTheme();
   return (
-    <View pointerEvents="none" style={styles.androidTabBarMaterial}>
-      <LinearGradient
-        colors={[
-          'rgba(255,255,255,0.92)',
-          'rgba(255,244,249,0.72)',
-          'rgba(255,255,255,0.82)',
-        ]}
-        locations={[0, 0.62, 1]}
-        start={{ x: 0.08, y: 0 }}
-        end={{ x: 0.92, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <View style={styles.androidTabBarStroke} />
-    </View>
+    <View
+      pointerEvents="none"
+      style={[
+        styles.androidTabBarMaterial,
+        {
+          backgroundColor: mode === 'dark' ? 'rgba(28,26,29,0.96)' : 'rgba(250,249,249,0.96)',
+          borderTopColor: mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(60,45,50,0.12)',
+        },
+      ]}
+    />
   );
 }
 
@@ -586,7 +558,11 @@ function NativeApp() {
   );
 }
 
-export default function TabLayout() {
+export default function RootLayout() {
+  return <AppThemeProvider><TabLayout /></AppThemeProvider>;
+}
+
+function TabLayout() {
   const webDemo = Platform.OS === 'web';
   const [fontsLoaded, fontError] = useFonts(bundledFonts);
 
@@ -601,7 +577,7 @@ export default function TabLayout() {
     >
       <ConnectivityProvider>
         <UpdateManagerProvider>
-          <StatusBar style="dark" hidden={false} />
+          <ThemeStatusBar hidden={false} />
           {webDemo ? <WebDemo /> : <NativeApp />}
           <ConnectivityBanner />
         </UpdateManagerProvider>
@@ -611,23 +587,30 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  androidTabBadge: {
+    backgroundColor: activeTint,
+    color: '#FFFFFF',
+    height: 16,
+    minWidth: 16,
+    borderRadius: 8,
+    fontSize: 11,
+    lineHeight: 16,
+    paddingHorizontal: 3,
+    includeFontPadding: false,
+    top: 0,
+  },
   androidTabItem: {
-    minHeight: 52,
-    marginVertical: 5,
-    borderRadius: 26,
+    minHeight: 44,
+    marginVertical: 0,
+    borderRadius: 0,
     overflow: 'hidden',
     paddingVertical: 0,
   },
   androidTabPressTarget: {
     padding: 0,
-    minHeight: 52,
+    minHeight: 44,
     width: '100%',
     alignItems: 'stretch',
-  },
-  androidActiveTabSurface: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 26,
-    backgroundColor: activeCapsuleTint,
   },
   androidTabButtonContent: {
     ...StyleSheet.absoluteFillObject,
@@ -637,13 +620,8 @@ const styles = StyleSheet.create({
   androidTabBarMaterial: {
     ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
-    borderRadius: 32,
-  },
-  androidTabBarStroke: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   androidTabIconSlot: {
     height: 28,

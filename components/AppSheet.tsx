@@ -1,3 +1,5 @@
+import { useProfileAppearance, useProfileStyles } from '../lib/profile-appearance';
+import type { ThemeColors } from '../lib/theme';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
@@ -16,7 +18,7 @@ import { AppText } from '../design-system/components';
 import { colors, overlayRadii } from '../design-system/tokens';
 import { useProfileReducedMotion } from './ProfileMotion';
 
-export const sheetStyles = StyleSheet.create({
+const createSheetStyles = (colors: ThemeColors) => StyleSheet.create({
   surface: {
     backgroundColor: colors.surface.canvas,
     borderRadius: overlayRadii.sheet,
@@ -40,7 +42,7 @@ export const sheetStyles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#E8E5E6',
+    backgroundColor: colors.surface.divider,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -51,7 +53,7 @@ export const sheetStyles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.72)',
   },
-  disabled: { backgroundColor: '#E8E5E6' },
+  disabled: { backgroundColor: colors.surface.divider },
   group: {
     backgroundColor: colors.surface.raised,
     borderRadius: 18,
@@ -71,10 +73,13 @@ export const sheetStyles = StyleSheet.create({
     paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E8E5E6',
+    backgroundColor: colors.surface.divider,
   },
   footer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 12 },
 });
+
+export const sheetStyles = createSheetStyles(colors);
+export const useSheetStyles = () => useProfileStyles(createSheetStyles);
 
 export function SheetHeader({
   title,
@@ -85,6 +90,8 @@ export function SheetHeader({
   onClose: () => void;
   disabled?: boolean;
 }) {
+  const sheetStyles = useSheetStyles();
+  const { colors } = useProfileAppearance();
   return (
     <View style={sheetStyles.header}>
       <AppText role="heading" weight="semibold" style={sheetStyles.title}>
@@ -134,6 +141,8 @@ export function AppSheet({
   surface?: 'grouped' | 'white';
   onClosed?: () => void;
 }) {
+  const sheetStyles = useSheetStyles();
+  const styles = useProfileStyles(createStyles);
   const insets = useSafeAreaInsets();
   const reducedMotion = useProfileReducedMotion();
   const [mounted, setMounted] = useState(visible);
@@ -245,10 +254,10 @@ export function AppSheet({
     </Modal>
   );
 }
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 12 },
   scrim: { backgroundColor: 'rgba(30,22,25,0.24)' },
-  whiteSurface: { backgroundColor: '#FFFFFF' },
+  whiteSurface: { backgroundColor: colors.surface.raised },
   sheet: { flexShrink: 1, maxHeight: '92%', paddingBottom: 8 },
   scroll: { flexShrink: 1 },
 });

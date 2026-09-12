@@ -1,7 +1,12 @@
+import { AndroidMaterialBackdrop } from './design-system/android-material';
+import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from './lib/theme';
+import { colors as defaultThemeColors } from './design-system/tokens';
 import { TodayArticleSheet } from './components/TodayArticleSheet';
 import { todayArticles, type TodayArticle } from './lib/today-articles';
 import { AppSheet, sheetStyles } from './components/AppSheet';
 import { TopChromeBackdrop } from './components/TopChromeBackdrop';
+import { GradientBlur } from './components/GradientBlur';
+import { useProfileReducedMotion } from './components/ProfileMotion';
 import { bundledFonts } from './lib/bundled-fonts';
 import { fontStyle } from './lib/font-style';
 import { BlurView } from 'expo-blur';
@@ -48,7 +53,10 @@ import type {
   ViewStyle,
 } from 'react-native';
 
-import { CycleAnimatedBackground } from './design-system/cycle-animated-background';
+import {
+  CycleAnimatedBackground,
+  type CycleBackgroundState,
+} from './design-system/cycle-animated-background';
 import ArrowButton from './assets/figma/arrow-button.svg';
 import ArrowCard from './assets/figma/arrow-card.svg';
 import CalendarIcon from './assets/figma/calendar-icon.svg';
@@ -61,7 +69,6 @@ import PlanningSymptomsIcon from './assets/today/planning-symptoms.svg';
 import {
   AppText,
   CalendarPageModal,
-  androidMaterials,
   androidShadows,
   colors,
   HeaderDateLabel,
@@ -152,6 +159,7 @@ function LiquidGlassSurface({
   highlight = 'light',
   radius = 999,
 }: LiquidGlassSurfaceProps) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View
       pointerEvents={hasNativeLiquidGlass ? 'box-none' : 'none'}
@@ -189,15 +197,7 @@ function LiquidGlassSurface({
       ) : (
         <>
           {Platform.OS === 'android' ? (
-            <View
-              style={[
-                StyleSheet.absoluteFillObject,
-                highlight === 'dark'
-                  ? androidMaterials.dark
-                  : androidMaterials.light,
-                { borderRadius: radius },
-              ]}
-            />
+            <AndroidMaterialBackdrop radius={radius} tone={highlight} washColor={washColor} />
           ) : Platform.OS === 'web' ? (
             <View
               style={[
@@ -253,13 +253,14 @@ function LiquidGlassPressable({
   headerElevation = false,
   variant = 'clear',
   tintColor,
-  colorScheme = 'light',
+  colorScheme = 'auto',
   fallbackTint = 'systemUltraThinMaterialLight',
   intensity = 58,
   washColor = 'transparent',
   highlight = 'light',
   radius = 999,
 }: LiquidGlassPressableProps) {
+  const styles = useThemeStyles(createStyles);
   if (hasNativeLiquidGlass) {
     return (
       <GlassView
@@ -286,19 +287,16 @@ function LiquidGlassPressable({
   }
 
   if (Platform.OS === 'android') {
-    const androidMaterial =
-      highlight === 'dark' ? androidMaterials.dark : androidMaterials.light;
-
     return (
       <View
         style={[
           controlStyle,
           styles.androidMaterialControl,
-          androidMaterial,
           headerElevation ? androidShadows.control : undefined,
           { borderRadius: radius },
         ]}
       >
+        <AndroidMaterialBackdrop radius={radius} tone={highlight} washColor={washColor} />
         <Pressable
           cssInterop={false}
           accessibilityRole="button"
@@ -380,8 +378,8 @@ function ProjectText({
   weight = 'regular',
   ...props
 }: ProjectTextProps) {
+  const styles = useThemeStyles(createStyles);
   const fontsReady = useContext(FontReadyContext);
-  const segments = String(children).split(/(сфера)/gi);
   const sfFont =
     fontsReady && weight === 'semibold'
       ? FONT_SF_SEMIBOLD
@@ -402,24 +400,11 @@ function ProjectText({
       style={[
         styles.projectText,
         style,
-        { ...fontStyle(sfFont), fontWeight: fallbackWeight },
+        fontStyle(sfFont),
+        fallbackWeight ? { fontWeight: fallbackWeight } : undefined,
       ]}
     >
-      {segments.map((segment, index) =>
-        /^сфера$/i.test(segment) ? (
-          <Text
-            key={`${segment}-${index}`}
-            style={{
-              ...fontStyle(fontsReady ? FONT_YARO_RG : sfFont),
-              fontWeight: fallbackWeight,
-            }}
-          >
-            {segment}
-          </Text>
-        ) : (
-          segment
-        ),
-      )}
+      {children}
     </Text>
   );
 }
@@ -431,6 +416,8 @@ type FeatureCardProps = {
 };
 
 function FeatureCard({ title, background, onPress }: FeatureCardProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.featureCard, styles.featureCardSoft]}>
       <Image
@@ -474,6 +461,7 @@ function FeatureCard({ title, background, onPress }: FeatureCardProps) {
 }
 
 function ImportantMascotCard({ onPress }: { onPress?: () => void }) {
+  const styles = useThemeStyles(createStyles);
   const fontsReady = useContext(FontReadyContext);
 
   return (
@@ -502,11 +490,13 @@ function ImportantMascotCard({ onPress }: { onPress?: () => void }) {
         style={[
           styles.importantCardLabel,
           {
-            ...fontStyle(fontsReady
-              ? FONT_YARO_RG
-              : Platform.OS === 'ios'
-                ? 'System'
-                : 'sans-serif'),
+            ...fontStyle(
+              fontsReady
+                ? FONT_YARO_RG
+                : Platform.OS === 'ios'
+                  ? 'System'
+                  : 'sans-serif',
+            ),
           },
         ]}
       >
@@ -552,6 +542,34 @@ function TodayArticleCards({
   );
 }
 
+function TodayScrollBackdrop({
+  scrollY,
+  headerTop,
+  distance = 320,
+}: {
+  scrollY: Animated.Value;
+  headerTop: number;
+  distance?: number;
+}) {
+  const styles = useThemeStyles(createStyles);
+  const opacity = scrollY.interpolate({
+    inputRange: [0, distance * 0.1875, distance * 0.5625, distance],
+    outputRange: [0, 0.38, 0.95, 1],
+    extrapolate: 'clamp',
+  });
+  return (
+    <Animated.View
+      pointerEvents="none"
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.todayScrollBlur, { height: headerTop + 340, opacity }]}
+    >
+      <GradientBlur intensity={100} strength={1} locations={[0, 0.5, 0.88, 1]} />
+    </Animated.View>
+  );
+}
+
 function MonitoringScreen({
   headerTop,
   onCalendarPress,
@@ -562,6 +580,7 @@ function MonitoringScreen({
   onPregnancyDatePress,
   onCheckupsPress,
 }: {
+  backgroundState?: CycleBackgroundState;
   headerTop: number;
   onCalendarPress: () => void;
   onChartsPress: () => void;
@@ -571,6 +590,8 @@ function MonitoringScreen({
   onPregnancyDatePress: () => void;
   onCheckupsPress: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const { carePlanItems, profile, journalEntries } = useHealthStore();
   const pregnancyWeek = pregnancyWeekFromStart(profile?.pregnancyStartAt);
   const initialWeek = pregnancyWeek ?? 1;
@@ -656,7 +677,7 @@ function MonitoringScreen({
       <Image
         source={require('./assets/figma/today_pregnancy_background.png')}
         resizeMode="cover"
-        style={styles.heroImage}
+        style={[styles.heroImage, { opacity: colors.surface.canvas === defaultThemeColors.surface.canvas ? 1 : 0.22 }]}
       />
 
       <TopChromeBackdrop headerTop={headerTop} />
@@ -952,6 +973,7 @@ function MonitoringScreen({
           <View pointerEvents="none" style={styles.contentSurfaceExtension} />
 
           <ContentShape
+            color={colors.surface.raised}
             pointerEvents="none"
             width={DESIGN_WIDTH}
             height={361}
@@ -1014,7 +1036,7 @@ function MonitoringScreen({
         colors={[
           'rgba(255,255,255,0)',
           'rgba(255,255,255,0)',
-          'rgba(255,255,255,1)',
+          `${colors.surface.raised}ff`,
         ]}
         locations={[0, 0.62, 1]}
         style={styles.navbarFadeGradient}
@@ -1030,12 +1052,14 @@ type PlanningQuickActionProps = {
   onPress: () => void;
 };
 
-function PlanningQuickAction({
+export function PlanningQuickAction({
   glyph,
   label,
   onPress,
   primary = false,
 }: PlanningQuickActionProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const content = <View style={styles.planningActionIcon}>{glyph}</View>;
 
   return (
@@ -1060,8 +1084,8 @@ function PlanningQuickAction({
           accessibilityLabel={label}
           controlStyle={styles.planningActionCircle}
           onPress={onPress}
-          tintColor={primary ? TODAY_ACCENT : 'rgba(255,255,255,0.62)'}
-          washColor={primary ? `${TODAY_ACCENT}F0` : 'rgba(255,255,255,0.22)'}
+          tintColor={primary ? TODAY_ACCENT : colors.surface.headerGlassWash}
+          washColor={primary ? `${TODAY_ACCENT}F0` : colors.surface.glassWash}
           intensity={72}
         >
           {primary ? (
@@ -1112,6 +1136,8 @@ function PlanningIntimacyModal({
   onSave: (labels: string[]) => void | Promise<void>;
   visible: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [selection, setSelection] = useState<{
     contact?: string;
@@ -1299,6 +1325,7 @@ function formatPlanningDateRange(start: Date, end: Date) {
 }
 
 function PlanningMonitoringScreen({
+  backgroundState,
   headerTop,
   onCalendarPress,
   onChartsPress,
@@ -1307,6 +1334,7 @@ function PlanningMonitoringScreen({
   onSymptomsPress,
   onCheckupsPress,
 }: {
+  backgroundState?: CycleBackgroundState;
   headerTop: number;
   onCalendarPress: () => void;
   onChartsPress: () => void;
@@ -1315,7 +1343,16 @@ function PlanningMonitoringScreen({
   onSymptomsPress: () => void;
   onCheckupsPress: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const { carePlanItems, journalEntries, profile } = useHealthStore();
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useProfileReducedMotion();
+  const forecastTranslateY = scrollY.interpolate({
+    inputRange: [0, 360],
+    outputRange: [0, -54],
+    extrapolate: 'clamp',
+  });
   const today = new Date();
   const cycleHistory = cycleHistoryFromHealthData(profile, journalEntries);
   const cycleInsight = cycleHistory
@@ -1362,9 +1399,17 @@ function PlanningMonitoringScreen({
 
   return (
     <View style={styles.planningCanvas}>
-      <CycleAnimatedBackground />
-      <TopChromeBackdrop headerTop={headerTop} />
-
+      <CycleAnimatedBackground
+        scrollY={scrollY}
+        state={
+          backgroundState ??
+          (cycleInsight?.kind === 'menstruation'
+            ? 'menstruation'
+            : planningMode && cycleInsight?.kind === 'ovulation'
+              ? 'ovulation'
+              : 'neutral')
+        }
+      />
       <LiquidGlassGroup
         spacing={12}
         style={[styles.topBar, { top: headerTop }]}
@@ -1411,13 +1456,18 @@ function PlanningMonitoringScreen({
         </LiquidGlassPressable>
       </LiquidGlassGroup>
 
-      <View style={styles.planningForecast}>
+      <Animated.View
+        style={[
+          styles.planningForecast,
+          !reducedMotion && { transform: [{ translateY: forecastTranslateY }] },
+        ]}
+      >
         <ProjectText style={styles.planningCycleDay} weight="semibold">
           {cycleInsight
             ? `${cycleInsight.cycleDay}-й день цикла`
             : 'Цикл пока не настроен'}
         </ProjectText>
-        <ProjectText style={styles.planningProbability} weight="semibold">
+        <AppText style={styles.planningProbability} weight={planningMode ? "medium" : "bold"}>
           {planningMode
             ? probabilityLabel
               ? `${probabilityLabel} вероятность`
@@ -1427,7 +1477,7 @@ function PlanningMonitoringScreen({
               : daysUntilPeriod !== undefined
                 ? `Через ${daysUntilPeriod} дн.`
                 : 'Добавьте дату месячных'}
-        </ProjectText>
+        </AppText>
         <ProjectText style={styles.planningProbabilityCaption}>
           {planningMode
             ? 'забеременеть'
@@ -1437,16 +1487,24 @@ function PlanningMonitoringScreen({
                 ? 'ожидаются месячные'
                 : 'в календаре'}
         </ProjectText>
-      </View>
+      </Animated.View>
 
-      <ScrollView
+      <TodayScrollBackdrop scrollY={scrollY} headerTop={headerTop} />
+
+      <Animated.ScrollView
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         style={styles.planningLowerScroll}
         contentContainerStyle={styles.planningLowerScrollContent}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
       >
         <View style={styles.planningLowerCanvas}>
           <ContentShape
+            color={colors.surface.raised}
             pointerEvents="none"
             width={DESIGN_WIDTH}
             height={361}
@@ -1541,6 +1599,15 @@ function PlanningMonitoringScreen({
 
           <View pointerEvents="none" style={styles.planningMetricsDivider} />
 
+          <View style={styles.planningCardsRow}>
+            <TodayArticleCards
+              onImportantPress={onCheckupsPress}
+              checkupCount={checkupProgress.total}
+            />
+          </View>
+
+          <View pointerEvents="none" style={styles.planningCyclesDivider} />
+
           <View style={styles.planningCyclesContent}>
             <ProjectText style={styles.planningCyclesTitle} weight="semibold">
               Мои циклы
@@ -1634,22 +1701,15 @@ function PlanningMonitoringScreen({
                 ))}
             </View>
           </View>
-
-          <View pointerEvents="none" style={styles.planningCyclesDivider} />
-
-          <View style={styles.planningCardsRow}>
-            <TodayArticleCards
-              onImportantPress={onCheckupsPress}
-              checkupCount={checkupProgress.total}
-            />
-          </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
 
-export function PlanningTodayScreenCatalogPreview() {
+export function PlanningTodayScreenCatalogPreview({
+  backgroundState,
+}: { backgroundState?: CycleBackgroundState } = {}) {
   const insets = useSafeAreaInsets();
   const { addJournalEntry } = useHealthStore();
   const [calendarVisible, setCalendarVisible] = useState(false);
@@ -1674,6 +1734,7 @@ export function PlanningTodayScreenCatalogPreview() {
   return (
     <FontReadyContext.Provider value>
       <PlanningMonitoringScreen
+        backgroundState={backgroundState}
         headerTop={headerTop}
         onCalendarPress={() => setCalendarVisible(true)}
         onChartsPress={() => undefined}
@@ -1717,6 +1778,7 @@ export function PlanningTodayScreenCatalogPreview() {
 }
 
 export default function App() {
+  const styles = useThemeStyles(createStyles);
   const router = useRouter();
   const {
     addJournalEntry,
@@ -1847,7 +1909,7 @@ export default function App() {
       <View
         style={[styles.root, Platform.OS === 'android' && styles.androidRoot]}
       >
-        <StatusBar style="dark" hidden={false} />
+        <ThemeStatusBar hidden={false} />
         <View
           style={{
             width: DESIGN_WIDTH * scale,
@@ -1940,12 +2002,12 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FDECE5',
+    backgroundColor: colors.surface.warm,
   },
   androidRoot: {
     justifyContent: 'flex-start',
@@ -1959,8 +2021,8 @@ const styles = StyleSheet.create({
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
-    backgroundColor: '#FDECE5',
-    borderRadius: 40,
+    backgroundColor: colors.surface.warm,
+    borderRadius: Platform.OS === 'android' ? 0 : 40,
   },
   heroImage: {
     position: 'absolute',
@@ -2091,9 +2153,9 @@ const styles = StyleSheet.create({
   selectedWeekFill: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 999,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.raised,
     borderWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.92)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(255,255,255,0.92)',
   },
   weekNumber: {
     color: '#F2A8CB',
@@ -2124,20 +2186,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 18,
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.86)',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : 'rgba(255,255,255,0.86)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.14)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(234,64,135,0.14)',
     ...shadows.card,
   },
   pregnancyDateMissingTitle: {
     width: 245,
-    color: '#56162D',
+    color: colors.surface.canvas === '#161417' ? colors.text.primary : '#56162D',
     fontSize: 16,
     lineHeight: 19,
   },
   pregnancyDateMissingBody: {
     marginTop: 4,
-    color: '#7D6870',
+    color: colors.surface.canvas === '#161417' ? colors.text.secondary : '#7D6870',
     fontSize: 13,
     lineHeight: 16,
   },
@@ -2150,7 +2212,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F4C0D8',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#F4C0D8',
   },
   contentShape: {
     position: 'absolute',
@@ -2163,7 +2225,7 @@ const styles = StyleSheet.create({
     top: 180,
     width: DESIGN_WIDTH,
     height: 371,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.raised,
   },
   cardsRow: {
     position: 'absolute',
@@ -2189,7 +2251,11 @@ const styles = StyleSheet.create({
   importantCardSurface: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 30,
-    backgroundColor: '#ECA4C8',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas
+      ? '#ECA4C8'
+      : colors.surface.rose,
+    borderWidth: colors.surface.canvas === defaultThemeColors.surface.canvas ? 0 : 1,
+    borderColor: colors.surface.divider,
   },
   importantCardHitArea: {
     ...StyleSheet.absoluteFillObject,
@@ -2214,7 +2280,9 @@ const styles = StyleSheet.create({
     right: -33,
     top: 48,
     width: 114,
-    color: '#FDECE5',
+    color: colors.surface.canvas === defaultThemeColors.surface.canvas
+      ? '#FDECE5'
+      : colors.text.primary,
     fontSize: 24,
     lineHeight: 26,
     letterSpacing: -0.5,
@@ -2268,7 +2336,7 @@ const styles = StyleSheet.create({
     width: 370,
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#ededed',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#ededed',
   },
   dashboardScroll: {
     position: 'absolute',
@@ -2290,8 +2358,15 @@ const styles = StyleSheet.create({
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
-    borderRadius: 40,
-    backgroundColor: '#FDECE5',
+    borderRadius: Platform.OS === 'android' ? 0 : 40,
+    backgroundColor: colors.surface.warm,
+  },
+  todayScrollBlur: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    zIndex: 2,
   },
   planningHeaderFade: {
     position: 'absolute',
@@ -2309,7 +2384,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   planningCycleDay: {
-    color: '#7B6470',
+    color: colors.text.secondary,
     fontSize: 15,
     lineHeight: 20,
     letterSpacing: -0.15,
@@ -2324,7 +2399,7 @@ const styles = StyleSheet.create({
   },
   planningProbabilityCaption: {
     marginTop: -2,
-    color: '#171717',
+    color: colors.text.primary,
     fontSize: 24,
     lineHeight: 29,
     letterSpacing: -0.48,
@@ -2365,12 +2440,12 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     backgroundColor: TODAY_ACCENT,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.82)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(255,255,255,0.82)',
   },
   planningAndroidAction: {
-    backgroundColor: '#FFF9FC',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF9FC',
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#FFFFFF',
   },
   planningAndroidActionPrimary: {
     backgroundColor: TODAY_ACCENT,
@@ -2388,7 +2463,7 @@ const styles = StyleSheet.create({
   planningActionLabel: {
     minHeight: 38,
     marginTop: 9,
-    color: '#30262A',
+    color: colors.text.primary,
     fontSize: 14,
     lineHeight: 17,
     letterSpacing: -0.16,
@@ -2422,7 +2497,7 @@ const styles = StyleSheet.create({
     top: 180,
     width: DESIGN_WIDTH,
     bottom: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   planningJournalArea: {
     position: 'absolute',
@@ -2445,16 +2520,17 @@ const styles = StyleSheet.create({
     width: 370,
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#EDEDED',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#EDEDED',
   },
   planningMetricsTopDivider: {
     top: 178,
   },
   planningCyclesContent: {
+    marginTop: 18,
     marginHorizontal: 16,
   },
   planningCyclesTitle: {
-    color: '#212123',
+    color: colors.text.primary,
     fontSize: 22,
     lineHeight: 27,
     letterSpacing: -0.4,
@@ -2470,32 +2546,31 @@ const styles = StyleSheet.create({
   },
   planningCyclesRowDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EDEDED',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#EDEDED',
   },
   planningCyclesMetricCopy: { minWidth: 0, flex: 1, gap: 5 },
   planningCyclesMetricLabel: {
-    color: '#736E6C',
+    color: colors.text.secondary,
     fontSize: 14,
     lineHeight: 18,
   },
   planningCyclesMetricValue: {
-    color: '#212123',
+    color: colors.text.primary,
     fontSize: 18,
     lineHeight: 23,
     letterSpacing: -0.2,
   },
-  planningCyclesMissing: { color: '#736E6C' },
-  planningCyclesSource: { color: '#736E6C', fontSize: 12, lineHeight: 16 },
+  planningCyclesMissing: { color: colors.text.secondary },
+  planningCyclesSource: { color: colors.text.secondary, fontSize: 12, lineHeight: 16 },
   planningCyclesDivider: {
     marginTop: 22,
     marginHorizontal: 16,
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#EDEDED',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#EDEDED',
   },
   planningCardsRow: {
     marginLeft: 16,
-    marginTop: 18,
     width: 386,
     height: 128,
     flexDirection: 'row',
@@ -2521,7 +2596,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 18,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   planningOption: {
     position: 'relative',
@@ -2530,7 +2605,7 @@ const styles = StyleSheet.create({
   },
   planningOptionDivider: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EDEBED',
+    borderTopColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#EDEBED',
   },
   planningOptionContent: {
     flex: 1,
@@ -2545,7 +2620,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     lineHeight: 22,
-    color: '#212123',
+    color: colors.text.primary,
   },
   planningOptionSelection: {
     width: 22,
@@ -2558,7 +2633,7 @@ const styles = StyleSheet.create({
     height: 13,
     borderRightWidth: 2,
     borderBottomWidth: 2,
-    borderColor: '#EA4087',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#EA4087',
     transform: [{ rotate: '40deg' }],
     marginTop: -4,
   },
@@ -2622,8 +2697,8 @@ const styles = StyleSheet.create({
   androidMaterialControl: {
     overflow: 'hidden',
     borderWidth: 0.8,
-    borderColor: '#ECDDE2',
-    backgroundColor: '#FFFDFC',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#ECDDE2',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFFDFC',
   },
   glassSurface: {
     ...StyleSheet.absoluteFillObject,
@@ -2636,7 +2711,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 999,
     borderWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.52)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(255,255,255,0.52)',
   },
   glassControlShadow: {
     shadowColor: '#260208',
@@ -2657,3 +2732,5 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

@@ -1,3 +1,5 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -32,6 +34,8 @@ export function AnalysisKnowledgeCarousel({
   items: AnalysisKnowledgeItem[];
   onPress?: (item: AnalysisKnowledgeItem) => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const listRef = useRef<FlatList<AnalysisKnowledgeItem>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [cardWidth, setCardWidth] = useState(0);
@@ -204,6 +208,8 @@ export function AnalysisCountsBlock({
   missed: number;
   upcoming: number;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const items = [
     { label: 'Ближайшие', value: upcoming, color: colors.brand.primary },
     { label: 'Пропущено', value: missed, color: colors.state.error },
@@ -232,7 +238,7 @@ export function AnalysisCountsBlock({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   pressed: {
     opacity: motion.pressedOpacity,
     transform: [{ scale: 0.994 }],
@@ -258,7 +264,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 28,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(46,31,38,0.05)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(46,31,38,0.05)',
     ...shadows.card,
   },
   knowledgeImage: {
@@ -309,7 +315,7 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: radii.pill,
-    backgroundColor: '#D8D3D5',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#D8D3D5',
   },
   paginationDotActive: {
     width: 18,
@@ -320,7 +326,7 @@ const styles = StyleSheet.create({
     height: 94,
     borderRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(46,31,38,0.06)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(46,31,38,0.06)',
     backgroundColor: colors.surface.raised,
     flexDirection: 'row',
     ...shadows.card,
@@ -339,6 +345,8 @@ const styles = StyleSheet.create({
     top: 19,
     bottom: 19,
     width: StyleSheet.hairlineWidth,
-    backgroundColor: '#E6E1E3',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#E6E1E3',
   },
 });
+
+const styles = createStyles(defaultThemeColors);

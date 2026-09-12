@@ -1,3 +1,4 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { useRef } from 'react';
 import { Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +16,8 @@ export function TodayArticleSheet({
   article: TodayArticle | null;
   onClose: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const reduceMotion = useProfileReducedMotion();
   const lastArticle = useRef(article);
@@ -70,8 +73,8 @@ export function TodayArticleSheet({
     </Modal>
   );
 }
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.surface.raised },
   content: { paddingHorizontal: 24, paddingTop: 16, gap: 24 },
   title: { fontSize: 28, lineHeight: 34 },
   intro: { fontSize: 18, lineHeight: 27 },

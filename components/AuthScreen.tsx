@@ -1,3 +1,8 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from '../design-system/tokens';
+import { LegalDocumentsModal } from './LegalDocumentsModal';
+import type { LegalDocumentSelection } from '../lib/legal-documents';
+import { BrandLogo } from './BrandLogo';
 import { fontStyle } from '../lib/font-style';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useAction } from 'convex/react';
@@ -9,7 +14,6 @@ import {
   Easing,
   Keyboard,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -33,12 +37,10 @@ type AuthChannel = 'email' | 'phone';
 type AuthFlow = 'signIn' | 'signUp';
 
 const authChannelOptions: Array<{ value: AuthChannel; label: string }> = [
-  { value: 'email', label: 'Email' },
+  { value: 'email', label: 'Почта' },
   { value: 'phone', label: 'Телефон' },
 ];
 
-const privacyPolicyUrl = 'https://brainwaves.engineering/docs#document-2';
-const userAgreementUrl = 'https://brainwaves.engineering/docs#document-3';
 const designWidth = 402;
 const designHeight = 874;
 const devLoginEnabled = __DEV__;
@@ -96,6 +98,9 @@ function Checkbox({
   onPress: () => void;
   testID?: string;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const activation = useRef(new Animated.Value(checked ? 1 : 0)).current;
 
   useEffect(() => {
@@ -114,6 +119,7 @@ function Checkbox({
       accessibilityLabel={label}
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
+      aria-checked={checked}
       hitSlop={10}
       onPress={onPress}
       style={styles.checkboxHitArea}
@@ -124,11 +130,11 @@ function Checkbox({
           {
             backgroundColor: activation.interpolate({
               inputRange: [0, 1],
-              outputRange: ['#FFFFFF', '#EA4087'],
+              outputRange: [colors.surface.raised, colors.brand.primary],
             }),
             borderColor: activation.interpolate({
               inputRange: [0, 1],
-              outputRange: ['#D8D4D8', '#EA4087'],
+              outputRange: [colors.surface.divider, colors.brand.primary],
             }),
             transform: [
               {
@@ -164,11 +170,14 @@ function Checkbox({
   );
 }
 
-function LegalLink({ children, url }: { children: string; url: string }) {
+function LegalLink({ children, onPress }: { children: string; onPress: () => void }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Text
       accessibilityRole="link"
-      onPress={() => void Linking.openURL(url)}
+      onPress={onPress}
       style={styles.legalLink}
     >
       {children}
@@ -189,11 +198,15 @@ export function AuthScreen({
   onPreviewComplete?: () => void;
   preview?: boolean;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const { signIn } = useAuthActions();
   const requestPasswordRecovery = useAction(api.passwordRecovery.request);
   const completePasswordRecovery = useAction(api.passwordRecovery.complete);
   const { isOffline } = useConnectivity();
   const window = useWindowDimensions();
+  const [legalDocument, setLegalDocument] = useState<LegalDocumentSelection>(null);
   const [flow, setFlow] = useState<AuthFlow>('signUp');
   const [channel, setChannel] = useState<AuthChannel>('email');
   const [identifier, setIdentifier] = useState(e2eMode ? (e2eEmail ?? '') : '');
@@ -255,8 +268,12 @@ export function AuthScreen({
         password === passwordConfirmation &&
         Boolean(recoveryChallengeId)
     : validIdentifier && validPassword && legalAccepted;
-  const submitDisabled = !canSubmit || submitting || (!preview && isOffline);
+  const phoneRegistrationUnavailable = flow === 'signUp' && !recoveryMode && channel === 'phone';
+  const submitDisabled = phoneRegistrationUnavailable || !canSubmit || submitting || (!preview && isOffline);
   const visibleError =
+    (phoneRegistrationUnavailable
+      ? 'По телефону пока можно только войти. Для регистрации выберите почту.'
+      : undefined) ??
     error ??
     (!preview && isOffline
       ? 'Нет интернета. Подключитесь к сети, чтобы войти или зарегистрироваться.'
@@ -367,7 +384,7 @@ export function AuthScreen({
   };
 
   const submit = async () => {
-    if (!canSubmit || submitting) {
+    if (phoneRegistrationUnavailable || !canSubmit || submitting) {
       return;
     }
 
@@ -440,13 +457,14 @@ export function AuthScreen({
   return (
     <View style={styles.root}>
       {preview ? null : <StatusBar hidden />}
+      <LegalDocumentsModal selection={legalDocument} onClose={() => setLegalDocument(null)} />
       <View
         style={[
           styles.screenViewport,
           {
             width: designWidth * canvasScale,
             height: designHeight * canvasScale,
-            borderRadius: 40 * canvasScale,
+            borderRadius: Platform.OS === 'android' ? 0 : 40 * canvasScale,
           },
         ]}
       >
@@ -484,28 +502,21 @@ export function AuthScreen({
                 ) : null}
 
                 <View style={styles.brandBlock}>
-                  <Text style={styles.brand}>сфера.</Text>
-                  <Text style={styles.brandSubtitle}>
+                  <BrandLogo width={184} style={{ marginTop: 2 }} />
+                  <Text style={styles.brandSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                     Сфера женского здоровья
                   </Text>
                 </View>
 
-                {flow === 'signIn' || recoveryMode ? (
-                  <SegmentedSwitcher
-                    accessibilityLabel={
-                      recoveryMode ? 'Способ восстановления' : 'Способ входа'
-                    }
-                    options={authChannelOptions}
-                    value={channel}
-                    onChange={changeChannel}
-                    style={styles.channelPicker}
-                    labelStyle={styles.channelLabel}
-                  />
-                ) : (
-                  <Text style={styles.registrationHint}>
-                    Регистрация по электронной почте
-                  </Text>
-                )}
+                <SegmentedSwitcher
+                  accessibilityLabel={
+                    recoveryMode ? 'Способ восстановления' : flow === 'signUp' ? 'Способ регистрации' : 'Способ входа'
+                  }
+                  options={authChannelOptions}
+                  value={channel}
+                  onChange={changeChannel}
+                  style={styles.channelPicker}
+                />
 
                 <View style={[styles.fieldGroup, styles.identifierField]}>
                   <Text style={styles.fieldLabel}>
@@ -527,7 +538,7 @@ export function AuthScreen({
                     placeholder={
                       channel === 'email' ? 'Email' : '+7 999 000-00-00'
                     }
-                    placeholderTextColor="#8F8A90"
+                    placeholderTextColor={colors.text.secondary}
                     style={styles.input}
                     value={identifier}
                   />
@@ -571,7 +582,7 @@ export function AuthScreen({
                           : setPassword(value)
                       }
                       placeholder={recoveryMode ? '000000' : 'Введите пароль'}
-                      placeholderTextColor="#8F8A90"
+                      placeholderTextColor={colors.text.secondary}
                       secureTextEntry={!recoveryMode && !e2eMode}
                       style={styles.input}
                       value={recoveryMode ? recoveryCode : password}
@@ -593,7 +604,7 @@ export function AuthScreen({
                         autoComplete="new-password"
                         onChangeText={setPassword}
                         placeholder="Не менее 8 символов"
-                        placeholderTextColor="#8F8A90"
+                        placeholderTextColor={colors.text.secondary}
                         secureTextEntry={!e2eMode}
                         style={styles.input}
                         value={password}
@@ -609,7 +620,7 @@ export function AuthScreen({
                         autoComplete="new-password"
                         onChangeText={setPasswordConfirmation}
                         placeholder="Повторите новый пароль"
-                        placeholderTextColor="#8F8A90"
+                        placeholderTextColor={colors.text.secondary}
                         secureTextEntry={!e2eMode}
                         style={styles.input}
                         value={passwordConfirmation}
@@ -657,7 +668,7 @@ export function AuthScreen({
                     <View style={styles.consentRow}>
                       <Checkbox
                         checked={personalDataConsent}
-                        label="Согласие на обработку персональных данных"
+                        label="Ознакомление с политикой обработки персональных данных"
                         testID="e2e-auth-consent-personal"
                         onPress={() =>
                           setPersonalDataConsent((current) => !current)
@@ -666,10 +677,8 @@ export function AuthScreen({
                       <Text
                         style={[styles.consentText, styles.personalConsentText]}
                       >
-                        Я даю согласие ООО «БРЭЙНВЕЙВС ИНЖИНИРИНГ» на обработку моих
-                        персональных данных в целях обработки обращения, связи
-                        со мной и подготовки ответа. Я ознакомлен(а) с{' '}
-                        <LegalLink url={privacyPolicyUrl}>
+                        Я ознакомлен(а) с{' '}
+                        <LegalLink onPress={() => setLegalDocument('privacy')}>
                           Политикой обработки персональных данных
                         </LegalLink>
                         .
@@ -687,7 +696,7 @@ export function AuthScreen({
                       />
                       <Text style={styles.consentText}>
                         Я принимаю условия{' '}
-                        <LegalLink url={userAgreementUrl}>
+                        <LegalLink onPress={() => setLegalDocument('agreement')}>
                           Пользовательского соглашения
                         </LegalLink>
                         .
@@ -769,21 +778,21 @@ export function AuthScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F5F3F3',
+    backgroundColor: colors.surface.canvas,
   },
   screenViewport: {
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   canvas: {
     width: designWidth,
     height: designHeight,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   content: {
     position: 'relative',
@@ -832,9 +841,9 @@ const styles = StyleSheet.create({
   },
   brandSubtitle: {
     position: 'absolute',
-    left: 0,
+    left: -53,
     top: 48,
-    width: 244,
+    width: 350,
     color: '#EA4087',
     ...fontStyle('SFProDisplay-Regular'),
     fontSize: 20.7,
@@ -846,53 +855,6 @@ const styles = StyleSheet.create({
     left: 26,
     top: 200,
     width: 349,
-    flexDirection: 'row',
-    height: 46,
-    padding: 4,
-    borderRadius: 14,
-    backgroundColor: '#F0EEF0',
-  },
-  registrationHint: {
-    position: 'absolute',
-    left: 26,
-    top: 214,
-    width: 349,
-    color: '#6F6A70',
-    ...fontStyle('SFProDisplay-Regular'),
-    fontSize: 14,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  channelOption: {
-    zIndex: 1,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 11,
-  },
-  channelSlider: {
-    position: 'absolute',
-    left: 4,
-    top: 4,
-    width: 170.5,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  channelLabel: {
-    color: '#8F8A90',
-    ...fontStyle('SFProDisplay-Regular'),
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  channelLabelSelected: {
-    color: '#242124',
-    ...fontStyle('SFProDisplay-Medium'),
   },
   fieldGroup: {
     position: 'absolute',
@@ -914,7 +876,7 @@ const styles = StyleSheet.create({
     top: 548,
   },
   fieldLabel: {
-    color: '#242124',
+    color: colors.text.primary,
     ...fontStyle('SFProDisplay-Regular'),
     fontSize: 14,
     lineHeight: 18,
@@ -924,8 +886,8 @@ const styles = StyleSheet.create({
     height: 54,
     paddingHorizontal: 18,
     borderRadius: 15,
-    backgroundColor: '#F0EEF0',
-    color: '#242124',
+    backgroundColor: colors.surface.divider,
+    color: colors.text.primary,
     ...fontStyle('SFProDisplay-Regular'),
     fontSize: 14,
     lineHeight: 18,
@@ -957,9 +919,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#D8D4D8',
+    borderColor: colors.surface.divider,
     borderRadius: 6,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   checkboxMark: {
     color: '#FFFFFF',
@@ -969,7 +931,7 @@ const styles = StyleSheet.create({
   },
   consentText: {
     width: 315,
-    color: '#242124',
+    color: colors.text.primary,
     ...fontStyle('SFProDisplay-Regular'),
     fontSize: 13.5,
     lineHeight: 16,
@@ -988,7 +950,7 @@ const styles = StyleSheet.create({
     left: 26,
     top: 674,
     width: 349,
-    color: '#D93838',
+    color: colors.state.error,
     ...fontStyle('SFProDisplay-Regular'),
     fontSize: 13,
     lineHeight: 17,
@@ -1004,7 +966,7 @@ const styles = StyleSheet.create({
     left: 26,
     top: 365,
     width: 349,
-    color: '#6F6A70',
+    color: colors.text.secondary,
     ...fontStyle('SFProDisplay-Regular'),
     fontSize: 13,
     lineHeight: 18,
@@ -1027,7 +989,7 @@ const styles = StyleSheet.create({
     width: 349,
   },
   smsHintText: {
-    color: '#6F6A70',
+    color: colors.text.secondary,
     ...fontStyle('SFProDisplay-Regular'),
     fontSize: 12,
     lineHeight: 16,
@@ -1044,7 +1006,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EA4087',
   },
   primaryButtonDisabled: {
-    backgroundColor: '#DEDADD',
+    backgroundColor: colors.surface.divider,
   },
   primaryButtonPressed: {
     opacity: 0.78,
@@ -1068,7 +1030,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   flowSwitcherText: {
-    color: '#242124',
+    color: colors.text.primary,
     ...fontStyle('SFProDisplay-Regular'),
     fontSize: 18,
     lineHeight: 22,
@@ -1080,3 +1042,5 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

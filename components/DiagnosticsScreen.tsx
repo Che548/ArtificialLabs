@@ -1,3 +1,5 @@
+import { useProfileAppearance, useProfileStyles } from '../lib/profile-appearance';
+import type { ThemeColors } from '../lib/theme';
 import { fontStyle } from '../lib/font-style';
 import { useConvexAuth, useConvexConnectionState } from 'convex/react';
 import Constants from 'expo-constants';
@@ -67,6 +69,7 @@ async function probe(url: string) {
 }
 
 export function DiagnosticsScreen({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const styles = useProfileStyles(createStyles);
   const insets = useSafeAreaInsets();
   const network = useNetworkState();
   const auth = useConvexAuth();
@@ -238,36 +241,39 @@ export function DiagnosticsScreen({ visible, onClose }: { visible: boolean; onCl
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const styles = useProfileStyles(createStyles);
   return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{children}</View>;
 }
 function Row({ label, value, testID }: { label: string; value: string; testID?: string }) {
+  const styles = useProfileStyles(createStyles);
   return <View style={styles.row} testID={testID}><Text style={styles.label}>{label}</Text><Text selectable style={styles.value}>{value}</Text></View>;
 }
 function Action({ title, disabled, onPress }: { title: string; disabled?: boolean; onPress: () => void }) {
+  const styles = useProfileStyles(createStyles);
   return <Pressable disabled={disabled} onPress={onPress} style={[styles.action, disabled && styles.disabled]}><Text style={styles.actionText}>{title}</Text></Pressable>;
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F3F1F2' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12, backgroundColor: '#FFFEFE' },
-  heading: { color: '#2F292C', ...fontStyle('SFProDisplay-Semibold'), fontSize: 24 },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.surface.canvas },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12, backgroundColor: colors.surface.raised },
+  heading: { color: colors.text.primary, ...fontStyle('SFProDisplay-Semibold'), fontSize: 24 },
   close: { paddingHorizontal: 12, paddingVertical: 8 },
   closeText: { color: '#EA4087', ...fontStyle('SFProDisplay-Semibold'), fontSize: 15 },
   content: { padding: 16, gap: 14 },
-  section: { borderRadius: 18, backgroundColor: '#FFFFFF', padding: 15, gap: 9 },
-  sectionTitle: { color: '#2F292C', ...fontStyle('SFProDisplay-Semibold'), fontSize: 17, marginBottom: 2 },
+  section: { borderRadius: 18, backgroundColor: colors.surface.raised, padding: 15, gap: 9 },
+  sectionTitle: { color: colors.text.primary, ...fontStyle('SFProDisplay-Semibold'), fontSize: 17, marginBottom: 2 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  label: { width: 126, color: '#736E6C', ...fontStyle('SFProDisplay-Regular'), fontSize: 12, lineHeight: 16 },
-  value: { minWidth: 0, flex: 1, color: '#2F292C', ...fontStyle('SFProDisplay-Medium'), fontSize: 12, lineHeight: 16 },
-  note: { color: '#8A737D', ...fontStyle('SFProDisplay-Regular'), fontSize: 11, lineHeight: 15 },
+  label: { width: 126, color: colors.text.secondary, ...fontStyle('SFProDisplay-Regular'), fontSize: 12, lineHeight: 16 },
+  value: { minWidth: 0, flex: 1, color: colors.text.primary, ...fontStyle('SFProDisplay-Medium'), fontSize: 12, lineHeight: 16 },
+  note: { color: colors.text.secondary, ...fontStyle('SFProDisplay-Regular'), fontSize: 11, lineHeight: 15 },
   channelRow: { flexDirection: 'row', gap: 8 },
-  channel: { flex: 1, alignItems: 'center', borderRadius: 14, backgroundColor: '#F3EFF1', paddingVertical: 10 },
+  channel: { flex: 1, alignItems: 'center', borderRadius: 14, backgroundColor: colors.surface.canvas, paddingVertical: 10 },
   channelActive: { backgroundColor: '#EA4087' },
-  channelText: { color: '#736E6C', ...fontStyle('SFProDisplay-Semibold'), fontSize: 13 },
+  channelText: { color: colors.text.secondary, ...fontStyle('SFProDisplay-Semibold'), fontSize: 13 },
   channelTextActive: { color: '#FFFFFF' },
   actions: { gap: 8 },
   action: { alignItems: 'center', borderRadius: 16, backgroundColor: '#EA4087', paddingVertical: 13 },
   actionText: { color: '#FFFFFF', ...fontStyle('SFProDisplay-Semibold'), fontSize: 14 },
   disabled: { opacity: 0.45 },
-  privacy: { color: '#8A8386', ...fontStyle('SFProDisplay-Regular'), fontSize: 11, lineHeight: 15, textAlign: 'center' },
+  privacy: { color: colors.text.secondary, ...fontStyle('SFProDisplay-Regular'), fontSize: 11, lineHeight: 15, textAlign: 'center' },
 });

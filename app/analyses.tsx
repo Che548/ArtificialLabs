@@ -1,3 +1,5 @@
+import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from '../design-system/tokens';
 import { AppSheet, sheetStyles } from '../components/AppSheet';
 import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import { AnalysisAttachmentThumbnail } from '../components/AnalysisAttachmentThumbnail';
@@ -193,6 +195,8 @@ function viewModelForPlan(item: CarePlanItem): PlannedAnalysis {
 }
 
 export default function AnalysesScreen() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const { sourceId } = useLocalSearchParams<{ sourceId?: string }>();
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
@@ -254,9 +258,9 @@ export default function AnalysesScreen() {
   const agentLastSuccessfulRunAt = agentPreferences?.agentLastSuccessfulRunAt;
   const emptyPlanStatus = !recommendationsEnabled
     ? {
-        title: 'Автономный план выключен',
+        title: 'План выключен',
         description:
-          'Включите автономные рекомендации в профиле, если хотите получать персональный предварительный план.',
+          'Включите рекомендации в профиле, чтобы получать предварительный план.',
       }
     : isOffline
       ? {
@@ -676,7 +680,7 @@ export default function AnalysesScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" />
+      <ThemeStatusBar />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -784,7 +788,7 @@ export default function AnalysesScreen() {
                     ]}
                   >
                     <AppText weight="semibold" color={colors.brand.primary}>
-                      Проверить настройки
+                      Настройки
                     </AppText>
                   </Pressable>
                 ) : null}
@@ -1240,7 +1244,7 @@ export default function AnalysesScreen() {
                           value={scheduleDate}
                           mode="date"
                           display="spinner"
-                          themeVariant="light"
+                          themeVariant={colors.surface.canvas === "#161417" ? "dark" : "light"}
                           style={{ width: '100%', height: 216 }}
                           locale="ru-RU"
                           minimumDate={normalizePlanDate(new Date())}
@@ -1377,7 +1381,7 @@ export default function AnalysesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.surface.canvas,
@@ -1450,7 +1454,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 18,
-    backgroundColor: '#FBE7F0',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FBE7F0',
     paddingHorizontal: spacing.lg,
   },
   analysisModalPageScroll: { flexShrink: 1 },
@@ -1471,9 +1475,9 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF0F6',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF0F6',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.18)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(234,64,135,0.18)',
   },
   analysisModalNoImageText: {
     fontSize: 34,
@@ -1543,7 +1547,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   analysisModalPlanActions: { gap: 8 },
-  analysisModalPlanButton: { ...sheetStyles.secondary },
+  analysisModalPlanButton: { ...sheetStyles.secondary, backgroundColor: colors.surface.divider },
   analysisModalPlanButtonSecondary: { backgroundColor: colors.surface.raised },
   analysisModalSchedulePicker: {
     width: '100%',
@@ -1551,8 +1555,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(33,31,32,0.10)',
-    backgroundColor: '#F7F3F4',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(33,31,32,0.10)',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F7F3F4',
   },
   analysisModalScheduleHint: {
     fontSize: 13,
@@ -1632,3 +1636,5 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.985 }],
   },
 });
+
+const styles = createStyles(defaultThemeColors);

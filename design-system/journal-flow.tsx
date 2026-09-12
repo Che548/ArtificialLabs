@@ -1,6 +1,9 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { filterInput } from '../lib/input-format';
 import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import * as Haptics from 'expo-haptics';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -47,9 +50,9 @@ import { colors, getHeaderTop, radii, shadows, sizes, spacing } from './tokens';
 
 const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
-// The custom native view uses real Liquid Glass on iOS 26 and a shaped
-// SwiftUI Material fallback on older iOS versions.
-const hasNativePetalGlass = Platform.OS === 'ios';
+// Older iOS uses SVG petals: SwiftUI Material exposes rectangular sampling
+// seams when hosted beneath the React Native labels.
+const hasNativePetalGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const PETAL_STRUCTURE_CENTER = { x: 201, y: 266 };
 const PETAL_RADIUS = 98;
 const PETAL_LABEL_RADIUS = 132;
@@ -114,7 +117,7 @@ const journalFlowActionVariantConfig: Record<
   },
   2: {
     back: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface.raised,
       borderWidth: 1,
       borderColor: '#D8D3D5',
       borderRadius: 15,
@@ -141,14 +144,10 @@ const journalFlowActionVariantConfig: Record<
     next: { backgroundColor: colors.brand.success, borderRadius: 14 },
   },
   5: {
-    back: { backgroundColor: '#FFFFFF', borderRadius: 16, ...shadows.card },
+    back: { backgroundColor: colors.surface.raised, borderRadius: 16, ...shadows.card },
     next: {
       backgroundColor: activeFlowAccentColor,
       borderRadius: 16,
-      shadowColor: activeFlowAccentColor,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.2,
-      shadowRadius: 10,
     },
   },
   6: {
@@ -160,7 +159,7 @@ const journalFlowActionVariantConfig: Record<
       borderColor: '#E2DDDF',
     },
     back: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface.raised,
       borderRightWidth: 1,
       borderRightColor: '#E2DDDF',
     },
@@ -179,7 +178,7 @@ const journalFlowActionVariantConfig: Record<
   8: {
     back: { backgroundColor: '#212123', borderRadius: 17 },
     next: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface.raised,
       borderWidth: 1.5,
       borderColor: colors.brand.primary,
       borderRadius: 17,
@@ -236,12 +235,12 @@ const journalFlowOptionVariantConfig: Record<
   },
   2: {
     idle: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface.raised,
       borderColor: '#DCD6D8',
       borderRadius: 21,
     },
     selected: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface.raised,
       borderColor: colors.brand.primary,
       borderWidth: 1.5,
       borderRadius: 21,
@@ -277,7 +276,7 @@ const journalFlowOptionVariantConfig: Record<
   },
   5: {
     idle: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface.raised,
       borderColor: '#E3DDDF',
       borderRadius: 16,
     },
@@ -319,14 +318,14 @@ const journalFlowOptionVariantConfig: Record<
   },
   8: {
     idle: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface.raised,
       borderColor: '#E5E0E2',
       borderRadius: 10,
       borderBottomWidth: 3,
       borderBottomColor: '#DDD7D9',
     },
     selected: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface.raised,
       borderColor: 'rgba(211,20,113,0.26)',
       borderRadius: 10,
       borderBottomWidth: 3,
@@ -336,7 +335,7 @@ const journalFlowOptionVariantConfig: Record<
   },
   9: {
     idle: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface.raised,
       borderColor: 'transparent',
       borderRadius: 17,
       ...shadows.card,
@@ -377,6 +376,8 @@ export function JournalFlowActionPreview({
 }: {
   variant: JournalFlowActionVariant;
 }) {
+  const { colors } = useAppTheme();
+  const previewStyles = useThemeStyles(createPreviewStyles);
   const config = journalFlowActionVariantConfig[variant];
   const decorated = variant === 3 || variant === 5 || variant === 9;
 
@@ -406,6 +407,8 @@ export function JournalFlowOptionPreview({
 }: {
   variant: JournalFlowOptionVariant;
 }) {
+  const { colors } = useAppTheme();
+  const previewStyles = useThemeStyles(createPreviewStyles);
   const config = journalFlowOptionVariantConfig[variant];
 
   const marker = (selected: boolean) => {
@@ -834,6 +837,8 @@ function PetalGlass({
   active: boolean;
   completed: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View pointerEvents="none" style={styles.petalSvgCanvas}>
       <Svg
@@ -896,6 +901,8 @@ function PetalLabel({
   state: PetalLabelState;
   onSelect: (category: JournalFlowCategory) => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const transition = useRef(new Animated.Value(1)).current;
   const config = categories[category];
   const Icon = config.icon;
@@ -999,6 +1006,15 @@ function JournalOptionChip({
   twoColumn?: boolean;
   onPress: () => void;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+  const selectionFill = mode === 'dark' ? '#482636' : '#FCE8F0';
+  const activeFlowOptionStyle = {
+    ...journalFlowOptionVariantConfig[2],
+    idle: { ...journalFlowOptionVariantConfig[2].idle, backgroundColor: colors.surface.raised, borderColor: colors.surface.divider },
+    selected: { ...journalFlowOptionVariantConfig[2].selected, backgroundColor: selectionFill, borderWidth: 0 },
+    selectedText: { color: mode === 'dark' ? '#F3A2C2' : '#B82F68' },
+  };
   const selection = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
   useEffect(() => {
@@ -1039,6 +1055,7 @@ function JournalOptionChip({
           styles.option,
           twoColumn && styles.twoColumnOption,
           activeFlowOptionStyle.idle,
+          selected && { borderColor: selectionFill },
         ]}
       >
         <Animated.View
@@ -1072,6 +1089,7 @@ function JournalOptionChip({
             numberOfLines={1}
             color={colors.brand.primary}
             style={[styles.optionLabel, activeFlowOptionStyle.selectedText]}
+            weight="medium"
           >
             {label}
           </AppText>
@@ -1088,6 +1106,7 @@ function PetalWheel({
   activeCategory: JournalFlowCategory;
   onSelect: (category: JournalFlowCategory) => void;
 }) {
+  const styles = useThemeStyles(createStyles);
   const activeIndex = categoryOrder.indexOf(activeCategory);
 
   return (
@@ -1166,7 +1185,11 @@ export function JournalFlowModal({
   onClose,
   onComplete,
 }: JournalFlowModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+  const activeFlowBackStyle = { ...journalFlowActionVariantConfig[1], back: { ...journalFlowActionVariantConfig[1].back, backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#ECEBEC' } };
   const { width, height } = useWindowDimensions();
+  const [modalSize, setModalSize] = useState({ width, height });
   const insets = useSafeAreaInsets();
   const [category, setCategory] =
     useState<JournalFlowCategory>(initialCategory);
@@ -1186,7 +1209,12 @@ export function JournalFlowModal({
   const progressTranslateX = useRef(new Animated.Value(0)).current;
   const transitioningRef = useRef(false);
   const optionsScrollOffsetRef = useRef(0);
-  const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
+  const scale = Platform.OS === 'android'
+    ? modalSize.width / DESIGN_WIDTH
+    : Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
+  const canvasHeight = Platform.OS === 'android'
+    ? modalSize.height / scale
+    : DESIGN_HEIGHT;
   const headerTop = getHeaderTop(insets.top, scale);
   const pages = categories[category].pages;
   const page = pages[pageIndex] ?? pages[0];
@@ -1551,28 +1579,35 @@ export function JournalFlowModal({
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
+      statusBarTranslucent={Platform.OS === 'android'}
+      navigationBarTranslucent={Platform.OS === 'android'}
       onRequestClose={() => void closeFlow()}
     >
-      <StatusBar style="dark" hidden={false} />
+      <StatusBar style={useAppTheme().mode === 'dark' ? 'light' : 'dark'} hidden={false} />
       <KeyboardAvoidingView
         behavior="position"
         contentContainerStyle={styles.keyboardAvoidingContent}
         style={styles.modalRoot}
+        onLayout={Platform.OS === 'android' ? ({ nativeEvent: { layout } }) => {
+          setModalSize((previous) => previous.width === layout.width && previous.height === layout.height
+            ? previous
+            : { width: layout.width, height: layout.height });
+        } : undefined}
       >
         <View
-          style={{ width: DESIGN_WIDTH * scale, height: DESIGN_HEIGHT * scale }}
+          style={{ width: DESIGN_WIDTH * scale, height: canvasHeight * scale }}
         >
-          <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
-            <View style={styles.canvas}>
+          <View style={[styles.scaledCanvas, { height: canvasHeight, transform: [{ scale }] }]}>
+            <View style={[styles.canvas, { height: canvasHeight }]}>
               <Image
                 source={categoryBackgroundSources[category]}
                 resizeMode="cover"
                 blurRadius={Platform.OS === 'ios' ? 2.4 : 2}
-                style={styles.background}
+                style={[styles.background, Platform.OS === 'android' && { height: Math.max(919, canvasHeight + 46) }]}
               />
               <View pointerEvents="none" style={styles.backgroundScrim} />
 
-              <TopChromeBackdrop headerTop={headerTop} />
+              <TopChromeBackdrop headerTop={headerTop} style={styles.headerBackdrop} />
               <View style={[styles.header, { top: headerTop }]}>
                 <GlassControl
                   accessibilityLabel="Закрыть журнал"
@@ -1605,7 +1640,11 @@ export function JournalFlowModal({
 
               <PetalWheel activeCategory={category} onSelect={selectCategory} />
 
+              {Platform.OS === 'android' ? (
+                <View pointerEvents="none" style={styles.androidContentFill} />
+              ) : null}
               <ContentShape
+                color={colors.surface.raised}
                 pointerEvents="none"
                 width={DESIGN_WIDTH}
                 height={361}
@@ -1614,7 +1653,9 @@ export function JournalFlowModal({
 
               <View
                 pointerEvents={draftReady ? 'auto' : 'none'}
-                style={styles.contentPanel}
+                style={[styles.contentPanel, Platform.OS === 'android' && {
+                  bottom: Math.max(16, insets.bottom / scale + 8),
+                }]}
               >
                 <Animated.View
                   style={[
@@ -1692,7 +1733,7 @@ export function JournalFlowModal({
                     </ScrollView>
                     <LinearGradient
                       pointerEvents="none"
-                      colors={['rgba(255,255,255,1)', 'rgba(255,255,255,0)']}
+                      colors={[`${colors.surface.raised}ff`, `${colors.surface.raised}00`]}
                       locations={[0, 1]}
                       start={{ x: 0, y: 0.5 }}
                       end={{ x: 1, y: 0.5 }}
@@ -1703,7 +1744,7 @@ export function JournalFlowModal({
                     />
                     <LinearGradient
                       pointerEvents="none"
-                      colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']}
+                      colors={[`${colors.surface.raised}00`, `${colors.surface.raised}ff`]}
                       locations={[0, 1]}
                       start={{ x: 0, y: 0.5 }}
                       end={{ x: 1, y: 0.5 }}
@@ -1775,7 +1816,7 @@ export function JournalFlowModal({
                       {showOptionsTopFade ? (
                         <LinearGradient
                           pointerEvents="none"
-                          colors={['#FFFFFF', 'rgba(255,255,255,0)']}
+                          colors={[colors.surface.raised, `${colors.surface.raised}00`]}
                           locations={[0, 1]}
                           style={[
                             styles.optionsEdgeFade,
@@ -1792,31 +1833,31 @@ export function JournalFlowModal({
                           colors={
                             usesMoodBottomFade || usesNutritionBottomFade
                               ? [
-                                  'rgba(255,255,255,0)',
-                                  'rgba(255,255,255,0.2)',
-                                  'rgba(255,255,255,0.7)',
-                                  '#FFFFFF',
-                                  '#FFFFFF',
+                                  `${colors.surface.raised}00`,
+                                  `${colors.surface.raised}33`,
+                                  `${colors.surface.raised}b2`,
+                                  colors.surface.raised,
+                                  colors.surface.raised,
                                 ]
                               : usesActiveCompactProgressFade
                                 ? [
-                                    'rgba(255,255,255,0)',
-                                    'rgba(255,255,255,0.18)',
-                                    '#FFFFFF',
+                                    `${colors.surface.raised}00`,
+                                    `${colors.surface.raised}2e`,
+                                    colors.surface.raised,
                                   ]
                                 : usesCompactProgressFade
                                   ? [
-                                      'rgba(255,255,255,0)',
-                                      'rgba(255,255,255,0.12)',
-                                      'rgba(255,255,255,0.42)',
+                                      `${colors.surface.raised}00`,
+                                      `${colors.surface.raised}1f`,
+                                      `${colors.surface.raised}6b`,
                                     ]
                                   : pages.length > 1
                                     ? [
-                                        'rgba(255,255,255,0)',
-                                        'rgba(255,255,255,0.3)',
-                                        'rgba(255,255,255,0.78)',
+                                        `${colors.surface.raised}00`,
+                                        `${colors.surface.raised}4c`,
+                                        `${colors.surface.raised}c7`,
                                       ]
-                                    : ['rgba(255,255,255,0)', '#FFFFFF']
+                                    : [`${colors.surface.raised}00`, colors.surface.raised]
                           }
                           locations={
                             usesMoodBottomFade || usesNutritionBottomFade
@@ -1865,7 +1906,7 @@ export function JournalFlowModal({
                             }))
                           }
                           placeholder={page.input.placeholder}
-                          placeholderTextColor="#C9C7C8"
+                          placeholderTextColor={colors.text.secondary}
                           keyboardType={
                             isNumericInput ? 'decimal-pad' : 'default'
                           }
@@ -1900,11 +1941,11 @@ export function JournalFlowModal({
                   <LinearGradient
                     pointerEvents="none"
                     colors={[
-                      'rgba(255,255,255,0)',
-                      'rgba(255,255,255,0.2)',
-                      'rgba(255,255,255,0.7)',
-                      '#FFFFFF',
-                      '#FFFFFF',
+                      `${colors.surface.raised}00`,
+                      `${colors.surface.raised}33`,
+                      `${colors.surface.raised}b2`,
+                      colors.surface.raised,
+                      colors.surface.raised,
                     ]}
                     locations={[0, 0.42, 0.72, 0.86, 1]}
                     style={styles.contentProgressFade}
@@ -2009,7 +2050,7 @@ export function JournalFlowModal({
   );
 }
 
-const previewStyles = StyleSheet.create({
+const createPreviewStyles = (colors: ThemeColors) => StyleSheet.create({
   actionRow: {
     width: 358,
     height: 46,
@@ -2069,10 +2110,10 @@ const previewStyles = StyleSheet.create({
   },
 });
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   modalRoot: {
     flex: 1,
-    backgroundColor: '#31564A',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : '#31564A',
   },
   keyboardAvoidingContent: {
     flex: 1,
@@ -2090,7 +2131,7 @@ const styles = StyleSheet.create({
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
     borderRadius: Platform.OS === 'android' ? 0 : 40,
-    backgroundColor: '#31564A',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : '#31564A',
   },
   background: {
     position: 'absolute',
@@ -2101,7 +2142,11 @@ const styles = StyleSheet.create({
   },
   backgroundScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(19,43,38,0.06)',
+    backgroundColor: colors.surface.canvas === '#161417' ? 'rgba(22,20,23,0.52)' : 'rgba(19,43,38,0.06)',
+  },
+  // Keep the header blur behind native glass to avoid filtering its composited surface.
+  headerBackdrop: {
+    zIndex: 4,
   },
   header: {
     position: 'absolute',
@@ -2119,7 +2164,9 @@ const styles = StyleSheet.create({
   },
   headerDatePill: {
     position: 'absolute',
-    left: (370 - 156) / 2,
+    top: 0,
+    left: '50%',
+    marginLeft: -78,
     width: 156,
     height: sizes.touch,
     borderRadius: sizes.touch / 2,
@@ -2203,6 +2250,15 @@ const styles = StyleSheet.create({
     top: 513,
     zIndex: 10,
   },
+  androidContentFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 573,
+    bottom: 0,
+    zIndex: 10,
+    backgroundColor: colors.surface.raised,
+  },
   contentPanel: {
     position: 'absolute',
     left: sizes.screenGutter,
@@ -2283,8 +2339,8 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     borderWidth: 1,
-    borderColor: '#E6E1E3',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#E6E1E3',
+    backgroundColor: colors.surface.raised,
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
@@ -2360,7 +2416,7 @@ const styles = StyleSheet.create({
     height: 32,
     paddingHorizontal: 13,
     borderRadius: 16,
-    backgroundColor: '#F2F0F1',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F2F0F1',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2371,7 +2427,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   selectedOptionText: {
-    color: '#423E40',
+    color: colors.text.primary,
     fontSize: 15,
     lineHeight: 18,
     letterSpacing: -0.18,
@@ -2390,8 +2446,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E6E1E3',
-    backgroundColor: '#F4F1F2',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#E6E1E3',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F4F1F2',
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2420,7 +2476,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   optionSelected: {
-    borderColor: 'rgba(211,20,113,0.28)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(211,20,113,0.28)',
     backgroundColor: colors.surface.rose,
   },
   optionPressed: {
@@ -2459,7 +2515,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#DFDFDF',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.state.disabled : '#DFDFDF',
   },
   progressSegmentActive: {
     backgroundColor: colors.brand.primary,
@@ -2476,7 +2532,7 @@ const styles = StyleSheet.create({
     width: 171.5,
     height: 46,
     borderRadius: 23,
-    backgroundColor: '#EBEBEB',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#EBEBEB',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -2489,7 +2545,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    ...shadows.floating,
   },
   actionPressable: {
     ...StyleSheet.absoluteFillObject,
@@ -2507,3 +2562,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.025 }],
   },
 });
+
+const previewStyles = createPreviewStyles(defaultThemeColors);
+
+const styles = createStyles(defaultThemeColors);

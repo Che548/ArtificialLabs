@@ -1,3 +1,5 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { fontStyle } from '../lib/font-style';
 import {
   Image,
@@ -29,6 +31,8 @@ export function AnalysisReferenceHeader({
   onChart?: () => void;
   onDate?: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const dateLabel = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
     month: 'long',
@@ -40,8 +44,8 @@ export function AnalysisReferenceHeader({
         accessibilityLabel="Открыть графики анализов"
         elevated
         onPress={onChart}
-        tintColor={headerGlass}
-        washColor={headerWash}
+        tintColor={colors.surface.headerGlassWash}
+        washColor={colors.surface.headerGlassWash}
         style={styles.headerCircle}
       >
         {Platform.OS === 'android' ? (
@@ -61,8 +65,8 @@ export function AnalysisReferenceHeader({
         accessibilityLabel={`Показать текущие анализы. Сегодня ${dateLabel}`}
         elevated
         onPress={onDate}
-        tintColor={headerGlass}
-        washColor={headerWash}
+        tintColor={colors.surface.headerGlassWash}
+        washColor={colors.surface.headerGlassWash}
         style={styles.headerDate}
       >
         <HeaderDateLabel date={date} label="Сегодня" />
@@ -86,6 +90,7 @@ export function AnalysisAttentionHero({
   onPress?: () => void;
   score?: number;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.hero}>
       <View pointerEvents="box-none" style={styles.heroActionSlot}>
@@ -139,6 +144,7 @@ function DeadlineCard({
   deadline: string;
   onPress?: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
   const noun = analysisNoun(count);
   const displayNoun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const accessibilityLabel = count
@@ -200,6 +206,7 @@ export function AnalysisDeadlineSummary({
   upcomingDeadline: string;
   upcomingCount: number;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.deadlineRow, style]}>
       <DeadlineCard
@@ -218,7 +225,7 @@ export function AnalysisDeadlineSummary({
 
 export { AnalysisReferencePlanCard } from './labs-analysis-card';
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   pressed: {
     opacity: 0.76,
     transform: [{ scale: 0.985 }],
@@ -287,7 +294,7 @@ const styles = StyleSheet.create({
   },
   heroLabel: {
     marginTop: 0,
-    color: '#5D5A5A',
+    color: colors.text.secondary,
     ...fontStyle(fonts.sfRegular),
     fontSize: 18,
     lineHeight: 22,
@@ -327,8 +334,8 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 22,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(33,31,32,0.06)',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(33,31,32,0.06)',
+    backgroundColor: colors.surface.raised,
   },
   deadlineCardContent: {
     position: 'relative',
@@ -370,3 +377,5 @@ const styles = StyleSheet.create({
     ...fontStyle(fonts.sfSemibold),
   },
 });
+
+const styles = createStyles(defaultThemeColors);

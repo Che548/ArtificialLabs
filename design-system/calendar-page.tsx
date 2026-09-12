@@ -1,3 +1,6 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
+import { toggleCalendarPeriodDays } from '../lib/calendar-period-selection';
 import { overlayRadii } from './tokens';
 import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import * as Haptics from 'expo-haptics';
@@ -23,6 +26,7 @@ import {
 } from 'react-native';
 import type { StyleProp, ViewStyle, ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
 import AddIcon from '../assets/figma/calendar-page/add.svg';
 import BackIcon from '../assets/figma/calendar-page/back.svg';
@@ -374,6 +378,8 @@ function CalendarDayGrid({
   showOutsideDays?: boolean;
   useCycleForecast?: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const cells = useMemo(() => makeCalendarCells(month), [month]);
   const selectedKey = selectedDate ? dateKey(selectedDate) : null;
   const currentDateKey = currentDate ? dateKey(currentDate) : null;
@@ -435,7 +441,10 @@ function CalendarDayGrid({
               }${current ? ', сегодня' : ''}${
                 futureDisabled ? ', будущая дата, недоступно' : ''
               }`}
-              accessibilityState={{ disabled: futureDisabled, selected }}
+              accessibilityState={{
+                disabled: futureDisabled,
+                selected: periodSelectionMode ? loggedPeriod : selected,
+              }}
               disabled={futureDisabled}
               onTouchStart={onDayPressIn}
               onPressIn={() => {
@@ -593,6 +602,8 @@ function YearMiniMonth({
   periodDateKeys: ReadonlySet<string>;
   selectedDate: Date | null;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const cells = useMemo(() => makeCalendarCells(month), [month]);
   const currentKey = dateKey(currentDate);
   const selectedKey = selectedDate ? dateKey(selectedDate) : null;
@@ -689,6 +700,7 @@ function YearCalendarSection({
   selectedDate: Date | null;
   year: number;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.yearSection}>
       <AppText
@@ -726,9 +738,9 @@ function CalendarGlassControl({
   onPress,
   radius,
   style,
-  tintColor = colors.surface.headerGlassWash,
+  tintColor,
   variant = 'regular',
-  washColor = colors.surface.headerGlassWash,
+  washColor,
   width,
 }: {
   activateOnPressIn?: boolean;
@@ -745,6 +757,14 @@ function CalendarGlassControl({
   washColor?: string;
   width: number;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+  const resolvedTintColor = mode === 'dark' && headerElevation
+    ? colors.surface.headerGlassWash
+    : tintColor ?? colors.surface.headerGlassWash;
+  const resolvedWashColor = mode === 'dark' && headerElevation
+    ? colors.surface.headerGlassWash
+    : washColor ?? colors.surface.headerGlassWash;
   const controlStyle: StyleProp<ViewStyle> = [
     style,
     {
@@ -767,8 +787,8 @@ function CalendarGlassControl({
     return (
       <GlassView
         glassEffectStyle={variant}
-        tintColor={tintColor}
-        colorScheme="light"
+        tintColor={resolvedTintColor}
+        colorScheme={colors.surface.canvas === "#161417" ? "dark" : "light"}
         isInteractive
         style={[controlStyle, headerElevation && shadows.control]}
       >
@@ -813,11 +833,11 @@ function CalendarGlassControl({
           <View style={[contentStyle, pressed && styles.pressed]}>
             <LiquidGlassSurface
               variant={variant}
-              tintColor={tintColor}
-              colorScheme="light"
-              fallbackTint="systemUltraThinMaterialLight"
+              tintColor={resolvedTintColor}
+              colorScheme={colors.surface.canvas === "#161417" ? "dark" : "light"}
+              fallbackTint={colors.surface.canvas === "#161417" ? "systemUltraThinMaterialDark" : "systemUltraThinMaterialLight"}
               intensity={intensity}
-              washColor={washColor}
+              washColor={resolvedWashColor}
               radius={radius}
             >
               {children}
@@ -876,6 +896,7 @@ function MonthArrow({
   direction: 'left' | 'right';
   onPress: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.monthArrow}>
       <Pressable
@@ -909,6 +930,8 @@ function SymptomStatusMark({
 }: {
   variant: CalendarSymptomStatusVariant;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const compact = variant === 'compact';
   const side = variant === 'side';
   const underDate = variant === 'underDate';
@@ -979,6 +1002,8 @@ function CalendarDayDetailsCard({
   onAddPress?: () => void;
   symptomStatusVariant?: CalendarSymptomStatusVariant;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const showBanner = hasLoggedSymptoms && symptomStatusVariant === 'banner';
   const showCompact = hasLoggedSymptoms && symptomStatusVariant === 'compact';
   const showFooter = hasLoggedSymptoms && symptomStatusVariant === 'footer';
@@ -1111,6 +1136,7 @@ export function CalendarSymptomStatusPreview({
 }: {
   variant: CalendarSymptomStatusVariant;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.dayDetailsPreview}>
       <CalendarDayDetailsCard
@@ -1138,6 +1164,8 @@ function CalendarPageModalBase({
   highlightFertility = false,
   variant,
 }: CalendarPageBaseProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const monthListRef = useRef<FlatList<Date>>(null);
@@ -1327,7 +1355,7 @@ function CalendarPageModalBase({
     : colors.brand.primary;
   const selectedHeaderLabelColor = selectedHeaderIsColored
     ? 'rgba(255,255,255,0.82)'
-    : '#5D5D5D';
+    : colors.text.secondary;
   const todayInsight = calculatedCycle
     ? cycleDayInsight(initialDate, calculatedCycle, initialDate)
     : undefined;
@@ -1448,32 +1476,9 @@ function CalendarPageModalBase({
 
   const selectDate = (date: Date) => {
     if (variant === 'continuous' && periodMarkingMode) {
-      const key = dateKey(date);
-      const todayTimestamp = dayTimestamp(initialDate);
-
-      if (dayTimestamp(date) > todayTimestamp) {
-        return;
-      }
-
-      setPeriodDraftDateKeys((current) => {
-        const next = new Set(current);
-        if (next.has(key)) {
-          next.delete(key);
-        } else {
-          for (let offset = 0; offset < 5; offset += 1) {
-            const rangeDate = new Date(
-              date.getFullYear(),
-              date.getMonth(),
-              date.getDate() + offset,
-            );
-
-            if (dayTimestamp(rangeDate) <= todayTimestamp) {
-              next.add(dateKey(rangeDate));
-            }
-          }
-        }
-        return next;
-      });
+      setPeriodDraftDateKeys((current) =>
+        toggleCalendarPeriodDays(current, date),
+      );
 
       if (Platform.OS !== 'web') {
         void Haptics.selectionAsync();
@@ -1644,7 +1649,7 @@ function CalendarPageModalBase({
       onRequestClose={onClose}
     >
       <View style={styles.modalRoot}>
-        <StatusBar style="dark" hidden={false} />
+        <StatusBar style={useAppTheme().mode === 'dark' ? 'light' : 'dark'} hidden={false} />
         <View
           style={{
             width: DESIGN_WIDTH * scale,
@@ -1855,6 +1860,9 @@ function CalendarPageModalBase({
                     ) : null}
                     <FlatList
                       ref={monthListRef}
+                      // Android clipping can detach rows inside the scaled, animated canvas.
+                      removeClippedSubviews={false}
+                      initialScrollIndex={Platform.OS === 'android' ? MONTHS_BEFORE_SELECTED : undefined}
                       data={monthSequence}
                       keyExtractor={(month) =>
                         `${month.getFullYear()}-${month.getMonth()}`
@@ -1907,7 +1915,6 @@ function CalendarPageModalBase({
                               cellWidth={sizes.contentWidth / 7}
                               currentDate={initialDate}
                               forecastForDate={calculatedForecastForDate}
-                              maximumSelectableDate={initialDate}
                               month={month}
                               onDayPressIn={() => {
                                 protectedDayInteractionRef.current = true;
@@ -1977,6 +1984,7 @@ function CalendarPageModalBase({
                   >
                     <FlatList
                       data={yearSequence}
+                      removeClippedSubviews={false}
                       keyExtractor={(year) => String(year)}
                       renderItem={({ item: year }) => (
                         <YearCalendarSection
@@ -2014,6 +2022,35 @@ function CalendarPageModalBase({
                 </>
               )}
 
+              {Platform.OS === 'android' ? (
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.androidHeaderContour,
+                    periodMarkingMode && styles.periodModeHidden,
+                    variant === 'continuous' && {
+                      opacity: viewProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 0],
+                      }),
+                    },
+                  ]}
+                >
+                  <Svg width={DESIGN_WIDTH} height={HEADER_SHAPE_HEIGHT + 32}>
+                    {/* Follow the curved SVG edge; Android elevation cannot cast this contour. */}
+                    {Array.from({ length: 16 }, (_, index) => (
+                      <Path
+                        key={index}
+                        d="M0 190C0 214 90 235 201 235C312 235 402 214 402 190"
+                        fill="none"
+                        stroke={selectedHeaderShadowColor}
+                        strokeWidth={(index + 1) * 2}
+                        strokeOpacity={0.014 * (1 - index / 20)}
+                      />
+                    ))}
+                  </Svg>
+                </Animated.View>
+              ) : null}
               <AnimatedHeaderShape
                 pointerEvents="none"
                 width={DESIGN_WIDTH}
@@ -2334,9 +2371,13 @@ function CalendarPageModalBase({
                           height={48}
                           radius={24}
                           intensity={64}
-                          tintColor="rgba(255,255,255,0.20)"
+                          tintColor={colors.surface.canvas === '#161417'
+                            ? colors.surface.headerGlassWash
+                            : 'rgba(255,255,255,0.20)'}
                           variant="regular"
-                          washColor="rgba(255,255,255,0.20)"
+                          washColor={colors.surface.canvas === '#161417'
+                            ? colors.surface.headerGlassWash
+                            : 'rgba(255,255,255,0.20)'}
                           style={styles.periodEntryButton}
                         >
                           <View style={styles.periodEntryButtonContent}>
@@ -2414,7 +2455,7 @@ export function CalendarPageBackupModal(props: CalendarPageModalProps) {
   return <CalendarPageModalBase {...props} variant="backup" />;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   modalRoot: {
     flex: 1,
     alignItems: 'center',
@@ -2430,7 +2471,7 @@ const styles = StyleSheet.create({
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
-    borderRadius: radii.xl,
+    borderRadius: Platform.OS === 'android' ? 0 : radii.xl,
     backgroundColor: colors.surface.raised,
   },
   scroll: {
@@ -2486,13 +2527,13 @@ const styles = StyleSheet.create({
   yearLegendMarkerOvulation: {
     borderWidth: 1,
     borderStyle: 'dotted',
-    borderColor: '#2EB7B1',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#2EB7B1',
   },
   yearSection: {
     height: YEAR_SECTION_HEIGHT,
     paddingTop: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(115,110,108,0.18)',
+    borderBottomColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(115,110,108,0.18)',
   },
   yearTitle: {
     height: 46,
@@ -2543,7 +2584,7 @@ const styles = StyleSheet.create({
   yearMiniDayOvulation: {
     borderWidth: 1,
     borderStyle: 'dotted',
-    borderColor: '#2EB7B1',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#2EB7B1',
     backgroundColor: 'transparent',
   },
   yearMiniDayPeriod: {
@@ -2616,7 +2657,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: Platform.OS === 'android' ? 0 : 8,
+  },
+  androidHeaderContour: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    zIndex: 5,
   },
   headerControls: {
     position: 'absolute',
@@ -2849,7 +2896,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.16)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(211,20,113,0.16)',
     backgroundColor: 'rgba(211,20,113,0.08)',
   },
   dayDetailsAddButtonContent: {
@@ -3142,7 +3189,7 @@ const styles = StyleSheet.create({
   },
   dayPeriodSelected: {
     borderWidth: 1,
-    borderColor: 'rgba(211,20,113,0.20)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(211,20,113,0.20)',
     backgroundColor: 'rgba(211,20,113,0.10)',
     shadowOpacity: 0,
     elevation: 0,
@@ -3160,10 +3207,10 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     borderWidth: 1.25,
-    borderColor: 'rgba(115,110,108,0.28)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(115,110,108,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   periodTickboxSelected: {
     borderColor: colors.brand.primary,
@@ -3199,7 +3246,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     borderRadius: 7,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.72)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(255,255,255,0.72)',
     backgroundColor: '#EA4087',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3311,3 +3358,5 @@ const styles = StyleSheet.create({
     borderColor: colors.brand.success,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

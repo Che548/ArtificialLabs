@@ -4,6 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
+import { useAppTheme } from '../lib/theme';
+
 export type FallbackGlassTone = 'light' | 'dark';
 
 type FallbackGlassBackdropProps = {
@@ -30,9 +32,10 @@ export function FallbackGlassBackdrop({
   tint,
   tone = 'light',
   washColor = 'transparent',
-  washOpacity = tone === 'dark' ? 0.58 : 0.46,
+  washOpacity,
 }: FallbackGlassBackdropProps) {
-  const dark = tone === 'dark';
+  const { mode } = useAppTheme();
+  const dark = mode === 'dark' || tone === 'dark';
 
   return (
     <View
@@ -40,7 +43,7 @@ export function FallbackGlassBackdrop({
       style={[styles.root, { borderRadius: radius }, style]}
     >
       <BlurView
-        tint={tint ?? (dark ? 'systemThinMaterialDark' : 'systemUltraThinMaterialLight')}
+        tint={dark ? 'systemThinMaterialDark' : (tint ?? 'systemUltraThinMaterialLight')}
         intensity={intensity}
         experimentalBlurMethod="dimezisBlurView"
         style={[StyleSheet.absoluteFillObject, styles.blurLayer]}
@@ -52,7 +55,7 @@ export function FallbackGlassBackdrop({
           styles.washLayer,
           {
             backgroundColor: dark
-              ? 'rgba(23,12,17,0.16)'
+              ? 'rgba(18,16,20,0.48)'
               : 'rgba(255,255,255,0.14)',
           },
         ]}
@@ -63,7 +66,7 @@ export function FallbackGlassBackdrop({
           style={[
             StyleSheet.absoluteFillObject,
             styles.washLayer,
-            { backgroundColor: washColor, opacity: washOpacity },
+            { backgroundColor: washColor, opacity: washOpacity ?? (dark ? 0.28 : 0.46) },
           ]}
         />
       ) : null}
@@ -74,9 +77,9 @@ export function FallbackGlassBackdrop({
             colors={
               dark
                 ? [
-                    'rgba(255,255,255,0.28)',
+                    'rgba(255,255,255,0.10)',
+                    'rgba(255,255,255,0.015)',
                     'rgba(255,255,255,0.035)',
-                    'rgba(255,255,255,0.09)',
                   ]
                 : [
                     'rgba(255,255,255,0.66)',
@@ -92,7 +95,7 @@ export function FallbackGlassBackdrop({
           <LinearGradient
             colors={
               dark
-                ? ['rgba(255,255,255,0)', 'rgba(255,255,255,0.07)']
+                ? ['rgba(255,255,255,0)', 'rgba(255,255,255,0.025)']
                 : ['rgba(255,255,255,0)', 'rgba(234,64,135,0.045)']
             }
             locations={[0.58, 1]}
@@ -105,7 +108,7 @@ export function FallbackGlassBackdrop({
               styles.stroke,
               {
                 borderColor: dark
-                  ? 'rgba(255,255,255,0.30)'
+                  ? 'rgba(255,255,255,0.14)'
                   : 'rgba(255,255,255,0.62)',
                 borderRadius: radius,
               },

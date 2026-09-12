@@ -1,3 +1,5 @@
+import { useProfileAppearance, useProfileStyles } from '../lib/profile-appearance';
+import type { ThemeColors } from '../lib/theme';
 import { fontStyle } from '../lib/font-style';
 import { useEffect, useRef, useState } from 'react';
 import { useAction } from 'convex/react';
@@ -13,6 +15,8 @@ export function ProfileEmailEditor({ currentEmail, disabled, onDone }: {
   disabled: boolean;
   onDone: (email: string) => void;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const request = useAction(emailChangeApi.request);
   const confirm = useAction(emailChangeApi.confirm);
   const resend = useAction(emailChangeApi.resend);
@@ -117,13 +121,13 @@ export function ProfileEmailEditor({ currentEmail, disabled, onDone }: {
     </View>
   );
 }
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   form: { paddingLeft: 14, paddingRight: 18, paddingBottom: 16, gap: 12 },
   fields: { gap: 12 },
   input: { height: 48, paddingHorizontal: 16, paddingVertical: 0, paddingBottom: Platform.OS === 'ios' ? 6 : 0,
     textAlignVertical: 'center', includeFontPadding: false, ...fontStyle(fonts.sfRegular), fontSize: 16,
-    borderRadius: 16, backgroundColor: '#F0EEF0', color: colors.text.primary },
+    borderRadius: 16, backgroundColor: colors.surface.canvas, color: colors.text.primary },
   caption: { fontSize: 14, lineHeight: 20 },
   button: { minHeight: 48, borderRadius: 16, backgroundColor: colors.brand.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  disabled: { opacity: 0.5 },
+  disabled: colors.surface.canvas === '#161417' ? { backgroundColor: colors.surface.divider } : { opacity: 0.5 },
 });

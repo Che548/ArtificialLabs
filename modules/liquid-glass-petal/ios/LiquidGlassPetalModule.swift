@@ -66,6 +66,11 @@ public final class LiquidGlassPetalWheelView: ExpoView {
     }
 
     let controller = UIHostingController(rootView: rootView)
+    // React Native positions this wheel inside an already inset-aware canvas.
+    // SwiftUI must not shift the petals again when the modal enters the window.
+    if #available(iOS 16.4, *) {
+      controller.safeAreaRegions = []
+    }
     controller.view.backgroundColor = .clear
     controller.view.isOpaque = false
     controller.view.frame = bounds

@@ -1,3 +1,7 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
+import { AndroidMaterialBackdrop } from './android-material';
+import { BrandLogo } from '../components/BrandLogo';
 import { overlayRadii } from './tokens';
 import { EmptyStateIcon, emptyStateColor } from '../components/EmptyStateIcon';
 import { fontStyle } from '../lib/font-style';
@@ -118,17 +122,28 @@ function ChatComposerGlass({
   style: StyleProp<ViewStyle>;
   tintColor?: string;
 }>) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (hasNativeLiquidGlass && !forceFallback) {
     return (
       <GlassView
         glassEffectStyle="regular"
         tintColor={tintColor}
-        colorScheme="light"
+        colorScheme="auto"
         isInteractive
         style={style}
       >
         {children}
       </GlassView>
+    );
+  }
+
+  if (Platform.OS === 'android' && colors.surface.canvas === '#161417') {
+    return (
+      <View style={[style, { overflow: 'hidden', borderRadius: radius }]}>
+        <AndroidMaterialBackdrop radius={radius} washColor={tintColor} />
+        {children}
+      </View>
     );
   }
 
@@ -142,7 +157,7 @@ function ChatComposerGlass({
         ]}
       >
         <BlurView
-          tint="light"
+          tint={colors.surface.canvas === "#161417" ? "dark" : "light"}
           intensity={38}
           experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFillObject}
@@ -165,7 +180,7 @@ function ChatComposerGlass({
       <FallbackGlassBackdrop
         radius={radius}
         intensity={58}
-        tint="systemUltraThinMaterialLight"
+        tint={colors.surface.canvas === "#161417" ? "systemUltraThinMaterialDark" : "systemUltraThinMaterialLight"}
         washColor={tintColor}
       />
       {children}
@@ -225,6 +240,7 @@ export function ChatHeader({
   onHistory?: () => void;
   onCalendar?: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <AppHeader
       centerContent={
@@ -315,6 +331,8 @@ function ChatPopupMenu({
   shadowless?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const menuProgress = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const [menuRendered, setMenuRendered] = useState(visible);
   const menuContentHeight = actions.length * 66;
@@ -496,6 +514,7 @@ function ChatHistoryActionMenu({
   onDelete?: () => void;
   onPin?: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
   const actions: ChatPopupMenuAction[] = [
     {
       id: 'rename',
@@ -552,6 +571,8 @@ export function ChatHistoryPanel({
   topInset?: number;
   width: number;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const selectedIndex = items.findIndex((item) => item.id === selectedId);
   const selectionPosition = useRef(
     new Animated.Value(Math.max(0, selectedIndex)),
@@ -640,14 +661,7 @@ export function ChatHistoryPanel({
       accessibilityLabel="Недавние чаты"
       style={[styles.historyPanel, { width, paddingTop: topInset + 32 }]}
     >
-      <Text
-        style={[
-          styles.historyBrand,
-          Platform.OS === 'android' && styles.historyBrandAndroid,
-        ]}
-      >
-        сфера.
-      </Text>
+      <BrandLogo width={142} />
 
       <AppText weight="semibold" style={styles.historyTitle}>
         {title}
@@ -776,21 +790,30 @@ export function ChatHistoryPanel({
 }
 
 function ChatGlassAddButton({ onPress }: { onPress?: () => void }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
-    <ChatComposerGlass style={styles.addButton}>
+    <ChatComposerGlass
+      style={styles.addButton}
+      tintColor={colors.surface.canvas === '#161417'
+        ? 'rgba(22,20,23,0.78)'
+        : 'rgba(255,255,255,0.20)'}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Добавить вложение"
         onPress={onPress}
         style={styles.composerPressTarget}
       >
-        <PlusIcon width={20} height={20} />
+        <PlusIcon width={20} height={20} color={colors.text.primary} />
       </Pressable>
     </ChatComposerGlass>
   );
 }
 
 export function ChatEmptyState({ compact = false }: { compact?: boolean }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.emptyState, compact && styles.emptyStateCompact]}>
       <Image
@@ -800,14 +823,7 @@ export function ChatEmptyState({ compact = false }: { compact?: boolean }) {
         style={[styles.mascot, compact && styles.mascotCompact]}
       />
       <View style={styles.brand}>
-        <Text
-          style={[
-            styles.brandTitle,
-            Platform.OS === 'android' && styles.brandTitleAndroid,
-          ]}
-        >
-          сферка.
-        </Text>
+        <BrandLogo name="sferka" width={184} style={{ marginBottom: 4 }} />
         <AppText
           role="heading"
           color={colors.brand.primarySoft}
@@ -827,6 +843,8 @@ export function ChatSuggestionList({
   suggestions: ChatSuggestion[];
   onSelect?: (suggestion: ChatSuggestion) => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.suggestions}>
       {suggestions.map((suggestion) => {
@@ -845,7 +863,7 @@ export function ChatSuggestionList({
             <AppText
               numberOfLines={1}
               role="caption"
-              color="#5C5C5C"
+              color={colors.text.secondary}
               style={styles.suggestionText}
             >
               {suggestion.title}
@@ -896,6 +914,7 @@ const chatSendButtonVariants: Array<{
 ];
 
 function ChatSendArrow({ color }: { color: string }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <SymbolView
       name="arrow.up"
@@ -914,6 +933,8 @@ export function ChatSendButtonPreview({
   variant: ChatSendButtonVariant;
   onPress?: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   if (variant === 6) {
     return (
       <ChatComposerGlass
@@ -986,6 +1007,7 @@ export function ChatSendButtonPreview({
 }
 
 export function ChatSendButtonVariantsCatalog() {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.sendVariantsGrid}>
       {chatSendButtonVariants.map((item) => (
@@ -1021,6 +1043,8 @@ export function ChatComposer({
   onFocus?: () => void;
   onBlur?: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const [canSubmit, setCanSubmit] = useState(
     () => !disabled && value.trim().length > 0,
   );
@@ -1046,7 +1070,13 @@ export function ChatComposer({
     <View style={styles.composerRow}>
       <ChatGlassAddButton onPress={onAdd} />
 
-      <ChatComposerGlass radius={23} style={styles.composer}>
+      <ChatComposerGlass
+        radius={23}
+        style={styles.composer}
+        tintColor={colors.surface.canvas === '#161417'
+          ? 'rgba(22,20,23,0.78)'
+          : 'rgba(255,255,255,0.20)'}
+      >
         <TextInput
           accessibilityLabel="Сообщение для Сферки"
           accessibilityState={{ disabled }}
@@ -1057,7 +1087,7 @@ export function ChatComposer({
             onChangeText(nextValue);
           }}
           placeholder="Спросить Сферку"
-          placeholderTextColor="#5C5C5C"
+          placeholderTextColor={colors.text.secondary}
           multiline
           maxLength={1200}
           returnKeyType="send"
@@ -1080,7 +1110,9 @@ export function ChatComposer({
           style={styles.actionButton}
         >
           <ChatComposerGlass
-            tintColor="rgba(255,255,255,0.34)"
+            tintColor={colors.surface.canvas === '#161417'
+              ? 'rgba(22,20,23,0.78)'
+              : 'rgba(255,255,255,0.34)'}
             style={styles.sendButtonGlass}
           >
             <View />
@@ -1206,6 +1238,8 @@ export function ChatMessageBubble({
   }>;
   variant?: ChatMessageVariant;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const config = chatMessageVariantConfigs[variant];
   const responseProgress = useRef(
     new Animated.Value(isThinking ? 0 : 1),
@@ -1278,7 +1312,7 @@ export function ChatMessageBubble({
     },
     codeInline: {
       ...fontStyle(Platform.OS === 'ios' ? 'Menlo' : 'monospace'),
-      backgroundColor: '#F3F0F1',
+      backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : '#F3F0F1',
       borderRadius: 4,
       paddingHorizontal: 4,
     },
@@ -1286,7 +1320,7 @@ export function ChatMessageBubble({
       ...fontStyle(Platform.OS === 'ios' ? 'Menlo' : 'monospace'),
       fontSize: Math.max(13, config.messageFontSize - 2),
       lineHeight: config.messageLineHeight,
-      backgroundColor: '#F3F0F1',
+      backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : '#F3F0F1',
       borderRadius: 10,
       padding: 12,
     },
@@ -1294,7 +1328,7 @@ export function ChatMessageBubble({
       ...fontStyle(Platform.OS === 'ios' ? 'Menlo' : 'monospace'),
       fontSize: Math.max(13, config.messageFontSize - 2),
       lineHeight: config.messageLineHeight,
-      backgroundColor: '#F3F0F1',
+      backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : '#F3F0F1',
       borderRadius: 10,
       padding: 12,
     },
@@ -1551,6 +1585,8 @@ function ChatThinkingIndicator({
   thinkingGap: number;
   thinkingSymbol: SFSymbol;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -2208,6 +2244,8 @@ const chatMessageVariants: ChatMessageVariant[] = [
 ];
 
 export function ChatMessageVariantsCatalog() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.messageVariantsList}>
       {chatMessageVariants.map((variant) => {
@@ -2240,6 +2278,7 @@ export function ChatMessageVariantsCatalog() {
 }
 
 export function ChatKitPreview() {
+  const styles = useThemeStyles(createStyles);
   const [value, setValue] = useState('');
   const [headerMode, setHeaderMode] = useState<ChatHeaderMode>('chat');
   const suggestions: ChatSuggestion[] = [
@@ -2278,7 +2317,7 @@ export function ChatKitPreview() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   emptyState: {
     width: 370,
     alignItems: 'center',
@@ -2512,7 +2551,9 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 17.5,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.84)',
+    borderColor: colors.surface.canvas === '#161417'
+      ? colors.surface.divider
+      : 'rgba(255,255,255,0.84)',
   },
   actionIcon: {
     ...StyleSheet.absoluteFillObject,
@@ -2631,7 +2672,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 13,
     borderRadius: 24,
-    backgroundColor: '#E9E9EA',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#E9E9EA',
   },
   assistantMessage: {
     width: '100%',
@@ -2651,7 +2692,7 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(130,53,55,0.15)',
-    backgroundColor: '#FFF5F8',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF5F8',
   },
   messageSourceText: {
     maxWidth: 260,
@@ -2680,7 +2721,7 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: '#FFF2F2',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF2F2',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(130,53,55,0.24)',
   },
@@ -2728,7 +2769,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: 32,
     paddingBottom: 32,
-    backgroundColor: '#F3F0F1',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : '#F3F0F1',
   },
   historyBrand: {
     color: colors.brand.primarySoft,
@@ -2893,3 +2934,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.raised,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

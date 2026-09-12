@@ -1,3 +1,5 @@
+import { AppThemeScope, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from '../design-system/tokens';
 import { AppSheet, sheetStyles } from '../components/AppSheet';
 import { StatusBar } from 'expo-status-bar';
 import { loadLocalSetting, saveLocalSetting } from '../lib/local-database';
@@ -96,6 +98,14 @@ const briefingIllustrations = [
   require('../assets/instructions/step_5_results.png'),
 ];
 
+const briefingDarkIllustrations = [
+  require('../assets/instructions/step_1_cup-dark.png'),
+  require('../assets/instructions/step_2_package-dark.png'),
+  require('../assets/instructions/step_3_dip_test-dark.png'),
+  require('../assets/instructions/step_4_test_strip-dark.png'),
+  require('../assets/instructions/step_5_results-dark.png'),
+];
+
 type NativeCameraControls = {
   focusAt?: (point: { x: number; y: number }) => Promise<void>;
   setExposureCompensation?: (value: number) => Promise<void>;
@@ -148,13 +158,17 @@ type FlowIconName =
 
 function FlowIcon({
   name,
-  color = colors.text.primary,
+  color: suppliedColor,
   size = 22,
 }: {
   name: FlowIconName;
   color?: string;
   size?: number;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
+  const color = suppliedColor ?? colors.text.primary;
   if (name === 'back') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -347,6 +361,9 @@ function RoundGlassButton({
   iconColor?: string;
   onPress: () => void;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const iconElement = (
     <FlowIcon
       name={icon}
@@ -358,7 +375,7 @@ function RoundGlassButton({
     return (
       <GlassView
         glassEffectStyle="clear"
-        colorScheme="auto"
+        colorScheme={mode}
         isInteractive
         style={[styles.roundButton, shadows.control]}
       >
@@ -388,7 +405,7 @@ function RoundGlassButton({
     >
       <LiquidGlassSurface
         variant="clear"
-        colorScheme="auto"
+        colorScheme={mode}
         fallbackTint="default"
         washColor="transparent"
         intensity={72}
@@ -409,6 +426,9 @@ function FlowGlassGroup({
   spacing: number;
   style: StyleProp<ViewStyle>;
 }>) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   return hasNativeFlowGlass ? (
     <GlassContainer spacing={spacing} style={style}>
       {children}
@@ -439,6 +459,9 @@ function FlowHeader({
   showHelp?: boolean;
   top: number;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const color = light ? '#FFFFFF' : colors.text.primary;
   const stepLabel = currentStep ? (
     <AppText
@@ -479,7 +502,7 @@ function FlowHeader({
           hasNativeFlowGlass ? (
             <GlassView
               glassEffectStyle="clear"
-              colorScheme="auto"
+              colorScheme={mode}
               style={[styles.stepPill, shadows.control]}
             >
               {stepLabel}
@@ -488,7 +511,7 @@ function FlowHeader({
             <View style={[styles.stepPill, shadows.control]}>
               <LiquidGlassSurface
                 variant="clear"
-                colorScheme="auto"
+                colorScheme={mode}
                 fallbackTint="default"
                 washColor="transparent"
                 intensity={72}
@@ -533,6 +556,9 @@ function CameraBackdrop({
   onCameraLayout?: (layout: { width: number; height: number }) => void;
   onFocusTap?: (event: GestureResponderEvent) => void;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const [permission, requestPermission] = useCameraPermissions();
   const requestedPermission = useRef(false);
 
@@ -654,6 +680,9 @@ function BriefingScreen({
   onClose: () => void;
   onContinue: () => void;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const [skipNextTime, setSkipNextTime] = useState(false);
   const checkboxProgress = useRef(new Animated.Value(0)).current;
   const [checkboxReduceMotion, setCheckboxReduceMotion] = useState(false);
@@ -821,7 +850,7 @@ function BriefingScreen({
         >
           <InstructionCard
             height={150}
-            illustration={briefingIllustrations[activeStep]}
+            illustration={(mode === 'dark' ? briefingDarkIllustrations : briefingIllustrations)[activeStep]}
             step={activeStep + 1}
             text={briefingInstructions[activeStep]}
             total={briefingInstructions.length}
@@ -946,6 +975,9 @@ function QrScannerScreen({
   onManualCode: (data: string) => string | null;
   onScanned: (data?: string) => void;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const scanned = useRef(false);
   const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [detected, setDetected] = useState(false);
@@ -1214,7 +1246,7 @@ function QrScannerScreen({
           }}
           onSubmitEditing={submitManualCode}
           placeholder="Код с упаковки"
-          placeholderTextColor="rgba(115,110,108,0.48)"
+          placeholderTextColor={colors.text.secondary}
           returnKeyType="done"
           selectionColor={colors.brand.primary}
           style={styles.manualCodeInput}
@@ -1395,6 +1427,9 @@ function BatchChip({
   configuration: ActiveCvConfiguration;
   top: number;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const content = (
     <View style={styles.batchChipContent}>
       <View style={styles.batchStatus} />
@@ -1416,7 +1451,7 @@ function BatchChip({
     return (
       <GlassView
         glassEffectStyle="clear"
-        colorScheme="auto"
+        colorScheme={mode}
         style={[styles.batchChip, { top }]}
       >
         {content}
@@ -1428,7 +1463,7 @@ function BatchChip({
     <View style={[styles.batchChip, { top }]}>
       <LiquidGlassSurface
         variant="clear"
-        colorScheme="auto"
+        colorScheme={mode}
         fallbackTint="default"
         washColor="transparent"
         radius={20}
@@ -1456,6 +1491,9 @@ function TestScannerScreen({
   onClose: () => void;
   onHelp: () => void;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [currentHint, setCurrentHint] = useState<CvLiveHint>(initialCvHint);
   const [cameraReady, setCameraReady] = useState(false);
@@ -1781,10 +1819,13 @@ function TestScannerScreen({
 }
 
 function ProcessingScreen() {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   return (
     <View style={styles.processingScreen}>
       <LinearGradient
-        colors={['#FFF8F5', '#FEE8E3', '#FFF8F6']}
+        colors={mode === 'dark' ? [colors.surface.canvas, colors.surface.warm, colors.surface.raised] : ['#FFF8F5', '#FEE8E3', '#FFF8F6']}
         locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFillObject}
       />
@@ -1828,6 +1869,9 @@ function overlayPath(points: readonly OverlayPoint[] | null): string | null {
 }
 
 function ScanResultOverlay({ geometry }: { geometry: ScanOverlayGeometry }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const stripPath = overlayPath(geometry.strip);
   const tilePath = overlayPath(geometry.calibrationTile);
   const controlWindowPath = overlayPath(geometry.controlWindow);
@@ -1945,6 +1989,9 @@ function ResultPreview({
   previewTop?: number;
   showAnalysisOverlay?: boolean;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const [imageSize, setImageSize] = useState<{
     width: number;
     height: number;
@@ -2094,6 +2141,9 @@ export function ScanResultScreen({
   hideReadyHeading?: boolean;
   resultData?: ScanResultData;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const usesSavedResult = fromHistory || resultData !== undefined;
   const savedResult = resultData ?? defaultScanResult;
   const analysisDecision = getAnalysisDecision(result ?? null, error);
@@ -2219,7 +2269,7 @@ export function ScanResultScreen({
         ) : null}
         <AppText
           role={fromHistory ? 'body' : 'label'}
-          color={fromHistory ? '#171717' : colors.text.secondary}
+          color={fromHistory ? colors.text.primary : colors.text.secondary}
           style={[
             styles.centerText,
             fromHistory && styles.historyResultDescription,
@@ -2358,6 +2408,9 @@ export function ScanCorrectionScreen({
   result?: AnalysisResult | null;
   resultData?: ScanResultData;
 }) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const [selected, setSelected] = useState<number | null>(null);
 
   return (
@@ -2384,7 +2437,7 @@ export function ScanCorrectionScreen({
         ) : null}
         <AppText
           role="body"
-          color={fromHistory ? '#171717' : colors.text.secondary}
+          color={fromHistory ? colors.text.primary : colors.text.secondary}
           style={[
             fromHistory && styles.centerText,
             fromHistory && styles.historyResultDescription,
@@ -2471,6 +2524,9 @@ export function ScanFlowOverlay({
   onClose,
   onComplete,
 }: ScanFlowOverlayProps) {
+  const { colors, mode } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
+
   const [stage, setStage] = useState<ScanFlowStage>(
     initialImageUri ? 'processing' : showBriefing ? 'briefing' : 'qr',
   );
@@ -2913,7 +2969,7 @@ export function ScanFlowOverlay({
     <View style={styles.overlay}>
       {visible ? (
         <StatusBar
-          style={stage === 'qr' || stage === 'test' ? 'light' : 'dark'}
+          style={stage === 'qr' || stage === 'test' || mode === 'dark' ? 'light' : 'dark'}
           hidden={false}
         />
       ) : null}
@@ -2929,19 +2985,21 @@ export function ScanFlowOverlay({
           },
         ]}
       >
-        {content}
+        {stage === 'qr' || stage === 'test' ? (
+          <AppThemeScope mode="light">{content}</AppThemeScope>
+        ) : content}
       </Animated.View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 30,
     overflow: 'hidden',
-    borderRadius: 40,
-    backgroundColor: '#FFF8F5',
+    borderRadius: Platform.OS === 'android' ? 0 : 40,
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF8F5',
   },
   pageTransition: {
     ...StyleSheet.absoluteFillObject,
@@ -3200,7 +3258,7 @@ const styles = StyleSheet.create({
   },
   briefingScreen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFFFFF',
   },
   briefingContent: {
     flex: 1,
@@ -3276,7 +3334,7 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 23,
     overflow: 'hidden',
-    backgroundColor: '#ECEBEC',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#ECEBEC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3310,7 +3368,7 @@ const styles = StyleSheet.create({
   },
   processingScreen: {
     flex: 1,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF8F5',
   },
   processingContent: {
     position: 'absolute',
@@ -3358,10 +3416,10 @@ const styles = StyleSheet.create({
   },
   resultScreen: {
     flex: 1,
-    backgroundColor: '#FFF8F5',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF8F5',
   },
   correctionScreen: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFFFFF',
   },
   resultHeading: {
     position: 'absolute',
@@ -3438,13 +3496,13 @@ const styles = StyleSheet.create({
   resultCapturedImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#F7F1ED',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : '#F7F1ED',
   },
   resultImageUnavailable: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FCEDE8',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FCEDE8',
   },
   rectifiedPreviewCard: {
     position: 'absolute',
@@ -3457,7 +3515,7 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 5,
     borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : 'rgba(255,255,255,0.92)',
     alignItems: 'center',
   },
   rectifiedPreviewLabel: {
@@ -3526,7 +3584,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     paddingHorizontal: 10,
     borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    backgroundColor: colors.surface.canvas === '#161417' ? 'rgba(37,34,38,0.94)' : 'rgba(255,255,255,0.88)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -3539,7 +3597,7 @@ const styles = StyleSheet.create({
     minHeight: 126,
     padding: 18,
     borderRadius: 28,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFFFFF',
     ...shadows.card,
   },
   resultIssueCard: {
@@ -3551,8 +3609,8 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: 'rgba(217,56,56,0.16)',
-    backgroundColor: '#FFF1F0',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(217,56,56,0.16)',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFF1F0',
     gap: 12,
   },
   resultIssueHeader: {
@@ -3610,7 +3668,7 @@ const styles = StyleSheet.create({
   resultSecondaryButton: {
     height: 46,
     borderRadius: 23,
-    backgroundColor: 'rgba(211,20,113,0.08)',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : 'rgba(211,20,113,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3641,8 +3699,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(33,33,35,0.08)',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(33,33,35,0.08)',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
@@ -3681,3 +3739,5 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

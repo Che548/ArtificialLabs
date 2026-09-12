@@ -1,3 +1,4 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -13,6 +14,8 @@ export function AnalysisAttachmentThumbnail({
   mimeType?: string;
   photo?: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const [failedUri, setFailedUri] = useState<string>();
   const isImage = mimeType
     ? mimeType.startsWith('image/')
@@ -45,14 +48,14 @@ export function AnalysisAttachmentThumbnail({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   frame: {
     width: 52,
     height: 52,
     borderRadius: 12,
     overflow: 'hidden',
     flexShrink: 0,
-    backgroundColor: '#F5F3F3',
+    backgroundColor: colors.surface.canvas,
     alignItems: 'center',
     justifyContent: 'center',
   },

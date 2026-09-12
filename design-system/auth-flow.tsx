@@ -1,3 +1,6 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
+import { BrandLogo } from '../components/BrandLogo';
 import { filterInput } from '../lib/input-format';
 import { fontStyle } from '../lib/font-style';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -130,6 +133,8 @@ function AuthField({
   secureTextEntry?: boolean;
   value: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.fieldGroup}>
       <AppText role="caption" weight="medium" color={colors.text.secondary}>
@@ -160,6 +165,8 @@ function ConsentControl({
   checked: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <Pressable
       cssInterop={false}
@@ -203,6 +210,8 @@ function AuthPrimaryButton({
   label: string;
   onPress: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <Pressable
       cssInterop={false}
@@ -231,6 +240,8 @@ function AuthPrimaryButton({
 }
 
 function CompletionMark() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.completionMarkOuter}>
       <LinearGradient
@@ -251,6 +262,8 @@ function CompletionMark() {
 }
 
 export function AuthFlowModal({ visible, onClose }: AuthFlowModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<AuthFlowStep>('login');
   const [channel, setChannel] = useState<AuthChannel>('phone');
@@ -387,7 +400,7 @@ export function AuthFlowModal({ visible, onClose }: AuthFlowModalProps) {
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <StatusBar style="dark" hidden={false} />
+      <StatusBar style={useAppTheme().mode === 'dark' ? 'light' : 'dark'} hidden={false} />
       <TouchableWithoutFeedback
         accessible={false}
         onPress={Keyboard.dismiss}
@@ -441,14 +454,7 @@ export function AuthFlowModal({ visible, onClose }: AuthFlowModalProps) {
               ]}
             >
               <View style={styles.brandBlock}>
-                <AppText
-                  numeric
-                  role="display"
-                  color={colors.brand.primary}
-                  style={styles.brand}
-                >
-                  сфера.
-                </AppText>
+                <BrandLogo width={142} style={{ marginBottom: spacing.xl }} />
                 <AppText
                   role="caption"
                   weight="semibold"
@@ -796,7 +802,7 @@ export function AuthFlowModal({ visible, onClose }: AuthFlowModalProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.surface.canvas,
@@ -906,7 +912,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(33,33,35,0.08)',
-    backgroundColor: '#F5F3F3',
+    backgroundColor: colors.surface.canvas,
     color: colors.text.primary,
     ...fontStyle(fonts.sfRegular),
     fontSize: 17,
@@ -1092,3 +1098,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+const styles = createStyles(defaultThemeColors);

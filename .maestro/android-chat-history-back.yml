@@ -1,0 +1,14 @@
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
+---
+# Run after native sign-in or local DEV entry. No messages or records are saved.
+- tapOn:
+    id: e2e-tab-chat
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    text: История чатов
+    waitToSettleTimeoutMs: 500
+- assertVisible: Недавнее
+- back
+- assertVisible:
+    id: e2e-tab-profile
+- assertVisible: История чатов

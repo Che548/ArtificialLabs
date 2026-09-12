@@ -1,3 +1,6 @@
+import { LegalDocumentsButton } from '../components/LegalDocumentsModal';
+import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from '../design-system/tokens';
 import { AppSheet, sheetStyles } from '../components/AppSheet';
 import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import * as Clipboard from 'expo-clipboard';
@@ -12,11 +15,11 @@ import {
   AccessibilityInfo,
   Alert,
   Animated,
+  BackHandler,
   Easing,
   Keyboard,
   KeyboardAvoidingView,
   type KeyboardEvent,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -39,6 +42,7 @@ import {
   ChatMessageBubble,
   ChatSuggestionList,
   androidTabBarBaseStyle,
+  androidTabBarContentHeight,
   colors,
   getHeaderTop,
   type ChatSuggestion,
@@ -93,7 +97,6 @@ type PendingConsentRequest =
   | { kind: 'new'; mode: ChatHeaderMode; text: string }
   | { kind: 'retry'; mode: ChatHeaderMode; userMessage: ChatMessage };
 
-const PRIVACY_POLICY_URL = 'https://brainwaves.engineering/docs#document-2';
 const AGENT_LOCAL_TOOL_TIMEOUT_MS = 60_000;
 
 async function executeAgentToolWithTimeout(
@@ -125,6 +128,7 @@ function ConversationOverlay({
   onRequestClose: () => void;
   visible: boolean;
 }) {
+  const styles = useThemeStyles(createStyles);
   if (Platform.OS === 'android') {
     if (!visible) return null;
 
@@ -158,6 +162,8 @@ function AiChatConsentSheet({
   onCancel: () => void;
   visible: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <AppSheet
       visible={visible}
@@ -200,20 +206,16 @@ function AiChatConsentSheet({
           ? 'Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый текст чата; возраст, цель, параметры тела и данные цикла или беременности; указанные заболевания, лекарства и аллергии; записи дневника не старше 30 дней; подтверждённые результаты анализов и домашние тесты; активный план. По запросу Ассистент сможет искать более старые записи, другие ваши чаты и метаданные документов. Если вы отдельно включите автономные рекомендации, при проверке плана также могут передаваться новые сообщения, написанные вами в режиме «Ассистент», и факт появления нового документа с его категорией и датой. Обычные чаты, ответы ИИ, названия и содержимое файлов при такой проверке не передаются. Содержимое файлов, имя, контакты, пути к файлам, идентификаторы аккаунта и устройства не передаются. Логирование запросов у Yandex отключено.'
           : 'Для ответа Сферка отправит ваше сообщение и до 20 последних сообщений этого чата через наш сервер в Yandex AI Studio. Структурированные данные профиля, анализы и файлы автоматически не передаются — отправляется только видимый текст чата. Логирование запросов у Yandex отключено. История хранится зашифрованно на устройстве и синхронизируется только при включённой облачной синхронизации.'}
       </AppText>
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel="Открыть политику конфиденциальности"
-        onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
-      >
-        <AppText weight="medium" style={styles.consentLink}>
-          Политика конфиденциальности
-        </AppText>
-      </Pressable>
+      <LegalDocumentsButton documentId="privacy" label="Политика обработки персональных данных" />
+      <LegalDocumentsButton documentId="ai" label="Правила ИИ функций Sfera" />
+      <LegalDocumentsButton documentId="health" label="Форма согласия на данные о здоровье" />
     </AppSheet>
   );
 }
 
 export default function ChatScreen() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const healthStore = useHealthStore();
   const {
     chatConversations,
@@ -274,7 +276,7 @@ export default function ChatScreen() {
   const composerBottom = keyboardShown
     ? composerGutter
     : Platform.OS === 'android'
-      ? Math.max(insets.bottom, 8) + 60 + 12
+      ? Math.max(insets.bottom, 8) + androidTabBarContentHeight + 12
       : Math.max(insets.bottom, 12) + (!hasNativeLiquidGlass ? 72 : 58);
   const conversationComposerBottom = keyboardShown
     ? composerGutter
@@ -476,7 +478,7 @@ export default function ChatScreen() {
   useEffect(() => {
     const animation = Animated.timing(emptyStateProgress, {
       toValue: keyboardActive ? 0 : 1,
-      duration: reduceMotion ? 0 : keyboardActive ? 180 : 220,
+      duration: reduceMotion ? 0 : keyboardActive ? 150 : 200,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     });
@@ -508,7 +510,7 @@ export default function ChatScreen() {
     const visibleTabBarStyle = [
       androidTabBarBaseStyle,
       {
-        height: 60 + bottomInset,
+        height: androidTabBarContentHeight + bottomInset,
         paddingBottom: bottomInset,
       },
     ];
@@ -539,16 +541,14 @@ export default function ChatScreen() {
   useEffect(() => {
     const animation = Animated.timing(suggestionsProgress, {
       toValue: suggestionsVisible ? 1 : 0,
-      duration: suggestionsVisible ? 320 : 220,
-      easing: suggestionsVisible
-        ? Easing.out(Easing.cubic)
-        : Easing.inOut(Easing.quad),
+      duration: reduceMotion ? 0 : suggestionsVisible ? 200 : 150,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     });
 
     animation.start();
     return () => animation.stop();
-  }, [suggestionsProgress, suggestionsVisible]);
+  }, [reduceMotion, suggestionsProgress, suggestionsVisible]);
 
   const dismissComposer = () => {
     if (!composerFocused) return;
@@ -633,6 +633,16 @@ export default function ChatScreen() {
       if (finished) finishClosing();
     });
   };
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !historyOpen) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!navigation.isFocused()) return false;
+      closeHistory();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [historyOpen, navigation, closeHistory]);
 
   const openRecentChat = (item: ChatHistoryItem) => {
     const persistedMessages = chatMessagesRef.current
@@ -1392,7 +1402,7 @@ export default function ChatScreen() {
           historySurfaceMotionStyle,
         ]}
       >
-        <StatusBar style="dark" />
+        <ThemeStatusBar />
         <TopChromeBackdrop headerTop={headerTop} />
 
         <View
@@ -1465,6 +1475,8 @@ export default function ChatScreen() {
               >
                 <Animated.View
                   pointerEvents={suggestionsVisible ? 'auto' : 'none'}
+                  accessibilityElementsHidden={!suggestionsVisible}
+                  importantForAccessibility={suggestionsVisible ? 'auto' : 'no-hide-descendants'}
                   style={[
                     styles.suggestionsMotion,
                     {
@@ -1472,10 +1484,7 @@ export default function ChatScreen() {
                         inputRange: [0, 1],
                         outputRange: [0, 100],
                       }),
-                      opacity: suggestionsProgress.interpolate({
-                        inputRange: [0, 0.28, 1],
-                        outputRange: [0, 0, 1],
-                      }),
+                      opacity: suggestionsProgress,
                     },
                   ]}
                 >
@@ -1502,7 +1511,7 @@ export default function ChatScreen() {
                     ]}
                   >
                     <LinearGradient
-                      colors={['rgba(255,255,255,0)', 'rgba(255,255,255,1)']}
+                      colors={[`${colors.surface.raised}00`, `${colors.surface.raised}ff`]}
                       locations={[0, 1]}
                       start={{ x: 0.5, y: 0 }}
                       end={{ x: 0.5, y: 1 }}
@@ -1689,9 +1698,9 @@ export default function ChatScreen() {
             <LinearGradient
               pointerEvents="none"
               colors={[
-                'rgba(255,255,255,1)',
-                'rgba(255,255,255,0.96)',
-                'rgba(255,255,255,0)',
+                `${colors.surface.raised}ff`,
+                `${colors.surface.raised}f5`,
+                `${colors.surface.raised}00`,
               ]}
               locations={[0, 0.56, 1]}
               start={{ x: 0.5, y: 0 }}
@@ -1703,9 +1712,9 @@ export default function ChatScreen() {
               <LinearGradient
                 pointerEvents="none"
                 colors={[
-                  'rgba(255,255,255,0)',
-                  'rgba(255,255,255,0.72)',
-                  'rgba(255,255,255,1)',
+                  `${colors.surface.raised}00`,
+                  `${colors.surface.raised}b8`,
+                  `${colors.surface.raised}ff`,
                 ]}
                 locations={[0, 0.5, 1]}
                 start={{ x: 0.5, y: 0 }}
@@ -1830,28 +1839,28 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   drawerRoot: {
     flex: 1,
-    backgroundColor: '#F3F0F1',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F3F0F1',
   },
   root: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   chatSurface: {
     flex: 1,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   conversationSurface: {
     flex: 1,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   chatSurfaceRaised: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(130,53,55,0.12)',
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(130,53,55,0.12)',
     shadowColor: '#2F151B',
     shadowOffset: { width: -8, height: 0 },
     shadowOpacity: 0.14,
@@ -1932,7 +1941,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-  consentCancelButton: { ...sheetStyles.secondary, flex: 1 },
+  consentCancelButton: { ...sheetStyles.secondary, backgroundColor: colors.surface.divider, flex: 1 },
   consentAcceptButton: { ...sheetStyles.primary, flex: 1 },
   consentButtonDisabled: {
     opacity: 0.52,
@@ -1951,10 +1960,10 @@ const styles = StyleSheet.create({
   androidConversationOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 200,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   conversationBackground: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
   },
   conversationContentMotion: {
     flex: 1,
@@ -1979,3 +1988,5 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

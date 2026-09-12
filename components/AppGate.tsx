@@ -1,3 +1,4 @@
+import { DailySymptomsPrompt } from './DailySymptomsPrompt';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import type { PropsWithChildren } from 'react';
 import { useState } from 'react';
@@ -70,5 +71,5 @@ export function AppGate({
   }
   if (!profile?.onboardingCompleted && !allowEmptyProfile)
     return <OnboardingScreen />;
-  return <View className="flex-1">{children}</View>;
+  return <View className="flex-1"><DailySymptomsPrompt>{children}</DailySymptomsPrompt></View>;
 }

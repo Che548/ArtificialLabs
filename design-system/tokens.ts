@@ -1,4 +1,4 @@
-import type { TextStyle, ViewStyle } from 'react-native';
+import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
 export const fonts = {
   sfRegular: 'SFProDisplay-Regular',
@@ -155,24 +155,25 @@ export const shadows = {
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.08,
     shadowRadius: 18,
-    elevation: 3,
+    elevation: 0,
+    ...(Platform.OS === 'android' ? { boxShadow: '0 0 18px rgba(58,23,28,0.08)' } : {}),
   },
 } satisfies Record<string, ViewStyle>;
 
 export const androidMaterials = {
   light: {
-    backgroundColor: 'rgba(255,250,252,0.72)',
-    borderColor: 'rgba(255,255,255,0.92)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.84)',
+    borderColor: 'rgba(255,255,255,0.62)',
+    borderWidth: 0.8,
   },
   strong: {
-    backgroundColor: 'rgba(255,252,253,0.84)',
-    borderColor: 'rgba(255,255,255,0.96)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderColor: 'rgba(255,255,255,0.62)',
+    borderWidth: 0.8,
   },
   dark: {
-    backgroundColor: 'rgba(31,24,27,0.78)',
-    borderColor: 'rgba(255,255,255,0.24)',
+    backgroundColor: 'rgba(24,21,26,0.92)',
+    borderColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1,
   },
   pressedLight: {
@@ -187,7 +188,7 @@ export const androidMaterials = {
 
 export const androidShadows = {
   control: {
-    boxShadow: '0 0 10px rgba(58, 23, 28, 0.12)',
+    boxShadow: '0 0 4px rgba(0, 0, 0, 0.18)',
     shadowColor: '#3A171C',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.1,
@@ -204,18 +205,21 @@ export const androidShadows = {
   },
 } satisfies Record<string, ViewStyle>;
 
+// Match the compact iOS fallback tab bar while keeping Android's safe area.
+export const androidTabBarContentHeight = 49;
+
 export const androidTabBarBaseStyle = {
   position: 'absolute',
-  left: 14,
-  right: 14,
+  left: 0,
+  right: 0,
   bottom: 0,
   overflow: 'hidden',
   backgroundColor: 'transparent',
   borderTopWidth: 0,
-  borderRadius: 32,
-  ...androidShadows.floating,
-  paddingTop: 5,
-  paddingHorizontal: 8,
+  borderRadius: 0,
+  elevation: 0,
+  paddingTop: 3,
+  paddingHorizontal: 0,
 } satisfies ViewStyle;
 
 export const motion = {

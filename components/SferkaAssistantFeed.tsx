@@ -1,3 +1,4 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { useEffect } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import {
@@ -19,6 +20,8 @@ export function SferkaAssistantFeed({
   topInset: number;
   bottomInset: number;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const focused = useIsFocused();
   const unread = useAssistantUnread();
   const createdAt = useAssistantWelcomeCreatedAt();
@@ -77,14 +80,14 @@ export function SferkaAssistantFeed({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: { paddingHorizontal: 20, flexGrow: 1 },
   messageRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   avatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FCE4EE',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FCE4EE',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -104,7 +107,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1.35,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#FFF1F6',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF1F6',
     alignItems: 'center',
     justifyContent: 'center',
   },

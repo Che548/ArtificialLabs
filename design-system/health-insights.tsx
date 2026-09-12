@@ -1,7 +1,8 @@
+import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import { fontStyle } from '../lib/font-style';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
@@ -306,6 +307,8 @@ function colorWithOpacity(hex: string, opacity: number) {
 }
 
 function EmptyChart({ text }: { text: string }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.emptyChart}>
       <View style={styles.emptyChartMark}>
@@ -330,6 +333,7 @@ function InsightCard({
   children: ReactNode;
   title: string;
 }) {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -343,6 +347,8 @@ function InsightCard({
 }
 
 function CoverageChart({ buckets }: { buckets: DayBucket[] }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const recentBuckets = buckets.slice(-35);
   const activeDays = recentBuckets.filter(
     (bucket) => bucket.journal.length > 0,
@@ -409,6 +415,8 @@ function CoverageChart({ buckets }: { buckets: DayBucket[] }) {
 }
 
 function CycleHistoryCard({ cycles }: { cycles: CycleSegment[] }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const rows = cycles
     .filter((cycle) => cycle.cycleLength)
     .slice(-4)
@@ -490,6 +498,8 @@ function BasalTemperatureCard({
   cycles: CycleSegment[];
   profile: LocalProfile | null;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const cycle = cycles.at(-1);
   const cycleLength = cycle?.cycleLength ?? profile?.cycleLengthDays ?? 28;
   const values = cycle
@@ -563,7 +573,7 @@ function BasalTemperatureCard({
             x2={PLOT_WIDTH}
             y1={y}
             y2={y}
-            stroke={chartColors.grid}
+            stroke={colors.surface.divider}
           />
         ))}
         {segmentedPaths(points).map((path, index) => (
@@ -644,6 +654,8 @@ function PhaseHeatmap({
   rows: Array<{ label: string; counts: Record<CyclePhase, number> }>;
   color: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const max = Math.max(1, ...rows.flatMap((row) => Object.values(row.counts)));
   return (
     <View style={styles.phaseMatrix}>
@@ -679,7 +691,7 @@ function PhaseHeatmap({
                   {
                     backgroundColor: value
                       ? colorWithOpacity(color, 0.18 + (value / max) * 0.82)
-                      : chartColors.quiet,
+                      : colors.surface.canvas,
                   },
                 ]}
               >
@@ -704,6 +716,8 @@ function PhaseHeatmap({
 }
 
 function PhaseLegend() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.phaseLegend}>
       {(Object.keys(phaseMeta) as CyclePhase[]).map((phase) => (
@@ -735,6 +749,7 @@ function SymptomsByPhaseCard({
   cycles: CycleSegment[];
   profile: LocalProfile | null;
 }) {
+  const { colors } = useAppTheme();
   const counts = countEntriesByPhase(entries, cycles, profile, [
     labels.pain,
     labels.symptoms,
@@ -770,6 +785,8 @@ function MoodEnergyByPhaseCard({
   cycles: CycleSegment[];
   profile: LocalProfile | null;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const mood = countEntriesByPhase(entries, cycles, profile, [labels.mood]);
   const energy = countEntriesByPhase(entries, cycles, profile, [labels.energy]);
   const makeRows = (counts: Map<string, Record<CyclePhase, number>>) =>
@@ -821,6 +838,7 @@ function PatternsCard({
   cycles: CycleSegment[];
   profile: LocalProfile | null;
 }) {
+  const styles = useThemeStyles(createStyles);
   const symptomCounts = countEntriesByPhase(entries, cycles, profile, [
     labels.pain,
     labels.symptoms,
@@ -914,6 +932,8 @@ function PatternsCard({
 }
 
 function MenstruationIntensityCard({ cycles }: { cycles: CycleSegment[] }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const rows = cycles
     .filter((cycle) =>
       [...cycle.dailyIntensity.values()].some((intensity) => intensity > 0),
@@ -1014,6 +1034,8 @@ function OvulationTestsCard({
   cycles: CycleSegment[];
   profile: LocalProfile | null;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const shownCycles = cycles.slice(-4);
   const tests = scans
     .filter(
@@ -1094,7 +1116,7 @@ function OvulationTestsCard({
             x2={PLOT_WIDTH}
             y1={18 + index * 29}
             y2={18 + index * 29}
-            stroke={chartColors.grid}
+            stroke={colors.surface.divider}
           />
         ))}
         {tests.map(({ scan, context }) => {
@@ -1129,6 +1151,8 @@ function OvulationTestsCard({
 }
 
 function LifestyleCard({ buckets }: { buckets: DayBucket[] }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const [tab, setTab] = useState<LifestyleTab>('weight');
   const values =
     tab === 'weight'
@@ -1236,7 +1260,7 @@ function LifestyleCard({ buckets }: { buckets: DayBucket[] }) {
                         : 6,
                       backgroundColor: item.values.length
                         ? chartColors.warning
-                        : chartColors.quiet,
+                        : colors.surface.canvas,
                     },
                   ]}
                 />
@@ -1302,7 +1326,7 @@ function LifestyleCard({ buckets }: { buckets: DayBucket[] }) {
                 x2={PLOT_WIDTH}
                 y1={y}
                 y2={y}
-                stroke={chartColors.grid}
+                stroke={colors.surface.divider}
               />
             ))}
             {tab === 'water'
@@ -1431,6 +1455,8 @@ function buildAnalyteSeries(labs: LabResult[]) {
 }
 
 function AnalyteLabsCard({ labs }: { labs: LabResult[] }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const series = useMemo(() => buildAnalyteSeries(labs), [labs]);
   const [selectedKey, setSelectedKey] = useState<string | undefined>(undefined);
   const active = series.find((item) => item.key === selectedKey) ?? series[0];
@@ -1511,7 +1537,7 @@ function AnalyteLabsCard({ labs }: { labs: LabResult[] }) {
             x2={PLOT_WIDTH}
             y1={y}
             y2={y}
-            stroke={chartColors.grid}
+            stroke={colors.surface.divider}
           />
         ))}
         <Path
@@ -1571,6 +1597,7 @@ export function HealthInsightsDashboard({
   scanResults: ScanResult[];
   onPeriodChange: (period: HealthInsightsPeriod) => void;
 }) {
+  const styles = useThemeStyles(createStyles);
   const buckets = useMemo(
     () => buildBuckets(period, journalEntries, labResults, scanResults),
     [period, journalEntries, labResults, scanResults],
@@ -1651,6 +1678,8 @@ export function HealthInsightsPage({
   scanResults: ScanResult[];
   visible: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<HealthInsightsPeriod>(initialPeriod);
   const headerTop = getHeaderTop(insets.top);
@@ -1658,7 +1687,7 @@ export function HealthInsightsPage({
   if (!visible) return null;
   return (
     <View style={styles.pageRoot}>
-      <StatusBar style="dark" />
+      <ThemeStatusBar />
       <ScrollView
         showsVerticalScrollIndicator={false}
         scrollIndicatorInsets={{ bottom: bottomScrollClearance }}
@@ -1714,7 +1743,7 @@ export function HealthInsightsPage({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   pageRoot: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 100,
@@ -1757,7 +1786,7 @@ const styles = StyleSheet.create({
     minHeight: 150,
     paddingHorizontal: spacing.lg,
     borderRadius: radii.md,
-    backgroundColor: chartColors.quiet,
+    backgroundColor: colors.surface.canvas,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
@@ -1789,9 +1818,9 @@ const styles = StyleSheet.create({
   coverageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   coverageCell: { width: 40, height: 40, borderRadius: 12 },
   coverageCellEmpty: {
-    backgroundColor: chartColors.quiet,
+    backgroundColor: colors.surface.canvas,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: chartColors.grid,
+    borderColor: colors.surface.divider,
   },
   coverageLegend: {
     flexDirection: 'row',
@@ -1809,7 +1838,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: spacing.xs,
     borderRadius: radii.sm,
-    backgroundColor: chartColors.quiet,
+    backgroundColor: colors.surface.canvas,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1849,7 +1878,7 @@ const styles = StyleSheet.create({
   phaseLegend: {
     paddingTop: spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: chartColors.grid,
+    borderTopColor: colors.surface.divider,
     flexDirection: 'row',
     flexWrap: 'wrap',
     rowGap: spacing.xs,
@@ -1870,7 +1899,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     borderRadius: radii.sm,
-    backgroundColor: chartColors.quiet,
+    backgroundColor: colors.surface.canvas,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -1885,7 +1914,7 @@ const styles = StyleSheet.create({
   intensityDate: { width: 34 },
   intensityCells: { flex: 1, flexDirection: 'row', gap: 5 },
   intensityCell: { flex: 1, height: 24, borderRadius: 7 },
-  intensityCellEmpty: { backgroundColor: chartColors.quiet },
+  intensityCellEmpty: { backgroundColor: colors.surface.canvas },
   intensityAxis: { flexDirection: 'row', gap: spacing.sm },
   intensityAxisText: { flex: 1, textAlign: 'center' },
   scanLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
@@ -1896,7 +1925,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     paddingHorizontal: spacing.sm,
     borderRadius: radii.pill,
-    backgroundColor: chartColors.quiet,
+    backgroundColor: colors.surface.canvas,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1905,7 +1934,7 @@ const styles = StyleSheet.create({
     height: 108,
     paddingTop: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: chartColors.grid,
+    borderBottomColor: colors.surface.divider,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
@@ -1924,9 +1953,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderRadius: radii.pill,
     justifyContent: 'center',
-    backgroundColor: chartColors.quiet,
+    backgroundColor: colors.surface.canvas,
   },
   analyteTabSelected: {
     backgroundColor: colorWithOpacity(colors.brand.burgundy, 0.12),
   },
 });
+
+const styles = createStyles(defaultThemeColors);

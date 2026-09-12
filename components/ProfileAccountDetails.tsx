@@ -1,6 +1,8 @@
+import { useProfileAppearance, useProfileStyles } from '../lib/profile-appearance';
+import type { ThemeColors } from '../lib/theme';
 import { fontStyle } from '../lib/font-style';
 import { filterInput } from '../lib/input-format';
-import { AppSheet, sheetStyles } from './AppSheet';
+import { AppSheet, sheetStyles, useSheetStyles } from './AppSheet';
 import { EmptyStateIcon, emptyStateColor } from './EmptyStateIcon';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -53,6 +55,7 @@ export function ProfileAccountDetails({
     input: Partial<Omit<LocalProfile, 'updatedAt'>>,
   ) => Promise<void>;
 }) {
+  const styles = useProfileStyles(createStyles);
   const accountQueue = useRef(Promise.resolve());
   const accountEdits = useRef<Partial<Omit<LocalProfile, 'updatedAt'>>>({});
   const latestAccountSave = useRef(saveProfile);
@@ -99,6 +102,8 @@ export function ProfileContacts({
   phoneEditor: ReactNode;
   readOnly: boolean;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const [editingPhone, setEditingPhone] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
   const [updatedEmail, setUpdatedEmail] = useState<string>();
@@ -165,6 +170,8 @@ function PersonalDetails({
     patch: Partial<Omit<LocalProfile, 'updatedAt'>>,
   ) => Promise<void>;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const [birthDate, setBirthDate] = useState(profile.birthDate);
   const [dateError, setDateError] = useState<string>();
   return (
@@ -260,6 +267,8 @@ function PersonalField({
   validate: (value: string) => string | undefined;
   onSave: (value: string) => Promise<void>;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string>();
   const saved = useRef(initialValue);
@@ -335,6 +344,8 @@ export function ProfileGoalSettings({
     input: Partial<Omit<LocalProfile, 'updatedAt'>>,
   ) => Promise<void>;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const [goal, setGoal] = useState(profile.goal);
   const [pendingGoal, setPendingGoal] = useState<HealthGoal>();
   const [activeGoal, setActiveGoal] = useState(profile.goal);
@@ -576,6 +587,9 @@ function GoalChangeModal({
     patch: Partial<Omit<LocalProfile, 'updatedAt'>>,
   ) => Promise<void>;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
+  const sheetStyles = useSheetStyles();
   const [visible, setVisible] = useState(true);
   const closeModal = () => setVisible(false);
   const pregnancy = goal === 'pregnancy';
@@ -662,7 +676,7 @@ function GoalChangeModal({
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           locale="ru-RU"
-          themeVariant="light"
+          themeVariant={colors.surface.canvas === "#161417" ? "dark" : "light"}
           maximumDate={new Date()}
           style={styles.goalDatePicker}
           onChange={(event, value) => {
@@ -711,11 +725,11 @@ function GoalChangeModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   fieldError: { paddingHorizontal: 18, paddingBottom: 16 },
   modalFields: {
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     paddingHorizontal: 16,
     paddingTop: 16,
     overflow: 'hidden',
@@ -733,7 +747,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     gap: 12,
   },
-  goalConfirmDisabled: sheetStyles.disabled,
+  goalConfirmDisabled: { backgroundColor: colors.surface.divider },
   securityContact: {
     paddingLeft: 14,
     paddingRight: 18,
@@ -765,7 +779,7 @@ const styles = StyleSheet.create({
   divider: {
     marginHorizontal: 18,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#DEDADA',
+    backgroundColor: colors.surface.divider,
   },
   goalRow: {
     minHeight: 80,
@@ -780,7 +794,7 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#D6D0D2',
+    borderColor: colors.surface.canvas === '#161417' ? '#777079' : colors.surface.divider,
     alignItems: 'center',
     justifyContent: 'center',
   },

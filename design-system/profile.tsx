@@ -1,6 +1,8 @@
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { colors as defaultThemeColors } from './tokens';
 import { overlayRadii } from './tokens';
 import { filterInput, type InputFormat } from '../lib/input-format';
-import { AppSheet, sheetStyles } from '../components/AppSheet';
+import { AppSheet, sheetStyles, useSheetStyles } from '../components/AppSheet';
 import {
   EmptyStateIcon,
   emptyStateColor,
@@ -68,6 +70,7 @@ function ProfileSymbol({
   size = 19,
   tintColor,
 }: ProfileSymbolProps) {
+  const styles = useThemeStyles(createStyles);
   return (
     <SymbolView
       name={name}
@@ -89,6 +92,7 @@ function ProfileSymbol({
 }
 
 function ProfileChevronIcon({ expanded }: { expanded: boolean }) {
+  const { colors } = useAppTheme();
   return (
     <Svg width={20} height={20} viewBox="0 0 20 20">
       <Path
@@ -106,6 +110,7 @@ function ProfileChevronIcon({ expanded }: { expanded: boolean }) {
 }
 
 function ProfileCheckIcon() {
+  const { colors } = useAppTheme();
   return (
     <Svg width={22} height={22} viewBox="0 0 22 22">
       <Path
@@ -184,6 +189,8 @@ export function ProfileAccountCard({
   onPress?: () => void;
   subtitle: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <Pressable
       accessibilityRole="button"
@@ -219,7 +226,7 @@ export function ProfileAccountCard({
           name="chevron.right"
           fallback="›"
           size={17}
-          tintColor="#A9A5A4"
+          tintColor={colors.text.secondary}
         />
       </View>
     </Pressable>
@@ -257,6 +264,8 @@ export function ProfileSettingsGroup({
   style?: StyleProp<ViewStyle>;
   title?: string;
 }>) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.group, style]}>
       {title ? (
@@ -322,6 +331,8 @@ export function ProfileSettingsRow({
   trailing,
   value,
 }: ProfileSettingsRowProps) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <Pressable
       accessibilityRole={onPress ? 'button' : undefined}
@@ -412,7 +423,7 @@ export function ProfileSettingsRow({
                 name="chevron.right"
                 fallback="›"
                 size={15}
-                tintColor="#B6B2B1"
+                tintColor={colors.text.secondary}
               />
             ) : null}
           </View>
@@ -445,6 +456,8 @@ export function ProfileFieldRow({
   placeholder?: string;
   suffix?: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const inputFormat =
     format ??
     (inputMode === 'numeric'
@@ -475,7 +488,7 @@ export function ProfileFieldRow({
             onSubmit?.(filterInput(value, inputFormat).trim())
           }
           placeholder={placeholder}
-          placeholderTextColor="#989395"
+          placeholderTextColor={colors.text.secondary}
           inputMode={inputMode}
           keyboardType={
             inputMode === 'numeric'
@@ -534,6 +547,9 @@ export function ProfileDateRow({
   onChange?: (timestamp: number) => void;
   value?: number;
 }) {
+  const sheetStyles = useSheetStyles();
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const initialDate = value ? new Date(value) : undefined;
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -618,7 +634,7 @@ export function ProfileDateRow({
           >
             <AppText
               role="label"
-              color={selectedDate ? colors.text.primary : '#989395'}
+              color={selectedDate ? colors.text.primary : colors.text.secondary}
               numberOfLines={stacked ? undefined : 1}
               style={[styles.dateValue, stacked && styles.dateValueStacked]}
             >
@@ -628,7 +644,7 @@ export function ProfileDateRow({
               name="calendar"
               fallback="⌄"
               size={16}
-              tintColor="#A9A5A4"
+              tintColor={colors.text.secondary}
             />
           </View>
         </View>
@@ -664,7 +680,7 @@ export function ProfileDateRow({
             locale="ru-RU"
             maximumDate={maximumDate}
             minimumDate={minimumDate}
-            themeVariant="light"
+            themeVariant={colors.surface.canvas === defaultThemeColors.surface.canvas ? "light" : "dark"}
             onChange={(_event, date) => {
               if (date) setDraftDate(date);
             }}
@@ -695,6 +711,8 @@ export function ProfileToggleRow({
   testID?: string;
   value?: boolean;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const [localValue, setLocalValue] = useState(defaultValue);
   const controlled = typeof value === 'boolean';
   const currentValue = controlled ? value : localValue;
@@ -724,7 +742,7 @@ export function ProfileToggleRow({
               if (!controlled) setLocalValue(next);
               onChange?.(next);
             }}
-            trackColor={{ false: '#D7D4D5', true: colors.brand.primary }}
+            trackColor={{ false: colors.surface.divider, true: colors.brand.primary }}
             thumbColor={
               Platform.OS === 'android'
                 ? currentValue
@@ -757,6 +775,7 @@ export function ProfileChoiceControl<T extends string>({
   options: ReadonlyArray<{ label: string; value: T }>;
   value?: T;
 }) {
+  const styles = useThemeStyles(createStyles);
   const [localValue, setLocalValue] = useState(defaultValue);
   const currentValue = value ?? localValue;
 
@@ -799,6 +818,8 @@ export function ProfileVerticalChoiceControl<T extends string>({
   options: ReadonlyArray<{ label: string; value: T }>;
   value?: T;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const [localValue, setLocalValue] = useState(value ?? defaultValue);
 
   useEffect(() => {
@@ -941,6 +962,8 @@ function ProfileSelectionPopover<T extends string>({
   }>;
   selectedValue: T;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const reducedMotion = useProfileReducedMotion();
   const closing = useRef(false);
   const appear = useRef(new Animated.Value(0)).current;
@@ -1012,14 +1035,14 @@ function ProfileSelectionPopover<T extends string>({
               <>
                 <BlurView
                   pointerEvents="none"
-                  tint="light"
+                  tint={colors.surface.canvas === defaultThemeColors.surface.canvas ? "light" : "dark"}
                   intensity={46}
                   experimentalBlurMethod="dimezisBlurView"
                   style={StyleSheet.absoluteFillObject}
                 />
                 <LinearGradient
                   pointerEvents="none"
-                  colors={['rgba(255,255,255,0.92)', 'rgba(255,244,249,0.70)']}
+                  colors={colors.surface.canvas === defaultThemeColors.surface.canvas ? ['rgba(255,255,255,0.92)', 'rgba(255,244,249,0.70)'] : ['rgba(37,34,38,0.92)', 'rgba(48,35,41,0.70)']}
                   start={{ x: 0.1, y: 0 }}
                   end={{ x: 0.9, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
@@ -1036,7 +1059,7 @@ function ProfileSelectionPopover<T extends string>({
               <>
                 <BlurView
                   intensity={82}
-                  tint="light"
+                  tint={colors.surface.canvas === defaultThemeColors.surface.canvas ? "light" : "dark"}
                   style={StyleSheet.absoluteFillObject}
                 />
                 <View pointerEvents="none" style={styles.languagePopoverTint} />
@@ -1098,6 +1121,8 @@ export function ProfileLanguageSelector({
   regionValue?: ProfileRegion;
   value?: ProfileLanguage;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const regionTriggerRef = useRef<View>(null);
   const languageTriggerRef = useRef<View>(null);
   const [expanded, setExpanded] = useState<'region' | 'language' | null>(null);
@@ -1262,6 +1287,8 @@ export function ProfileActionRow({
   subtitle?: string;
   testID?: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const foreground = destructive
     ? colors.state.error
     : secondary
@@ -1320,7 +1347,7 @@ export function ProfileActionRow({
                 role="caption"
                 color={
                   destructive
-                    ? '#A44A4A'
+                    ? colors.state.error
                     : secondary
                       ? colors.text.secondary
                       : 'rgba(255,255,255,0.76)'
@@ -1364,6 +1391,8 @@ export function DestructiveButtonPreview({
   onPress?: () => void;
   variant: DestructiveButtonVariant;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const solid = variant === 'solid';
   const split = variant === 'split';
   const iconTile = variant === 'iconTile';
@@ -1581,6 +1610,8 @@ export function ProfileEmptyMessage({
   title: string;
   icon: EmptyStateIconKind;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.profileEmptyMessage}>
       <EmptyStateIcon kind={icon} />
@@ -1604,10 +1635,12 @@ export function ProfileEmptyState({
   icon: SFSymbol;
   title: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.profileEmptyState}>
       <View style={styles.profileEmptyIcon}>
-        <ProfileSymbol name={icon} fallback="—" size={22} tintColor="#75666C" />
+        <ProfileSymbol name={icon} fallback="—" size={22} tintColor={colors.text.secondary} />
       </View>
       <View style={styles.profileEmptyCopy}>
         <AppText role="body" weight="medium">
@@ -1640,6 +1673,8 @@ export function ProfileNotificationItem({
   read: boolean;
   title: string;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <Pressable
       accessibilityRole="button"
@@ -1681,7 +1716,7 @@ export function ProfileNotificationItem({
           </AppText>
           <AppText
             role="caption"
-            color="#9A9694"
+            color={colors.text.secondary}
             style={styles.notificationDate}
           >
             {dateLabel}
@@ -1696,6 +1731,8 @@ export function ProfileNotificationItem({
 }
 
 export function ProfileEmptyNotifications() {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.emptyNotifications}>
       <View style={styles.emptyIcon}>
@@ -1726,6 +1763,7 @@ export function ProfileEmptyNotifications() {
 }
 
 export function ProfileKitPreview() {
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={styles.kitPreview}>
       <ProfileAccountCard
@@ -1789,7 +1827,7 @@ export function ProfileKitPreview() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   symbolFallback: {
     fontSize: 15,
     lineHeight: 18,
@@ -1846,7 +1884,7 @@ const styles = StyleSheet.create({
     height: 44,
     padding: 4,
     borderRadius: 22,
-    backgroundColor: '#E5E3E5',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#E5E3E5' : colors.surface.raised,
     flexDirection: 'row',
     gap: 4,
   },
@@ -1927,10 +1965,10 @@ const styles = StyleSheet.create({
     paddingLeft: 13,
   },
   rowPressed: {
-    backgroundColor: '#F0EDEE',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#F0EDEE' : colors.surface.raised,
   },
   disabled: {
-    opacity: 0.42,
+    opacity: colors.surface.canvas === defaultThemeColors.surface.canvas ? 0.42 : 0.7,
   },
   iconTile: {
     width: 32,
@@ -1981,7 +2019,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#DEDADA',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#DEDADA' : colors.surface.divider,
   },
   formRow: {
     minHeight: 62,
@@ -1996,7 +2034,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dateRowPressed: {
-    backgroundColor: '#F4F1F2',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#F4F1F2' : colors.surface.raised,
   },
   dateRowContent: {
     width: '100%',
@@ -2066,7 +2104,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#E3DFE0',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#E3DFE0' : colors.surface.divider,
   },
   toggleRow: {
     minHeight: 64,
@@ -2115,7 +2153,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(35, 26, 30, 0.07)',
   },
   verticalChoiceOptionSelected: {
-    backgroundColor: '#FFF7FA',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#FFF7FA' : colors.surface.raised,
     borderColor: 'rgba(211, 20, 113, 0.28)',
   },
   verticalChoiceOptionLayout: {
@@ -2148,7 +2186,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#E3DFE0',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#E3DFE0' : colors.surface.divider,
   },
   verticalChoiceCheckSlot: {
     width: 22,
@@ -2207,7 +2245,7 @@ const styles = StyleSheet.create({
   languagePopoverMaterial: { ...sheetStyles.popover, width: '100%' },
   languagePopoverTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(250,248,249,0.68)',
+    backgroundColor: colors.surface.headerGlassWash,
   },
   languageOption: {
     width: '100%',
@@ -2240,7 +2278,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#E3DFE0',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#E3DFE0' : colors.surface.divider,
   },
   actionRow: {
     width: '100%',
@@ -2274,10 +2312,10 @@ const styles = StyleSheet.create({
   actionRowSecondary: {
     backgroundColor: colors.surface.raised,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DCD7D9',
+    borderColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#DCD7D9' : colors.surface.divider,
   },
   actionRowDestructive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.raised,
     borderWidth: 1,
     borderColor: colors.state.error,
   },
@@ -2310,7 +2348,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   destructivePreviewSoft: {
-    backgroundColor: '#FBECEE',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#FBECEE' : colors.surface.rose,
   },
   destructivePreviewOutline: {
     backgroundColor: colors.surface.raised,
@@ -2325,14 +2363,14 @@ const styles = StyleSheet.create({
     minHeight: 58,
     backgroundColor: colors.surface.raised,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DDD6D8',
+    borderColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#DDD6D8' : colors.surface.divider,
   },
   destructivePreviewSplit: {
     height: 58,
     minHeight: 58,
-    backgroundColor: '#FFFEFE',
+    backgroundColor: colors.surface.raised,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#DDD6D8',
+    borderColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#DDD6D8' : colors.surface.divider,
   },
   destructivePreviewCompact: {
     width: '58%',
@@ -2340,7 +2378,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
     alignSelf: 'center',
     borderRadius: 20,
-    backgroundColor: '#FBECEE',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#FBECEE' : colors.surface.rose,
   },
   destructivePreviewQuietRow: {
     height: 56,
@@ -2356,7 +2394,7 @@ const styles = StyleSheet.create({
     minHeight: 64,
     borderWidth: 1,
     borderColor: '#F0C7A5',
-    backgroundColor: '#FFF8F1',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#FFF8F1' : colors.surface.rose,
   },
   destructivePreviewHold: {
     height: 64,
@@ -2367,7 +2405,7 @@ const styles = StyleSheet.create({
     height: 62,
     minHeight: 62,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D7D1D3',
+    borderColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#D7D1D3' : colors.surface.divider,
     backgroundColor: colors.surface.raised,
   },
   destructivePreviewIconOnly: {
@@ -2393,7 +2431,7 @@ const styles = StyleSheet.create({
     height: 68,
     minHeight: 68,
     padding: 5,
-    backgroundColor: '#EEE9EA',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#EEE9EA' : colors.surface.raised,
   },
   destructivePreviewElevated: {
     height: 56,
@@ -2518,7 +2556,7 @@ const styles = StyleSheet.create({
     backgroundColor: profileTones.destructive.tile,
   },
   destructivePreviewIconWarning: {
-    backgroundColor: '#FBE6D4',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#FBE6D4' : colors.surface.rose,
   },
   destructivePreviewIconSolid: {
     width: 42,
@@ -2601,14 +2639,14 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FBECEE',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#FBECEE' : colors.surface.rose,
   },
   profileEmptyState: {
     width: '100%',
     minHeight: 92,
     padding: 14,
     borderRadius: 18,
-    backgroundColor: '#ECE9EA',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#ECE9EA' : colors.surface.raised,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -2628,7 +2666,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: '#E1DCDE',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#E1DCDE' : colors.surface.divider,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2656,12 +2694,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#FDE8F1',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#FDE8F1' : colors.surface.rose,
     alignItems: 'center',
     justifyContent: 'center',
   },
   notificationIconRead: {
-    backgroundColor: '#F0EEEE',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#F0EEEE' : colors.surface.raised,
   },
   notificationCopy: {
     minWidth: 0,
@@ -2695,7 +2733,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#DEDADA',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#DEDADA' : colors.surface.divider,
   },
   emptyNotifications: {
     minHeight: 250,
@@ -2707,7 +2745,7 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: '#FDE8F1',
+    backgroundColor: colors.surface.canvas === defaultThemeColors.surface.canvas ? '#FDE8F1' : colors.surface.rose,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2727,3 +2765,5 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
 });
+
+const styles = createStyles(defaultThemeColors);

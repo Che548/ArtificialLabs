@@ -1,3 +1,7 @@
+import { useProfileAppearance, useProfileStyles } from '../lib/profile-appearance';
+import type { ThemeColors } from '../lib/theme';
+import { LegalDocumentsModal } from './LegalDocumentsModal';
+import type { LegalDocumentSelection } from '../lib/legal-documents';
 import { useState } from 'react';
 import { ProfileCollapse, ProfileDisclosureArrow } from './ProfileMotion';
 import { Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
@@ -24,6 +28,8 @@ export function PermissionAction({
   testID?: string;
   expanded?: boolean;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   return (
     <>
       <Pressable
@@ -92,6 +98,8 @@ export function AssistantDataDetails({
   onRevoke: () => void;
   onDelete: () => void;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const [expanded, setExpanded] = useState(false);
   return (
     <>
@@ -178,6 +186,8 @@ export function PermissionToggle({
   isLast?: boolean;
   testID?: string;
 }) {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   return (
     <>
       <View style={styles.row}>
@@ -202,7 +212,7 @@ export function PermissionToggle({
             value={value}
             disabled={disabled}
             onValueChange={onChange}
-            trackColor={{ false: '#D7D4D5', true: colors.brand.primary }}
+            trackColor={{ false: colors.surface.divider, true: colors.brand.primary }}
             thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
           />
         </View>
@@ -213,9 +223,29 @@ export function PermissionToggle({
 }
 
 export function PermissionPrivacyDetails() {
+  const { colors } = useProfileAppearance();
+  const styles = useProfileStyles(createStyles);
   const [expanded, setExpanded] = useState(false);
+  const [documentSelection, setDocumentSelection] = useState<LegalDocumentSelection>(null);
   return (
     <>
+      {([
+        ['privacy', 'Политика обработки данных'],
+        ['storage', 'Хранение данных и разрешения'],
+        ['health', 'Форма согласия на данные о здоровье'],
+        ['analytics', 'Согласие на техническую аналитику'],
+      ] as const).map(([documentId, label]) => (
+        <PermissionAction
+          key={documentId}
+          label={label}
+          testID={`legal-open-${documentId}`}
+          onPress={() => setDocumentSelection(documentId)}
+        />
+      ))}
+      <LegalDocumentsModal
+        selection={documentSelection}
+        onClose={() => setDocumentSelection(null)}
+      />
       <PermissionAction
         label="Как используются данные"
         expanded={expanded}
@@ -252,7 +282,7 @@ export function PermissionPrivacyDetails() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   row: {
     minHeight: 64,
     paddingLeft: 14,
