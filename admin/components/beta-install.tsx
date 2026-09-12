@@ -23,7 +23,7 @@ export function BetaInstall() {
     const detected = detectBetaPlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
     if (!chosen.current) setSelected(detected);
     setDesktop(detected === 'all');
-    setUrl(new URL(window.location.hostname === 'sfera.brainwaves.engineering' ? '/' : '/beta/', window.location.origin).href);
+    setUrl(new URL('/beta/', window.location.origin).href);
   }, []);
 
   async function copyLink() {

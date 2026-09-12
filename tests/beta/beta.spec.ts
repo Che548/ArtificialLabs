@@ -32,7 +32,7 @@ test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, 
   await expect(page.locator('.beta-share svg')).toBeVisible();
   await page.locator('.beta-share svg').screenshot({ path: 'output/playwright/beta-qr.png' });
   await page.getByRole('button', { name: 'Скопировать ссылку' }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(new URL(new URL(base).hostname === 'sfera.brainwaves.engineering' ? '/' : '/beta/', base).href);
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(new URL('/beta/', base).href);
   await expect(page.getByRole('status')).toHaveText('Ссылка скопирована');
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
   await page.reload();
