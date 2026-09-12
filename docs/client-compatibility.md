@@ -85,6 +85,25 @@ absent/off, verify the signed review build's request contract and test that buil
 against an isolated compatible backend. Do not enable enforcement while build 3
 must remain supported. No deployment or App Store change is part of these tests.
 
+## Follow-up legacy inspection — 2026-09-13
+
+- Located a local exported IPA whose embedded configuration and Info.plist report
+  version 1.0.0, build 3. This alone does not establish that it is the exact binary
+  currently in Apple review. It is a device build, not a simulator package.
+- The available older simulator package reports build 2 and its embedded bundle
+  contains the live Convex endpoint. It was not launched against the live backend.
+  No isolated Convex container or isolated routing for the unchanged old binary
+  was available; installed-binary compatibility remains unverified.
+- The coordinator fixture in `tests/fixtures/legacy-cloud-sync.ts` is frozen from
+  commit `9b00049204b662bfc1e561ef3f17350ad3b172a9` (only its type import path changed).
+  It now exercises the candidate functions in a private `convex-test` database,
+  rather than calling the current coordinator while labeling it legacy.
+  Covered repeated edits, no revision acknowledgement, a rejected batch retaining
+  its queue, and receipt establishment with an empty outbox after server upgrade.
+  This is source-level integration coverage, not native or HTTP/transport E2E.
+- No real database, simulator, device installation, deployment, environment flag,
+  main push, OTA or Apple submission was changed during this inspection.
+
 ## Local verification — 2026-09-12
 
 - `npm test`, main `verify` (including admin `verify`), focused compatibility,

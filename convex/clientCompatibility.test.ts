@@ -6,6 +6,7 @@ import { classifyServiceIssue } from '../lib/service-errors';
 import { api } from './_generated/api';
 import schema from './schema';
 import { synchronizeMedicalCloud } from '../lib/cloud-sync';
+import { synchronizeMedicalCloud as synchronizeLegacyCloud } from '../tests/fixtures/legacy-cloud-sync';
 const modules = import.meta.glob('./**/*.ts');
 afterEach(() => vi.unstubAllEnvs());
 
@@ -81,12 +82,12 @@ test('mixed profile clients merge disjoint fields but reject modern stale same-f
   await expect(modern.mutation(api.profile.save, { ...legacyProfile, protocolVersion: 1, base, heightCm: 180, updatedAt: 130 })).rejects.toThrow('PROFILE_SYNC_CONFLICT');
 });
 
-test('legacy coordinator completes twice without revision handling; rejection does not acknowledge its queue', async () => {
+test('frozen pre-protocol coordinator completes twice; rejection does not acknowledge its queue', async () => {
   const { old } = await legacySetup();
   const { consentToCloudSyncAt, ...profile } = legacyProfile;
   let pending = [{ id: 1, entity: 'journalEntries' as const, payload: legacyNote }];
   const acknowledge = vi.fn(async () => { pending = []; });
-  const sync = () => synchronizeMedicalCloud({ profile, consentedAt: consentToCloudSyncAt,
+  const sync = () => synchronizeLegacyCloud({ profile, consentedAt: consentToCloudSyncAt,
     saveProfile: input => old.mutation(api.profile.save, input), loadPendingOutbox: async () => pending,
     pushBatch: batch => old.mutation(api.health.syncBatch, batch as never), acknowledge });
   expect(await sync()).toBe(1);
@@ -97,6 +98,28 @@ test('legacy coordinator completes twice without revision handling; rejection do
   await expect(sync()).rejects.toThrow('CLIENT_UPDATE_REQUIRED');
   expect(acknowledge).toHaveBeenCalledTimes(2);
   expect(pending[0].payload.label).toBe('Keep locally');
+});
+
+test('frozen legacy client establishes a receipt after upgrade even with an empty outbox', async () => {
+  const { t, old } = await legacySetup();
+  await old.mutation(api.health.syncBatch, { ...legacyBatch(), journalEntries: [legacyNote] });
+  // Model an existing account/data at deployment time, before session receipts existed.
+  // This database is private to this test, never a deployed account.
+  await t.run(async ctx => {
+    for (const receipt of await ctx.db.query('cloudSyncSessions').collect()) {
+      await ctx.db.delete(receipt._id);
+    }
+  });
+  expect((await old.query(api.health.snapshot, {})).journalEntries).toHaveLength(0);
+  const { consentToCloudSyncAt, ...profile } = legacyProfile;
+  const pushBatch = vi.fn();
+  const acknowledge = vi.fn();
+  expect(await synchronizeLegacyCloud({ profile, consentedAt: consentToCloudSyncAt,
+    saveProfile: input => old.mutation(api.profile.save, input),
+    loadPendingOutbox: async () => [], pushBatch, acknowledge })).toBe(0);
+  expect(pushBatch).not.toHaveBeenCalled();
+  expect(acknowledge).not.toHaveBeenCalled();
+  expect((await old.query(api.health.snapshot, {})).journalEntries[0]).toMatchObject(legacyNote);
 });
 
 test('protocol 0 never bypasses auth, session consent or revocation', async () => {
