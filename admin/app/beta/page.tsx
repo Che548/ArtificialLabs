@@ -1,6 +1,15 @@
 import type { Metadata } from 'next';
+import localFont from 'next/font/local';
 import { BetaInstall } from '@/components/beta-install';
 import './beta.css';
+
+const comfortaa = localFont({
+  src: '../../../assets/fonts/Comfortaa-Regular.ttf',
+  weight: '400',
+  style: 'normal',
+  variable: '--beta-logo-font',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Бета «сфера.» — установка',
@@ -9,5 +18,5 @@ export const metadata: Metadata = {
 };
 
 export default function BetaPage() {
-  return <BetaInstall />;
+  return <div className={comfortaa.variable}><BetaInstall /></div>;
 }

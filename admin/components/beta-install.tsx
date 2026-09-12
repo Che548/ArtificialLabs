@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Badge, Button } from './ui';
+import { comfortaaLicense } from '../../lib/font-license';
 
 type Platform = 'all' | 'apple' | 'android';
 
@@ -43,11 +44,21 @@ export function BetaInstall() {
     <section className="beta-intro">
       <div className="beta-intro-copy">
         <p className="beta-eyebrow">01 / ОТКРЫТОЕ ТЕСТИРОВАНИЕ</p>
-        <p className="beta-lead">Здоровье начинается<br />с внимания к себе.</p>
+        <p className="beta-lead">Приложение для внимания<br />к себе и своему здоровью.</p>
+        <p className="beta-description">Открытая бета для iPhone и Android.<br />Попробуйте и поделитесь впечатлениями.</p>
+        <div className="beta-signs" aria-hidden="true"><i /><i /><i /><i /></div>
         <h1>сфера<span>.</span></h1>
-        <p>Попробуйте бету «сфера.» — установите приложение на телефон за несколько шагов.</p>
       </div>
-      <div className="beta-geometry" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>
+      <svg className="beta-geometry" viewBox="0 0 640 640" aria-hidden="true" focusable="false">
+        {Array.from({ length: 16 }, (_, index) => <g key={index} transform={`rotate(${index * 22.5} 320 320)`}>
+          <g fill="#fafafa" stroke="#9b9b9b" strokeWidth="0.65" strokeDasharray="11 17">
+            <rect x="301" y="28" width="38" height="38" transform="rotate(3 320 47)" />
+            <rect x="280" y="60" width="40" height="40" transform="rotate(-9 300 80)" />
+            <rect x="323" y="64" width="40" height="40" transform="rotate(9 343 84)" />
+            <rect x="299" y="92" width="42" height="42" />
+          </g>
+        </g>)}
+      </svg>
     </section>
     <div className="beta-platforms" role="group" aria-label="Платформа">
       {([['all', 'Все устройства'], ['apple', 'iPhone / iPad'], ['android', 'Android']] as const).map(([value, label]) =>
@@ -79,6 +90,8 @@ export function BetaInstall() {
         <p className="beta-copy-status" role="status">{copyStatus}</p>
       </div>
     </section>}
-    <footer className="beta-footer">Бета может содержать ошибки. Спасибо, что помогаете нам сделать приложение лучше.</footer>
+    <footer className="beta-footer"><p>Бета может содержать ошибки. Спасибо, что помогаете нам сделать приложение лучше.</p>
+      <details className="beta-license"><summary>Шрифт и лицензия</summary><pre>{comfortaaLicense}</pre></details>
+    </footer>
   </main>;
 }

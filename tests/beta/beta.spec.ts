@@ -12,6 +12,16 @@ test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, 
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/beta/');
   await expect(page.getByRole('heading', { name: 'сфера.', exact: true })).toBeVisible();
+  const logoFont = await page.locator('h1').evaluate(async element => {
+    const style = getComputedStyle(element);
+    const primaryFamily = style.fontFamily.split(',')[0];
+    const faces = await document.fonts.load(`400 80px ${primaryFamily}`, 'сфера.');
+    return { family: style.fontFamily, weight: style.fontWeight, spacing: style.letterSpacing,
+      loaded: faces.length > 0 && faces.every(face => face.status === 'loaded') };
+  });
+  expect(logoFont.family.toLowerCase()).toContain('comfortaa');
+  expect(logoFont).toMatchObject({ weight: '400', spacing: 'normal', loaded: true });
+  await expect(page.locator('svg.beta-geometry')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.getByRole('link', { name: 'Открыть в TestFlight' })).toHaveAttribute('href', apple);
   await expect(page.getByRole('link', { name: '1. Вступить в группу' })).toHaveAttribute('href', group);
   await expect(page.getByRole('link', { name: '2. Установить бету' })).toHaveAttribute('href', play);
