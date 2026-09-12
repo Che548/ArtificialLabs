@@ -345,3 +345,20 @@ describe('health ownership and sync', () => {
     expect(await t.run((ctx) => ctx.db.get(ordinary.userId))).not.toBeNull();
   });
 });
+test('trigger immutability survives transport object-key ordering', async () => {
+  const { reconcileCarePlan, isAllowedAgentTriggerMutation } = await import('../lib/care-plan');
+  const { createEmptySnapshot } = await import('../lib/health-types');
+  const snapshot = createEmptySnapshot();
+  snapshot.profile = { displayName: 'Synthetic QA', goal: 'cycle', onboardingCompleted: true, updatedAt: Date.now() };
+  snapshot.preferences = [{ localId: 'preferences', medicalRecommendations: true, updatedAt: Date.now(), notificationsEnabled: false, journalNotifications: false, resultNotifications: false, notificationTone: 'formal', anonymousAnalytics: false, language: 'ru', region: 'RU' }];
+  const original = reconcileCarePlan(snapshot).triggers[0];
+  expect(original).toBeDefined();
+  const reordered = JSON.parse(JSON.stringify(original, (_key, value) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value));
+  expect(isAllowedAgentTriggerMutation(original, reordered)).toBe(true);
+  expect(isAllowedAgentTriggerMutation(original, { ...reordered, maxRuns: original.maxRuns + 1 })).toBe(false);
+  expect(isAllowedAgentTriggerMutation(original, { ...reordered, conditions: [{ ...reordered.conditions[0], value: false }] })).toBe(false);
+  expect(isAllowedAgentTriggerMutation(original, { ...reordered, evidenceRefs: [{ ...reordered.evidenceRefs[0], localId: 'different' }] })).toBe(false);
+});

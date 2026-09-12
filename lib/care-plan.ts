@@ -190,11 +190,21 @@ function triggerConditionsMatch(
   return combine === 'all' ? outcomes.every(Boolean) : outcomes.some(Boolean);
 }
 
+// Convex round trips can reorder object keys. Immutability compares values,
+// not insertion order; array order and all defined fields remain significant.
+function policyValue(value: unknown) {
+  return JSON.stringify(value, (_key, entry) =>
+    entry && typeof entry === 'object' && !Array.isArray(entry)
+      ? Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a.localeCompare(b)))
+      : entry,
+  );
+}
+
 function conditionEquals(
   actual: AgentRuleCondition,
   expected: AgentRuleCondition,
 ) {
-  return JSON.stringify(actual) === JSON.stringify(expected);
+  return policyValue(actual) === policyValue(expected);
 }
 
 const recommendationOn: AgentRuleCondition = {
@@ -565,8 +575,8 @@ function allowsCompletionEvidenceAppend(
   )
     return false;
   return (
-    JSON.stringify(candidate.evidenceRefs) ===
-    JSON.stringify([...existing.evidenceRefs, additions[0]].slice(-8))
+    policyValue(candidate.evidenceRefs) ===
+    policyValue([...existing.evidenceRefs, additions[0]].slice(-8))
   );
 }
 
@@ -583,11 +593,11 @@ export function isAllowedCarePlanMutation(
   )
     return false;
   const evidenceUnchanged =
-    JSON.stringify(existing.evidenceRefs) ===
-    JSON.stringify(candidate.evidenceRefs);
+    policyValue(existing.evidenceRefs) ===
+    policyValue(candidate.evidenceRefs);
   return (
     currentImmutableKeys.every(
-      (key) => JSON.stringify(existing[key]) === JSON.stringify(candidate[key]),
+      (key) => policyValue(existing[key]) === policyValue(candidate[key]),
     ) &&
     (evidenceUnchanged || allowsCompletionEvidenceAppend(existing, candidate))
   );
@@ -642,15 +652,12 @@ export function isAllowedAgentTriggerMutation(
     existing.combine === candidate.combine &&
     existing.disengagementCombine === candidate.disengagementCombine &&
     existing.targetCarePlanLocalId === candidate.targetCarePlanLocalId &&
-    JSON.stringify(existing.conditions) ===
-      JSON.stringify(candidate.conditions) &&
-    JSON.stringify(existing.disengagementConditions) ===
-      JSON.stringify(candidate.disengagementConditions) &&
+    policyValue(existing.conditions) === policyValue(candidate.conditions) &&
+    policyValue(existing.disengagementConditions) === policyValue(candidate.disengagementConditions) &&
     existing.expiresAt === candidate.expiresAt &&
     existing.maxRuns === candidate.maxRuns &&
     existing.policyVersion === candidate.policyVersion &&
-    JSON.stringify(existing.evidenceRefs) ===
-      JSON.stringify(candidate.evidenceRefs) &&
+    policyValue(existing.evidenceRefs) === policyValue(candidate.evidenceRefs) &&
     candidate.runCount >= existing.runCount &&
     statusTransitionAllowed &&
     runMetadataAllowed &&
