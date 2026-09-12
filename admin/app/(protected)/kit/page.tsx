@@ -14,6 +14,7 @@ export default function KitPage() {
   return <StudioShell title="Pro Data UI Kit" inspector={false}>
     <div className="workspace-head"><div className="crumbs"><Link href="/">ArtificialLabs</Link><Icons.chevronRight size={11}/><strong>Design system</strong></div><div className="workspace-actions"><Badge tone="teal">v1.0</Badge><Button size="sm" icon={<Icons.download size={13}/>}>Tokens</Button></div></div>
     <div className="kit-scroll">
+      <a className="button button-secondary button-md" href="/beta/">Публичная страница беты</a>
       <PageHeader eyebrow="ArtificialLabs admin design system" title="Pro Data Studio" description="A high-density interface system for serious analytical work. Native spatial logic, exact data alignment, and color used only when it communicates state." actions={<><Button icon={<Icons.grid size={14}/>}>Component index</Button><Link className="button button-primary button-md" href="/">Open dashboard <Icons.chevronRight size={13}/></Link></>}/>
       <div className="kit-stats"><span><strong>42</strong> reusable primitives</span><span><strong>4</strong> analytical charts</span><span><strong>3</strong> responsive panes</span><span><strong>AA</strong> focus contrast</span></div>
 
