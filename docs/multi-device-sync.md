@@ -22,8 +22,9 @@ is performed. A new login does not itself grant consent.
 New clients retain `profileSyncBase.v1` in SQLCipher settings. They send only
 portable profile fields as their merge base. The server merges independent
 field changes, rejects conflicting edits to the same field, and advances its
-timestamp on accepted changes. Legacy divergent writes without a base fail
-closed rather than claiming success and losing an edit. Equal timestamps no
+timestamp on accepted changes. During the temporary legacy rollout, absent-protocol
+writes retain timestamp precedence; protocol 1 writes without a base fail closed
+on divergent fields. Equal timestamps no
 longer prevent a new client from accepting a clean remote profile.
 
 Remote profile replacement and base storage run atomically with an owner check.
@@ -34,7 +35,7 @@ field or analytics payload.
 ## Ordinary records and acknowledgements
 
 `syncRevision` is optional for migration (missing means revision zero). After
-the first accepted write, a changed record must carry the current revision.
+the first accepted write, a protocol 1 changed record must carry the current revision.
 A later device timestamp alone cannot overwrite a changed server record.
 Idempotent retries return the existing revision. A newer edit of a tombstoned
 record produces an explicit conflict. Derived `agent-prep_` reminders retain
@@ -109,9 +110,11 @@ attempts passes or infer store-build performance from this harness.
 
 Required before rollout: a coordinated client/backend release. These simulator
 checks use a disabled loopback backend, not a live candidate deployment.
-Mixed-version tests confirm
-that unchanged legacy saves remain safe but divergent writes without a merge
-base are rejected; updating only the backend would block edits on old clients.
+Mixed-version contract tests now cover the temporary legacy timestamp path under
+`SYNC_LEGACY_COMPAT_ENABLED` (absent/1). Set to 0 only after old clients retire;
+`SYNC_PROTOCOL_REQUIRED=1` also disables legacy writes. Accepted legacy writes
+advance revisions, so modern stale edits still conflict. Protocol 0 retains its
+old last-write-wins limitations; this does not provide lossless concurrent editing.
 Older installed clients lack the profile base/atomic revision ACK. Do not push
 to main (which deploys Convex) or promote OTA just because unit tests pass.
 Production OTA and store release remain outside this task's current release

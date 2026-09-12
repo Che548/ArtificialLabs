@@ -404,6 +404,7 @@ describe('health ownership and sync', () => {
     });
     await expect(client.mutation(api.health.syncBatch, {
       ...emptyBatch(),
+      protocolVersion: 1,
       medications: [{ ...medication, name: 'Старая версия', updatedAt: 10 }],
     })).rejects.toThrow('RECORD_SYNC_CONFLICT');
     let snapshot = await client.query(api.health.snapshot, {});
@@ -480,6 +481,7 @@ describe('health ownership and sync', () => {
       base: { displayName: 'profile-conflict@example.test', goal: 'planning', onboardingCompleted: true, updatedAt: 1 },
     });
     await expect(client.mutation(api.profile.save, {
+      protocolVersion: 1,
       displayName: 'Старый профиль',
       goal: 'cycle',
       onboardingCompleted: true,

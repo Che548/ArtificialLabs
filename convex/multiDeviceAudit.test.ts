@@ -11,7 +11,7 @@ const modules = import.meta.glob('./**/*.ts');
 const profile = { displayName: 'Synthetic', goal: 'cycle' as const, onboardingCompleted: true, updatedAt: 100, consentToCloudSyncAt: 90, heightCm: 160, weightKg: 60 };
 const { consentToCloudSyncAt: _receipt, ...base } = profile;
 const note = { localId: 'synthetic-note', kind: 'note' as const, label: 'Original', source: 'manual' as const, occurredAt: 100, updatedAt: 100 };
-const emptyBatch = () => ({ programs: [], journalEntries: [], labResults: [], scanResults: [], reminders: [], medicalConditions: [], medications: [], allergyRisks: [], documents: [], chatConversations: [], chatMessages: [], preferences: [] });
+const emptyBatch = () => ({ protocolVersion: 1, programs: [], journalEntries: [], labResults: [], scanResults: [], reminders: [], medicalConditions: [], medications: [], allergyRisks: [], documents: [], chatConversations: [], chatMessages: [], preferences: [] });
 async function setup() {
   const t = convexTest(schema, modules);
   const user = await t.run(ctx => ctx.db.insert('users', { email: 'multi-device@example.test' }));
@@ -58,7 +58,7 @@ test('client coordinator preserves a rejected batch and sends only the explicitl
     profile: base, consentedAt: profile.consentToCloudSyncAt,
     saveProfile: input => b.mutation(api.profile.save, input),
     loadPendingOutbox: async () => pending,
-    pushBatch: batch => b.mutation(api.health.syncBatch, batch as never),
+    pushBatch: batch => b.mutation(api.health.syncBatch, { ...batch, protocolVersion: 1 } as never),
     acknowledge: async (ids, sent, receipts) => {
       expect(receipts?.[0].revision).toBe(2);
       pending = pending.filter(row => !sent.some(item => ids.includes(row.id) && item.payload === row.payload));
@@ -77,7 +77,7 @@ test('client coordinator preserves a rejected batch and sends only the explicitl
 test('an upgraded legacy profile resolves explicitly and a later concurrent write conflicts again', async () => {
   const { a, b } = await setup();
   await a.mutation(api.profile.save, { ...profile, heightCm: 170, base });
-  await expect(b.mutation(api.profile.save, { ...profile, heightCm: 180, updatedAt: Date.now() })).rejects.toThrow('PROFILE_SYNC_CONFLICT');
+  await expect(b.mutation(api.profile.save, { ...profile, protocolVersion: 1, heightCm: 180, updatedAt: Date.now() })).rejects.toThrow('PROFILE_SYNC_CONFLICT');
   const reviewed = await b.query(api.profile.current, {});
   const { _id, _creationTime, userId, createdAt, consentToCloudSyncAt, ...reviewBase } = reviewed!;
   await b.mutation(api.profile.save, { ...profile, heightCm: 180, updatedAt: Date.now(), base: reviewBase });

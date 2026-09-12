@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { requireSyncProtocol } from './lib/clientCompatibility';
+import { requireSyncProtocol, supportsRevisionSync } from './lib/clientCompatibility';
 
 import { mutation, query } from './_generated/server';
 import { mergeProfileFields } from '../shared/profile-merge';
@@ -117,9 +117,10 @@ export const save = mutation({
         return existing._id;
       }
       if (args.updatedAt < existing.updatedAt) {
-        // A legacy client has no merge base: never acknowledge a divergent
-        // profile and silently retire its local edits.
-        mergeProfileFields(existing, portable);
+        // TODO(remove-legacy-sync-compat): protocol 0 retains timestamp precedence
+        // only while SYNC_LEGACY_COMPAT_ENABLED allows it at the entry guard.
+        // A capable client without a base must not silently retire local edits.
+        if (supportsRevisionSync(args.protocolVersion)) mergeProfileFields(existing, portable);
         if (
           args.consentToCloudSyncAt &&
           args.consentToCloudSyncAt > (existing.consentToCloudSyncAt ?? 0)
@@ -136,7 +137,8 @@ export const save = mutation({
       // instead of letting two devices overwrite it back and forth. Revocation
       // remains the separate revokeCloudSync mutation, never a profile replay.
       const patch = { ...portable };
-      mergeProfileFields(existing, portable);
+      // TODO(remove-legacy-sync-compat): remove the legacy bypass with the flag.
+      if (supportsRevisionSync(args.protocolVersion)) mergeProfileFields(existing, portable);
       if (
         args.consentToCloudSyncAt !== undefined &&
         existing.consentToCloudSyncAt !== undefined

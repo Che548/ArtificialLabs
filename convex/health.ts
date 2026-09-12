@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { requireSyncProtocol } from './lib/clientCompatibility';
+import { requireSyncProtocol, supportsRevisionSync } from './lib/clientCompatibility';
 import { paginationOptsValidator } from 'convex/server';
 
 import { mutation, query } from './_generated/server';
@@ -409,6 +409,7 @@ async function upsertLocal(
   table: SyncTable,
   profileId: Parameters<MutationCtx['db']['get']>[0],
   item: { localId: string; updatedAt: number; [key: string]: unknown },
+  revisionSync: boolean,
 ) {
   if (!Number.isFinite(item.updatedAt) || item.updatedAt > Date.now() + 300_000) {
     throw new Error('SYNC_CLOCK_INVALID');
@@ -435,7 +436,9 @@ async function upsertLocal(
     await ctx.db.patch(existing._id, item as never);
     return;
   }
-  if (existing && table !== 'recommendationEvents') {
+  // TODO(remove-legacy-sync-compat): legacy timestamp handling is admitted only by
+  // SYNC_LEGACY_COMPAT_ENABLED at syncBatch's entry guard; protocol 1 stays strict.
+  if (revisionSync && existing && table !== 'recommendationEvents') {
     if (existing.deletedAt && !item.deletedAt) {
       // Planned reminders have an explicit existing re-enable lifecycle.
       if (!(table === 'reminders' && item.localId.startsWith('agent-prep_'))) throw new Error('RECORD_DELETED_REMOTELY');
@@ -457,7 +460,8 @@ async function upsertLocal(
     const plannedReminder = table === 'reminders' && item.localId.startsWith('agent-prep_');
     const changed = (plannedReminder && existing.deletedAt !== item.deletedAt) || Object.entries(item).some(([key, value]) => key !== 'updatedAt' && key !== 'syncRevision' && JSON.stringify((existing as Record<string, unknown>)[key]) !== JSON.stringify(value));
     if (!changed) return;
-    if (!plannedReminder && (item.syncRevision ?? 0) !== (existing.syncRevision ?? 0)) throw new Error('RECORD_SYNC_CONFLICT');
+    // TODO(remove-legacy-sync-compat): remove bypass after all old clients retire.
+    if (revisionSync && !plannedReminder && (item.syncRevision ?? 0) !== (existing.syncRevision ?? 0)) throw new Error('RECORD_SYNC_CONFLICT');
   }
   item = { ...item, syncRevision: (existing?.syncRevision ?? 0) + 1 };
   const existingRecord = existing as
@@ -539,7 +543,7 @@ export const syncBatch = mutation({
     for (const [entity, rows] of Object.entries({ ...batch, carePlanItems, agentTriggers, recommendationEvents })) {
       const table = (entity === 'programs' ? 'monitoringPrograms' : entity) as SyncTable;
       for (const item of rows ?? []) {
-        await upsertLocal(ctx, table, profile._id, item);
+        await upsertLocal(ctx, table, profile._id, item, supportsRevisionSync(protocolVersion));
         const stored = await ctx.db.query(table).withIndex('by_profile_local', q => q.eq('profileId', profile._id).eq('localId', item.localId)).unique();
         if (stored) syncRevisions.push({ entity, localId: item.localId, revision: stored.syncRevision ?? 0 });
       }

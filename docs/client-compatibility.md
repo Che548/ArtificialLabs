@@ -7,11 +7,28 @@ and throws a bounded Convex error containing only `code: CLIENT_UPDATE_REQUIRED`
 `feature` and `requiredProtocol`. New features extend the shared registry.
 
 Profile saves and health batches accept optional `protocolVersion`; current
-clients declare version 1. The server checks these only when the server-only
-`SYNC_PROTOCOL_REQUIRED=1` rollout flag is deliberately enabled. Deployment alone
-does not enable it. Keep the flag absent/off until compatible native updates are
-available and verified. The existing strict conflict semantics still apply while
-the flag is off: this switch is not a rollback of multi-device conflict handling.
+clients declare version 1. The server enforces these if either server-only
+`SYNC_PROTOCOL_REQUIRED=1` is set or `SYNC_LEGACY_COMPAT_ENABLED=0`.
+The temporary compatibility flag defaults on when absent (explicit `1` is also
+on). Keep compatibility on and enforcement off while Apple review build 3 is
+supported, and for every other supported pre-protocol client regardless of build
+number or platform. `TODO(remove-legacy-sync-compat)` markers identify the flag and branches
+for removal after verified client updates. Deployment alone does not change
+these environment values. While compatibility is allowed, requests without a protocol use
+the deployed legacy timestamp policy for profile and record writes. Protocol 1
+uses strict revision conflicts; a supplied profile merge base also opts that
+profile request into three-way merge. Every accepted legacy record edit advances
+the server revision so a newer client can detect an intervening legacy write.
+The flag is not a rollback of strict handling for capable clients.
+
+Legacy compatibility does not provide lossless concurrent editing: delayed legacy
+writes can still be ignored, and newer full legacy profiles can overwrite fields
+edited elsewhere, as before. Do not advertise multi-device conflict protection
+for protocol 0. Auth, ownership, immutable plan rules, validation and explicit
+per-session cloud consent remain enforced for both protocols. Legacy clients
+establish a session receipt through their existing profile-save-before-batch
+flow; until that succeeds snapshots contain no medical payload. Never infer
+session permission from another device's account-wide timestamp.
 
 With enforcement enabled, missing/old protocols return update-required before
 writes. Supported clients still receive ordinary profile/record conflict errors
@@ -47,6 +64,17 @@ Release order: compatible backend accepting the optional argument; compatible
 client Preview; signed iOS/Android verification and available user update; only
 then separately enable protocol enforcement. Never describe the new UI as already
 present in older binaries. No production OTA or store publication is implied.
+
+## Legacy rollout checks
+
+`convex/clientCompatibility.test.ts` exercises absent-protocol profile edits,
+repeated record writes without revision acknowledgement, deletions and stale
+replays, mixed protocol conflicts, queue acknowledgement, auth and revocation.
+These are synthetic server-contract tests, not proof that the exact Apple build 3
+has been installed and tested. Before deployment keep `SYNC_PROTOCOL_REQUIRED`
+absent/off, verify the signed review build's request contract and test that build
+against an isolated compatible backend. Do not enable enforcement while build 3
+must remain supported. No deployment or App Store change is part of these tests.
 
 ## Local verification — 2026-09-12
 
