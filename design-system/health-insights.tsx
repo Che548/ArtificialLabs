@@ -1,4 +1,5 @@
 import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
+import { fontStyle } from '../lib/font-style';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols';
@@ -1743,7 +1744,7 @@ const styles = StyleSheet.create({
   pageHeaderSpacer: { width: 48, height: 48 },
   dashboard: { width: '100%', gap: spacing.lg },
   periodSwitcher: { width: '100%' },
-  periodLabel: { fontFamily: fonts.sfMedium, fontSize: 13 },
+  periodLabel: { ...fontStyle(fonts.sfMedium), fontSize: 13 },
   card: {
     padding: spacing.md,
     borderRadius: 24,

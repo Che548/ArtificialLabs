@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import { AppSheet, sheetStyles } from '../components/AppSheet';
 import DateTimePicker, {
   DateTimePickerAndroid,
@@ -1843,7 +1844,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     textAlign: 'center',
     color: colors.text.primary,
-    fontFamily: fonts.sfSemibold,
+    ...fontStyle(fonts.sfSemibold),
     fontSize: 32,
     lineHeight: 36,
     fontVariant: ['tabular-nums'],
@@ -1890,7 +1891,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     backgroundColor: '#F2EFF0',
     color: colors.text.primary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 16,
   },
   dateStepCard: {
@@ -2037,7 +2038,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primary,
     marginBottom: 11,
   },
-  completeTitle: { textAlign: 'center', fontFamily: fonts.sfSemibold },
+  completeTitle: { textAlign: 'center', ...fontStyle(fonts.sfSemibold) },
   completeText: { marginTop: 9, textAlign: 'center', lineHeight: 22 },
   diseaseContent: { paddingTop: 20, paddingBottom: 18, gap: 20 },
   diseaseOptions: {
@@ -2053,7 +2054,7 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     backgroundColor: '#F3EFF0',
     color: colors.text.primary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 16,
   },
   diseaseActions: { flexDirection: 'row', gap: 12, paddingTop: 8 },

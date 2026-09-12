@@ -1,3 +1,5 @@
+const { platformSelect } = require('nativewind/theme');
+const plugin = require('tailwindcss/plugin');
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
@@ -37,11 +39,7 @@ module.exports = {
         },
       },
       fontFamily: {
-        sf: ['SFProDisplay-Regular'],
-        'sf-medium': ['SFProDisplay-Medium'],
-        'sf-semibold': ['SFProDisplay-Semibold'],
-        'sf-bold': ['SFProDisplay-Bold'],
-        yaro: ['YaroRg'],
+        yaro: ['Comfortaa-Regular'],
       },
       boxShadow: {
         card: '0 12px 30px rgba(55, 31, 39, 0.10)',
@@ -54,5 +52,19 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [plugin(({ addUtilities }) => {
+    const variants = {
+      sf: ['SFProDisplay-Regular', '400'],
+      'sf-medium': ['SFProDisplay-Medium', '500'],
+      'sf-semibold': ['SFProDisplay-Semibold', '600'],
+      'sf-bold': ['SFProDisplay-Bold', '700'],
+    };
+    addUtilities(Object.fromEntries(Object.entries(variants).map(([name, [family, weight]]) => [
+      `.font-${name}`,
+      {
+        fontFamily: platformSelect({ ios: 'System', default: family }),
+        fontWeight: platformSelect({ ios: weight, default: 'normal' }),
+      },
+    ])));
+  })],
 };

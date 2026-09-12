@@ -61,14 +61,17 @@
     "@playwright/test": "^1.62.1",
     "@types/node": "^24.13.3",
     "@types/react": "~19.1.10",
+    "@types/react-dom": "~19.1.7",
     "babel-preset-expo": "~54.0.10",
     "convex-test": "^0.0.54",
+    "esbuild": "0.27.0",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.5.14",
     "react-native-svg-transformer": "^1.5.3",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.23.2",
     "typescript": "~5.9.2",
+    "vite": "8.3.0",
     "vitest": "^4.1.10"
   },
   "scripts": {
@@ -82,6 +85,9 @@
     "ota:test": "npm --prefix infra/updates test",
     "ota:publish:preview": "node scripts/ota-release.mjs publish --channel=preview",
     "typecheck": "tsc --noEmit",
+    "typecheck:convex": "tsc --noEmit -p convex/tsconfig.json",
+    "test:contacts": "vitest run convex/emailChange.test.ts convex/passwordRecovery.test.ts",
+    "test:contacts:ui": "playwright test --config tests/contact-ui/playwright.config.ts",
     "check:expo": "expo install --check",
     "doctor": "npx --yes expo-doctor@latest",
     "build:expo-web": "expo export --platform web --output-dir dist",
@@ -104,7 +110,12 @@
     "e2e:coverage": "tsx scripts/validate-e2e-coverage.ts",
     "e2e:all": "npm run e2e:backend && npm run e2e:web && npm run e2e:native",
     "e2e:cleanup": "node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts cleanup",
-    "verify": "npm run ota:test && npm run check:expo && npm run typecheck && npm run doctor && npm run build:expo-web && npm --prefix admin run verify"
+    "test:admin": "vitest run convex/adminUsers.test.ts convex/admin.test.ts convex/telemetry.test.ts",
+    "test:admin-ui": "playwright test --config playwright.admin.config.ts",
+    "preview:admin-ui": "node scripts/admin-ui-preview.mjs",
+    "test:android-config": "node --test plugins/with-android-config-changes.test.js",
+    "test:ios-config": "node --test plugins/with-ios-health-backup-exclusion.test.js && tsx --test tests/unit/ios-release-config.test.ts",
+    "verify": "npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run typecheck:convex && npm run doctor && npm run build:expo-web && npm --prefix admin run verify"
   },
   "engines": {
     "node": ">=20.19.4"

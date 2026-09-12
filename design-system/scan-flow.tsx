@@ -1,6 +1,7 @@
 import { AppSheet, sheetStyles } from '../components/AppSheet';
 import { StatusBar } from 'expo-status-bar';
 import { loadLocalSetting, saveLocalSetting } from '../lib/local-database';
+import { fontStyle } from '../lib/font-style';
 import {
   CameraView,
   useCameraPermissions,
@@ -3061,7 +3062,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(234,64,135,0.20)',
     backgroundColor: '#F8F5F6',
     color: colors.text.primary,
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 17,
     lineHeight: 20,
     letterSpacing: -0.2,

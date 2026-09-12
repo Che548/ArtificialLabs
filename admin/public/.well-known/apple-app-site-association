@@ -2,12 +2,12 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["2675845GP5.com.anonymous.privateexpo"],
+        "appIDs": ["2675845GP5.com.anonymous.privateexpo", "6HZGXYF43L.engineering.brainwaves.sfera"],
         "components": [{ "/": "/*" }]
       }
     ]
   },
   "webcredentials": {
-    "apps": ["2675845GP5.com.anonymous.privateexpo"]
+    "apps": ["2675845GP5.com.anonymous.privateexpo", "6HZGXYF43L.engineering.brainwaves.sfera"]
   }
 }

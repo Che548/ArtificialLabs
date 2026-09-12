@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import {
   Image,
   Platform,
@@ -287,7 +288,7 @@ const styles = StyleSheet.create({
   heroLabel: {
     marginTop: 0,
     color: '#5D5A5A',
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 18,
     lineHeight: 22,
     letterSpacing: -0.4,
@@ -295,7 +296,7 @@ const styles = StyleSheet.create({
   },
   heroLabelStrong: {
     color: colors.text.primary,
-    fontFamily: fonts.sfSemibold,
+    ...fontStyle(fonts.sfSemibold),
   },
   heroMascot: {
     position: 'absolute',
@@ -358,7 +359,7 @@ const styles = StyleSheet.create({
   },
   deadlineCopy: {
     color: colors.text.secondary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 15,
     lineHeight: 18,
     letterSpacing: -0.25,
@@ -366,6 +367,6 @@ const styles = StyleSheet.create({
   },
   deadlineStrong: {
     color: colors.text.primary,
-    fontFamily: fonts.sfSemibold,
+    ...fontStyle(fonts.sfSemibold),
   },
 });

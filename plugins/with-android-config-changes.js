@@ -6,6 +6,20 @@ const {
   withSettingsGradle,
 } = require('@expo/config-plugins');
 
+function configureReleaseOptimization(contents) {
+  // The default non-optimizing preset contains -dontoptimize. Keep the
+  // project's/SDK's JNI and reflection rules, but allow R8 to optimize code.
+  return contents.replaceAll(
+    'getDefaultProguardFile("proguard-android.txt")',
+    'getDefaultProguardFile("proguard-android-optimize.txt")',
+  );
+}
+
+const releaseOptimizationProperties = {
+  'android.enableMinifyInReleaseBuilds': 'true',
+  'android.enableShrinkResourcesInReleaseBuilds': 'true',
+};
+
 /**
  * Expo SDK 54's generated manifest does not include smallestScreenSize. On
  * Android 16, a display/configuration change can then recreate MainActivity
@@ -33,6 +47,9 @@ function withAndroidConfigChanges(config) {
     return androidConfig;
   });
   const withSigning = withAppBuildGradle(withManifest, (androidConfig) => {
+    androidConfig.modResults.contents = configureReleaseOptimization(
+      androidConfig.modResults.contents,
+    );
     const marker = 'def releaseSigningConfigured =';
     if (!androidConfig.modResults.contents.includes(marker)) {
       androidConfig.modResults.contents = androidConfig.modResults.contents
@@ -79,14 +96,16 @@ gradle.taskGraph.whenReady { taskGraph ->
     return androidConfig;
   });
   const withSettings = withSettingsGradle(withSigning, (androidConfig) => {
-    androidConfig.modResults.contents = androidConfig.modResults.contents.replace(
-      /^rootProject\.name\s*=.*$/m,
-      "rootProject.name = 'ArtificialLabs'",
-    );
+    androidConfig.modResults.contents =
+      androidConfig.modResults.contents.replace(
+        /^rootProject\.name\s*=.*$/m,
+        "rootProject.name = 'ArtificialLabs'",
+      );
     return androidConfig;
   });
   return withGradleProperties(withSettings, (androidConfig) => {
     const properties = {
+      ...releaseOptimizationProperties,
       'org.gradle.jvmargs': '-Xmx4096m -XX:MaxMetaspaceSize=1024m',
       // AAPT2 can spend minutes recompressing the large PNG artwork and time
       // out on macOS. The source PNGs are already compressed; Play also
@@ -105,3 +124,5 @@ gradle.taskGraph.whenReady { taskGraph ->
 }
 
 module.exports = withAndroidConfigChanges;
+module.exports.configureReleaseOptimization = configureReleaseOptimization;
+module.exports.releaseOptimizationProperties = releaseOptimizationProperties;

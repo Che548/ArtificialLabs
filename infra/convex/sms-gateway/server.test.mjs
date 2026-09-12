@@ -10,7 +10,7 @@ function listen(server) {
   );
 }
 
-test('accepts one signed request, replays it idempotently, and cleans its sent SMS only after expiry', async () => {
+test('accepts one signed request, replays it idempotently, and cleans its sent SMS only after expiry', async (t) => {
   let sendCount = 0;
   let deleteCount = 0;
   let outgoing;
@@ -64,7 +64,16 @@ test('accepts one signed request, replays it idempotently, and cleans its sent S
   );
   const gateway = createGatewayServer();
   const gatewayPort = await listen(gateway);
-  const expiration = Date.now() + 100;
+  t.after(async () => {
+    gateway.closeAllConnections();
+    modem.closeAllConnections();
+    await Promise.all([
+      new Promise((resolve) => gateway.close(resolve)),
+      new Promise((resolve) => modem.close(resolve)),
+    ]);
+  });
+  // 100 ms could expire between the two signed requests during native builds.
+  const expiration = Date.now() + 5000;
   const body = JSON.stringify({
     requestId: 'request-1',
     phone: '+79990000000',
@@ -94,18 +103,18 @@ test('accepts one signed request, replays it idempotently, and cleans its sent S
   await new Promise((resolve) =>
     setTimeout(resolve, Math.max(0, expiration - Date.now()) + 50),
   );
+  const cleanupDeadline = Date.now() + 5000;
+  while (deleteCount === 0 && Date.now() < cleanupDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
   assert.equal(deleteCount, 1);
   const decodedMessage = String.fromCodePoint(
     ...String(outgoing.content)
       .match(/.{4}/g)
       .map((unit) => Number.parseInt(unit, 16)),
   );
-  assert.equal(decodedMessage, 'ArtificialLabs: 123456\nY4QO6pOIVxj');
+  assert.equal(decodedMessage, 'ArtificialLabs: 123456\nmO/iDxNc1rb');
   assert.ok(Buffer.byteLength(decodedMessage, 'utf8') <= 140);
-  await Promise.all([
-    new Promise((resolve) => gateway.close(resolve)),
-    new Promise((resolve) => modem.close(resolve)),
-  ]);
 });
 
 test('formats one strict ASCII SMS for each native platform', async () => {
@@ -115,16 +124,16 @@ test('formats one strict ASCII SMS for each native platform', async () => {
     '123456',
     'ios',
     'artificiallabs.bebra42.ru',
-    'Y4QO6pOIVxj',
+    'mO/iDxNc1rb',
   );
   const android = testing.formatOtpMessage(
     '123456',
     'android',
     'artificiallabs.bebra42.ru',
-    'Y4QO6pOIVxj',
+    'mO/iDxNc1rb',
   );
   assert.equal(ios, 'Sfera code: 123456\n@artificiallabs.bebra42.ru #123456');
-  assert.equal(android, 'ArtificialLabs: 123456\nY4QO6pOIVxj');
+  assert.equal(android, 'ArtificialLabs: 123456\nmO/iDxNc1rb');
   assert.ok(Buffer.byteLength(ios, 'utf8') <= 140);
   assert.ok(Buffer.byteLength(android, 'utf8') <= 140);
   assert.equal(
@@ -132,10 +141,10 @@ test('formats one strict ASCII SMS for each native platform', async () => {
       '654321',
       'android',
       'artificiallabs.bebra42.ru',
-      'Y4QO6pOIVxj',
+      'mO/iDxNc1rb',
       'password-recovery',
     ),
-    'ArtificialLabs: 654321\nY4QO6pOIVxj',
+    'ArtificialLabs: 654321\nmO/iDxNc1rb',
   );
 });
 

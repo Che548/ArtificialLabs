@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import { useEffect, useState } from 'react';
 import { AppState, Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 import { analysisCountdown, analysisTimeRemaining } from '../lib/analysis-countdown';
@@ -87,14 +88,14 @@ const s = StyleSheet.create({
     ...shadows.card},
   content: {flexDirection: 'row', alignItems: 'center', gap: 10},
   deadline: {gap: 5, marginTop: 4, paddingBottom: 8},
-  deadlineText: {fontFamily: fonts.sfRegular, fontSize: 11, lineHeight: 14, color: '#736E6C'},
-  deadlineValue: {fontFamily: fonts.sfMedium, color: '#212123'},
+  deadlineText: {...fontStyle(fonts.sfRegular), fontSize: 11, lineHeight: 14, color: '#736E6C'},
+  deadlineValue: {...fontStyle(fonts.sfMedium), color: '#212123'},
   timeTrack: {height: 3, borderRadius: 2, backgroundColor: '#F3E8ED', overflow: 'hidden'},
   timeFill: {height: '100%', borderRadius: 2, backgroundColor: '#EA4087'},
   image: {width: 88, height: 88, marginLeft: -10, marginRight: -4},
   heading: {flex: 1, minWidth: 0, gap: 4, marginRight: 6},
-  title: {fontFamily: fonts.sfMedium, fontSize: 19, lineHeight: 24, letterSpacing: -0.35, color: '#171717'},
-  subtitle: {fontFamily: fonts.sfRegular, fontSize: 15, lineHeight: 19, letterSpacing: -0.25, color: '#606060'},
+  title: {...fontStyle(fonts.sfMedium), fontSize: 19, lineHeight: 24, letterSpacing: -0.35, color: '#171717'},
+  subtitle: {...fontStyle(fonts.sfRegular), fontSize: 15, lineHeight: 19, letterSpacing: -0.25, color: '#606060'},
   arrow: {width: 30, height: 30, borderRadius: 15, backgroundColor: '#D80B76', alignItems: 'center', justifyContent: 'center'},
   pressed: {opacity: 0.7},
 });

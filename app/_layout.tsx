@@ -1,3 +1,5 @@
+import { bundledFonts } from '../lib/bundled-fonts';
+import { fontStyle } from '../lib/font-style';
 import { ConvexAuthProvider, useAuthToken } from '@convex-dev/auth/react';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useConvexAuth } from 'convex/react';
@@ -586,13 +588,7 @@ function NativeApp() {
 
 export default function TabLayout() {
   const webDemo = Platform.OS === 'web';
-  const [fontsLoaded, fontError] = useFonts({
-    'SFProDisplay-Regular': require('../assets/fonts/SF-Pro-Display-Regular.otf'),
-    'SFProDisplay-Medium': require('../assets/fonts/SF-Pro-Display-Medium.otf'),
-    'SFProDisplay-Semibold': require('../assets/fonts/SF-Pro-Display-Semibold.otf'),
-    'SFProDisplay-Bold': require('../assets/fonts/SF-Pro-Display-Bold.otf'),
-    YaroRg: require('../assets/fonts/Yaro-Rg-Regular.otf'),
-  });
+  const [fontsLoaded, fontError] = useFonts(bundledFonts);
 
   if (fontError) throw fontError;
   if (!fontsLoaded) return <LoadingAuth />;
@@ -668,11 +664,11 @@ const styles = StyleSheet.create({
   },
   androidTabLabelInactive: {
     color: inactiveTint,
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
   },
   androidTabLabelActive: {
     color: activeTint,
-    fontFamily: 'SFProDisplay-Medium',
+    ...fontStyle('SFProDisplay-Medium'),
   },
   androidTabLabelSlot: {
     height: 16,

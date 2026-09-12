@@ -1,6 +1,8 @@
 import { filterInput } from '../lib/input-format';
 import { AppSheet, sheetStyles } from '../components/AppSheet';
 import { ProfileCollapse } from '../components/ProfileMotion';
+import { fontStyle } from '../lib/font-style';
+import { FontLicenses } from '../components/FontLicenses';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import * as DocumentPicker from 'expo-document-picker';
@@ -580,6 +582,7 @@ export default function ProfileScreen() {
             updateCreatedAt={updateManager.currentUpdateCreatedAt}
             updateId={updateManager.currentUpdateId}
           />
+          <FontLicenses />
         </ScrollView>
       </Animated.View>
 
@@ -1186,6 +1189,7 @@ function PhoneVerificationRow({
   const [retryAt, setRetryAt] = useState<number>();
   const [clock, setClock] = useState(Date.now());
   const codeInputRef = useRef<TextInput>(null);
+  const phoneRequestLock = useRef(false);
 
   useEffect(() => {
     if (!retryAt || retryAt <= Date.now()) return undefined;
@@ -1230,12 +1234,13 @@ function PhoneVerificationRow({
   })();
   const validPhone = /^\+79\d{9}$/.test(verifiedValue);
   const requestCode = async () => {
-    if (busy || disabled) return;
+    if (phoneRequestLock.current || busy || disabled) return;
     if (!validPhone) {
       setMessage('Введите российский номер: +7 и ещё 10 цифр.');
       return;
     }
     Keyboard.dismiss();
+    phoneRequestLock.current = true;
     setBusy(true);
     setMessage(undefined);
     setCode('');
@@ -1263,12 +1268,14 @@ function PhoneVerificationRow({
             : 'SMS временно недоступны. Попробуйте позже.',
       );
     } finally {
+      phoneRequestLock.current = false;
       setBusy(false);
     }
   };
 
   const verifyCode = async () => {
-    if (busy || !/^\d{6}$/.test(code)) return;
+    if (phoneRequestLock.current || busy || !/^\d{6}$/.test(code)) return;
+    phoneRequestLock.current = true;
     Keyboard.dismiss();
     setBusy(true);
     setMessage(undefined);
@@ -1282,6 +1289,7 @@ function PhoneVerificationRow({
     } catch {
       setMessage('Код неверный или истёк. Запросите новый код.');
     } finally {
+      phoneRequestLock.current = false;
       setBusy(false);
     }
   };
@@ -1326,6 +1334,7 @@ function PhoneVerificationRow({
       <View style={styles.phoneVerificationInputRow}>
         <TextInput
           accessibilityLabel="Российский номер телефона"
+          testID="contact-phone-input"
           editable={!disabled && !busy && step === 'phone'}
           inputMode="tel"
           keyboardType="phone-pad"
@@ -1348,6 +1357,7 @@ function PhoneVerificationRow({
           <TextInput
             ref={codeInputRef}
             accessibilityLabel="Код из SMS"
+            testID="contact-phone-code"
             {...otpAutofillProps(Platform.OS)}
             keyboardType="number-pad"
             maxLength={6}
@@ -2708,7 +2718,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EEF0',
     color: colors.text.primary,
     paddingHorizontal: spacing.md,
-    fontFamily: 'SFProDisplay-Regular',
+    ...fontStyle('SFProDisplay-Regular'),
     fontSize: 15,
     includeFontPadding: false,
   },

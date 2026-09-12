@@ -424,7 +424,7 @@ async function sendSms({ phone, code, expiration, platform, purpose }) {
   const storage = await capacity();
   if (storage.free < 1) return { ok: false, code: 'SMS_UNAVAILABLE' };
   const iosDomain = process.env.SMS_IOS_DOMAIN ?? 'artificiallabs.bebra42.ru';
-  const androidAppHash = process.env.SMS_ANDROID_APP_HASH ?? 'Y4QO6pOIVxj';
+  const androidAppHash = process.env.SMS_ANDROID_APP_HASH ?? 'mO/iDxNc1rb';
   if (
     !/^[a-z0-9.-]+$/i.test(iosDomain) ||
     !/^[A-Za-z0-9+/]{11}$/.test(androidAppHash)

@@ -1,3 +1,4 @@
+import { fontStyle } from '../lib/font-style';
 import { filterInput } from '../lib/input-format';
 import { AppSheet, sheetStyles } from './AppSheet';
 import { EmptyStateIcon, emptyStateColor } from './EmptyStateIcon';
@@ -757,7 +758,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   copy: { flex: 1, minWidth: 0, gap: 4 },
-  contactValue: { fontFamily: fonts.sfRegular, color: colors.text.primary },
+  contactValue: { ...fontStyle(fonts.sfRegular), color: colors.text.primary },
   value: { fontSize: 17, lineHeight: 23 },
   caption: { fontSize: 14, lineHeight: 20 },
   actionText: { fontSize: 16, lineHeight: 22 },
@@ -802,7 +803,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 20,
     lineHeight: 26,
-    fontFamily: fonts.sfMedium,
+    ...fontStyle(fonts.sfMedium),
     color: colors.text.primary,
   },
 });

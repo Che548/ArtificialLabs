@@ -1,4 +1,5 @@
 import { EmptyStateIcon, emptyStateColor } from '../components/EmptyStateIcon';
+import { fontStyle } from '../lib/font-style';
 import type { BlurTint } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
@@ -751,7 +752,7 @@ export function AppText({
             /^сфера\.?$/i.test(segment) ? (
               <Text
                 key={`${segment}-${index}`}
-                style={{ fontFamily: fonts.yaroRegular }}
+                style={{ ...fontStyle(fonts.yaroRegular) }}
               >
                 {segment}
               </Text>
@@ -769,7 +770,7 @@ export function AppText({
         typeScale[role],
         {
           color,
-          fontFamily: sfByWeight[weight],
+          ...fontStyle(sfByWeight[weight]),
           fontVariant: numeric ? ['tabular-nums'] : undefined,
           includeFontPadding: false,
         },
@@ -4076,11 +4077,11 @@ const styles = StyleSheet.create({
   },
   segmentedSwitcherLabelSelected: {
     color: colors.text.primary,
-    fontFamily: fonts.sfSemibold,
+    ...fontStyle(fonts.sfSemibold),
   },
   segmentedSwitcherLabelInactive: {
     color: colors.text.secondary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
   },
   segmentedSwitcherUnread: {
     width: 6,

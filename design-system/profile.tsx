@@ -7,6 +7,7 @@ import {
   type EmptyStateIconKind,
 } from '../components/EmptyStateIcon';
 import { useProfileReducedMotion } from '../components/ProfileMotion';
+import { fontStyle } from '../lib/font-style';
 import { SymbolView } from 'expo-symbols';
 import type { SFSymbol } from 'expo-symbols';
 import { BlurView } from 'expo-blur';
@@ -2054,7 +2055,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     color: colors.text.primary,
-    fontFamily: fonts.sfRegular,
+    ...fontStyle(fonts.sfRegular),
     fontSize: 16,
     lineHeight: 20,
     textAlign: 'right',

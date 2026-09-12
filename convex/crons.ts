@@ -3,6 +3,7 @@ import { cronJobs } from 'convex/server';
 import { internal } from './_generated/api';
 
 const crons = cronJobs();
+crons.hourly('purge email change state', { minuteUTC: 51 }, internal.emailChange.cleanup, {});
 
 crons.daily(
   'purge accounts after recovery window',

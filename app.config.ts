@@ -4,6 +4,10 @@ import base from './app.json';
 
 const baseConfig = base.expo as ExpoConfig;
 const e2eMode = process.env.EXPO_PUBLIC_E2E_MODE === '1';
+const appStoreBuild = process.env.SFERA_IOS_APP_STORE === '1';
+if (appStoreBuild && e2eMode) {
+  throw new Error('App Store builds must not enable E2E mode');
+}
 const updatesBaseUrl = (
   process.env.EXPO_PUBLIC_E2E_OTA_URL ??
   'https://artificiallabs-updates.bebra42.ru'
@@ -22,7 +26,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...baseConfig,
   ios: {
     ...baseConfig.ios,
-    buildNumber: baseConfig.ios?.buildNumber ?? '1',
+    ...(appStoreBuild
+      ? {
+          bundleIdentifier: 'engineering.brainwaves.sfera',
+          appleTeamId: '6HZGXYF43L',
+        }
+      : {}),
+    buildNumber: appStoreBuild ? '2' : (baseConfig.ios?.buildNumber ?? '1'),
     infoPlist: {
       ...(baseConfig.ios?.infoPlist ?? {}),
       ...(localOtaE2E

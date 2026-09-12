@@ -1,3 +1,4 @@
+import { fontStyle } from './font-style';
 import * as SecureStore from 'expo-secure-store';
 import * as Updates from 'expo-updates';
 import { usePathname } from 'expo-router';
@@ -324,11 +325,11 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   copy: { flex: 1, minWidth: 0 },
-  title: { color: '#2F292C', fontFamily: 'SFProDisplay-Semibold', fontSize: 13 },
-  message: { color: '#736E6C', fontFamily: 'SFProDisplay-Regular', fontSize: 11, lineHeight: 14 },
+  title: { color: '#2F292C', ...fontStyle('SFProDisplay-Semibold'), fontSize: 13 },
+  message: { color: '#736E6C', ...fontStyle('SFProDisplay-Regular'), fontSize: 11, lineHeight: 14 },
   secondary: { paddingHorizontal: 8, paddingVertical: 8 },
-  secondaryText: { color: '#736E6C', fontFamily: 'SFProDisplay-Medium', fontSize: 12 },
+  secondaryText: { color: '#736E6C', ...fontStyle('SFProDisplay-Medium'), fontSize: 12 },
   primary: { borderRadius: 14, backgroundColor: '#EA4087', paddingHorizontal: 12, paddingVertical: 9 },
-  primaryText: { color: '#FFFFFF', fontFamily: 'SFProDisplay-Semibold', fontSize: 12 },
+  primaryText: { color: '#FFFFFF', ...fontStyle('SFProDisplay-Semibold'), fontSize: 12 },
   disabled: { opacity: 0.45 },
 });

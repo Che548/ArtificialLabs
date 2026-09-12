@@ -2,6 +2,8 @@ import { TodayArticleSheet } from './components/TodayArticleSheet';
 import { todayArticles, type TodayArticle } from './lib/today-articles';
 import { AppSheet, sheetStyles } from './components/AppSheet';
 import { TopChromeBackdrop } from './components/TopChromeBackdrop';
+import { bundledFonts } from './lib/bundled-fonts';
+import { fontStyle } from './lib/font-style';
 import { BlurView } from 'expo-blur';
 import type { BlurTint } from 'expo-blur';
 import { useFonts } from 'expo-font';
@@ -95,7 +97,7 @@ const DESIGN_WIDTH = 402;
 const DESIGN_HEIGHT = 874;
 const FONT_SF_REGULAR = 'SFProDisplay-Regular';
 const FONT_SF_SEMIBOLD = 'SFProDisplay-Semibold';
-const FONT_YARO_RG = 'YaroRg';
+const FONT_YARO_RG = 'Comfortaa-Regular';
 const FontReadyContext = createContext(false);
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 const MAX_PREGNANCY_WEEK = 42;
@@ -400,7 +402,7 @@ function ProjectText({
       style={[
         styles.projectText,
         style,
-        { fontFamily: sfFont, fontWeight: fallbackWeight },
+        { ...fontStyle(sfFont), fontWeight: fallbackWeight },
       ]}
     >
       {segments.map((segment, index) =>
@@ -408,7 +410,7 @@ function ProjectText({
           <Text
             key={`${segment}-${index}`}
             style={{
-              fontFamily: fontsReady ? FONT_YARO_RG : sfFont,
+              ...fontStyle(fontsReady ? FONT_YARO_RG : sfFont),
               fontWeight: fallbackWeight,
             }}
           >
@@ -500,11 +502,11 @@ function ImportantMascotCard({ onPress }: { onPress?: () => void }) {
         style={[
           styles.importantCardLabel,
           {
-            fontFamily: fontsReady
+            ...fontStyle(fontsReady
               ? FONT_YARO_RG
               : Platform.OS === 'ios'
                 ? 'System'
-                : 'sans-serif',
+                : 'sans-serif'),
           },
         ]}
       >
@@ -812,7 +814,7 @@ function MonitoringScreen({
                           <Text
                             style={[
                               styles.weekNumber,
-                              { fontFamily: weekNumberFont },
+                              { ...fontStyle(weekNumberFont) },
                             ]}
                           >
                             {week}
@@ -820,7 +822,7 @@ function MonitoringScreen({
                           <Text
                             style={[
                               styles.weekLabel,
-                              { fontFamily: weekLabelFont },
+                              { ...fontStyle(weekLabelFont) },
                             ]}
                           >
                             {weekLabel}
@@ -899,7 +901,7 @@ function MonitoringScreen({
                               style={[
                                 styles.weekNumber,
                                 styles.weekTextSelected,
-                                { fontFamily: weekNumberFont },
+                                { ...fontStyle(weekNumberFont) },
                               ]}
                             >
                               {week}
@@ -908,7 +910,7 @@ function MonitoringScreen({
                               style={[
                                 styles.weekLabel,
                                 styles.weekTextSelected,
-                                { fontFamily: weekLabelFont },
+                                { ...fontStyle(weekLabelFont) },
                               ]}
                             >
                               {weekLabel}
@@ -1734,13 +1736,7 @@ export default function App() {
   const [journalFlowCategory, setJournalFlowCategory] =
     useState<JournalFlowCategory>('cycle');
   const [fontsLoaded, fontError] = useFonts(
-    Platform.OS === 'web'
-      ? {
-          [FONT_SF_REGULAR]: require('./assets/fonts/SF-Pro-Display-Regular.otf'),
-          [FONT_SF_SEMIBOLD]: require('./assets/fonts/SF-Pro-Display-Semibold.otf'),
-          [FONT_YARO_RG]: require('./assets/fonts/Yaro-Rg-Regular.otf'),
-        }
-      : {},
+    Platform.OS === 'web' ? bundledFonts : {},
   );
   const scale = Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
   const headerTop = getHeaderTop(insets.top, scale) + 1;
@@ -2101,7 +2097,7 @@ const styles = StyleSheet.create({
   },
   weekNumber: {
     color: '#F2A8CB',
-    fontFamily: FONT_SF_REGULAR,
+    ...fontStyle(FONT_SF_REGULAR),
     fontSize: 18,
     lineHeight: 19,
     letterSpacing: -0.32,
@@ -2109,7 +2105,7 @@ const styles = StyleSheet.create({
   weekLabel: {
     marginTop: -2,
     color: '#F2A8CB',
-    fontFamily: FONT_SF_REGULAR,
+    ...fontStyle(FONT_SF_REGULAR),
     fontSize: 14,
     lineHeight: 15,
     letterSpacing: -0.24,
@@ -2246,7 +2242,7 @@ const styles = StyleSheet.create({
   featureTitle: {
     width: '100%',
     color: '#FFFFFF',
-    fontFamily: FONT_SF_REGULAR,
+    ...fontStyle(FONT_SF_REGULAR),
     fontSize: 13.5,
     lineHeight: 16.5,
     letterSpacing: -0.27,
@@ -2657,7 +2653,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   projectText: {
-    fontFamily: FONT_SF_REGULAR,
+    ...fontStyle(FONT_SF_REGULAR),
     includeFontPadding: false,
   },
 });

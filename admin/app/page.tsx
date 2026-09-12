@@ -1,13 +1,16 @@
 'use client';
 
 import { useAuthActions } from '@convex-dev/auth/react';
-import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
+import { useMutation, usePaginatedQuery, useQuery, useConvexConnectionState } from 'convex/react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { Users, AccountMetrics } from '../components/users';
+import { DataBoundary, LoadingState, useUrlValue } from '../components/data-state';
 
 type Section =
+  | 'users'
   | 'dashboard'
   | 'systems'
   | 'lots'
@@ -18,17 +21,35 @@ type Section =
   | 'admins'
   | 'audit';
 const sections: Array<[Section, string]> = [
-  ['dashboard', 'Dashboard'],
-  ['systems', 'Test Systems'],
-  ['lots', 'Lots'],
-  ['calibrations', 'Calibrations'],
-  ['validation', 'Validation'],
-  ['content', 'Content'],
-  ['monitoring', 'Monitoring'],
-  ['admins', 'Admin Access'],
-  ['audit', 'Audit'],
+  ['users', 'Пользователи'],
+  ['dashboard', 'Обзор'],
+  ['systems', 'Тест-системы'],
+  ['lots', 'Партии'],
+  ['calibrations', 'Калибровки'],
+  ['validation', 'Валидация'],
+  ['content', 'Материалы'],
+  ['monitoring', 'Мониторинг'],
+  ['admins', 'Администраторы'],
+  ['audit', 'Аудит'],
 ];
 const requestId = () => crypto.randomUUID();
+function adminError(error: unknown) {
+  const text = String(error);
+  const messages: Record<string, string> = {
+    ADMIN_REQUIRED: 'Недостаточно прав администратора.',
+    UNAUTHENTICATED: 'Сессия завершена. Войдите снова.',
+    SYSTEM_KEY_EXISTS: 'Тест-система с таким ключом уже существует.',
+    LOT_EXISTS: 'Такая партия уже существует.',
+    USER_NOT_FOUND: 'Аккаунт с таким email не найден.',
+    LAST_ADMIN_REQUIRED: 'Нельзя отозвать доступ последнего администратора.',
+    ASSET_NOT_VALIDATED: 'Дождитесь проверки файла перед созданием калибровки.',
+    INVALID_STATUS_TRANSITION: 'Этот переход статуса сейчас недоступен.',
+    CALIBRATION_NOT_APPROVED: 'Сначала одобрите калибровку.',
+    CONTENT_NOT_REVIEWED: 'Сначала отправьте материал на проверку.',
+  };
+  return Object.entries(messages).find(([code]) => text.includes(code))?.[1]
+    ?? 'Операция не выполнена. Проверьте обязательные поля и подключение, затем повторите.';
+}
 const day = (date: Date) => date.toISOString().slice(0, 10);
 
 function Pager({
@@ -51,8 +72,10 @@ function Pager({
 }
 
 function Dashboard() {
+  const [period, setPeriod] = useUrlValue('period', '30');
+  const days = ['7', '30', '90'].includes(period) ? Number(period) : 30;
   const to = new Date();
-  const from = new Date(Date.now() - 29 * 86400000);
+  const from = new Date(Date.now() - (days - 1) * 86400000);
   const data = useQuery(api.telemetry.overview, {
     fromDay: day(from),
     toDay: day(to),
@@ -79,15 +102,18 @@ function Dashboard() {
   return (
     <>
       <PageTitle
-        title="Dashboard"
-        subtitle="Только агрегированные технические и продуктовые показатели за 30 дней."
+        title="Обзор"
+        subtitle="Аккаунты, дневная активность и технические события — отдельные показатели."
       />
-      <div className="metric-grid">
+      <label className="period-filter">Период (UTC)<select value={String(days)} onChange={e => setPeriod(e.target.value)}><option value="7">7 дней</option><option value="30">30 дней</option><option value="90">90 дней</option></select></label>
+      <DataBoundary><AccountMetrics fromDay={day(from)} toDay={day(to)} /></DataBoundary>
+      {data === undefined ? <LoadingState /> : <div className="metric-grid">
         <Metric label="События" value={totals.events} />
         <Metric label="CV обработки" value={totals.scans} />
         <Metric label="Ошибки" value={totals.errors} />
-        <Metric label="Дневные heartbeat" value={active} />
-      </div>
+        <Metric label="Сумма дневной активности" value={active} />
+      </div>}
+      <p className="muted">Один человек может учитываться в разные дни. Сумма дневной активности — не число уникальных пользователей за период.</p>
       <section className="panel">
         <h2>Сервисы</h2>
         <div className="service-grid">
@@ -127,10 +153,13 @@ function PageTitle({ title, subtitle }: { title: string; subtitle: string }) {
 function Table({
   headers,
   rows,
+  loading = false,
 }: {
   headers: string[];
   rows: React.ReactNode[][];
+  loading?: boolean;
 }) {
+  if (loading) return <LoadingState />;
   return (
     <div className="table-wrap">
       <table>
@@ -151,48 +180,20 @@ function Table({
           ))}
         </tbody>
       </table>
-      {rows.length === 0 && <p className="empty">Записей пока нет</p>}
+      {rows.length === 0 && <p className="empty">В этом разделе пока нет записей. Отображаются только сохранённые данные платформы.</p>}
     </div>
   );
 }
 function Status({ value }: { value: string }) {
-  return <span className={`status ${value}`}>{value}</span>;
+  const labels: Record<string, string> = { active: 'Активен', draft: 'Черновик', archived: 'Архив', review: 'На проверке', approved: 'Одобрено', rejected: 'Отклонено', published: 'Опубликовано', revoked: 'Отозвано', signing: 'Подписание', signing_failed: 'Ошибка подписи', healthy: 'Работает', degraded: 'Нестабильно', offline: 'Недоступен', unknown: 'Нет данных' };
+  return <span className={`status ${value}`}>{labels[value] ?? value}</span>;
 }
 function LiveConvexStatus() {
-  const [state, setState] = useState<{ status: string; latency?: number }>({
-    status: 'checking',
-  });
-  useEffect(() => {
-    const controller = new AbortController();
-    const started = performance.now();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    fetch(`${process.env.NEXT_PUBLIC_CONVEX_URL}/version`, {
-      signal: controller.signal,
-      cache: 'no-store',
-    })
-      .then((response) => {
-        if (!response.ok) throw new Error('offline');
-        setState({
-          status: 'healthy',
-          latency: Math.round(performance.now() - started),
-        });
-      })
-      .catch(() => setState({ status: 'offline' }))
-      .finally(() => clearTimeout(timeout));
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, []);
+  const connection = useConvexConnectionState();
   return (
     <div className="service">
-      <span>convex-live /version</span>
-      <b className={state.status}>{state.status}</b>
-      <small>
-        {state.latency !== undefined
-          ? `${state.latency} ms`
-          : 'Прямая проверка'}
-      </small>
+      <span>Сервер</span>
+      <b className={connection.isWebSocketConnected ? 'healthy' : 'offline'}>{connection.isWebSocketConnected ? 'Подключён' : 'Переподключение…'}</b>
     </div>
   );
 }
@@ -227,13 +228,13 @@ function Systems() {
       form.reset();
       setMessage('Тест-система сохранена');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Ошибка сохранения');
+      setMessage(adminError(err));
     }
   };
   return (
     <>
       <PageTitle
-        title="Test Systems"
+        title="Тест-системы"
         subtitle="Каталог поддерживаемых тестов без пользовательских результатов."
       />
       <form className="panel form-grid" onSubmit={submit}>
@@ -264,9 +265,9 @@ function Systems() {
         <label>
           Статус
           <select name="status">
-            <option value="draft">Draft</option>
-            <option value="active">Active</option>
-            <option value="archived">Archived</option>
+            <option value="draft">Черновик</option>
+            <option value="active">Активен</option>
+            <option value="archived">Архив</option>
           </select>
         </label>
         <label className="wide">
@@ -285,6 +286,7 @@ function Systems() {
       <section className="panel">
         <Table
           headers={['Ключ', 'Название', 'Производитель', 'Тип', 'Статус']}
+          loading={list.status === 'LoadingFirstPage'}
           rows={list.results.map((x) => [
             x.key,
             x.name,
@@ -341,17 +343,18 @@ function Lots() {
       form.reset();
       setMessage('Партия сохранена');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Ошибка');
+      setMessage(adminError(err));
     }
   };
   return (
     <>
       <PageTitle
-        title="Lots"
+        title="Партии"
         subtitle="Партии, сроки и совместимость версий приложения/CV."
       />
       <form className="panel form-grid" onSubmit={submit}>
         <h2>Новая партия</h2>
+        {!systems.results.length && <p className="wide muted">{systems.status === 'LoadingFirstPage' ? 'Загружаем тест-системы…' : 'Сначала добавьте тест-систему в разделе «Тест-системы». Без неё нельзя создать партию.'}</p>}
         <label>
           Тест-система
           <select name="system" required>
@@ -377,9 +380,9 @@ function Lots() {
         <label>
           Статус
           <select name="status">
-            <option value="draft">Draft</option>
-            <option value="review">Review</option>
-            <option value="active">Active</option>
+            <option value="draft">Черновик</option>
+            <option value="review">На проверке</option>
+            <option value="active">Активен</option>
           </select>
         </label>
         <label>
@@ -398,6 +401,7 @@ function Lots() {
       <section className="panel">
         <Table
           headers={['Партия', 'Статус', 'Производство', 'Срок', 'Обновлено']}
+          loading={list.status === 'LoadingFirstPage'}
           rows={list.results.map((x) => [
             x.lotNumber,
             <Status value={x.status} />,
@@ -470,7 +474,7 @@ function Calibrations() {
       form.reset();
       setMessage('Файл загружен; фоновая проверка запущена');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Ошибка загрузки');
+      setMessage(adminError(err));
     }
   };
   const submit = async (e: FormEvent<HTMLFormElement>) => {
@@ -492,7 +496,7 @@ function Calibrations() {
       form.reset();
       setMessage('Калибровка создана');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Ошибка');
+      setMessage(adminError(err));
     }
   };
   const action = async (
@@ -515,8 +519,8 @@ function Calibrations() {
   return (
     <>
       <PageTitle
-        title="Calibrations"
-        subtitle="Версионируемый lifecycle; опубликованные manifest неизменяемы и подписаны Ed25519."
+        title="Калибровки"
+        subtitle="Версии калибровок: проверка, одобрение и подпись. Опубликованные версии неизменяемы."
       />
       <form className="panel inline-form" onSubmit={upload}>
         <label>
@@ -526,16 +530,17 @@ function Calibrations() {
         <label>
           Тип
           <select name="kind">
-            <option value="calibration_json">Calibration JSON</option>
-            <option value="reference_csv">Reference CSV</option>
-            <option value="reference_json">Reference JSON</option>
-            <option value="cms_image">CMS image</option>
+            <option value="calibration_json">Калибровка JSON</option>
+            <option value="reference_csv">Эталонный CSV</option>
+            <option value="reference_json">Эталонный JSON</option>
+            <option value="cms_image">Изображение материала</option>
           </select>
         </label>
         <button>Загрузить</button>
       </form>
       <form className="panel form-grid" onSubmit={submit}>
         <h2>Новая калибровка</h2>
+        {(!systems.results.length || !lots.results.length || !assets.results.length) && <p className="wide muted">Для калибровки нужны тест-система, партия и проверенные служебные файлы. Добавьте недостающие данные в соответствующих разделах.</p>}
         <label>
           Система
           <select name="system" required>
@@ -594,6 +599,7 @@ function Calibrations() {
         <h2>Файлы</h2>
         <Table
           headers={['Имя', 'Тип', 'Размер', 'Статус']}
+          loading={assets.status === 'LoadingFirstPage'}
           rows={assets.results.map((x) => [
             x.fileName,
             x.kind,
@@ -605,6 +611,7 @@ function Calibrations() {
       <section className="panel">
         <Table
           headers={['Система', 'Версия', 'Алгоритм', 'Состояние', 'Действие']}
+          loading={list.status === 'LoadingFirstPage'}
           rows={list.results.map((x) => [
             x.testSystemKey,
             x.version,
@@ -621,7 +628,7 @@ function Calibrations() {
                   void action(x._id, x.lifecycleStatus ?? x.status).catch(
                     (error) =>
                       setMessage(
-                        error instanceof Error ? error.message : 'Ошибка',
+                        adminError(error),
                       ),
                   )
                 }
@@ -641,7 +648,7 @@ function Calibrations() {
                       requestId: requestId(),
                     }).catch((error) =>
                       setMessage(
-                        error instanceof Error ? error.message : 'Ошибка',
+                        adminError(error),
                       ),
                     )
                   }
@@ -702,17 +709,18 @@ function Validation() {
       form.reset();
       setMessage('Валидация сохранена');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Ошибка');
+      setMessage(adminError(err));
     }
   };
   return (
     <>
       <PageTitle
-        title="Validation"
+        title="Валидация"
         subtitle="Результаты технической валидации калибровок и эталонных наборов."
       />
       <form className="panel form-grid" onSubmit={submit}>
         <h2>Новая валидация</h2>
+        {!calibrations.results.length && <p className="wide muted">{calibrations.status === 'LoadingFirstPage' ? 'Загружаем калибровки…' : 'Сначала создайте калибровку. Результаты валидации вносятся только по реальным измерениям.'}</p>}
         <label>
           Калибровка
           <select name="calibration" required>
@@ -742,8 +750,8 @@ function Validation() {
         <label>
           Итог
           <select name="passed">
-            <option value="yes">Passed</option>
-            <option value="no">Failed</option>
+            <option value="yes">Пройдена</option>
+            <option value="no">Не пройдена</option>
           </select>
         </label>
         <label className="wide">
@@ -762,6 +770,7 @@ function Validation() {
       <section className="panel">
         <Table
           headers={['Статус', 'Метрики', 'Комментарий', 'Проверено']}
+          loading={list.status === 'LoadingFirstPage'}
           rows={list.results.map((x) => [
             <Status value={x.passed ? 'approved' : 'rejected'} />,
             x.metrics
@@ -812,14 +821,14 @@ function Content() {
       form.reset();
       setMessage('Черновик сохранён');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Ошибка');
+      setMessage(adminError(err));
     }
   };
   return (
     <>
       <PageTitle
-        title="Content"
-        subtitle="Версионируемый Markdown CMS с preview и публикацией."
+        title="Материалы"
+        subtitle="Материалы в Markdown: черновики, проверка и публикация версий."
       />
       <form className="panel form-grid" onSubmit={submit}>
         <h2>Новый материал</h2>
@@ -830,11 +839,11 @@ function Content() {
         <label>
           Категория
           <select name="category">
-            <option value="article">Article</option>
-            <option value="hint">Hint</option>
-            <option value="tooltip">Tooltip</option>
-            <option value="term">Term</option>
-            <option value="infographic">Infographic</option>
+            <option value="article">Статья</option>
+            <option value="hint">Подсказка</option>
+            <option value="tooltip">Всплывающая подсказка</option>
+            <option value="term">Термин</option>
+            <option value="infographic">Инфографика</option>
           </select>
         </label>
         <label>
@@ -872,7 +881,8 @@ function Content() {
       </form>
       <section className="panel">
         <Table
-          headers={['Ключ', 'Категория', 'Placement', 'Версия', 'Действие']}
+          headers={['Ключ', 'Категория', 'Размещение', 'Версия', 'Действие']}
+          loading={list.status === 'LoadingFirstPage'}
           rows={list.results.map((x) => [
             x.key,
             x.category,
@@ -890,7 +900,7 @@ function Content() {
                         requestId: requestId(),
                       }).catch((error) =>
                         setMessage(
-                          error instanceof Error ? error.message : 'Ошибка',
+                          adminError(error),
                         ),
                       )
                     }
@@ -906,7 +916,7 @@ function Content() {
                         requestId: requestId(),
                       }).catch((error) =>
                         setMessage(
-                          error instanceof Error ? error.message : 'Ошибка',
+                          adminError(error),
                         ),
                       )
                     }
@@ -934,11 +944,11 @@ function Monitoring() {
   return (
     <>
       <PageTitle
-        title="Monitoring"
-        subtitle="Health checks и нормализованные технические ошибки; без PII и медицинских значений."
+        title="Мониторинг"
+        subtitle="Доступность сервисов и технические ошибки без личных и медицинских данных."
       />
       <section className="panel">
-        <h2>Live status</h2>
+        <h2>Подключение</h2>
         <div className="service-grid">
           <LiveConvexStatus />
         </div>
@@ -948,7 +958,8 @@ function Monitoring() {
       <section className="panel">
         <h2>Последние проверки</h2>
         <Table
-          headers={['Сервис', 'Статус', 'Latency', 'Время']}
+          headers={['Сервис', 'Статус', 'Задержка', 'Время']}
+          loading={latest === undefined}
           rows={(latest ?? [])
             .filter(Boolean)
             .map((x) => [
@@ -963,6 +974,7 @@ function Monitoring() {
         <h2>Ошибки</h2>
         <Table
           headers={['Код', 'Платформа', 'App', 'CV', 'Время']}
+          loading={errors === undefined}
           rows={(errors ?? []).map((x) => [
             x.errorCode ?? 'unknown',
             x.platform,
@@ -1036,6 +1048,7 @@ function ResendQuota({
 
 function ResendUsage() {
   const overview = useQuery(api.monitoringData.emailOverview, {});
+  if (overview === undefined) return <section className="panel"><h2>Квоты Resend</h2><LoadingState /></section>;
   const status =
     overview?.status === 'ready'
       ? 'Данные из заголовков последнего реального письма'
@@ -1117,10 +1130,11 @@ function SmsTariffBalance() {
       );
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : 'Не удалось запустить проверку',
+        adminError(error),
       );
     }
   };
+  if (overview === undefined) return <section className="panel"><h2>Остаток SMS</h2><LoadingState /></section>;
   const balanceStatus = !balance || balance.status === 'idle'
     ? 'Остаток ещё не проверялся'
     : balance.status === 'checking'
@@ -1210,13 +1224,13 @@ function Admins() {
       form.reset();
       setMessage('Права выданы');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Ошибка');
+      setMessage(adminError(err));
     }
   };
   return (
     <>
       <PageTitle
-        title="Admin Access"
+        title="Администраторы"
         subtitle="Единственная роль Admin. Последнего активного администратора отозвать нельзя."
       />
       <form className="panel inline-form" onSubmit={submit}>
@@ -1230,6 +1244,7 @@ function Admins() {
       <section className="panel">
         <Table
           headers={['Email', 'Выдано', 'Статус', 'Действие']}
+          loading={list.status === 'LoadingFirstPage'}
           rows={list.results.map((x) => [
             x.email,
             new Date(x.grantedAt).toLocaleString('ru-RU'),
@@ -1262,12 +1277,13 @@ function Audit() {
   return (
     <>
       <PageTitle
-        title="Audit"
+        title="Аудит"
         subtitle="Неизменяемый журнал административных действий без файлов, токенов и медицинских данных."
       />
       <section className="panel">
         <Table
-          headers={['Время', 'Действие', 'Объект', 'Описание', 'Request ID']}
+          headers={['Время', 'Действие', 'Объект', 'Описание', 'ID операции']}
+          loading={list.status === 'LoadingFirstPage'}
           rows={list.results.map((x) => [
             new Date(x.occurredAt).toLocaleString('ru-RU'),
             x.action,
@@ -1283,12 +1299,16 @@ function Audit() {
 }
 
 export default function AdminPage() {
-  const [section, setSection] = useState<Section>('dashboard');
+  const connection = useConvexConnectionState();
+  const [selected, setSection] = useUrlValue('section', 'dashboard');
+  const section = sections.some(([id]) => id === selected) ? selected : 'dashboard';
   const [navOpen, setNavOpen] = useState(false);
   const { signOut } = useAuthActions();
   const content =
     section === 'dashboard' ? (
       <Dashboard />
+    ) : section === 'users' ? (
+      <Users />
     ) : section === 'systems' ? (
       <Systems />
     ) : section === 'lots' ? (
@@ -1318,7 +1338,7 @@ export default function AdminPage() {
         </button>
         <div className="brand-mark small">AL</div>
         <strong>ArtificialLabs Admin</strong>
-        <span className="connection">● Convex</span>
+        <div className="connection"><LiveConvexStatus /></div>
         <button onClick={() => void signOut()}>Выйти</button>
       </header>
       <div className="admin-frame">
@@ -1334,6 +1354,7 @@ export default function AdminPage() {
             <button
               key={id}
               className={section === id ? 'active' : ''}
+              aria-current={section === id ? 'page' : undefined}
               onClick={() => {
                 setSection(id);
                 setNavOpen(false);
@@ -1342,9 +1363,12 @@ export default function AdminPage() {
               {label}
             </button>
           ))}
-          <a href="/kit/">UI Kit</a>
+          <a href="/kit/">Компоненты интерфейса</a>
         </nav>
-        <div className="admin-content">{content}</div>
+        <div className="admin-content">
+          {!connection.isWebSocketConnected && <p className="connection-warning" role="status">Нет соединения с сервером. Данные могут быть устаревшими; подключение восстановится автоматически.</p>}
+          <DataBoundary key={section}>{content}</DataBoundary>
+        </div>
       </div>
     </main>
   );
