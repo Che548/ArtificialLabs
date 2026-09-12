@@ -37,6 +37,7 @@ export const AI_AGENT_AUTOMATION_RATE_LIMITS = {
 } as const;
 
 export type AiAgentFailureCode =
+  | 'USER_DISABLED'
   | 'CONSENT_REQUIRED'
   | 'RATE_LIMITED'
   | 'CONTENT_FILTERED'

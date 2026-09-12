@@ -247,6 +247,14 @@ async function saveToolContinuation({
 }
 
 async function requireGenerationAccess(ctx: ActionCtx, userId: Id<'users'>) {
+  // The chat preference controls every interactive reply, including the
+  // legacy health-agent entry points. Health consent already discloses text;
+  // a separate text-only consent is not required for these turns.
+  const chatAccess = await ctx.runQuery(internal.chat.generationAccess, {
+    userId,
+  });
+  if (!chatAccess.ok && chatAccess.reason === 'USER_DISABLED')
+    return { ok: false as const, code: 'USER_DISABLED' as const };
   const access = await ctx.runQuery(internal.agent.generationAccess, {
     userId,
   });
