@@ -1608,7 +1608,7 @@ export default function ChatScreen() {
           {displayedMode === 'assistant' ? (
             <SferkaAssistantFeed
               topInset={headerTop + 72}
-              bottomInset={composerBottom + mainDockHeight + 16}
+              bottomInset={composerBottom + 16}
             />
           ) : (
             <>
@@ -1649,6 +1649,7 @@ export default function ChatScreen() {
               </ScrollView>
             </>
           )}
+          {displayedMode === 'chat' ? (
           <View
             pointerEvents="box-none"
             onLayout={(event) =>
@@ -1742,6 +1743,7 @@ export default function ChatScreen() {
               </AppText>
             ) : null}
           </View>
+          ) : null}
         </Animated.View>
 
         {historyRendered ? (
