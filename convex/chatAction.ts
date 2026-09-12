@@ -11,6 +11,7 @@ import {
   AI_CHAT_MAX_REQUEST_ID_CHARS,
   AI_CHAT_MAX_TRANSCRIPT_CHARS,
   AI_CHAT_RATE_LIMITS,
+  type AiChatGenerateResult,
   isAiChatFeatureEnabled,
 } from './aiChatConfig';
 import { generateWithYandex } from './ai/yandexProvider';
@@ -64,13 +65,16 @@ export const generateInternal = internalAction({
     requestId: v.string(),
     messages: v.array(v.object({ role, content: v.string() })),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<AiChatGenerateResult> => {
     const access = await ctx.runQuery(internal.chat.generationAccess, {
       userId: args.userId,
     });
     if (!access.ok) {
-      if (access.reason === 'USER_DISABLED') {
-        return { ok: false as const, code: 'USER_DISABLED' as const };
+      if (
+        access.reason === 'USER_DISABLED' ||
+        access.reason === 'CONSENT_REQUIRED'
+      ) {
+        return { ok: false as const, code: access.reason };
       }
       throw new Error(access.reason);
     }
@@ -109,8 +113,11 @@ export const generateInternal = internalAction({
       userId: args.userId,
     });
     if (!currentAccess.ok) {
-      if (currentAccess.reason === 'USER_DISABLED')
-        return { ok: false as const, code: 'USER_DISABLED' as const };
+      if (
+        currentAccess.reason === 'USER_DISABLED' ||
+        currentAccess.reason === 'CONSENT_REQUIRED'
+      )
+        return { ok: false as const, code: currentAccess.reason };
       throw new Error(currentAccess.reason);
     }
     if (!isAiChatFeatureEnabled())

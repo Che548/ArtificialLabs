@@ -3,8 +3,8 @@ import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { requireOwnedProfile } from './lib/access';
+import { agentTriggerConflictFields, mergeAgentTriggerReplicas } from '../lib/agent-trigger-sync';
 import {
-  isAllowedAgentTriggerMutation,
   isAllowedCarePlanMutation,
   validateAgentTrigger,
   validateCarePlanItem,
@@ -84,6 +84,7 @@ const lab = v.object({
   catalogKey: v.string(),
   title: v.string(),
   collectedAt: v.number(),
+  confirmedAt: v.optional(v.number()),
   status: v.union(
     v.literal('normal'),
     v.literal('attention'),
@@ -387,6 +388,22 @@ async function upsertLocal(
       q.eq('profileId', profileId as never).eq('localId', item.localId),
     )
     .unique();
+  if (existing && table === 'agentTriggers') {
+    const existingTrigger = existing as unknown as AgentTrigger;
+    const merged = mergeAgentTriggerReplicas(
+      existingTrigger, item as unknown as AgentTrigger,
+    );
+    if (!merged) throw new Error(`AGENT_TRIGGER_IMMUTABLE fields=${agentTriggerConflictFields(existingTrigger, item as unknown as AgentTrigger).join(',')}`);
+    // Use only the portable incoming record, never Convex system fields.
+    item = { ...item, status: merged.status, runCount: merged.runCount,
+      nextEvaluationAt: merged.nextEvaluationAt, lastRunAt: merged.lastRunAt,
+      cooldownUntil: merged.cooldownUntil, updatedAt: merged.updatedAt };
+    if (existingTrigger.updatedAt === item.updatedAt && existingTrigger.status === item.status &&
+        existingTrigger.runCount === item.runCount && existingTrigger.nextEvaluationAt === item.nextEvaluationAt &&
+        existingTrigger.lastRunAt === item.lastRunAt && existingTrigger.cooldownUntil === item.cooldownUntil) return;
+    await ctx.db.patch(existing._id, item as never);
+    return;
+  }
   if (existing && existing.updatedAt >= item.updatedAt) return;
   if (existing && table === 'recommendationEvents') return;
   const existingRecord = existing as
@@ -401,17 +418,16 @@ async function upsertLocal(
   ) {
     throw new Error('CURRENT_PLAN_IMMUTABLE');
   }
-  if (
-    existingRecord &&
-    table === 'agentTriggers' &&
-    !isAllowedAgentTriggerMutation(
-      existingRecord as unknown as AgentTrigger,
-      item as unknown as AgentTrigger,
-    )
-  )
-    throw new Error('AGENT_TRIGGER_IMMUTABLE');
-  if (existing) await ctx.db.patch(existing._id, item as never);
-  else await ctx.db.insert(table, { ...item, profileId } as never);
+  if (existing) {
+    // Plan reconciliation reuses reminder IDs after recommendations are enabled
+    // again. A missing deletedAt in a newer reminder means it is active; patch
+    // otherwise preserves the old tombstone and starts a recreate/sync loop.
+    const patch =
+      table === 'reminders' && item.localId.startsWith('agent-prep_')
+        ? { ...item, deletedAt: item.deletedAt }
+        : item;
+    await ctx.db.patch(existing._id, patch as never);
+  } else await ctx.db.insert(table, { ...item, profileId } as never);
 }
 
 export const syncBatch = mutation({

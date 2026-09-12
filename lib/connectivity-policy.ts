@@ -1,5 +1,6 @@
 export type ConnectivityPolicyInput = {
-  isAndroidReversedE2E: boolean;
+  /** Legacy input, deliberately ignored: QA and production use one policy. */
+  isAndroidReversedE2E?: boolean;
   networkIsConnected?: boolean | null;
   networkIsInternetReachable?: boolean | null;
   convexHasEverConnected: boolean;
@@ -8,16 +9,13 @@ export type ConnectivityPolicyInput = {
 };
 
 export function resolveConnectivity({
-  isAndroidReversedE2E,
   networkIsConnected,
   networkIsInternetReachable,
-  convexHasEverConnected,
   convexIsWebSocketConnected,
   convexConnectionRetries,
 }: ConnectivityPolicyInput) {
-  const isKnown =
-    convexIsWebSocketConnected ||
-    typeof networkIsConnected === 'boolean' ||
+  const networkKnown =
+    networkIsConnected === false ||
     typeof networkIsInternetReachable === 'boolean';
 
   // A live backend connection proves connectivity even when the OS reports
@@ -26,18 +24,23 @@ export function resolveConnectivity({
   const networkIsOffline =
     networkIsConnected === false || networkIsInternetReachable === false;
 
-  // Hermetic Android E2E reaches Convex through adb reverse while the AVD may
-  // report its synthetic network as unreachable. In that one test-only mode,
-  // the reversed WebSocket is the authoritative connectivity signal.
-  const reversedBackendIsOffline =
-    convexHasEverConnected &&
-    !convexIsWebSocketConnected &&
-    convexConnectionRetries > 1;
-
+  // A live backend connection contradicts a negative OS reachability probe
+  // (VPNs and captive-network probes can fail independently). Do not infer
+  // global internet access from a socket, but do not block working requests.
+  const conflict = networkIsOffline && convexIsWebSocketConnected;
+  const isOffline = networkIsOffline && !conflict;
   return {
-    isKnown,
-    isOffline: isAndroidReversedE2E
-      ? reversedBackendIsOffline
-      : networkIsOffline && !convexIsWebSocketConnected,
+    isKnown: networkKnown && !conflict,
+    isOffline,
+    networkStatus: isOffline
+      ? ('offline' as const)
+      : conflict || !networkKnown
+        ? ('unknown' as const)
+        : ('online' as const),
+    backendStatus: convexIsWebSocketConnected
+      ? ('connected' as const)
+      : convexConnectionRetries > 1
+        ? ('unavailable' as const)
+        : ('connecting' as const),
   };
 }

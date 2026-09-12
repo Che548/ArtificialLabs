@@ -4,6 +4,35 @@ import { getConfig } from '@expo/config';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
+import { nativeTabTopInset } from '../../lib/native-tab-insets';
+import { localAccountDeletionState } from '../../lib/account-deletion-state';
+
+test('changing accounts clears the previous local deletion state', () => {
+  assert.deepEqual(localAccountDeletionState(200, 100), { expired: false, pending: true, deadline: 200 });
+  for (const deadline of [undefined, 0, NaN]) {
+    assert.deepEqual(localAccountDeletionState(deadline, 100), { expired: false, pending: false, deadline: undefined });
+  }
+  assert.deepEqual(localAccountDeletionState(100, 100), { expired: true, pending: false, deadline: undefined });
+  const store = readFileSync('lib/health-store.tsx', 'utf8');
+  const startup = store.slice(store.indexOf('void initializeLocalDatabase()'), store.indexOf('}, [cachedUserId'));
+  assert.ok(startup.indexOf('claimLocalDatabaseOwner') < startup.indexOf('reloadDevicePreferences'));
+  assert.match(store, /setLocalDeletionPending\(deletion.pending\)/);
+  const gate = readFileSync('components/AppGate.tsx', 'utf8');
+  assert.match(gate, /e2e-pending-deletion-sign-out/);
+  const exit = gate.slice(gate.indexOf('const leavePendingAccount'), gate.indexOf('if \(!ready\)'));
+  assert.match(exit, /signOutInFlight.current/);
+  assert.match(exit, /await signOut\(\)/);
+  assert.doesNotMatch(exit, /restoreAccount\(|clearLocalHealthData\(|Alert\./);
+});
+
+test('native tab inset changes only regular-width modern iPads', () => {
+  assert.equal(nativeTabTopInset(24, 1032, true), 88);
+  assert.equal(nativeTabTopInset(24, 1376, true), 88);
+  assert.equal(nativeTabTopInset(100, 1032, true), 100);
+  assert.equal(nativeTabTopInset(24, 500, true), 24);
+  assert.equal(nativeTabTopInset(47, 428, false), 47);
+  assert.equal(nativeTabTopInset(24, 1032, false), 24);
+});
 
 test('iOS uses system weights without changing other platform families', () => {
   const source = readFileSync('lib/font-style.ts', 'utf8');
@@ -51,7 +80,7 @@ test('App Store identity is explicit and legacy development remains separate', (
     const release = getConfig(process.cwd()).exp;
     assert.equal(release.ios?.bundleIdentifier, 'engineering.brainwaves.sfera');
     assert.equal(release.ios?.appleTeamId, '6HZGXYF43L');
-    assert.equal(release.ios?.buildNumber, '2');
+    assert.equal(release.ios?.buildNumber, '5');
     assert.equal(release.android?.package, 'engineering.brainwaves.sfera');
     process.env.EXPO_PUBLIC_E2E_MODE = '1';
     assert.throws(() => getConfig(process.cwd()), /must not enable E2E/);

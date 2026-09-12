@@ -10,6 +10,7 @@ import type {
 } from './health-types';
 import { createEmptySnapshot } from './health-types';
 import { createChatTombstones } from './chat-deletion';
+import type { DocumentExtraction } from '../shared/document-policy';
 import type { AnonymousTelemetryEvent } from './telemetry-types';
 
 let snapshot: HealthSnapshot = {
@@ -31,6 +32,15 @@ const localSettings = new Map<string, unknown>();
 const LOCAL_SETTING_PREFIX = 'artificiallabs.setting.';
 
 export async function initializeLocalDatabase() {}
+export async function loadLocalDocumentExtraction(_documentLocalId: string): Promise<DocumentExtraction | undefined> {
+  return undefined;
+}
+export async function saveLocalDocumentExtraction(_value: DocumentExtraction): Promise<void> {
+  throw new Error('DOCUMENT_NATIVE_ONLY');
+}
+export async function saveConfirmedDocumentExtraction(_value: DocumentExtraction): Promise<void> {
+  throw new Error('DOCUMENT_NATIVE_ONLY');
+}
 export async function claimLocalDatabaseOwner(_userId: string) {
   return false;
 }

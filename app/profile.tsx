@@ -86,7 +86,11 @@ import {
   createJsonArchive,
   parseImportPayload,
 } from '../lib/data-transfer';
-import { persistLabDocument } from '../lib/local-files';
+import {
+  discardUnreferencedLabDocument,
+  persistLabDocument,
+} from '../lib/local-files';
+import { ProfileDocumentsSection } from '../components/ProfileDocumentsSection';
 import { clearPendingTelemetryEvents } from '../lib/local-database';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import type { ServiceIssue } from '../lib/service-errors';
@@ -111,9 +115,9 @@ import {
 } from '../components/ProfilePermissionDetails';
 import {
   ProfileAccountDetails,
-  ProfileContacts,
   ProfileGoalSettings,
 } from '../components/ProfileAccountDetails';
+import { ProfileContacts } from '../components/ProfileContacts';
 import { getAppVersionInfo } from '../lib/app-version';
 import { registerDiagnosticsTap } from '../lib/diagnostics-access';
 import { useUpdateManager } from '../lib/update-manager';
@@ -487,7 +491,7 @@ function ProfileContent() {
       : await DocumentPicker.getDocumentAsync({
           copyToCacheDirectory: true,
           multiple: false,
-          type: '*/*',
+          type: ['application/pdf', 'image/jpeg', 'image/png'],
         });
     const asset = e2eDocumentFixtureUri
       ? {
@@ -501,15 +505,20 @@ function ProfileContent() {
         : picked?.assets[0];
     if (!asset) return;
     const localFileUri = await persistLabDocument(asset.uri);
-    await saveDocument({
-      title: asset.name,
-      category: 'medical',
-      documentDate: Date.now(),
-      hasLocalFile: true,
-      localFileUri,
-      mimeType: asset.mimeType ?? undefined,
-      size: asset.size,
-    });
+    try {
+      await saveDocument({
+        title: asset.name,
+        category: 'medical',
+        documentDate: Date.now(),
+        hasLocalFile: true,
+        localFileUri,
+        mimeType: asset.mimeType ?? undefined,
+        size: asset.size,
+      });
+    } catch (cause) {
+      await discardUnreferencedLabDocument(localFileUri);
+      throw cause;
+    }
   };
 
   const closeSection = () => {
@@ -1643,57 +1652,13 @@ function ProfileSectionContent({
 
     case 'documents':
       return (
-        <View style={styles.medicalHistoryLayout}>
-          <ProfileActionRow
-            icon="doc.badge.plus"
-            label="Добавить документ"
-            pill
-            disabled={readOnly}
-            onPress={() => void saveDocumentFromPicker()}
-          />
-          {documents.length ? (
-            <ProfileSettingsGroup
-              title={
-                sourceDocumentId
-                  ? 'Источник ответа Ассистента'
-                  : `Сохранено: ${documentCount}`
-              }
-            >
-              {documents.map((item, index) => (
-                <ProfileSettingsRow
-                  key={item.localId}
-                  icon="doc.text.fill"
-                  fallback="Д"
-                  iconBackground={profileTones.health.tile}
-                  label={item.title}
-                  value={`${formatDate(item.documentDate)}${
-                    item.localId === sourceDocumentId ? ' · источник' : ''
-                  }`}
-                  isLast={index === documents.length - 1}
-                  onPress={() =>
-                    Alert.alert(
-                      item.title,
-                      `${formatDate(item.documentDate)} · содержимое файла не прочитано`,
-                      [
-                        { text: 'Закрыть', style: 'cancel' },
-                        {
-                          text: 'Удалить документ',
-                          style: 'destructive',
-                          onPress: () => void deleteRecord('documents', item),
-                        },
-                      ],
-                    )
-                  }
-                />
-              ))}
-            </ProfileSettingsGroup>
-          ) : (
-            <ProfileEmptyMessage
-              icon="documents"
-              title="Документы пока не добавлены"
-            />
-          )}
-        </View>
+        <ProfileDocumentsSection
+          documents={documents}
+          sourceDocumentId={sourceDocumentId}
+          readOnly={readOnly}
+          onAdd={saveDocumentFromPicker}
+          onDelete={(item) => deleteRecord('documents', item)}
+        />
       );
 
     case 'language':
@@ -1829,14 +1794,20 @@ function ProfileSectionContent({
           <ProfileContacts
             email={viewerEmail}
             phone={viewerPhone}
-            readOnly={readOnly}
-            phoneEditor={
+            disabled={readOnly}
+            onPhoneChanged={async (phone) => {
+              await saveProfile({ phone });
+            }}
+            renderPhone={(onDone) => (
               <PhoneVerificationRow
                 disabled={readOnly}
                 phone={viewerPhone}
-                onVerified={(phone) => saveProfile({ phone })}
+                onVerified={async (phone) => {
+                  await saveProfile({ phone });
+                  onDone();
+                }}
               />
-            }
+            )}
           />
           <ProfileSettingsGroup title="Аккаунт">
             <PermissionAction

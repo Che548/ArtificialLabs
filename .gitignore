@@ -75,6 +75,8 @@ infra/updates/secrets/
 # generated native folders
 /ios
 /android
+/modules/document-ocr/vendor/
+/modules/document-ocr/prebuilt/
 
 # Preserved Swift/Xcode baseline
 DerivedData/

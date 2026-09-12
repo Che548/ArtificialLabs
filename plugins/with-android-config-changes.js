@@ -9,10 +9,24 @@ const {
 function configureReleaseOptimization(contents) {
   // The default non-optimizing preset contains -dontoptimize. Keep the
   // project's/SDK's JNI and reflection rules, but allow R8 to optimize code.
-  return contents.replaceAll(
+  const optimized = contents.replaceAll(
     'getDefaultProguardFile("proguard-android.txt")',
     'getDefaultProguardFile("proguard-android-optimize.txt")',
   );
+  const reflectionRules = 'proguardFile file("../../plugins/android-reflection.pro")';
+  const withReflection = optimized.includes(reflectionRules) ? optimized : optimized.replace(
+    /(proguardFiles[^\n]+)/,
+    `$1\n            ${reflectionRules}`,
+  );
+  const marker = '// Always regenerate Expo Updates assets for the current source.';
+  if (withReflection.includes(marker)) return withReflection;
+  // SDK 54 declares the project/entry paths as inputs, not their contents.
+  // An incremental build can otherwise package the previous native fingerprint.
+  return `${withReflection}\n\n${marker}
+tasks.matching { it.name.startsWith('create') && it.name.endsWith('UpdatesResources') }.configureEach {
+    outputs.upToDateWhen { false }
+}
+`;
 }
 
 const releaseOptimizationProperties = {

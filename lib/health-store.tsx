@@ -13,6 +13,7 @@ import type { PropsWithChildren } from 'react';
 
 import { api } from '../convex/_generated/api';
 import { userIdFromAuthToken } from './auth-session';
+import { localAccountDeletionState } from './account-deletion-state';
 import type { ImportPreview } from './data-transfer';
 import {
   acknowledgeOutbox,
@@ -32,10 +33,12 @@ import {
   saveLocalSetting,
   saveAgentPlanChanges,
   saveLabResultBundle,
+  saveConfirmedDocumentExtraction,
   saveScanResultWithJournal,
   tombstoneLocalChatConversation,
   tombstoneLocalDocumentBundle,
 } from './local-database';
+import type { DocumentExtraction } from '../shared/document-policy';
 import type {
   AllergyRisk,
   AppPreferences,
@@ -135,6 +138,7 @@ type HealthStoreValue = HealthSnapshot & {
   saveMedication: (input: SavedInput<Medication>) => Promise<void>;
   saveAllergyRisk: (input: SavedInput<AllergyRisk>) => Promise<void>;
   saveDocument: (input: SavedInput<HealthDocument>) => Promise<void>;
+  confirmDocumentExtraction: (input: DocumentExtraction) => Promise<void>;
   saveConversation: (input: SavedInput<ChatConversation>) => Promise<string>;
   saveChatMessage: (input: SavedInput<ChatMessage>) => Promise<void>;
   applyCarePlanAction: (
@@ -277,28 +281,27 @@ export function HealthStoreProvider({
       await clearPendingChatOutbox();
     }
     const deadline = await loadLocalSetting<number>(DELETION_DEADLINE_SETTING);
-    if (deadline && deadline <= Date.now()) {
+    const deletion = localAccountDeletionState(deadline, Date.now());
+    if (deletion.expired) {
       await clearLocalHealthData();
       await clearLocalHealthFiles();
       await deleteLocalSetting(DELETION_DEADLINE_SETTING);
-      setLocalDeletionPending(false);
-      setLocalDeletionDeadline(undefined);
       setCloudSyncEnabledState(false);
-    } else if (deadline) {
-      setLocalDeletionPending(true);
-      setLocalDeletionDeadline(deadline);
     }
+    // Also clear the in-memory state when ownership removed the old preference.
+    setLocalDeletionPending(deletion.pending);
+    setLocalDeletionDeadline(deletion.deadline);
   }, []);
 
   useEffect(() => {
     void initializeLocalDatabase().then(async () => {
-      await reloadDevicePreferences();
       // The cached, SecureStore-backed JWT lets the same account open its
       // encrypted local database even when Convex cannot answer. A different
       // account has a different subject, so ownership is cleared before load.
       if (remoteEnabled && cachedUserId) {
         await claimLocalDatabaseOwner(cachedUserId);
       }
+      await reloadDevicePreferences();
       if (!remoteEnabled || cachedUserId) await refresh();
     });
   }, [cachedUserId, refresh, reloadDevicePreferences, remoteEnabled]);
@@ -346,7 +349,13 @@ export function HealthStoreProvider({
   useEffect(() => {
     if (!remoteSnapshot || !canUseCloud) return;
     const { profile: _profile, ...records } = remoteSnapshot;
-    void mergeRemoteSnapshot(records as never).then(refresh);
+    let active = true;
+    void mergeRemoteSnapshot(records as never).then(refresh).catch((error) => {
+      if (!active) return;
+      setServiceIssue(classifyServiceIssue(error, offlineRef.current));
+      setSyncStatus('error');
+    });
+    return () => { active = false; };
   }, [canUseCloud, refresh, remoteSnapshot]);
 
   useEffect(() => {
@@ -1109,6 +1118,11 @@ export function HealthStoreProvider({
         saveTyped('allergyRisks', 'allergy', input).then(() => undefined),
       saveDocument: (input) =>
         saveTyped('documents', 'document', input).then(() => undefined),
+      confirmDocumentExtraction: async (input) => {
+        if (readOnly) throw new Error('DOCUMENT_NATIVE_ONLY');
+        await saveConfirmedDocumentExtraction(input);
+        await refresh();
+      },
       saveConversation,
       saveChatMessage,
       applyCarePlanAction,
@@ -1152,6 +1166,7 @@ export function HealthStoreProvider({
       addLabResult,
       addScanResult,
       saveTyped,
+      refresh,
       saveConversation,
       saveChatMessage,
       applyCarePlanAction,

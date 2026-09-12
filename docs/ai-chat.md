@@ -1,8 +1,12 @@
 # Minimal Yandex AI Studio chat
 
+Explicit document interpretation has its own consent, default-off flag and
+text-only request boundary; see `document-ocr.md`. It does not reuse automatic
+chat history/context or upload files.
+
 The mobile chat calls a Convex Node action; the Expo bundle never receives the
-provider key. The action authenticates the user, checks for an active profile
-and the current Yandex disclosure consent, validates a text-only transcript,
+provider key. The action authenticates the active account, checks its chat
+preference and the current Yandex disclosure consent, validates a text-only transcript,
 applies per-user and global burst limits, and calls Yandex's OpenAI-compatible
 Responses endpoint. No medical snapshot, attachment metadata, local URI, or
 file bytes are read by the action. The provider request sets
@@ -15,6 +19,18 @@ Messages remain encrypted in the device SQLCipher database. Chat records and
 deletion tombstones are added to the Convex outbox only while medical cloud
 sync is opted in; enabling sync queues the existing chat snapshot, and
 disabling it clears pending chat outbox rows.
+
+Ordinary text chat does not require a cloud medical profile or enabling sync.
+The preference toggle never manufactures consent: the provider boundary still
+requires the explicit current disclosure consent before the first request and
+rechecks it before delivering a response. Assistant medical context still
+requires opt-in cloud sync and its separate consent. The new assistant welcome
+feed and animations coexist with the composer and preserved chat history.
+
+New native registrations can collect the disclosed chat/assistant/cloud choice
+in the existing signup checkbox and apply its owner-bound device receipt after
+email verification, without repeated dialogs. This is not an automatic grant
+for existing accounts or a sign-in side effect; see `registration-consent.md`.
 
 ## Deployment configuration
 

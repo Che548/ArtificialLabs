@@ -1,0 +1,21 @@
+appId: engineering.brainwaves.sfera
+---
+- extendedWaitUntil:
+    visible: '(?s).*Fold posture draft retained.*'
+    timeout: 30000
+- assertVisible: '(?s).*Fold posture draft retained\.\nSecond folded line\..*'
+- tapOn:
+    id: 'chat-main-input'
+# Tapping a multiline field can place the caret in any line. Verify a real edit
+# and exact preservation of the rest of the draft, without assuming caret=end.
+- copyTextFrom:
+    id: 'chat-main-input'
+- evalScript: ${output.foldOriginalDraft = maestro.copiedText}
+- inputText: ' After fold.'
+- copyTextFrom:
+    id: 'chat-main-input'
+- assertTrue: ${maestro.copiedText.length === output.foldOriginalDraft.length + ' After fold.'.length && maestro.copiedText.replace(' After fold.', '') === output.foldOriginalDraft}
+- assertVisible: 'Отправить сообщение'
+- takeScreenshot: fold-after-posture-change
+- tapOn: 'Чат'
+- runFlow: open-profile-tab.yml

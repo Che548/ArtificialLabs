@@ -52,10 +52,21 @@ export function sanitizeCloudRecord(
   entity: HealthEntityName,
   item: Record<string, unknown>,
 ) {
+  if (entity === 'documents') {
+    const allowed = ['localId', 'title', 'category', 'documentDate', 'hasLocalFile', 'mimeType', 'size',
+      'linkedLabResultLocalId', 'linkedCarePlanLocalId', 'contentIndexStatus', 'updatedAt', 'deletedAt'];
+    return Object.fromEntries(allowed.filter(key => Object.hasOwn(item, key)).map(key => [key, item[key]]));
+  }
   const {
     localImageUri: _image,
     localDocumentUri: _document,
     localFileUri: _file,
+    // Defense in depth: OCR lives outside records; never transport accidental draft fields.
+    ocrDraft: _ocrDraft,
+    extractedText: _extractedText,
+    documentExtraction: _documentExtraction,
+    editedText: _editedText,
+    pages: _ocrPages,
     ...syncable
   } = item;
   if (Array.isArray(syncable.attachments)) {
@@ -108,7 +119,7 @@ export async function synchronizeMedicalCloud({
   saveProfile: (profile: CloudProfileInput) => Promise<unknown>;
   loadPendingOutbox: () => Promise<CloudOutboxRow[]>;
   pushBatch: (batch: CloudSyncBatch) => Promise<unknown>;
-  acknowledge: (ids: number[]) => Promise<void>;
+  acknowledge: (ids: number[], sentRows: CloudOutboxRow[]) => Promise<void>;
 }) {
   await saveProfile({
     ...profile,
@@ -119,17 +130,24 @@ export async function synchronizeMedicalCloud({
   for (;;) {
     const rows = await loadPendingOutbox();
     if (!rows.length) return pushed;
-    const batch = emptyBatch();
-    for (const row of rows) {
-      batch[row.entity].push(
-        sanitizeCloudRecord(
-          row.entity,
-          row.payload as unknown as Record<string, unknown>,
-        ),
-      );
+    const agentEntities = new Set(['carePlanItems', 'agentTriggers', 'recommendationEvents']);
+    // A rejected agent rule must not roll back unrelated local-first records.
+    // Keep plan items and their evidence events together in the agent batch.
+    const groups = [
+      rows.filter((row) => !agentEntities.has(row.entity)),
+      rows.filter((row) => agentEntities.has(row.entity)),
+    ];
+    for (const group of groups) {
+      if (!group.length) continue;
+      const batch = emptyBatch();
+      for (const row of group) {
+        batch[row.entity].push(
+          sanitizeCloudRecord(row.entity, row.payload as unknown as Record<string, unknown>),
+        );
+      }
+      await pushBatch(batch);
+      await acknowledge(group.map((row) => row.id), group);
+      pushed += group.length;
     }
-    await pushBatch(batch);
-    await acknowledge(rows.map((row) => row.id));
-    pushed += rows.length;
   }
 }

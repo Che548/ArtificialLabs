@@ -1,0 +1,15 @@
+appId: engineering.brainwaves.sfera
+---
+- tapOn: 'Сферка'
+- tapOn:
+    id: 'chat-main-input'
+- assertVisible:
+    id: 'chat-main-input'
+    focused: true
+- inputText: ' Fold posture draft retained.'
+- pressKey: Enter
+- inputText: 'Second folded line.'
+- assertVisible: '(?s).*Fold posture draft retained\.\nSecond folded line\..*'
+- assertVisible: '(?s).*Fold posture draft retained.*'
+- assertVisible: 'Отправить сообщение'
+- takeScreenshot: fold-before-posture-change

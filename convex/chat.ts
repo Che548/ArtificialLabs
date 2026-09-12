@@ -171,7 +171,10 @@ export const setEnabled = mutation({
       .unique();
     const updatedAt = Date.now();
     if (existing) {
-      await ctx.db.patch(existing._id, { userEnabled: args.enabled, updatedAt });
+      await ctx.db.patch(existing._id, {
+        userEnabled: args.enabled,
+        updatedAt,
+      });
     } else {
       await ctx.db.insert('aiChatConsents', {
         userId,
@@ -266,6 +269,16 @@ export const generationAccess = internalQuery({
     const userEnabled = consent?.userEnabled ?? !consent?.revokedAt;
     if (!userEnabled) {
       return { ok: false as const, reason: 'USER_DISABLED' as const };
+    }
+    // The preference toggle is not consent to transfer text to the provider.
+    if (
+      !consent ||
+      consent.acceptedAt === undefined ||
+      consent.revokedAt ||
+      consent.provider !== AI_CHAT_CONSENT_PROVIDER ||
+      consent.policyVersion !== AI_CHAT_CONSENT_POLICY_VERSION
+    ) {
+      return { ok: false as const, reason: 'CONSENT_REQUIRED' as const };
     }
 
     return { ok: true as const };

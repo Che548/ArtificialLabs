@@ -3,6 +3,90 @@ import { describe, expect, test } from 'vitest';
 
 import { api, internal } from './_generated/api';
 import schema from './schema';
+import { reconcileCarePlan } from '../lib/care-plan';
+import { createEmptySnapshot } from '../lib/health-types';
+import { agentTriggerConflictFields, mergeAgentTriggerReplicas } from '../lib/agent-trigger-sync';
+
+function syntheticTrigger() {
+  const snapshot = createEmptySnapshot();
+  snapshot.profile = { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, updatedAt: 1 };
+  snapshot.preferences = [{ localId: 'preferences', medicalRecommendations: true, updatedAt: 1, notificationsEnabled: false, journalNotifications: false, resultNotifications: false, notificationTone: 'formal', anonymousAnalytics: false, language: 'ru', region: 'RU' }];
+  return {
+    ...reconcileCarePlan(snapshot, Date.UTC(2026, 8, 12)).triggers[0],
+    conditions: [{ field: 'preferences.medicalRecommendations' as const, operator: 'eq' as const, value: true }],
+    disengagementConditions: [{ field: 'preferences.medicalRecommendations' as const, operator: 'eq' as const, value: false }],
+  };
+}
+
+test('terminal replica states converge in either order without reactivation or policy edits', () => {
+  const base = syntheticTrigger();
+  for (const a of ['active', 'suspended', 'expired', 'completed'] as const) {
+    for (const b of ['active', 'suspended', 'expired', 'completed'] as const) {
+      const left = { ...base, status: a };
+      const right = { ...base, status: b, updatedAt: base.updatedAt + 1 };
+      const merged = mergeAgentTriggerReplicas(left, right)!;
+      expect(merged).toEqual(mergeAgentTriggerReplicas(right, left));
+      expect(mergeAgentTriggerReplicas(merged, right)).toEqual(merged);
+      if (a !== 'active' || b !== 'active') expect(merged.status).not.toBe('active');
+    }
+  }
+  expect(mergeAgentTriggerReplicas(base, { ...base, maxRuns: base.maxRuns + 1 })).toBeUndefined();
+  expect(mergeAgentTriggerReplicas(base, { ...base, conditions: [] })).toBeUndefined();
+  expect(mergeAgentTriggerReplicas(base, { ...base, nextEvaluationAt: base.nextEvaluationAt - 1 })).toBeUndefined();
+  expect(mergeAgentTriggerReplicas(base, { ...base, deletedAt: base.updatedAt })).toBeUndefined();
+  expect(agentTriggerConflictFields(base, { ...base, lastRunAt: 123, status: 'suspended' })).toEqual(['status', 'lastRunAt']);
+  const completed = { ...base, status: 'completed' as const, runCount: 1,
+    lastRunAt: base.updatedAt + 100, updatedAt: base.updatedAt + 100 };
+  const suspended = { ...base, status: 'suspended' as const, updatedAt: base.updatedAt + 200 };
+  const mergedRun = mergeAgentTriggerReplicas(completed, suspended)!;
+  expect(mergedRun.status).toBe('completed');
+  expect(mergedRun.runCount).toBe(1);
+  expect(mergedRun.lastRunAt).toBe(completed.lastRunAt);
+  expect(mergeAgentTriggerReplicas(suspended, completed)).toEqual(mergedRun);
+  expect(mergeAgentTriggerReplicas(base, { ...completed, lastRunAt: undefined })).toBeUndefined();
+  const recordedLater = { ...completed, lastRunAt: completed.lastRunAt + 40, updatedAt: completed.updatedAt + 40 };
+  const sameRun = mergeAgentTriggerReplicas(completed, recordedLater)!;
+  expect(sameRun.lastRunAt).toBe(recordedLater.lastRunAt);
+  expect(sameRun.runCount).toBe(1);
+  expect(mergeAgentTriggerReplicas(recordedLater, completed)).toEqual(sameRun);
+  expect(mergeAgentTriggerReplicas(completed, { ...recordedLater, lastRunAt: recordedLater.updatedAt + 1 })).toBeUndefined();
+  expect(mergeAgentTriggerReplicas(completed, { ...recordedLater, nextEvaluationAt: recordedLater.nextEvaluationAt + 1 })).toBeUndefined();
+});
+
+test('sync accepts terminal-state conflicts without blocking journal records or allowing changed rules', async () => {
+  const t = convexTest(schema, modules);
+  const { client } = await createUser(t, 'replica@example.test');
+  await client.mutation(api.profile.save, { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, consentToCloudSyncAt: 1, updatedAt: 2 });
+  const base = syntheticTrigger();
+  const suspended = { ...base, status: 'suspended' as const, updatedAt: base.updatedAt + 1 };
+  const expired = { ...base, status: 'expired' as const, updatedAt: base.updatedAt + 2 };
+  await client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [suspended] });
+  const batch = { ...emptyBatch(), agentTriggers: [expired], journalEntries: [{ localId: 'synthetic-note', kind: 'note' as const, label: 'Synthetic', source: 'manual' as const, occurredAt: 1, updatedAt: 1 }] };
+  await client.mutation(api.health.syncBatch, batch);
+  await client.mutation(api.health.syncBatch, batch);
+  const snapshot = (await client.query(api.health.snapshot, {}))!;
+  expect(snapshot.agentTriggers?.[0]?.status).toBe('expired');
+  expect(snapshot.journalEntries).toHaveLength(1);
+  await client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [suspended] });
+  expect((await client.query(api.health.snapshot, {}))!.agentTriggers?.[0]?.status).toBe('expired');
+  await expect(client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [{ ...expired, maxRuns: expired.maxRuns + 1, updatedAt: expired.updatedAt + 1 }] })).rejects.toThrow();
+});
+
+test('client and server timestamps for the same completed run converge through syncBatch', async () => {
+  const t = convexTest(schema, modules);
+  const { client } = await createUser(t, 'run-time@example.test');
+  await client.mutation(api.profile.save, { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, consentToCloudSyncAt: 1, updatedAt: 2 });
+  const base = syntheticTrigger();
+  const first = { ...base, status: 'completed' as const, runCount: 1, lastRunAt: base.updatedAt + 1, updatedAt: base.updatedAt + 1 };
+  const later = { ...first, lastRunAt: first.lastRunAt + 20, updatedAt: first.updatedAt + 20 };
+  for (const record of [first, later, first, later]) {
+    await client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [record] });
+  }
+  const record = (await client.query(api.health.snapshot, {}))!.agentTriggers?.[0];
+  expect(record?.lastRunAt).toBe(later.lastRunAt);
+  expect(record?.runCount).toBe(1);
+  expect(record?.status).toBe('completed');
+});
 
 const modules = import.meta.glob('./**/*.ts');
 
@@ -34,6 +118,123 @@ async function createUser(t: ReturnType<typeof convexTest>, email: string) {
 }
 
 describe('health ownership and sync', () => {
+  test('plan reminders converge after disable, enable and cloud round trips', async () => {
+    const t = convexTest(schema, modules);
+    const { client } = await createUser(t, 'plan-sync@example.test');
+    const now = Date.UTC(2026, 8, 12);
+    const snapshot = createEmptySnapshot();
+    snapshot.profile = {
+      displayName: 'Synthetic',
+      goal: 'cycle',
+      onboardingCompleted: true,
+      updatedAt: 1,
+    };
+    snapshot.preferences = [
+      {
+        localId: 'preferences',
+        medicalRecommendations: true,
+        updatedAt: 1,
+        notificationsEnabled: false,
+        journalNotifications: false,
+        resultNotifications: false,
+        notificationTone: 'formal',
+        anonymousAnalytics: false,
+        language: 'ru',
+        region: 'RU',
+      },
+    ];
+    snapshot.carePlanItems = [
+      {
+        localId: 'synthetic-plan',
+        catalogKey: 'catalog-13b9fcd436cb',
+        title: 'Synthetic',
+        category: 'test',
+        description: '',
+        status: 'upcoming',
+        riskTier: 'low',
+        dueAt: now + 90 * 86400000,
+        scheduleBasis: 'user',
+        confidence: 1,
+        provisional: false,
+        requiresClinician: true,
+        evidenceRefs: [],
+        rationale: '',
+        policyVersion: 'test',
+        catalogVersion: 'test',
+        updatedAt: 1,
+      },
+    ];
+    const syncReminders = async (at: number) => {
+      const changes = reconcileCarePlan(snapshot, at).reminders;
+      await client.mutation(api.health.syncBatch, {
+        ...emptyBatch(),
+        reminders: changes,
+      });
+      snapshot.reminders = (await client.query(
+        api.health.snapshot,
+        {},
+      ))!.reminders.map(
+        ({ _id, _creationTime, profileId, ...record }) => record,
+      );
+      return changes;
+    };
+    expect(await syncReminders(now)).toHaveLength(1);
+    for (let cycle = 1; cycle <= 2; cycle++) {
+      snapshot.preferences[0].medicalRecommendations = false;
+      expect(await syncReminders(now + cycle * 1000)).toHaveLength(1);
+      expect(snapshot.reminders[0].deletedAt).toBeDefined();
+      snapshot.preferences[0].medicalRecommendations = true;
+      expect(await syncReminders(now + cycle * 1000 + 100)).toHaveLength(1);
+      expect(snapshot.reminders[0].deletedAt).toBeUndefined();
+      expect(snapshot.reminders).toHaveLength(1);
+      expect(await syncReminders(now + cycle * 1000 + 200)).toHaveLength(0);
+    }
+  });
+
+  test('stale or duplicate plan reminder writes cannot undo newer deletion', async () => {
+    const t = convexTest(schema, modules);
+    const alice = await createUser(t, 'reminder-alice@example.test');
+    const bob = await createUser(t, 'reminder-bob@example.test');
+    const reminder = {
+      localId: 'agent-prep_test',
+      type: 'checkup' as const,
+      title: 'Synthetic',
+      body: '',
+      dueAt: 100,
+      updatedAt: 10,
+    };
+    await alice.client.mutation(api.health.syncBatch, {
+      ...emptyBatch(),
+      reminders: [{ ...reminder, deletedAt: 20, updatedAt: 20 }],
+    });
+    for (const updatedAt of [10, 20]) {
+      await alice.client.mutation(api.health.syncBatch, {
+        ...emptyBatch(),
+        reminders: [{ ...reminder, updatedAt }],
+      });
+      expect(
+        (await alice.client.query(api.health.snapshot, {}))!.reminders[0]
+          .deletedAt,
+      ).toBe(20);
+    }
+    await bob.client.mutation(api.health.syncBatch, {
+      ...emptyBatch(),
+      reminders: [{ ...reminder, updatedAt: 30 }],
+    });
+    expect(
+      (await alice.client.query(api.health.snapshot, {}))!.reminders[0]
+        .deletedAt,
+    ).toBe(20);
+    await alice.client.mutation(api.health.syncBatch, {
+      ...emptyBatch(),
+      reminders: [{ ...reminder, updatedAt: 30 }],
+    });
+    expect(
+      (await alice.client.query(api.health.snapshot, {}))!.reminders[0]
+        .deletedAt,
+    ).toBeUndefined();
+  });
+
   test('isolates complete CRUD snapshots between users', async () => {
     const t = convexTest(schema, modules);
     const alice = await createUser(t, 'alice@example.test');
@@ -344,4 +545,21 @@ describe('health ownership and sync', () => {
     expect(await t.run((ctx) => ctx.db.get(e2e.userId))).toBeNull();
     expect(await t.run((ctx) => ctx.db.get(ordinary.userId))).not.toBeNull();
   });
+});
+test('trigger immutability survives transport object-key ordering', async () => {
+  const { reconcileCarePlan, isAllowedAgentTriggerMutation } = await import('../lib/care-plan');
+  const { createEmptySnapshot } = await import('../lib/health-types');
+  const snapshot = createEmptySnapshot();
+  snapshot.profile = { displayName: 'Synthetic QA', goal: 'cycle', onboardingCompleted: true, updatedAt: Date.now() };
+  snapshot.preferences = [{ localId: 'preferences', medicalRecommendations: true, updatedAt: Date.now(), notificationsEnabled: false, journalNotifications: false, resultNotifications: false, notificationTone: 'formal', anonymousAnalytics: false, language: 'ru', region: 'RU' }];
+  const original = reconcileCarePlan(snapshot).triggers[0];
+  expect(original).toBeDefined();
+  const reordered = JSON.parse(JSON.stringify(original, (_key, value) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value));
+  expect(isAllowedAgentTriggerMutation(original, reordered)).toBe(true);
+  expect(isAllowedAgentTriggerMutation(original, { ...reordered, maxRuns: original.maxRuns + 1 })).toBe(false);
+  expect(isAllowedAgentTriggerMutation(original, { ...reordered, conditions: [{ ...reordered.conditions[0], value: false }] })).toBe(false);
+  expect(isAllowedAgentTriggerMutation(original, { ...reordered, evidenceRefs: [{ ...reordered.evidenceRefs[0], localId: 'different' }] })).toBe(false);
 });

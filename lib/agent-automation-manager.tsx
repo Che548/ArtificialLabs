@@ -13,7 +13,7 @@ import {
   releaseLocalAgentRunLease,
   tryAcquireLocalAgentRunLease,
 } from './local-database';
-import { agentTriggerIsDue, carePlanHasRequiredRanges } from './care-plan';
+import { agentTriggerIsDue } from './care-plan';
 import {
   AGENT_RETRY_DELAYS_MS,
   AGENT_STABLE_CONNECTION_MS,
@@ -62,7 +62,7 @@ function agentError(error: unknown) {
 export function AgentAutomationManager({ children }: PropsWithChildren) {
   const convex = useConvex();
   const { isAuthenticated } = useConvexAuth();
-  const { isKnown, isOffline } = useConnectivity();
+  const { isKnown, isOffline, backendStatus } = useConnectivity();
   const healthStore = useHealthStore();
   const {
     applyAgentPlanProposal,
@@ -102,6 +102,9 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
     !readOnly &&
     ready &&
     isAuthenticated &&
+    healthStore.cloudSyncEnabled &&
+    healthStore.cloudProfileReady &&
+    healthStore.profile?.onboardingCompleted &&
     !accountDeletion.pendingDeletion &&
     status?.enabled &&
     status.automationEnabled &&
@@ -128,6 +131,7 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
         inFlight: inFlight.current,
         isKnown,
         isOffline,
+        backendConnected: backendStatus === 'connected',
       })
     )
       return undefined;
@@ -184,14 +188,8 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
               recommendations: result.recommendations,
               model: result.model,
             });
-            if (
-              !proposalApplied &&
-              !carePlanHasRequiredRanges(
-                (await loadLocalSnapshot()).carePlanItems,
-              )
-            ) {
-              throw new Error('INVALID_AGENT_PLAN_PROPOSAL');
-            }
+            // A validated empty/no-op proposal is legitimate. In particular,
+            // existing accepted plans may exceed the new lower count limits.
             changed = proposalApplied || changed;
             const successfulAt = Date.now();
             await recordAgentPlanRun(
@@ -252,6 +250,7 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
     accountDeletion.pendingDeletion,
     convex,
     enabled,
+    backendStatus,
     isKnown,
     isOffline,
     planInputRevision,

@@ -1,17 +1,14 @@
-import { useMutation } from 'convex/react';
-import { api } from '../convex/_generated/api';
-import { AI_AGENT_CONSENT_POLICY_VERSION, AI_AGENT_SCOPES } from '../convex/aiAgentConfig';
-import { AI_CHAT_CONSENT_POLICY_VERSION } from '../convex/aiChatConfig';
 import {
   OnboardingPreviewFlow,
   type OnboardingFlowResult,
 } from '../design-system/onboarding-flow';
 import { useHealthStore } from '../lib/health-store';
+import { useMutation } from 'convex/react';
+import { api } from '../convex/_generated/api';
+import { pendingRegistrationConsent, clearRegistrationConsent } from '../lib/registration-consent';
 
 export function OnboardingScreen() {
-  const acceptAgentConsent = useMutation(api.chat.acceptAgentConsent);
-  const acceptChatConsent = useMutation(api.chat.acceptConsent);
-  const setAutomation = useMutation(api.agent.setAutomation);
+  const acceptRegistrationConsent = useMutation(api.registrationConsent.accept);
   const {
     completeOnboarding,
     saveMedicalCondition,
@@ -26,20 +23,21 @@ export function OnboardingScreen() {
     medicalRecommendations,
     ...profile
   }: OnboardingFlowResult) => {
-    // Initialize remote AI settings before marking onboarding complete. Failed
-    // activation stays on the final step and can be retried through its error UI.
-    await acceptChatConsent({ policyVersion: AI_CHAT_CONSENT_POLICY_VERSION });
-    await acceptAgentConsent({
-      policyVersion: AI_AGENT_CONSENT_POLICY_VERSION,
-      scopes: [...AI_AGENT_SCOPES],
+    // Only a choice actually made on this device during this account's signup
+    // may activate services. Ordinary login/recovery/legacy onboarding is local.
+    const receipt = await pendingRegistrationConsent();
+    const activation = receipt ? await acceptRegistrationConsent(receipt) : undefined;
+    await setCloudSyncEnabled(activation?.accepted === true || cloudSyncEnabled);
+    await savePreferences({
+      anonymousAnalytics,
+      medicalRecommendations: activation?.accepted === true || medicalRecommendations,
+      agentNotifications: activation?.automation === true,
     });
-    await setAutomation({ enabled: true });
-    await setCloudSyncEnabled(cloudSyncEnabled);
-    await savePreferences({ anonymousAnalytics, medicalRecommendations, agentNotifications: true });
     for (const title of medicalConditions) {
       await saveMedicalCondition({ title, status: 'active' });
     }
     await completeOnboarding(profile);
+    if (receipt) await clearRegistrationConsent();
   };
 
   return (

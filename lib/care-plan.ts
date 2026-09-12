@@ -15,17 +15,17 @@ import type {
   RecommendationEvent,
 } from './health-types';
 import { newLocalId } from './health-types';
+import { CARE_PLAN_LIMITS, withinCarePlanGrowthLimits } from '../shared/care-plan-policy';
 
 export const AGENT_POLICY_VERSION = '2026-08-20-medical-agent-v1' as const;
 export const AGENT_TRIGGER_TEMPLATE_VERSION = '2026-08-20-v1' as const;
-export const CARE_PLAN_CURRENT_MIN = 1;
-export const CARE_PLAN_CURRENT_MAX = 5;
-export const CARE_PLAN_UPCOMING_MIN = 5;
-export const CARE_PLAN_UPCOMING_MAX = 10;
+export const CARE_PLAN_CURRENT_MIN = 0;
+export const CARE_PLAN_CURRENT_MAX = CARE_PLAN_LIMITS.current;
+export const CARE_PLAN_UPCOMING_MIN = 0;
+export const CARE_PLAN_UPCOMING_MAX = CARE_PLAN_LIMITS.upcoming;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DECLINE_COOLDOWN_MS = 90 * DAY_MS;
-const MODEL_REPLACEMENT_COOLDOWN_MS = 30 * DAY_MS;
 
 function latestHealthEvidenceAt(snapshot: HealthSnapshot) {
   const confirmedLabIds = new Set(
@@ -190,11 +190,21 @@ function triggerConditionsMatch(
   return combine === 'all' ? outcomes.every(Boolean) : outcomes.some(Boolean);
 }
 
+// Convex round trips can reorder object keys. Immutability compares values,
+// not insertion order; array order and all defined fields remain significant.
+function policyValue(value: unknown) {
+  return JSON.stringify(value, (_key, entry) =>
+    entry && typeof entry === 'object' && !Array.isArray(entry)
+      ? Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a.localeCompare(b)))
+      : entry,
+  );
+}
+
 function conditionEquals(
   actual: AgentRuleCondition,
   expected: AgentRuleCondition,
 ) {
-  return JSON.stringify(actual) === JSON.stringify(expected);
+  return policyValue(actual) === policyValue(expected);
 }
 
 const recommendationOn: AgentRuleCondition = {
@@ -565,8 +575,8 @@ function allowsCompletionEvidenceAppend(
   )
     return false;
   return (
-    JSON.stringify(candidate.evidenceRefs) ===
-    JSON.stringify([...existing.evidenceRefs, additions[0]].slice(-8))
+    policyValue(candidate.evidenceRefs) ===
+    policyValue([...existing.evidenceRefs, additions[0]].slice(-8))
   );
 }
 
@@ -583,11 +593,11 @@ export function isAllowedCarePlanMutation(
   )
     return false;
   const evidenceUnchanged =
-    JSON.stringify(existing.evidenceRefs) ===
-    JSON.stringify(candidate.evidenceRefs);
+    policyValue(existing.evidenceRefs) ===
+    policyValue(candidate.evidenceRefs);
   return (
     currentImmutableKeys.every(
-      (key) => JSON.stringify(existing[key]) === JSON.stringify(candidate[key]),
+      (key) => policyValue(existing[key]) === policyValue(candidate[key]),
     ) &&
     (evidenceUnchanged || allowsCompletionEvidenceAppend(existing, candidate))
   );
@@ -642,15 +652,12 @@ export function isAllowedAgentTriggerMutation(
     existing.combine === candidate.combine &&
     existing.disengagementCombine === candidate.disengagementCombine &&
     existing.targetCarePlanLocalId === candidate.targetCarePlanLocalId &&
-    JSON.stringify(existing.conditions) ===
-      JSON.stringify(candidate.conditions) &&
-    JSON.stringify(existing.disengagementConditions) ===
-      JSON.stringify(candidate.disengagementConditions) &&
+    policyValue(existing.conditions) === policyValue(candidate.conditions) &&
+    policyValue(existing.disengagementConditions) === policyValue(candidate.disengagementConditions) &&
     existing.expiresAt === candidate.expiresAt &&
     existing.maxRuns === candidate.maxRuns &&
     existing.policyVersion === candidate.policyVersion &&
-    JSON.stringify(existing.evidenceRefs) ===
-      JSON.stringify(candidate.evidenceRefs) &&
+    policyValue(existing.evidenceRefs) === policyValue(candidate.evidenceRefs) &&
     candidate.runCount >= existing.runCount &&
     statusTransitionAllowed &&
     runMetadataAllowed &&
@@ -1409,6 +1416,7 @@ export function applyAgentPlanProposal(
   let upcomingCount = existing.filter(
     (item) => item.status === 'upcoming',
   ).length;
+  const previousCounts = { current: currentCount, upcoming: upcomingCount };
   const items: CarePlanItem[] = [];
   const events: RecommendationEvent[] = [];
 
@@ -1434,74 +1442,7 @@ export function applyAgentPlanProposal(
     },
   );
 
-  const desiredKeys = new Set(recommendations.map((item) => item.entry.key));
-  const unused = recommendations.filter(
-    (item) =>
-      !existingKeys.has(item.entry.key) && item.recommendation.monthOffset > 0,
-  );
-  for (const original of existing
-    .filter(
-      (item) =>
-        item.status === 'upcoming' &&
-        item.scheduleBasis === 'model_inference' &&
-        !desiredKeys.has(item.catalogKey) &&
-        now - (item.lastModelReplacementAt ?? 0) >=
-          MODEL_REPLACEMENT_COOLDOWN_MS,
-    )
-    .sort((left, right) => left.confidence - right.confidence)) {
-    const candidateIndex = unused.findIndex(
-      ({ entry, recommendation, refs }) =>
-        recommendation.confidence > original.confidence &&
-        !completedCarePlanBlocksModelRecommendation(
-          snapshot.carePlanItems,
-          entry.key,
-          inFollowingMonth(now, recommendation.monthOffset),
-        ) &&
-        refs.some(
-          (ref) =>
-            (ref.source === 'journal' ||
-              ref.source === 'test' ||
-              ref.source === 'chat' ||
-              ref.source === 'document') &&
-            (ref.occurredAt ?? 0) > original.updatedAt,
-        ),
-    );
-    if (candidateIndex < 0) continue;
-    const [{ entry, recommendation, refs }] = unused.splice(candidateIndex, 1);
-    const replacement = recommendationFromEntry({
-      entry,
-      evidenceRefs: refs,
-      goal: snapshot.profile.goal,
-      now,
-      status: 'upcoming',
-      upcomingIndex: Math.max(0, recommendation.monthOffset - 1),
-      confidence: recommendation.confidence,
-      rationale: recommendation.rationale.slice(0, 700),
-    });
-    replacement.model = proposal.model;
-    replacement.lastModelReplacementAt = now;
-    if (!validateCarePlanItem(replacement)) continue;
-    const superseded: CarePlanItem = {
-      ...original,
-      status: 'superseded',
-      supersededAt: now,
-      lastModelReplacementAt: now,
-      updatedAt: now,
-    };
-    items.push(superseded, replacement);
-    events.push(
-      eventFor(
-        superseded,
-        'replaced',
-        'NEW_EVIDENCE_SUPPORTED_BETTER_CANDIDATE',
-        now,
-        'upcoming',
-      ),
-      eventFor(replacement, 'created', 'MODEL_REPLACEMENT_VALIDATED', now),
-    );
-    existingKeys.delete(original.catalogKey);
-    existingKeys.add(entry.key);
-  }
+  // Model proposals add suggestions; replacing an existing plan requires user confirmation.
 
   for (const { entry, recommendation, refs } of recommendations) {
     if (existingKeys.has(entry.key)) continue;
@@ -1554,12 +1495,7 @@ export function applyAgentPlanProposal(
       eventFor(item, 'created', 'MODEL_PLAN_PROPOSAL_VALIDATED', now),
     );
   }
-  if (
-    currentCount < CARE_PLAN_CURRENT_MIN ||
-    currentCount > CARE_PLAN_CURRENT_MAX ||
-    upcomingCount < CARE_PLAN_UPCOMING_MIN ||
-    upcomingCount > CARE_PLAN_UPCOMING_MAX
-  )
+  if (!withinCarePlanGrowthLimits(currentCount, upcomingCount, previousCounts))
     return { items: [], events: [] };
   return { items, events };
 }

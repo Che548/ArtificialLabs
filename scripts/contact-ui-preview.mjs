@@ -10,12 +10,23 @@ const ctx = await context({
   outfile: `${out}/bundle.js`,
   jsx: 'automatic',
   alias: {
+    '@convex-dev/auth/react': path.resolve('tests/contact-ui/auth.ts'),
     'convex/react': path.resolve('tests/contact-ui/client.ts'),
     'react-native': 'react-native-web',
     'react-native-safe-area-context': path.resolve(
       'tests/contact-ui/safe-area.ts',
     ),
   },
+  plugins: [
+    {
+      name: 'fixture-native-sms',
+      setup(build) {
+        build.onResolve({ filter: /\/sms-otp-retriever$/ }, () => ({
+          path: path.resolve('tests/contact-ui/sms.ts'),
+        }));
+      },
+    },
+  ],
   define: { 'process.env.NODE_ENV': '"development"' },
 });
 await ctx.serve({ host: '127.0.0.1', port: 4321, servedir: out });

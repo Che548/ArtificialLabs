@@ -14,6 +14,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../convex/_generated/api';
 import type { Id } from '../convex/_generated/dataModel';
+import { contactMessage } from './LoginEmailVerification';
+import { otpAutofillProps } from '../lib/otp-autofill';
+import { listenForSmsOtp, startSmsRetriever } from '../lib/sms-otp-retriever';
 
 export function emailChangeError(error: unknown) {
   const message = String(error);
@@ -212,16 +215,199 @@ function EmailChangeForm({
   );
 }
 
+function PhoneChangeForm({
+  onDone,
+}: {
+  onDone: (phone: string) => Promise<void>;
+}) {
+  const request = useAction(api.phoneChange.request),
+    resend = useAction(api.phoneChange.resend),
+    confirm = useAction(api.phoneChange.confirm);
+  const [phone, setPhone] = useState('+7'),
+    [password, setPassword] = useState(''),
+    [code, setCode] = useState('');
+  const [challenge, setChallenge] = useState<{
+    challengeId: Id<'contactVerificationChallenges'>;
+    expiresAt: number;
+    retryAt: number;
+    deliveryFailed?: boolean;
+  }>();
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState(''),
+    [now, setNow] = useState(Date.now());
+  const lock = useRef(false),
+    input = useRef<TextInput>(null);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (challenge && !busy) input.current?.focus();
+  }, [challenge, busy]);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = listenForSmsOtp(setCode);
+    return () => subscription?.remove();
+  }, []);
+  const run = async (operation: 'request' | 'resend' | 'confirm') => {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      if (Platform.OS !== 'ios' && Platform.OS !== 'android')
+        throw new Error('NATIVE_REQUIRED');
+      if (operation === 'confirm' && challenge) {
+        const result = await confirm({
+          challengeId: challenge.challengeId,
+          code,
+        });
+        setCode('');
+        await onDone(result.phone);
+      } else {
+        await startSmsRetriever();
+        const result =
+          operation === 'resend' && challenge
+            ? await resend({
+                challengeId: challenge.challengeId,
+                platform: Platform.OS,
+              })
+            : await request({
+                newPhone: phone,
+                currentPassword: password,
+                platform: Platform.OS,
+              });
+        setChallenge(result);
+        setPassword('');
+        setCode('');
+        setNow(Date.now());
+        if (result.deliveryFailed)
+          setError('SMS пока не отправлено. Повторите после таймера.');
+      }
+    } catch (cause) {
+      setError(contactMessage(cause));
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  };
+  const expired = challenge && now >= challenge.expiresAt;
+  return (
+    <View style={styles.form}>
+      <Text style={styles.help}>
+        {challenge
+          ? 'Введите SMS-код на новый номер. Старый номер пока не изменён.'
+          : 'Подтвердите смену текущим паролем и SMS на новый номер.'}
+      </Text>
+      {!challenge ? (
+        <>
+          <TextInput
+            testID="phone-change-number"
+            accessibilityLabel="Новый номер телефона"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            editable={!busy}
+            style={styles.input}
+          />
+          <TextInput
+            testID="phone-change-password"
+            accessibilityLabel="Текущий пароль"
+            placeholder="Текущий пароль"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!busy}
+            style={styles.input}
+          />
+        </>
+      ) : (
+        <TextInput
+          ref={input}
+          testID="phone-change-code"
+          accessibilityLabel="Код из SMS"
+          value={code}
+          onChangeText={(value) =>
+            setCode(value.replace(/\D/g, '').slice(0, 6))
+          }
+          maxLength={6}
+          keyboardType="number-pad"
+          {...otpAutofillProps(Platform.OS)}
+          editable={!busy}
+          style={styles.input}
+        />
+      )}
+      {!!error && (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {error}
+        </Text>
+      )}
+      {expired && (
+        <Text style={styles.error}>Срок кода истёк. Запросите новый код.</Text>
+      )}
+      <Pressable
+        testID="phone-change-submit"
+        accessibilityRole="button"
+        disabled={
+          busy ||
+          (challenge ? !!expired || code.length !== 6 : !phone || !password)
+        }
+        onPress={() => void run(challenge ? 'confirm' : 'request')}
+        style={styles.primary}
+      >
+        <Text style={styles.primaryText}>
+          {busy ? 'Подождите…' : challenge ? 'Подтвердить' : 'Получить SMS'}
+        </Text>
+      </Pressable>
+      {challenge && (
+        <>
+          <Pressable
+            testID="phone-change-resend"
+            accessibilityRole="button"
+            disabled={busy || now < challenge.retryAt}
+            onPress={() => void run('resend')}
+            style={styles.action}
+          >
+            <Text style={styles.link}>
+              {now < challenge.retryAt
+                ? `Повторно через ${Math.ceil((challenge.retryAt - now) / 1000)} сек.`
+                : 'Отправить SMS повторно'}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => {
+              setChallenge(undefined);
+              setCode('');
+              setPassword('');
+              setError('');
+            }}
+            style={styles.action}
+          >
+            <Text style={styles.link}>Начать заново</Text>
+          </Pressable>
+        </>
+      )}
+    </View>
+  );
+}
+
 export function ProfileContacts({
   email,
   phone,
   disabled,
   renderPhone,
+  onPhoneChanged,
 }: {
   email?: string;
   phone?: string;
   disabled: boolean;
   renderPhone: (onDone: () => void) => ReactNode;
+  onPhoneChanged?: (phone: string) => Promise<void>;
 }) {
   const [modal, setModal] = useState<'phone' | 'email' | null>(null);
   const [notice, setNotice] = useState('');
@@ -253,10 +439,10 @@ export function ProfileContacts({
             <Text style={styles.value}>Телефон</Text>
             <Text style={styles.help}>{phone ?? 'Не добавлен'}</Text>
           </View>
-          {!phone && (
+          {
             <Pressable
               accessibilityRole="button"
-              testID="profile-add-phone"
+              testID={phone ? 'profile-change-phone' : 'profile-add-phone'}
               disabled={disabled}
               onPress={() => {
                 setNotice('');
@@ -264,9 +450,9 @@ export function ProfileContacts({
               }}
               style={styles.action}
             >
-              <Text style={styles.link}>Добавить</Text>
+              <Text style={styles.link}>{phone ? 'Изменить' : 'Добавить'}</Text>
             </Pressable>
-          )}
+          }
         </View>
       </View>
       <Text style={styles.help}>
@@ -295,7 +481,11 @@ export function ProfileContacts({
             >
               <View style={styles.row}>
                 <Text accessibilityRole="header" style={styles.title}>
-                  {modal === 'phone' ? 'Добавить телефон' : 'Изменить почту'}
+                  {modal === 'phone'
+                    ? phone
+                      ? 'Изменить телефон'
+                      : 'Добавить телефон'
+                    : 'Изменить почту'}
                 </Text>
                 <Pressable
                   testID="contact-modal-close"
@@ -311,10 +501,20 @@ export function ProfileContacts({
                 contentContainerStyle={{ paddingBottom: 16 }}
               >
                 {modal === 'phone' ? (
-                  renderPhone(() => {
-                    close();
-                    setNotice('Телефон подтверждён.');
-                  })
+                  phone ? (
+                    <PhoneChangeForm
+                      onDone={async (newPhone) => {
+                        await onPhoneChanged?.(newPhone);
+                        close();
+                        setNotice('Телефон изменён.');
+                      }}
+                    />
+                  ) : (
+                    renderPhone(() => {
+                      close();
+                      setNotice('Телефон подтверждён.');
+                    })
+                  )
                 ) : (
                   <EmailChangeForm
                     email={email}

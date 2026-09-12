@@ -4,6 +4,8 @@ import { LegalDocumentsModal } from './LegalDocumentsModal';
 import type { LegalDocumentSelection } from '../lib/legal-documents';
 import { BrandLogo } from './BrandLogo';
 import { fontStyle } from '../lib/font-style';
+import { getRandomBytes } from 'expo-crypto';
+import { LoginEmailVerification, parseLoginEmailChallenge, type LoginEmailChallenge } from './LoginEmailVerification';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useAction } from 'convex/react';
 import { StatusBar } from 'expo-status-bar';
@@ -20,7 +22,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -32,6 +33,7 @@ import { useConnectivity } from '../lib/connectivity';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import { classifyServiceIssue } from '../lib/service-errors';
 import { listenForSmsOtp, startSmsRetriever } from '../lib/sms-otp-retriever';
+import { rememberRegistrationConsent, clearRegistrationConsent } from '../lib/registration-consent';
 
 type AuthChannel = 'email' | 'phone';
 type AuthFlow = 'signIn' | 'signUp';
@@ -216,6 +218,8 @@ export function AuthScreen({
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const [emailChallenge, setEmailChallenge] = useState<LoginEmailChallenge>();
+  const loginLock = useRef(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState('');
   const [recoveryStep, setRecoveryStep] = useState<'identifier' | 'code'>(
@@ -368,11 +372,15 @@ export function AuthScreen({
         data.append('flow', 'signIn');
       }
       data.append('password', password);
+      const emailTicketToken = Array.from(getRandomBytes(32), byte => byte.toString(16).padStart(2, '0')).join('');
+      data.append('emailTicketToken', emailTicketToken);
       try {
         await signIn(channel === 'phone' ? 'phone-password' : 'password', data);
         onAuthenticated?.();
-      } catch {
+      } catch (cause) {
         cancelRecovery();
+        const pending = parseLoginEmailChallenge(cause, emailTicketToken);
+        if (pending) { setEmailChallenge(pending); setPassword(''); setPasswordConfirmation(''); setFlow('signIn'); return; }
         setError('Пароль изменён. Войдите с новым паролем.');
       }
     } catch (cause) {
@@ -384,7 +392,7 @@ export function AuthScreen({
   };
 
   const submit = async () => {
-    if (phoneRegistrationUnavailable || !canSubmit || submitting) {
+    if (phoneRegistrationUnavailable || !canSubmit || submitting || loginLock.current) {
       return;
     }
 
@@ -417,13 +425,27 @@ export function AuthScreen({
       data.append('flow', flow);
     }
     data.append('password', password);
+    const emailTicketToken = Array.from(getRandomBytes(32), byte => byte.toString(16).padStart(2, '0')).join('');
+    data.append('emailTicketToken', emailTicketToken);
+    loginLock.current = true;
     setSubmitting(true);
 
     try {
+      if (flow === 'signUp' && channel === 'email' && personalDataConsent && agreementAccepted) {
+        await rememberRegistrationConsent(normalizedIdentifier);
+      }
       await signIn(channel === 'phone' ? 'phone-password' : 'password', data);
       onAuthenticated?.();
     } catch (cause) {
-      console.error('Authentication failed', cause);
+      const pending = parseLoginEmailChallenge(cause, emailTicketToken);
+      if (pending) {
+        setEmailChallenge(pending);
+        setPassword('');
+        setPasswordConfirmation('');
+        setFlow('signIn');
+        return;
+      }
+      if (flow === 'signUp') await clearRegistrationConsent();
       const issue = classifyServiceIssue(cause, isOffline);
       setError(
         issue.retryable
@@ -433,6 +455,7 @@ export function AuthScreen({
             : 'Не удалось создать аккаунт. Возможно, email уже используется.',
       );
     } finally {
+      loginLock.current = false;
       setSubmitting(false);
     }
   };
@@ -456,6 +479,9 @@ export function AuthScreen({
 
   return (
     <View style={styles.root}>
+      {emailChallenge && <LoginEmailVerification initial={emailChallenge}
+        onClose={() => { setEmailChallenge(undefined); setPassword(''); setPasswordConfirmation(''); }}
+        onDone={() => { setEmailChallenge(undefined); onAuthenticated?.(); }} />}
       {preview ? null : <StatusBar hidden />}
       <LegalDocumentsModal selection={legalDocument} onClose={() => setLegalDocument(null)} />
       <View
@@ -477,16 +503,18 @@ export function AuthScreen({
             },
           ]}
         >
-          <TouchableWithoutFeedback
-            accessible={false}
-            onPress={Keyboard.dismiss}
-            touchSoundDisabled
-          >
+          <View style={styles.canvas}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.canvas}
             >
-              <View style={styles.content}>
+              {/* Keep keyboard dismissal behind the form so it cannot claim scroll gestures. */}
+              <Pressable
+                accessible={false}
+                onPress={Keyboard.dismiss}
+                style={StyleSheet.absoluteFill}
+              />
+              <View pointerEvents="box-none" style={styles.content}>
                 {devLoginEnabled ? (
                   <View style={styles.devLoginSlot}>
                     <Pressable
@@ -660,15 +688,18 @@ export function AuthScreen({
                 ) : null}
 
                 {flow === 'signUp' && !recoveryMode ? (
+                  <View style={styles.consents}>
                   <ScrollView
-                    style={styles.consents}
+                    style={styles.consentScroll}
                     contentContainerStyle={styles.consentContent}
                     keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    nestedScrollEnabled
                   >
                     <View style={styles.consentRow}>
                       <Checkbox
                         checked={personalDataConsent}
-                        label="Ознакомление с политикой обработки персональных данных"
+                        label="Согласие на обработку данных, облачную синхронизацию и ИИ Яндекс AI Studio"
                         testID="e2e-auth-consent-personal"
                         onPress={() =>
                           setPersonalDataConsent((current) => !current)
@@ -677,6 +708,15 @@ export function AuthScreen({
                       <Text
                         style={[styles.consentText, styles.personalConsentText]}
                       >
+                        Я даю согласие ООО «БРЭЙНВЕЙВС ИНЖИНИРИНГ» на обработку моих
+                        персональных данных для работы приложения. На этом устройстве
+                        будут включены облачная синхронизация и ИИ: тексты чатов и
+                        сведения профиля, дневника, анализов, плана и подтверждённые
+                        сведения о документах могут передаваться Яндекс AI Studio
+                        для ответов и автоматического подбора рекомендаций.
+                        Исходные фото, PDF и непроверенный текст распознавания не
+                        передаются. Отключить ИИ и синхронизацию можно в профиле.
+                        Отдельная интерпретация документов требует отдельного выбора.
                         Я ознакомлен(а) с{' '}
                         <LegalLink onPress={() => setLegalDocument('privacy')}>
                           Политикой обработки персональных данных
@@ -703,6 +743,7 @@ export function AuthScreen({
                       </Text>
                     </View>
                   </ScrollView>
+                  </View>
                 ) : null}
 
                 {visibleError ? (
@@ -771,7 +812,7 @@ export function AuthScreen({
                 </Pressable>
               </View>
             </KeyboardAvoidingView>
-          </TouchableWithoutFeedback>
+          </View>
         </View>
       </View>
     </View>
@@ -902,6 +943,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   consentContent: {
     gap: 18,
     paddingVertical: 4,
+  },
+  consentScroll: {
+    flex: 1,
   },
   consentRow: {
     width: 349,

@@ -9,8 +9,9 @@ The Assistant can search encrypted local journal entries, confirmed structured
 test results, document metadata, chat history, and the current care plan. Journal
 entries from the latest 30 days are included by default. Older entries are only
 returned by explicit search and are labelled with their age. Documents are
-metadata-only in this release: PDF/image extraction and OCR are intentionally
-not implemented, and original files never leave the device.
+metadata-only in automatic Assistant context. The separate local OCR workflow
+is described in `document-ocr.md`; OCR text and original files never enter
+automatic Assistant context or cloud snapshots.
 
 Autonomous plan review is disabled by default. When enabled by both deployment
 flags and the user setting, the app waits for 30 seconds of stable connectivity
@@ -25,6 +26,13 @@ from Assistant-mode conversations and category/date metadata for newly added
 documents. Ordinary chats, model answers, document titles, paths, bytes, and
 contents are excluded; these signals are unverified and cannot alone create a
 Current card.
+
+New proposals share `CARE_PLAN_LIMITS`: at most 3 current and 5 future items.
+Zero/partial proposals are valid. Invalid responses do not fall back to random
+catalogue selections. Existing plans above the limits are not truncated and
+model review no longer supersedes future items automatically. Replacement
+requires the explicit user-confirmed workflow. Recommendations are for
+discussion with a clinician, not prescriptions.
 
 Configure these values only in the Convex deployment environment:
 

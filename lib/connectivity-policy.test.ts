@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { resolveConnectivity } from './connectivity-policy';
+import { mayScheduleAgentCatchUp } from './agent-automation-policy';
 
 const connected = {
   isAndroidReversedE2E: false,
@@ -12,6 +13,15 @@ const connected = {
   convexConnectionRetries: 0,
 };
 
+test('opted-in background catch-up can use a proven backend despite an uncertain OS probe', () => {
+  const state = resolveConnectivity({ ...connected, networkIsInternetReachable: false });
+  const input = { ...state, backendConnected: state.backendStatus === 'connected', enabled: true, inFlight: false };
+  assert.equal(mayScheduleAgentCatchUp(input), true);
+  assert.equal(mayScheduleAgentCatchUp({ ...input, enabled: false }), false);
+  assert.equal(mayScheduleAgentCatchUp({ ...input, inFlight: true }), false);
+  assert.equal(mayScheduleAgentCatchUp({ ...input, isKnown: false, backendConnected: false }), false);
+});
+
 test('does not report no internet when only Convex is unavailable', () => {
   assert.deepEqual(
     resolveConnectivity({
@@ -19,7 +29,12 @@ test('does not report no internet when only Convex is unavailable', () => {
       convexIsWebSocketConnected: false,
       convexConnectionRetries: 10,
     }),
-    { isKnown: true, isOffline: false },
+    {
+      isKnown: true,
+      isOffline: false,
+      networkStatus: 'online',
+      backendStatus: 'unavailable',
+    },
   );
 });
 
@@ -29,57 +44,64 @@ test('reports offline when the device network is unavailable', () => {
       ...connected,
       networkIsInternetReachable: false,
       convexIsWebSocketConnected: false,
-    })
-      .isOffline,
+    }).isOffline,
     true,
   );
 });
 
-test('a live backend overrides negative OS network signals', () => {
-  for (const signals of [
-    { networkIsConnected: false },
-    { networkIsInternetReachable: false },
-    { networkIsConnected: false, networkIsInternetReachable: false },
-  ]) {
-    assert.deepEqual(resolveConnectivity({ ...connected, ...signals }), {
-      isKnown: true,
-      isOffline: false,
-    });
-  }
+test('a working backend contradicts a failed OS internet probe', () => {
+  const result = resolveConnectivity({
+    ...connected,
+    networkIsInternetReachable: false,
+  });
+  assert.equal(result.isOffline, false);
+  assert.equal(result.isKnown, false);
+  assert.equal(result.networkStatus, 'unknown');
+  assert.equal(result.backendStatus, 'connected');
 });
 
-test('unknown network stays unknown until a connection is established', () => {
-  const unknown = {
+test('startup unknown is not offline and reconnect clears offline', () => {
+  assert.equal(
+    resolveConnectivity({ ...connected, networkIsInternetReachable: undefined })
+      .networkStatus,
+    'unknown',
+  );
+  const initial = resolveConnectivity({
     ...connected,
     networkIsConnected: undefined,
-    networkIsInternetReachable: null,
+    networkIsInternetReachable: undefined,
     convexHasEverConnected: false,
     convexIsWebSocketConnected: false,
-  };
-  assert.deepEqual(resolveConnectivity(unknown), { isKnown: false, isOffline: false });
-  assert.deepEqual(
-    resolveConnectivity({ ...unknown, convexIsWebSocketConnected: true }),
-    { isKnown: true, isOffline: false },
-  );
-});
-
-test('reconnecting clears offline even if OS reachability remains negative', () => {
-  const offline = {
-    ...connected,
-    networkIsConnected: false,
-    convexIsWebSocketConnected: false,
-    convexConnectionRetries: 3,
-  };
-  assert.equal(resolveConnectivity(offline).isOffline, true);
+  });
+  assert.equal(initial.isOffline, false);
+  assert.equal(initial.networkStatus, 'unknown');
+  assert.equal(initial.backendStatus, 'connecting');
   assert.equal(
-    resolveConnectivity({ ...offline, convexIsWebSocketConnected: true }).isOffline,
-    false,
+    resolveConnectivity({
+      ...connected,
+      networkIsConnected: false,
+      convexIsWebSocketConnected: false,
+    }).isOffline,
+    true,
   );
-  // A previous successful connection does not hide a later real disconnection.
-  assert.equal(resolveConnectivity(offline).isOffline, true);
+  assert.equal(resolveConnectivity(connected).isOffline, false);
 });
 
-test('uses the reversed Convex connection only in hermetic Android E2E', () => {
+test('legacy E2E flag cannot change production connectivity semantics', () => {
+  for (const networkIsInternetReachable of [true, false, undefined]) {
+    for (const convexIsWebSocketConnected of [true, false]) {
+      const input = {
+        ...connected,
+        networkIsInternetReachable,
+        convexIsWebSocketConnected,
+        convexConnectionRetries: 2,
+      };
+      assert.deepEqual(
+        resolveConnectivity({ ...input, isAndroidReversedE2E: true }),
+        resolveConnectivity({ ...input, isAndroidReversedE2E: false }),
+      );
+    }
+  }
   assert.equal(
     resolveConnectivity({
       ...connected,

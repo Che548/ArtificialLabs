@@ -15,3 +15,15 @@ appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
     commands:
       - tapOn: 'http://localhost:.*'
       - waitForAnimationToEnd
+# A cold iOS launcher can present the URL confirmation a second time after
+# the first optional tap. Handle it before the auth flow starts waiting.
+- repeat:
+    times: 2
+    commands:
+      - tapOn:
+          text: 'Open'
+          optional: true
+      - tapOn:
+          text: 'http://localhost:.*'
+          optional: true
+      - waitForAnimationToEnd

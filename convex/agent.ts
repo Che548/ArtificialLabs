@@ -26,6 +26,7 @@ import {
   validateAgentTrigger,
 } from '../lib/care-plan';
 import { ANALYSIS_CATALOG_VERSION } from '../lib/analysis-catalog';
+import { CARE_PLAN_LIMITS, withinCarePlanGrowthLimits } from '../shared/care-plan-policy';
 import type {
   AgentSourceRef,
   AgentTrigger,
@@ -1135,14 +1136,9 @@ export const applySyncedPlanProposal = internalMutation({
     let upcomingCount = active.filter(
       (item) => item.status === 'upcoming',
     ).length;
+    const previousCounts = { current: currentCount, upcoming: upcomingCount };
     const stagedItems: CarePlanItem[] = [];
     const stagedEvents: RecommendationEvent[] = [];
-    const promotedIds = new Set<string>();
-    const desiredKeys = new Set(recommendations.map((item) => item.entry.key));
-    const unused = recommendations.filter(
-      (item) =>
-        !keys.has(item.entry.key) && item.recommendation.monthOffset > 0,
-    );
     let sequence = 0;
 
     const currentMonthEnd = scheduledPlanDueAt(
@@ -1166,7 +1162,7 @@ export const applySyncedPlanProposal = internalMutation({
       .sort(
         (left, right) => (left.dueAt ?? Infinity) - (right.dueAt ?? Infinity),
       )) {
-      if (currentCount >= 5) break;
+      if (currentCount >= CARE_PLAN_LIMITS.current) break;
       const promoted: CarePlanItem = {
         ...(original as unknown as CarePlanItem),
         status: 'current',
@@ -1188,119 +1184,12 @@ export const applySyncedPlanProposal = internalMutation({
           now: args.now,
         }),
       );
-      promotedIds.add(original.localId);
       currentCount += 1;
       upcomingCount -= 1;
       sequence += 1;
     }
 
-    for (const original of active
-      .filter(
-        (item) =>
-          !promotedIds.has(item.localId) &&
-          item.status === 'upcoming' &&
-          item.scheduleBasis === 'model_inference' &&
-          !desiredKeys.has(item.catalogKey) &&
-          args.now - (item.lastModelReplacementAt ?? 0) >= 30 * DAY_MS,
-      )
-      .sort((left, right) => left.confidence - right.confidence)) {
-      const candidateIndex = unused.findIndex(
-        ({ entry, recommendation, refs }) =>
-          Boolean(
-            recommendation.confidence > original.confidence &&
-            !completedCarePlanBlocksModelRecommendation(
-              existing as unknown as CarePlanItem[],
-              entry.key,
-              scheduledPlanDueAt(
-                args.now,
-                recommendation.monthOffset,
-                false,
-                timezoneOffsetMinutes,
-              ),
-            ) &&
-            refs.some(
-              (ref) =>
-                (ref.source === 'journal' || ref.source === 'test') &&
-                (ref.occurredAt ?? 0) > original.updatedAt,
-            ),
-          ),
-      );
-      if (candidateIndex < 0) continue;
-      const [{ entry, recommendation, rationale, refs }] = unused.splice(
-        candidateIndex,
-        1,
-      );
-      const superseded: CarePlanItem = {
-        ...(original as unknown as CarePlanItem),
-        status: 'superseded',
-        supersededAt: args.now,
-        lastModelReplacementAt: args.now,
-        updatedAt: args.now,
-      };
-      const dueAt = scheduledPlanDueAt(
-        args.now,
-        recommendation.monthOffset,
-        false,
-        timezoneOffsetMinutes,
-      );
-      const replacement: CarePlanItem = {
-        localId: `care-plan_${args.requestId}_r${sequence}`,
-        catalogKey: entry.key,
-        title: entry.title,
-        category: entry.category,
-        description: entry.specimen,
-        status: 'upcoming',
-        riskTier: entry.riskTier,
-        dueAt,
-        dueWindowStart: dueAt - 14 * DAY_MS,
-        dueWindowEnd: dueAt + 14 * DAY_MS,
-        scheduleBasis: 'model_inference',
-        confidence: recommendation.confidence,
-        provisional: true,
-        requiresClinician: entry.requiresClinician,
-        lastModelReplacementAt: args.now,
-        evidenceRefs: (refs.length ? refs : [goalRef]).map((ref) => ({
-          ...ref,
-          label: ref.source,
-        })),
-        rationale,
-        policyVersion: AGENT_POLICY_VERSION,
-        catalogVersion: ANALYSIS_CATALOG_VERSION,
-        model: args.model,
-        illustrationKey: entry.illustrationKey,
-        updatedAt: args.now,
-      };
-      if (!validateCarePlanItem(replacement)) continue;
-      stagedItems.push(superseded, replacement);
-      stagedEvents.push(
-        scheduledEvent({
-          localId: `recommendation-event_${args.requestId}_rs${sequence}`,
-          carePlanLocalId: original.localId,
-          triggerLocalId: trigger.localId,
-          type: 'replaced',
-          reasonCode: 'NEW_EVIDENCE_SUPPORTED_BETTER_CANDIDATE',
-          beforeStatus: 'upcoming',
-          afterStatus: 'superseded',
-          evidenceRefs: refs,
-          model: args.model,
-          now: args.now,
-        }),
-        scheduledEvent({
-          localId: `recommendation-event_${args.requestId}_rn${sequence}`,
-          carePlanLocalId: replacement.localId,
-          triggerLocalId: trigger.localId,
-          type: 'created',
-          reasonCode: 'SYNCED_MODEL_REPLACEMENT_VALIDATED',
-          afterStatus: 'upcoming',
-          evidenceRefs: replacement.evidenceRefs,
-          model: args.model,
-          now: args.now,
-        }),
-      );
-      keys.delete(original.catalogKey);
-      keys.add(entry.key);
-      sequence += 1;
-    }
+  // Model proposals add suggestions; replacing an existing plan requires user confirmation.
 
     for (const { entry, recommendation, rationale, refs } of recommendations) {
       if (keys.has(entry.key)) continue;
@@ -1310,8 +1199,8 @@ export const applySyncedPlanProposal = internalMutation({
         entry.riskTier === 'low' &&
         !entry.requiresClinician &&
         !entry.riskFlags.length &&
-        currentCount < 5;
-      if (!current && upcomingCount >= 10) continue;
+        currentCount < CARE_PLAN_LIMITS.current;
+      if (!current && upcomingCount >= CARE_PLAN_LIMITS.upcoming) continue;
       const dueAt = scheduledPlanDueAt(
         args.now,
         recommendation.monthOffset,
@@ -1372,12 +1261,7 @@ export const applySyncedPlanProposal = internalMutation({
       sequence += 1;
     }
 
-    if (
-      currentCount < 1 ||
-      currentCount > 5 ||
-      upcomingCount < 5 ||
-      upcomingCount > 10
-    )
+    if (!withinCarePlanGrowthLimits(currentCount, upcomingCount, previousCounts))
       return { applied: 0 };
 
     for (const item of stagedItems) {

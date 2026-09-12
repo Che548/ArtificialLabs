@@ -5,3 +5,10 @@
 node_modules/expo-updates/expo-updates-gradle-plugin/.gradle/**/*
 node_modules/expo-updates/expo-updates-gradle-plugin/.kotlin/**/*
 node_modules/expo-updates/expo-updates-gradle-plugin/build/**/*
+
+# The lockfile and module source describe these native inputs deterministically.
+# Generated dependency trees/frameworks differ between local build and clean export.
+modules/document-ocr/vendor/**/*
+modules/document-ocr/prebuilt/**/*
+modules/document-ocr/android/.cxx/**/*
+modules/document-ocr/android/build/**/*
