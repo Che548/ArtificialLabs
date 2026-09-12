@@ -148,6 +148,10 @@ export function DocumentReview({
   const [consentChecked, setConsentChecked] = useState(false);
   const [reply, setReply] = useState('');
   const lock = useRef(false);
+  useBeforeUpdateRestart(async () => {
+    if (busy || lock.current) throw new Error('EDITOR_BUSY');
+    if (draft) await saveLocalDocumentExtraction({ ...draft, collectedAt: parseDate(date) });
+  });
   const requestId = useRef<string | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
   const previewEngine = useRef<
@@ -780,3 +784,4 @@ const styles = StyleSheet.create({
   row: { gap: 8 },
   error: { color: '#9A2438' },
 });
+import { useBeforeUpdateRestart } from '../lib/update-manager';

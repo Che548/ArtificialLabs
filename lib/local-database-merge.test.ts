@@ -2,7 +2,7 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { createEmptySnapshot } from './health-types';
 import { reconcileCarePlan } from './care-plan';
 
-const state = vi.hoisted(() => ({ payload: '', run: vi.fn(async () => ({ changes: 1 })) }));
+const state = vi.hoisted(() => ({ payload: '', run: vi.fn(async (..._args: unknown[]) => ({ changes: 1 })) }));
 vi.mock('expo-crypto', () => ({}));
 vi.mock('expo-file-system/legacy', () => ({}));
 vi.mock('expo-secure-store', () => ({ getItemAsync: async () => '00'.repeat(32) }));
@@ -12,7 +12,18 @@ vi.mock('expo-sqlite', () => ({ openDatabaseAsync: async () => ({
     ? { payload: state.payload } : { value: '1' },
   runAsync: state.run,
 }) }));
-import { acknowledgeOutbox, saveLocalRecord } from './local-database.native';
+import { acknowledgeOutbox, saveLocalRecord, saveUpdateChatDraft } from './local-database.native';
+
+test('update draft save is owner-checked and writes only encrypted settings', async () => {
+  await expect(saveUpdateChatDraft('not-owner', { text: 'Synthetic' })).rejects.toThrow('LOCAL_OWNER_CHANGED');
+  expect(state.run.mock.calls.some(call => String(call[0]).startsWith('INSERT INTO settings'))).toBe(false);
+  await saveUpdateChatDraft('1', { text: 'Synthetic', conversationId: 'synthetic-id' });
+  const inserts = state.run.mock.calls.filter(call => String(call[0]).startsWith('INSERT'));
+  expect(inserts).toHaveLength(1);
+  expect(inserts[0][0]).toContain('settings');
+  expect(inserts[0][1]).toBe('updateChatDraft.v1');
+  expect(JSON.parse(String(inserts[0][2]))).toMatchObject({ ownerId: '1', text: 'Synthetic' });
+});
 
 function trigger() {
   const snapshot = createEmptySnapshot();

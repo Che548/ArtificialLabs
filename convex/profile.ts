@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { requireSyncProtocol } from './lib/clientCompatibility';
 
 import { mutation, query } from './_generated/server';
 import { mergeProfileFields } from '../shared/profile-merge';
@@ -51,6 +52,7 @@ export const viewer = query({
 
 export const save = mutation({
   args: {
+    protocolVersion: v.optional(v.number()),
     displayName: v.string(),
     goal,
     onboardingCompleted: v.boolean(),
@@ -85,6 +87,7 @@ export const save = mutation({
     )
       throw new Error('INVALID_TIMEZONE_OFFSET');
     const userId = await requireActiveAccount(ctx);
+    requireSyncProtocol('profileSync', args.protocolVersion);
     const user = await ctx.db.get(userId);
     if (
       args.phone !== undefined &&
@@ -96,7 +99,7 @@ export const save = mutation({
       .query('profiles')
       .withIndex('by_user', (q) => q.eq('userId', userId))
       .unique();
-    const { base, ...portable } = args;
+    const { base, protocolVersion: _protocol, ...portable } = args;
     const now = Date.now();
     if (!Number.isFinite(args.updatedAt) || args.updatedAt > now + 300_000 ||
       (args.consentToCloudSyncAt !== undefined && (!Number.isFinite(args.consentToCloudSyncAt) || args.consentToCloudSyncAt > now + 300_000))) {

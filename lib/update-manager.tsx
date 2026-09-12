@@ -1,4 +1,5 @@
 import { fontStyle } from './font-style';
+import { createRestartPreparation } from './update-restart';
 import * as SecureStore from 'expo-secure-store';
 import * as Updates from 'expo-updates';
 import { usePathname } from 'expo-router';
@@ -31,7 +32,7 @@ export type UpdateState =
   | 'current'
   | 'error';
 
-type UpdateManagerValue = {
+export type UpdateManagerValue = {
   channel: UpdateChannel;
   state: UpdateState;
   currentUpdateId?: string;
@@ -41,6 +42,7 @@ type UpdateManagerValue = {
   checkNow: () => Promise<boolean>;
   restart: () => Promise<boolean>;
   setChannel: (channel: UpdateChannel) => Promise<boolean>;
+  registerBeforeRestart: (prepare: () => Promise<void>) => () => void;
 };
 
 const CHANNEL_SETTING = 'artificiallabs.ota-channel.v1';
@@ -120,7 +122,10 @@ export function UpdateManagerProvider({ children }: PropsWithChildren) {
   const [safeErrorCode, setSafeErrorCode] = useState<string>();
   const [currentUpdate, setCurrentUpdate] = useState<StoredUpdateMetadata>();
   const checking = useRef<Promise<boolean> | undefined>(undefined);
+  const preparations = useRef(createRestartPreparation()).current;
   const isRestartBlocked = pathname === '/scan' || pathname.startsWith('/scan/');
+  const restartAllowed = useRef(false);
+  restartAllowed.current = state === 'ready' && !isRestartBlocked;
 
   const applyChannel = useCallback((next: UpdateChannel) => {
     if (Updates.isEnabled && !__DEV__) {
@@ -187,18 +192,19 @@ export function UpdateManagerProvider({ children }: PropsWithChildren) {
   );
 
   const restart = useCallback(async () => {
-    if (state !== 'ready' || isRestartBlocked) return false;
     try {
-      const pending = await SecureStore.getItemAsync(PENDING_UPDATE_SETTING);
-      if (pending) {
-        await SecureStore.setItemAsync(APPLIED_UPDATE_SETTING, pending);
-      }
+      return await preparations.run(() => restartAllowed.current, async () => {
+        const pending = await SecureStore.getItemAsync(PENDING_UPDATE_SETTING);
+        if (pending) {
+          await SecureStore.setItemAsync(APPLIED_UPDATE_SETTING, pending);
+        }
+        await Updates.reloadAsync();
+      });
     } catch {
-      setSafeErrorCode('UPDATES_METADATA_NOT_SAVED');
+      setSafeErrorCode('UPDATES_RESTART_FAILED');
+      return false;
     }
-    await Updates.reloadAsync();
-    return true;
-  }, [isRestartBlocked, state]);
+  }, [preparations]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -244,6 +250,7 @@ export function UpdateManagerProvider({ children }: PropsWithChildren) {
       checkNow,
       restart,
       setChannel,
+      registerBeforeRestart: preparations.register,
     }),
     [
       channel,
@@ -272,6 +279,13 @@ export function useUpdateManager() {
   return value;
 }
 
+export function useBeforeUpdateRestart(prepare: () => Promise<void>) {
+  const { registerBeforeRestart } = useUpdateManager();
+  const latest = useRef(prepare);
+  latest.current = prepare;
+  useEffect(() => registerBeforeRestart(() => latest.current()), [registerBeforeRestart]);
+}
+
 function UpdateReadyBanner() {
   const manager = useUpdateManager();
   const insets = useSafeAreaInsets();
@@ -285,7 +299,9 @@ function UpdateReadyBanner() {
       <View style={styles.copy}>
         <Text style={styles.title}>Обновление готово</Text>
         <Text style={styles.message}>
-          {manager.isRestartBlocked
+          {manager.safeErrorCode === 'UPDATES_RESTART_FAILED'
+            ? 'Не удалось сохранить состояние или перезапустить приложение. Завершите редактирование и попробуйте снова.'
+            : manager.isRestartBlocked
             ? 'Завершите текущую операцию, затем перезапустите приложение.'
             : 'Можно применить сейчас или при следующем холодном запуске.'}
         </Text>

@@ -1,16 +1,20 @@
-export type ServiceIssueKind = 'offline' | 'server' | 'auth' | 'unknown';
+import { readUpdateRequired, type ClientUpdateRequired } from '../shared/client-compatibility';
+
+export type ServiceIssueKind = 'offline' | 'server' | 'auth' | 'unknown' | 'update-required';
 
 export type ServiceIssue = {
   kind: ServiceIssueKind;
   message: string;
   retryable: boolean;
   conflict?: boolean;
+  update?: ClientUpdateRequired;
 };
 
-function errorText(error: unknown): string {
+function errorText(error: unknown, depth = 0): string {
+  if (depth > 4) return '';
   if (error instanceof Error) {
     const cause = 'cause' in error ? error.cause : undefined;
-    return `${error.name} ${error.message} ${cause ? errorText(cause) : ''}`;
+    return `${error.name} ${error.message} ${cause ? errorText(cause, depth + 1) : ''}`;
   }
   if (typeof error === 'string') return error;
   try {
@@ -24,6 +28,11 @@ export function classifyServiceIssue(
   error: unknown,
   offline = false,
 ): ServiceIssue {
+  const update = readUpdateRequired(error);
+  if (update || /\bCLIENT_UPDATE_REQUIRED\b/.test(errorText(error))) return {
+    kind: 'update-required', retryable: false, update,
+    message: 'Для этой функции нужно обновить приложение.',
+  };
   if (offline) {
     return {
       kind: 'offline',

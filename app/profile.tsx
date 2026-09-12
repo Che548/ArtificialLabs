@@ -122,6 +122,7 @@ import { ProfileContacts } from '../components/ProfileContacts';
 import { getAppVersionInfo } from '../lib/app-version';
 import { registerDiagnosticsTap } from '../lib/diagnostics-access';
 import { useUpdateManager } from '../lib/update-manager';
+import { UpdateRequiredNotice } from '../components/UpdateRequiredNotice';
 
 const e2eDocumentFixtureUri =
   __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
@@ -1713,7 +1714,7 @@ function ProfileSectionContent({
                 onPress={syncNow}
                 isLast
               />
-              {serviceIssue ? (
+              {serviceIssue?.kind === 'update-required' ? <UpdateRequiredNotice localChangesSaved /> : serviceIssue ? (
                 <View accessibilityRole="alert">
                   <AppText style={styles.transferCaption} color={colors.text.secondary}>
                     {serviceIssue.message}

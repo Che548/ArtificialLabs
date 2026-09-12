@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { requireSyncProtocol } from './lib/clientCompatibility';
 import { paginationOptsValidator } from 'convex/server';
 
 import { mutation, query } from './_generated/server';
@@ -485,6 +486,7 @@ async function upsertLocal(
 
 export const syncBatch = mutation({
   args: {
+    protocolVersion: v.optional(v.number()),
     programs: v.array(program),
     journalEntries: v.array(journal),
     labResults: v.array(lab),
@@ -501,10 +503,12 @@ export const syncBatch = mutation({
     recommendationEvents: v.optional(v.array(recommendationEvent)),
     preferences: v.array(preferences),
   },
-  handler: async (ctx, batch) => {
+  handler: async (ctx, args) => {
+    const { protocolVersion, ...batch } = args;
     const profile = await requireOwnedProfile(ctx);
     if (!(await hasCloudConsent(ctx, profile.userId)))
       throw new Error('CLOUD_SYNC_CONSENT_REQUIRED');
+    requireSyncProtocol('healthSync', protocolVersion);
     const agentDataClearedAt = profile.agentDataClearedAt ?? 0;
     const carePlanItems = (batch.carePlanItems ?? []).filter(
       (item) => item.updatedAt > agentDataClearedAt,

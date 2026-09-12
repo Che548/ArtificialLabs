@@ -53,6 +53,14 @@ async function exercise() {
     const initial = await db.loadLocalSnapshot();
     check('fresh empty simulator database', !initial.profile && Object.values(initial).every(value => !Array.isArray(value) || value.length === 0) && (await db.pendingOutbox()).length === 0);
     await db.claimLocalDatabaseOwner('synthetic-multi-device-qa'); claimed = true;
+    state.phase = 'update draft';
+    await db.saveUpdateChatDraft('synthetic-multi-device-qa', { text: 'Synthetic update draft', conversationId: 'synthetic-chat' });
+    check('update draft restores for its owner', (await db.loadUpdateChatDraft('synthetic-multi-device-qa'))?.text === 'Synthetic update draft');
+    check('another owner cannot read update draft', !(await db.loadUpdateChatDraft('another-synthetic-owner')));
+    let wrongDraftOwner = false;
+    try { await db.saveUpdateChatDraft('another-synthetic-owner', { text: 'Must not persist' }); } catch { wrongDraftOwner = true; }
+    check('another owner cannot replace update draft', wrongDraftOwner && (await db.loadUpdateChatDraft('synthetic-multi-device-qa'))?.text === 'Synthetic update draft');
+    check('update draft stays outside snapshot and outbox', (await db.pendingOutbox()).length === 0 && !JSON.stringify(await db.loadLocalSnapshot()).includes('Synthetic update draft'));
     const now = Date.now();
     const profile = { displayName: 'Synthetic QA', goal: 'cycle', onboardingCompleted: true, heightCm: 160, weightKg: 60, updatedAt: now };
     await db.saveLocalProfile(profile);
@@ -108,6 +116,7 @@ async function exercise() {
       state.phase = 'exact fixture cleanup';
       try {
         await db.clearLocalHealthData();
+        check('update draft cleared with local health data', !(await db.loadUpdateChatDraft('synthetic-multi-device-qa')));
         state.checks.push({ name: 'synthetic rows, backups and profile base cleaned', passed: (await db.pendingOutbox()).length === 0 && !(await db.loadLocalSnapshot()).profile && !(await db.loadLocalSetting('profileSyncBase.v1')) && !(await db.loadLocalSetting('syncConflictBackup.v1:profile')) && !(await db.loadLocalSetting('syncConflictBackup.v1:journalEntries:synthetic-note')) });
       } catch { checkFailure(); }
     }

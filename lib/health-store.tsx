@@ -85,6 +85,7 @@ import {
 } from './cloud-sync';
 import { useConnectivity } from './connectivity';
 import { classifyServiceIssue, retryDelayMs } from './service-errors';
+import { clientProtocols } from '../shared/client-compatibility';
 import type { ServiceIssue } from './service-errors';
 import { reconcileAgentBackgroundRegistration } from './agent-background';
 import { portableProfile, sameProfileFields } from '../shared/profile-merge';
@@ -478,13 +479,13 @@ export function HealthStoreProvider({
                 const current = await convex.query(backendApi.profile.current, {});
                 if (current && sameProfileFields(current, input)) base = portableProfile(current) as LocalProfile;
               }
-              await saveRemoteProfile({ ...input, base });
+              await saveRemoteProfile({ ...input, base, protocolVersion: clientProtocols.profileSync });
               await saveLocalSetting(PROFILE_SYNC_BASE_SETTING, portableProfile(input));
               const current = await convex.query(backendApi.profile.current, {});
               if (current && viewer?.userId && await mergeRemoteProfile(portableProfile(current) as LocalProfile, viewer.userId)) await refresh();
             },
             loadPendingOutbox: pendingOutbox,
-            pushBatch: (batch) => syncRemoteBatch(batch as never),
+            pushBatch: (batch) => syncRemoteBatch({ ...batch, protocolVersion: clientProtocols.healthSync } as never),
             acknowledge: acknowledgeOutbox,
           }),
         );

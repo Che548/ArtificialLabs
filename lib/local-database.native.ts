@@ -363,6 +363,20 @@ export async function loadLocalSetting<T>(key: string) {
   return row ? (JSON.parse(row.value) as T) : undefined;
 }
 
+export async function saveUpdateChatDraft(ownerId: string, draft: { text: string; conversationId?: string }) {
+  await withWriteTransaction(async (db) => {
+    const owner = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'ownerId'");
+    if (owner?.value !== ownerId) throw new Error('LOCAL_OWNER_CHANGED');
+    await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      'updateChatDraft.v1', JSON.stringify({ ...draft, ownerId }));
+  });
+}
+
+export async function loadUpdateChatDraft(ownerId: string) {
+  const draft = await loadLocalSetting<{ text: string; conversationId?: string; ownerId: string }>('updateChatDraft.v1');
+  return draft?.ownerId === ownerId ? draft : undefined;
+}
+
 export async function resolveLocalSyncConflict(selection: SyncConflictSelection, choice: 'local' | 'remote') {
   await withWriteTransaction(async (db) => {
     const owner = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'ownerId'");
@@ -972,7 +986,7 @@ export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
 export async function clearLocalHealthData() {
   await withWriteTransaction(async (db) => {
     await db.execAsync(
-      "DELETE FROM document_extractions; DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings WHERE key IN ('profile', 'profileSyncBase.v1') OR key LIKE 'syncConflictBackup.v1:%';",
+      "DELETE FROM document_extractions; DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings WHERE key IN ('profile', 'profileSyncBase.v1', 'updateChatDraft.v1') OR key LIKE 'syncConflictBackup.v1:%';",
     );
   });
 }

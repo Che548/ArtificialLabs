@@ -32,6 +32,7 @@ import type { Id } from '../convex/_generated/dataModel';
 import { useConnectivity } from '../lib/connectivity';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import { classifyServiceIssue } from '../lib/service-errors';
+import { UpdateRequiredNotice } from './UpdateRequiredNotice';
 import { listenForSmsOtp, startSmsRetriever } from '../lib/sms-otp-retriever';
 import { rememberRegistrationConsent, clearRegistrationConsent } from '../lib/registration-consent';
 
@@ -448,7 +449,7 @@ export function AuthScreen({
       if (flow === 'signUp') await clearRegistrationConsent();
       const issue = classifyServiceIssue(cause, isOffline);
       setError(
-        issue.retryable
+        issue.kind === 'update-required' ? 'CLIENT_UPDATE_REQUIRED' : issue.retryable
           ? issue.message
           : flow === 'signIn'
             ? 'Не удалось войти. Проверьте данные и пароль.'
@@ -746,7 +747,7 @@ export function AuthScreen({
                   </View>
                 ) : null}
 
-                {visibleError ? (
+                {visibleError === 'CLIENT_UPDATE_REQUIRED' ? <UpdateRequiredNotice /> : visibleError ? (
                   <Text
                     accessibilityRole="alert"
                     style={[

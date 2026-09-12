@@ -78,6 +78,7 @@ import {
   transitionChatGeneration,
 } from '../lib/chat-generation-state';
 import { useHealthStore } from '../lib/health-store';
+import { useUpdateChatDraft } from '../lib/use-update-chat-draft';
 import { useConnectivity } from '../lib/connectivity';
 import { chatComposerInset, chatEmptyHeroFits } from '../lib/chat-layout';
 import { resolveChatAvailability } from '../lib/chat-availability';
@@ -411,6 +412,10 @@ export default function ChatScreen() {
   const copyNoticeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationScrollRef = useRef<ScrollView>(null);
   const generationInFlight = useRef(false);
+  useUpdateChatDraft(draft, conversationId, (text, id) => {
+    setDraft(text);
+    if (id && chatConversations.some(item => item.localId === id && !item.deletedAt)) openRecentChat({ id });
+  }, () => generationInFlight.current, healthStore.ready);
   const activeGeneration = useRef<ActiveGeneration | undefined>(undefined);
   const knownUserMessages = useRef(new Map<string, ChatMessage>());
   const chatMessagesRef = useRef(chatMessages);
@@ -764,7 +769,7 @@ export default function ChatScreen() {
     return () => subscription.remove();
   }, [historyOpen, navigation, closeHistory]);
 
-  const openRecentChat = (item: ChatHistoryItem) => {
+  const openRecentChat = (item: Pick<ChatHistoryItem, 'id'>) => {
     const persistedMessages = chatMessagesRef.current
       .filter(
         (message) =>

@@ -75,6 +75,9 @@
     "vitest": "^4.1.10"
   },
   "scripts": {
+    "test:client-update": "vitest run convex/clientCompatibility.test.ts lib/update-restart.test.ts && tsx --test lib/service-errors.test.ts lib/cloud-sync.test.ts",
+    "preverify": "npm run test:client-update",
+    "pretest": "npm run test:client-update",
     "test:android-registration": "tsx --test lib/onboarding-layout.test.ts && vitest run lib/local-database-merge.test.ts",
     "start": "EXPO_PUBLIC_GIT_COMMIT=$(git rev-parse HEAD) expo start",
     "android": "EXPO_PUBLIC_GIT_COMMIT=$(git rev-parse HEAD) PATH=/opt/homebrew/opt/node@22/bin:$PATH expo run:android",

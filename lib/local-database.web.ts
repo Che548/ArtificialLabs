@@ -304,3 +304,7 @@ export async function loadLocalStorageDiagnostics() {
 export async function quickCheckLocalDatabase() {
   return 'unavailable';
 }
+export async function saveUpdateChatDraft(_ownerId: string, _draft: { text: string; conversationId?: string }): Promise<void> {
+  throw new Error('NATIVE_ONLY');
+}
+export async function loadUpdateChatDraft(_ownerId: string): Promise<{ text: string; conversationId?: string } | undefined> { return undefined; }
