@@ -4,10 +4,10 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { useMutation, usePaginatedQuery, useQuery, useConvexConnectionState } from 'convex/react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
-import { Users, AccountMetrics } from '../components/users';
-import { DataBoundary, LoadingState, useUrlValue } from '../components/data-state';
+import { api } from '../../../convex/_generated/api';
+import type { Id } from '../../../convex/_generated/dataModel';
+import { Users, AccountMetrics } from '../../components/users';
+import { DataBoundary, LoadingState, useUrlValue } from '../../components/data-state';
 
 type Section =
   | 'users'
@@ -1364,6 +1364,7 @@ export default function AdminPage() {
             </button>
           ))}
           <a href="/kit/">Компоненты интерфейса</a>
+          <a href="/beta/">Установить бету</a>
         </nav>
         <div className="admin-content">
           {!connection.isWebSocketConnected && <p className="connection-warning" role="status">Нет соединения с сервером. Данные могут быть устаревшими; подключение восстановится автоматически.</p>}
