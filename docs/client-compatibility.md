@@ -80,10 +80,44 @@ not used as evidence of signed review-build compatibility.
 repeated record writes without revision acknowledgement, deletions and stale
 replays, mixed protocol conflicts, queue acknowledgement, auth and revocation.
 These are synthetic server-contract tests, not proof that the exact Apple build 3
-has been installed and tested. Before deployment keep `SYNC_PROTOCOL_REQUIRED`
-absent/off, verify the signed review build's request contract and test that build
-against an isolated compatible backend. Do not enable enforcement while build 3
-must remain supported. No deployment or App Store change is part of these tests.
+has been installed and tested. Keep `SYNC_PROTOCOL_REQUIRED` absent/off for the
+compatible rollout. Exact signed-build testing remains distinct from the native
+source-level checks below. Do not enable enforcement while build 3 must remain
+supported. No deployment or App Store change is part of these tests themselves.
+
+## Native source-level compatibility — 2026-09-13
+
+The user authorized a compatible primary-Convex rollout based on verification,
+and explicitly requested simulator checks. TestFlight showed builds 3 and 5 in
+Testing (5 was the latest); this is availability evidence, not execution evidence.
+
+- Used one newly-created disposable iOS 26.5 simulator and bounded caffeinate.
+  The installed development native shell loaded a dedicated test entry, first
+  with the actual coordinator AND SQLCipher implementation from `9b000492`, then
+  with the candidate implementations, without deleting the old local data between
+  the successful old/current runs. This did not execute the signed TestFlight IPAs
+  or the full production screen/provider lifecycle.
+- Deployed candidate functions to a fresh loopback-only Docker Convex matching
+  production engine digest `ed7ad78d762042f99dcaaf0d9e3d54394bc9c57f49db9a086022e6812c0fe2e5`.
+  Created a synthetic account with local Auth tokens, no SMS/email delivery or
+  external OCR. No production database was copied. Email verification was enabled
+  for the final native runs, using the explicitly prepared verified fixture.
+- Old implementation: 8/8 checks passed. Current implementation on the old data:
+  8/8 passed. Covered actual native SQLite writes, HTTP mutations, repeated profile
+  and record edits, acknowledgement, retained outbox/local value after a synthetic
+  transport rejection, and successful recovery. The transport rejection was
+  injected at the client callback, not a radio/network-disconnection test.
+- Initial current-harness attempt incorrectly included server metadata in the
+  profile merge base and failed ArgumentValidationError. The harness was corrected
+  to use the product's portableProfile and snapshot import; only disposable fixture
+  data were reset, then the complete old/current sequence was repeated successfully.
+- Aggregate reports/screenshots stay ignored under `output/e2e/legacy-native/`.
+  Temporary entry-point edits were restored. Local `convex dev --once` genuinely
+  regenerated bindings and left `convex/_generated` unchanged.
+- Read-only production inspection: SYNC_PROTOCOL_REQUIRED and
+  SYNC_LEGACY_COMPAT_ENABLED absent; EMAIL_VERIFICATION_REQUIRED=1. Leave these
+  unchanged: new protocol enforcement stays off and legacy compatibility defaults
+  on. Do not use this rollout to disable email verification or publish OTA.
 
 ## Follow-up legacy inspection — 2026-09-13
 
