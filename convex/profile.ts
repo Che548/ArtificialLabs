@@ -94,7 +94,15 @@ export const save = mutation({
         }
         return existing._id;
       }
-      await ctx.db.patch(existing._id, args);
+      // Old native clients save their profile after every subscription refresh.
+      // An identical write must not invalidate that subscription again.
+      if (
+        Object.entries(args).some(
+          ([key, value]) => existing[key as keyof typeof existing] !== value,
+        )
+      ) {
+        await ctx.db.patch(existing._id, args);
+      }
       return existing._id;
     }
     return await ctx.db.insert('profiles', {
