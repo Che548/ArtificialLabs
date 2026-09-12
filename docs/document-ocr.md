@@ -1,5 +1,12 @@
 # Local document recognition — implementation under verification
 
+Unexpected provider exceptions are sanitized to `DOCUMENT_SERVER_ERROR` and
+finalized as failed metadata-only reservations. The same request ID remains
+reserved: a retry cannot invoke the provider twice. Neither exception bodies
+nor selected document text are logged or stored by this error path. The enabled
+path is covered with an isolated mock provider; the live feature flag remains
+off until its separate native consent/send verification is complete.
+
 ## Boundaries
 
 PDF, JPEG and PNG are inspected by content in app-owned storage, limited to

@@ -22,17 +22,29 @@ export const generate = internalAction({
       requestId: args.requestId,
       policyVersion: args.policyVersion,
     });
-    const result = await generateWithYandex({
-      requestId: args.requestId,
-      purpose: 'document-interpretation',
-      capabilities: [],
-      messages: [
-        {
-          role: 'user',
-          content: JSON.stringify({ confirmedDocumentText: args.text }),
-        },
-      ],
-    });
+    let result: Awaited<ReturnType<typeof generateWithYandex>>;
+    try {
+      result = await generateWithYandex({
+        requestId: args.requestId,
+        purpose: 'document-interpretation',
+        capabilities: [],
+        messages: [
+          {
+            role: 'user',
+            content: JSON.stringify({ confirmedDocumentText: args.text }),
+          },
+        ],
+      });
+    } catch {
+      // Provider exceptions may contain request text or credentials. Never
+      // propagate/log them; keep the reservation so retries cannot send twice.
+      await ctx.runMutation(internal.documentInterpretation.finish, {
+        id,
+        userId: args.userId,
+        success: false,
+      });
+      return { ok: false, code: 'DOCUMENT_SERVER_ERROR' };
+    }
     await ctx.runMutation(internal.documentInterpretation.finish, {
       id,
       userId: args.userId,

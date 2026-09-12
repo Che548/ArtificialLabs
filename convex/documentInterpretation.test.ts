@@ -196,3 +196,19 @@ test('cleanup is exact to the selected user', async () => {
     ),
   ).toHaveLength(0);
 });
+
+test('unexpected provider exception is sanitized, finalized and never replayed', async () => {
+  const { t, user } = await setup();
+  await user.mutation(api.documentInterpretation.setConsent, { policyVersion, accepted: true });
+  const privateDetail = 'synthetic-provider-body-and-secret';
+  provider.mockRejectedValueOnce(new Error(privateDetail));
+  const result = await user.action(api.documentInterpretation.generate, request);
+  expect(result).toEqual({ ok: false, code: 'DOCUMENT_SERVER_ERROR' });
+  const rows = await t.run(ctx => ctx.db.query('documentInterpretationRequests').collect());
+  expect(rows).toHaveLength(1);
+  expect(rows[0].status).toBe('failed');
+  expect(JSON.stringify(rows)).not.toContain(privateDetail);
+  expect(JSON.stringify(rows)).not.toContain(request.text);
+  await expect(user.action(api.documentInterpretation.generate, request)).rejects.toThrow('DOCUMENT_ALREADY_SUBMITTED');
+  expect(provider).toHaveBeenCalledTimes(1);
+});
