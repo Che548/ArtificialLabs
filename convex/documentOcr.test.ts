@@ -63,7 +63,7 @@ test('authentication, consent, cloud sync and feature flags fail closed', async 
     'UNAUTHENTICATED',
   );
   await expect(
-    t.mutation(internal.documentOcr.reserve, { ...args, userId }),
+    user.mutation(internal.documentOcr.reserve, { ...args, userId }),
   ).rejects.toThrow('OCR_CONSENT_REQUIRED');
   await user.mutation(api.documentOcr.setConsent, {
     accepted: true,
@@ -71,11 +71,11 @@ test('authentication, consent, cloud sync and feature flags fail closed', async 
   });
   await user.mutation(api.profile.revokeCloudSync, {});
   await expect(
-    t.mutation(internal.documentOcr.reserve, { ...args, userId }),
+    user.mutation(internal.documentOcr.reserve, { ...args, userId }),
   ).rejects.toThrow('OCR_CLOUD_SYNC_REQUIRED');
   vi.stubEnv('AI_DOCUMENT_OCR_ENABLED', '0');
   await expect(
-    t.mutation(internal.documentOcr.reserve, { ...args, userId }),
+    user.mutation(internal.documentOcr.reserve, { ...args, userId }),
   ).rejects.toThrow('OCR_SERVICE_DISABLED');
 });
 test('concurrent duplicates reserve once, records contain only metadata and owner controls completion', async () => {
@@ -85,8 +85,8 @@ test('concurrent duplicates reserve once, records contain only metadata and owne
     policyVersion,
   });
   const results = await Promise.allSettled([
-    t.mutation(internal.documentOcr.reserve, { ...args, userId }),
-    t.mutation(internal.documentOcr.reserve, { ...args, userId }),
+    user.mutation(internal.documentOcr.reserve, { ...args, userId }),
+    user.mutation(internal.documentOcr.reserve, { ...args, userId }),
   ]);
   expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
   const jobs = await t.run((ctx) => ctx.db.query('documentOcrJobs').collect());
@@ -105,7 +105,7 @@ test('concurrent duplicates reserve once, records contain only metadata and owne
   );
   const other = await t.run((ctx) => ctx.db.insert('users', {}));
   await expect(
-    t.mutation(internal.documentOcr.finish, {
+    user.mutation(internal.documentOcr.finish, {
       id: jobs[0]._id,
       userId: other,
       requestId: args.requestId,
@@ -117,13 +117,34 @@ test('concurrent duplicates reserve once, records contain only metadata and owne
     policyVersion,
   });
   await expect(
-    t.mutation(internal.documentOcr.finish, {
+    user.mutation(internal.documentOcr.finish, {
       id: jobs[0]._id,
       userId,
       requestId: args.requestId,
       success: true,
     }),
   ).rejects.toThrow('OCR_CONSENT_REQUIRED');
+});
+test('OCR cannot borrow consent from another device, including after inference', async () => {
+  const { t, user, userId } = await setup();
+  await user.mutation(api.documentOcr.setConsent, { accepted: true, policyVersion });
+  const second = t.withIdentity({ subject: `${userId}|second-session` });
+  const request = { ...args, image: '/9j/AAAA' };
+  const blocked = await second.fetch('/document-ocr/page', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request),
+  });
+  expect((await blocked.json()).code).toBe('OCR_CLOUD_SYNC_REQUIRED');
+  await expect(t.mutation(internal.documentOcr.reserve, { ...args, userId })).rejects.toThrow('OCR_ACCOUNT_UNAVAILABLE');
+  await second.mutation(api.profile.save, { displayName: 'Synthetic', goal: 'planning',
+    onboardingCompleted: true, consentToCloudSyncAt: 2, updatedAt: 1 });
+  const id = await user.mutation(internal.documentOcr.reserve, { ...args, userId });
+  await user.mutation(api.profile.revokeCloudSync, {});
+  await expect(user.mutation(internal.documentOcr.finish, {
+    id, userId, requestId: args.requestId, success: true,
+  })).rejects.toThrow('OCR_CLOUD_SYNC_REQUIRED');
+  await expect(second.mutation(internal.documentOcr.reserve, {
+    ...args, userId, jobId: 'second_job_123', requestId: 'second_request_123',
+  })).resolves.toBeTruthy();
 });
 test('eight document jobs per day; additional pages do not consume another job', async () => {
   const { t, user, userId } = await setup();
@@ -133,13 +154,13 @@ test('eight document jobs per day; additional pages do not consume another job',
   });
   for (let n = 0; n < 8; n++) {
     const requestId = `request_${n}_123`;
-    const id = await t.mutation(internal.documentOcr.reserve, {
+    const id = await user.mutation(internal.documentOcr.reserve, {
       ...args,
       jobId: `job_test_${n}`,
       requestId,
       userId,
     });
-    await t.mutation(internal.documentOcr.finish, {
+    await user.mutation(internal.documentOcr.finish, {
       id,
       userId,
       requestId,
@@ -147,14 +168,14 @@ test('eight document jobs per day; additional pages do not consume another job',
     });
   }
   await expect(
-    t.mutation(internal.documentOcr.reserve, {
+    user.mutation(internal.documentOcr.reserve, {
       ...args,
       jobId: 'job_test_9',
       userId,
     }),
   ).rejects.toThrow('OCR_RATE_LIMITED');
   await expect(
-    t.mutation(internal.documentOcr.reserve, {
+    user.mutation(internal.documentOcr.reserve, {
       ...args,
       jobId: 'job_test_0',
       page: 2,
@@ -169,7 +190,7 @@ test('exact requested model required and account purge removes OCR metadata', as
     accepted: true,
     policyVersion,
   });
-  await t.mutation(internal.documentOcr.reserve, { ...args, userId });
+  await user.mutation(internal.documentOcr.reserve, { ...args, userId });
   vi.stubEnv('YANDEX_DOCUMENT_OCR_MODEL', 'qwen3.6-35b-a3b');
   expect((await user.query(api.documentOcr.status, {})).enabled).toBe(false);
   await t.mutation(internal.documentOcr.purgeForUser, { userId });

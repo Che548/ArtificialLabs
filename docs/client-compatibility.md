@@ -67,6 +67,15 @@ present in older binaries. No production OTA or store publication is implied.
 
 ## Legacy rollout checks
 
+Integration check on 2026-09-13: based on main `1dfc7b09`, preserving its OCR,
+chat-back handling and beta-page updates. `npm test`, `npm run verify` (including
+admin verify), and the 40-test multi-device suite passed. OCR now checks the
+calling session before reserving and after inference; regression tests cover a
+second device without consent and revocation while a result is pending.
+No live deployment, flags, Apple submission or OTA were changed. The inspected
+local `Sfera-AppStore.xcarchive` reported build 1, not the review build 3; it was
+not used as evidence of signed review-build compatibility.
+
 `convex/clientCompatibility.test.ts` exercises absent-protocol profile edits,
 repeated record writes without revision acknowledgement, deletions and stale
 replays, mixed protocol conflicts, queue acknowledgement, auth and revocation.

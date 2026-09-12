@@ -38,6 +38,8 @@ import type * as http from "../http.js";
 import type * as lib_access from "../lib/access.js";
 import type * as lib_accountCounts from "../lib/accountCounts.js";
 import type * as lib_adminAccess from "../lib/adminAccess.js";
+import type * as lib_clientCompatibility from "../lib/clientCompatibility.js";
+import type * as lib_cloudConsent from "../lib/cloudConsent.js";
 import type * as lib_contactVerification from "../lib/contactVerification.js";
 import type * as lib_resendUsage from "../lib/resendUsage.js";
 import type * as lib_sms from "../lib/sms.js";
@@ -92,6 +94,8 @@ declare const fullApi: ApiFromModules<{
   "lib/access": typeof lib_access;
   "lib/accountCounts": typeof lib_accountCounts;
   "lib/adminAccess": typeof lib_adminAccess;
+  "lib/clientCompatibility": typeof lib_clientCompatibility;
+  "lib/cloudConsent": typeof lib_cloudConsent;
   "lib/contactVerification": typeof lib_contactVerification;
   "lib/resendUsage": typeof lib_resendUsage;
   "lib/sms": typeof lib_sms;
