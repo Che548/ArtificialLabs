@@ -1,14 +1,18 @@
 import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useNavigation, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
+import {
+  useAction,
+  useConvexAuth,
+  useMutation,
+  useQueries,
+} from 'convex/react';
+import type { FunctionReturnType } from 'convex/server';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
-  Alert,
   Animated,
   Easing,
   Keyboard,
@@ -42,6 +46,7 @@ import {
   sizes,
 } from '../design-system';
 import { api } from '../convex/_generated/api';
+import { ScreenFeedback, useScreenFeedback } from '../components/ScreenFeedback';
 import { buildAgentContextEnvelope } from '../lib/agent-context-builder';
 import { assistantQuestionNeedsBodyMetrics } from '../lib/agent-context-policy';
 import {
@@ -61,9 +66,12 @@ import {
   transitionChatGeneration,
 } from '../lib/chat-generation-state';
 import { useHealthStore } from '../lib/health-store';
+import { useConnectivity } from '../lib/connectivity';
+import { chatComposerInset, chatEmptyHeroFits } from '../lib/chat-layout';
+import { resolveChatAvailability } from '../lib/chat-availability';
+import { submitConsentOnce } from '../lib/chat-consent';
 import type { AgentSourceRef, ChatMessage } from '../lib/health-types';
 
-const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 type ScreenMessage = {
   id: string;
@@ -83,7 +91,7 @@ type ActiveGeneration = {
 };
 
 type PendingConsentRequest =
-  | { kind: 'mode'; mode: 'assistant' }
+  | { kind: 'mode'; mode: ChatHeaderMode }
   | { kind: 'new'; mode: ChatHeaderMode; text: string }
   | { kind: 'retry'; mode: ChatHeaderMode; userMessage: ChatMessage };
 
@@ -145,13 +153,16 @@ function AiChatConsentSheet({
   onAccept,
   onCancel,
   visible,
+  error,
 }: {
   accepting: boolean;
   assistant: boolean;
   onAccept: () => void;
   onCancel: () => void;
   visible: boolean;
+  error?: string;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal
       animationType="fade"
@@ -160,27 +171,46 @@ function AiChatConsentSheet({
       statusBarTranslucent
       onRequestClose={onCancel}
     >
-      <View style={styles.consentBackdrop}>
+      <View
+        style={[
+          styles.consentBackdrop,
+          { paddingBottom: Math.max(insets.bottom, 12) },
+        ]}
+      >
         <View accessibilityViewIsModal style={styles.consentSheet}>
-          <AppText role="heading" weight="semibold" style={styles.consentTitle}>
-            {assistant
-              ? 'Данные для режима «Ассистент»'
-              : 'Передача текста в Yandex AI Studio'}
-          </AppText>
-          <AppText style={styles.consentBody}>
-            {assistant
-              ? 'Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый текст чата; возраст, цель, параметры тела и данные цикла или беременности; указанные заболевания, лекарства и аллергии; записи дневника не старше 30 дней; подтверждённые результаты анализов и домашние тесты; активный план. По запросу Ассистент сможет искать более старые записи, другие ваши чаты и метаданные документов. Если вы отдельно включите автономные рекомендации, при проверке плана также могут передаваться новые сообщения, написанные вами в режиме «Ассистент», и факт появления нового документа с его категорией и датой. Обычные чаты, ответы ИИ, названия и содержимое файлов при такой проверке не передаются. Содержимое файлов, имя, контакты, пути к файлам, идентификаторы аккаунта и устройства не передаются. Логирование запросов у Yandex отключено.'
-              : 'Для ответа Сферка отправит ваше сообщение и до 20 последних сообщений этого чата через наш сервер в Yandex AI Studio. Структурированные данные профиля, анализы и файлы автоматически не передаются — отправляется только видимый текст чата. Логирование запросов у Yandex отключено. История хранится зашифрованно на устройстве и синхронизируется только при включённой облачной синхронизации.'}
-          </AppText>
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel="Открыть политику конфиденциальности"
-            onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ gap: 18 }}
           >
-            <AppText weight="medium" style={styles.consentLink}>
-              Политика конфиденциальности
+            <AppText
+              role="heading"
+              weight="semibold"
+              style={styles.consentTitle}
+            >
+              {assistant
+                ? 'Данные для режима «Ассистент»'
+                : 'Передача текста в Yandex AI Studio'}
             </AppText>
-          </Pressable>
+            <AppText style={styles.consentBody}>
+              {assistant
+                ? 'Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый текст чата; возраст, цель, параметры тела и данные цикла или беременности; указанные заболевания, лекарства и аллергии; записи дневника не старше 30 дней; подтверждённые результаты анализов и домашние тесты; активный план. По запросу Ассистент сможет искать более старые записи, другие ваши чаты и метаданные документов. Если вы отдельно включите автономные рекомендации, при проверке плана также могут передаваться новые сообщения, написанные вами в режиме «Ассистент», и факт появления нового документа с его категорией и датой. Обычные чаты, ответы ИИ, названия и содержимое файлов при такой проверке не передаются. Содержимое файлов, имя, контакты, пути к файлам, идентификаторы аккаунта и устройства не передаются. Логирование запросов у Yandex отключено.'
+                : 'Для ответа Сферка отправит ваше сообщение и до 20 последних сообщений этого чата через наш сервер в Yandex AI Studio. Структурированные данные профиля, анализы и файлы автоматически не передаются — отправляется только видимый текст чата. Логирование запросов у Yandex отключено. История хранится зашифрованно на устройстве и синхронизируется только при включённой облачной синхронизации.'}
+            </AppText>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Открыть политику конфиденциальности"
+              onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+            >
+              <AppText weight="medium" style={styles.consentLink}>
+                Политика конфиденциальности
+              </AppText>
+            </Pressable>
+          </ScrollView>
+          {error ? (
+            <View accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <AppText style={styles.availabilityNotice}>{error}</AppText>
+            </View>
+          ) : null}
           <View style={styles.consentActions}>
             <Pressable
               accessibilityRole="button"
@@ -212,11 +242,13 @@ function AiChatConsentSheet({
 }
 
 export default function ChatScreen() {
+  const feedback = useScreenFeedback();
   const healthStore = useHealthStore();
   const {
     chatConversations,
     chatMessages,
     cloudProfileReady,
+    cloudSyncEnabled,
     deleteChatConversation,
     journalEntries,
     labResults,
@@ -228,19 +260,30 @@ export default function ChatScreen() {
     saveConversation,
   } = healthStore;
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const connectivity = useConnectivity();
   const navigation = useNavigation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const aiEligible = Platform.OS !== 'web' && isAuthenticated && !readOnly;
-  const chatStatus = useQuery(
-    api.chat.status,
-    aiEligible && cloudProfileReady ? {} : 'skip',
+  const [statusAttempt, setStatusAttempt] = useState(0);
+  const statusQueries = useMemo(
+    () =>
+      aiEligible && cloudProfileReady
+        ? {
+            [`chat-${statusAttempt}`]: { query: api.chat.status, args: {} },
+            [`agent-${statusAttempt}`]: { query: api.agent.status, args: {} },
+          }
+        : {},
+    [aiEligible, cloudProfileReady, statusAttempt],
   );
-  const agentStatus = useQuery(
-    api.agent.status,
-    aiEligible && cloudProfileReady ? {} : 'skip',
-  );
+  const statuses = useQueries(statusQueries);
+  const chatResult = statuses[`chat-${statusAttempt}`] as
+    FunctionReturnType<typeof api.chat.status> | Error | undefined;
+  const agentResult = statuses[`agent-${statusAttempt}`] as
+    FunctionReturnType<typeof api.agent.status> | Error | undefined;
+  const chatStatus = chatResult instanceof Error ? undefined : chatResult;
+  const agentStatus = agentResult instanceof Error ? undefined : agentResult;
   const generateChat = useAction(api.chat.generate);
   const startAgentTurn = useAction(api.chat.startAgentTurn);
   const continueAgentTurn = useAction(api.chat.continueAgentTurn);
@@ -263,18 +306,55 @@ export default function ChatScreen() {
     useState<ChatGenerationState>('idle');
   const [consentVisible, setConsentVisible] = useState(false);
   const [consentAccepting, setConsentAccepting] = useState(false);
+  const consentInFlight = useRef(false);
+  const [consentError, setConsentError] = useState<string>();
+  const [chatNotice, setChatNotice] = useState<string>();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [mainDockHeight, setMainDockHeight] = useState(152);
+  const qaFixtureInFlight = useRef(false);
+  const qaClient = __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1' &&
+    Platform.OS !== 'web' && isAuthenticated && !cloudSyncEnabled &&
+    profile?.displayName === 'Synthetic OCR QA';
+  const qaFixtureAllowed = qaClient && chatConversations.length === 0;
+  const createQaConversation = async () => {
+    if (!qaFixtureAllowed || qaFixtureInFlight.current) return;
+    qaFixtureInFlight.current = true;
+    try {
+      const now = Date.now();
+      const localId = await saveConversation({ title: 'Synthetic QA conversation', createdAt: now, lastMessageAt: now + 1, mode: 'chat' });
+      await saveChatMessage({ conversationLocalId: localId, role: 'user', source: 'user', text: 'Synthetic QA question, no health data.', sentAt: now, attachments: [] });
+      await saveChatMessage({ conversationLocalId: localId, role: 'assistant', source: 'demo', text: 'Synthetic QA response, not generated by AI.', sentAt: now + 1, attachments: [] });
+    } catch {
+      feedback.show('QA-диалог не сохранён', 'Проверка остановлена. Синтетические данные остаются только в тестовом контейнере.');
+    } finally { qaFixtureInFlight.current = false; }
+  };
+  const [conversationDockHeight, setConversationDockHeight] = useState(152);
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const [copyNoticeVisible, setCopyNoticeVisible] = useState(false);
   const [pendingConsentRequest, setPendingConsentRequest] =
     useState<PendingConsentRequest>();
   const compactHeight = window.height < 760;
-  const composerBottom =
-    Platform.OS === 'android'
-      ? Math.max(insets.bottom, 8) + 60 + 12
-      : Math.max(insets.bottom, 12) + (!hasNativeLiquidGlass ? 72 : 58);
-  const conversationComposerBottom = Math.max(insets.bottom + 4, 16) - 12;
+  const composerBottom = chatComposerInset(Platform.OS, insets.bottom, keyboardVisible);
+  const conversationComposerBottom = keyboardVisible
+    ? 8
+    : Math.max(insets.bottom + 4, 16) - 12;
+  const emptyHeroVisible = chatEmptyHeroFits(window.height, insets.top, composerBottom, mainDockHeight, keyboardVisible, !!draft.trim());
   const historyPanelWidth = Math.min(window.width * 0.76, 318);
   const headerTop = getHeaderTop(insets.top);
-  const suggestionsVisible = !composerFocused;
+  const suggestionsVisible = !composerFocused && !draft.trim();
   const suggestionsProgress = useRef(new Animated.Value(1)).current;
   const conversationProgress = useRef(new Animated.Value(0)).current;
   const historyProgress = useRef(new Animated.Value(0)).current;
@@ -292,29 +372,31 @@ export default function ChatScreen() {
     healthStore.ready &&
     Boolean(profile) &&
     agentStatus?.enabled === true;
-  const selectedModeReady = headerMode === 'assistant' ? agentReady : aiReady;
+  const availability = resolveChatAvailability({
+    web: Platform.OS === 'web',
+    authLoading,
+    authenticated: isAuthenticated,
+    readOnly,
+    cloudSyncEnabled,
+    cloudProfileReady,
+    localReady:
+      headerMode === 'chat' || (healthStore.ready && Boolean(profile)),
+    offline: connectivity.isOffline,
+    backendUnavailable: connectivity.backendStatus === 'unavailable',
+    statusError:
+      (headerMode === 'chat' ? chatResult : agentResult) instanceof Error ||
+      (!cloudProfileReady && healthStore.syncStatus === 'error'),
+    status: headerMode === 'chat' ? chatStatus : agentStatus,
+  });
+  const selectedModeReady = availability.canSend;
   const selectedConsentAccepted =
     headerMode === 'assistant'
       ? agentStatus?.consentAccepted === true
       : chatStatus?.consentAccepted === true;
-  const availabilityNotice =
-    Platform.OS === 'web'
-      ? 'ИИ-чат доступен в приложении для iOS и Android после входа.'
-      : authLoading
-        ? 'Проверяем доступность ИИ-чата…'
-        : !isAuthenticated || readOnly
-          ? 'Войдите в аккаунт, чтобы получать ответы Сферки.'
-          : !cloudProfileReady
-            ? 'ИИ-чат станет доступен после включения облачной синхронизации.'
-            : headerMode === 'assistant' && !agentStatus
-              ? 'Проверяем доступность Ассистента…'
-              : headerMode === 'chat' && !chatStatus
-                ? 'Проверяем доступность ИИ-чата…'
-                : headerMode === 'assistant' && !agentStatus?.enabled
-                  ? 'Ассистент пока выключен администратором.'
-                  : headerMode === 'chat' && !chatStatus?.enabled
-                    ? 'ИИ-чат пока выключен администратором.'
-                    : undefined;
+  const availabilityNotice = availability.message;
+  useEffect(() => {
+    if (availability.reason === 'ready') setChatNotice(undefined);
+  }, [availability.reason]);
   const persistedRecentChats = useMemo<ChatHistoryItem[]>(
     () =>
       chatConversations
@@ -531,7 +613,7 @@ export default function ChatScreen() {
 
   const chooseHistoryPeriod = () => {
     void Haptics.selectionAsync();
-    Alert.alert('История чатов', 'За какой период показать разговоры?', [
+    feedback.show('История чатов', 'За какой период показать разговоры?', [
       {
         text: 'Все чаты',
         onPress: () => {
@@ -675,20 +757,14 @@ export default function ChatScreen() {
   };
 
   const renameRecentChat = (item: ChatHistoryItem) => {
-    const applyRename = (nextTitle?: string) => {
+    const applyRename = async (nextTitle?: string) => {
       const title = nextTitle?.trim();
       if (!title || title === item.title) return;
       const conversation = chatConversations.find(
         (candidate) => candidate.localId === item.id,
       );
       if (conversation) {
-        void saveConversation({ ...conversation, title }).catch((error) => {
-          console.error('Renaming chat failed', error);
-          Alert.alert(
-            'Не удалось переименовать чат',
-            'Проверьте подключение и попробуйте ещё раз.',
-          );
-        });
+        await saveConversation({ ...conversation, title });
       }
       setRecentChats((current) =>
         current.map((chat) =>
@@ -697,24 +773,7 @@ export default function ChatScreen() {
       );
     };
 
-    if (Platform.OS === 'ios') {
-      Alert.prompt(
-        'Переименовать чат',
-        undefined,
-        [
-          { text: 'Отмена', style: 'cancel' },
-          { text: 'Сохранить', onPress: applyRename },
-        ],
-        'plain-text',
-        item.title,
-      );
-      return;
-    }
-
-    Alert.alert(
-      'Переименовать чат',
-      'Редактирование названия доступно в iOS-версии.',
-    );
+    feedback.edit('Переименовать чат', item.title, applyRename);
   };
 
   const deleteRecentChat = (item: ChatHistoryItem) => {
@@ -722,13 +781,13 @@ export default function ChatScreen() {
       activeGeneration.current?.conversationLocalId === item.id ||
       (generationInFlight.current && conversationId === item.id)
     ) {
-      Alert.alert(
+      feedback.show(
         'Сферка ещё отвечает',
         'Дождитесь ответа, прежде чем удалять этот чат.',
       );
       return;
     }
-    Alert.alert('Удалить чат?', `«${item.title}» будет удалён из истории.`, [
+    feedback.show('Удалить чат?', `«${item.title}» будет удалён из истории.`, [
       { text: 'Отмена', style: 'cancel' },
       {
         text: 'Удалить',
@@ -762,15 +821,7 @@ export default function ChatScreen() {
             return;
           }
 
-          void deleteChatConversation(conversation)
-            .then(finishDeletion)
-            .catch((error) => {
-              console.error('Deleting chat failed', error);
-              Alert.alert(
-                'Не удалось удалить чат',
-                'Проверьте подключение и попробуйте ещё раз.',
-              );
-            });
+          return deleteChatConversation(conversation).then(finishDeletion);
         },
       },
     ]);
@@ -1036,7 +1087,7 @@ export default function ChatScreen() {
         );
         if (currentGeneration) markGenerationError(currentGeneration);
         else {
-          Alert.alert(
+          feedback.show(
             'Не удалось сохранить сообщение',
             'Освободите место на устройстве и попробуйте ещё раз.',
           );
@@ -1095,19 +1146,23 @@ export default function ChatScreen() {
         (conversation) =>
           conversation.localId === userMessage.conversationLocalId,
       )?.mode ?? headerMode;
-    const retryReady = retryMode === 'assistant' ? agentReady : aiReady;
+    const retryReady =
+      !connectivity.isOffline &&
+      connectivity.backendStatus !== 'unavailable' &&
+      (retryMode === 'assistant' ? agentReady : aiReady);
     const retryConsentAccepted =
       retryMode === 'assistant'
         ? agentStatus?.consentAccepted
         : chatStatus?.consentAccepted;
     if (!retryReady) {
-      Alert.alert(
-        'ИИ-чат недоступен',
-        availabilityNotice ?? 'Попробуйте позже.',
+      setChatNotice(
+        availabilityNotice ?? 'Не удалось связаться с ИИ. Повторите позже.',
       );
       return;
     }
     if (!retryConsentAccepted) {
+      Keyboard.dismiss();
+      setConsentError(undefined);
       setPendingConsentRequest({
         kind: 'retry',
         mode: retryMode,
@@ -1121,15 +1176,20 @@ export default function ChatScreen() {
 
   const send = () => {
     const text = draft.trim();
-    if (!text || generationInFlight.current) return;
+    if (
+      !text ||
+      generationInFlight.current ||
+      consentInFlight.current ||
+      consentVisible
+    )
+      return;
     if (!selectedModeReady) {
-      Alert.alert(
-        'ИИ-чат недоступен',
-        availabilityNotice ?? 'Попробуйте позже.',
-      );
+      setChatNotice(availabilityNotice ?? 'Попробуйте позже.');
       return;
     }
     if (!selectedConsentAccepted) {
+      Keyboard.dismiss();
+      setConsentError(undefined);
       setPendingConsentRequest({ kind: 'new', mode: headerMode, text });
       setConsentVisible(true);
       return;
@@ -1143,42 +1203,87 @@ export default function ChatScreen() {
       pending?.mode === 'assistant'
         ? agentStatus?.policyVersion
         : chatStatus?.policyVersion;
-    if (!pending || !policyVersion || consentAccepting) return;
+    if (!pending || !policyVersion || consentInFlight.current) return;
+    setConsentError(undefined);
     setConsentAccepting(true);
     try {
-      if (pending.mode === 'assistant') {
-        await acceptAgentConsent({
-          policyVersion,
-          scopes: [...(agentStatus?.scopes ?? [])],
-        });
-      } else {
-        await acceptAiConsent({ policyVersion });
-      }
-      setConsentVisible(false);
-      setPendingConsentRequest(undefined);
-      if (pending.kind === 'new') startNewMessage(pending.text, pending.mode);
-      else if (pending.kind === 'retry')
-        startRetry(pending.userMessage, pending.mode);
-    } catch (error) {
-      console.error('Accepting AI chat consent failed', error);
-      Alert.alert(
-        'Не удалось сохранить согласие',
-        'Проверьте подключение и попробуйте ещё раз.',
+      await submitConsentOnce(
+        consentInFlight,
+        async () => {
+          if (pending.mode === 'assistant') {
+            await acceptAgentConsent({
+              policyVersion,
+              scopes: [...(agentStatus?.scopes ?? [])],
+            });
+          } else {
+            await acceptAiConsent({ policyVersion });
+          }
+        },
+        () => {
+          setConsentVisible(false);
+          setPendingConsentRequest(undefined);
+          if (pending.kind === 'new')
+            startNewMessage(pending.text, pending.mode);
+          else if (pending.kind === 'retry')
+            startRetry(pending.userMessage, pending.mode);
+        },
+      );
+    } catch {
+      setConsentError(
+        'Не удалось сохранить согласие. Проверьте подключение и попробуйте ещё раз. Черновик не удалён.',
       );
     } finally {
       setConsentAccepting(false);
     }
   };
 
+  const availabilityPanel = (
+    <View accessibilityLiveRegion="polite" style={{ width: '100%', gap: 4 }}>
+      {availabilityNotice || chatNotice ? (
+        <AppText role="caption" style={styles.availabilityNotice}>
+          {availabilityNotice ?? chatNotice}
+        </AppText>
+      ) : null}
+      {availability.action ? (
+        <Pressable
+          accessibilityRole="button"
+          style={styles.availabilityAction}
+          onPress={() => {
+            Keyboard.dismiss();
+            if (availability.action === 'profile') {
+              closeConversation();
+              router.push(
+                availability.reason === 'sync'
+                  ? '/profile?panel=permissions'
+                  : '/profile',
+              );
+            } else if (availability.action === 'retry') {
+              setChatNotice(undefined);
+              setStatusAttempt((attempt) => attempt + 1);
+            } else {
+              setConsentError(undefined);
+              setPendingConsentRequest({ kind: 'mode', mode: headerMode });
+              setConsentVisible(true);
+            }
+          }}
+        >
+          <AppText weight="semibold">
+            {availability.action === 'profile'
+              ? 'Открыть настройки профиля'
+              : availability.action === 'retry'
+                ? 'Повторить проверку'
+                : 'Ознакомиться и дать согласие'}
+          </AppText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+
   const explainAttachments = () => {
     void Haptics.selectionAsync();
-    Alert.alert(
-      headerMode === 'assistant'
-        ? 'Чтение файлов появится позже'
-        : 'Файлы доступны через разделы приложения',
-      headerMode === 'assistant'
-        ? 'Ассистент пока видит только метаданные документов и подтверждённые структурированные результаты. Содержимое файлов не читается и не отправляется.'
-        : 'В обычном чате Сферка получает только видимый текст. Документы можно сохранить в «Анализах» или профиле.',
+    feedback.show(
+      'Документы в профиле',
+      'Добавьте PDF или фото в «Документы» профиля. Распознавание выполняется на устройстве. Для интерпретации отдельно проверьте и выберите текст, затем подтвердите его отправку. Файлы и изображения в чат не отправляются.',
     );
   };
 
@@ -1273,7 +1378,7 @@ export default function ChatScreen() {
       }
     };
     if (conversationVisible && messages.length) {
-      Alert.alert(
+      feedback.show(
         'Начать новый разговор?',
         'Режимы «Чат» и «Ассистент» используют разные разрешения на данные.',
         [
@@ -1316,11 +1421,28 @@ export default function ChatScreen() {
         }
       : undefined;
 
+  const consentSheet = (
+    <AiChatConsentSheet
+      error={consentError}
+      accepting={consentAccepting}
+      assistant={pendingConsentRequest?.mode === 'assistant'}
+      visible={consentVisible}
+      onAccept={() => void acceptConsentAndContinue()}
+      onCancel={() => {
+        if (consentInFlight.current) return;
+        setConsentError(undefined);
+        setConsentVisible(false);
+        setPendingConsentRequest(undefined);
+      }}
+    />
+  );
+
   return (
     <KeyboardAvoidingView
       style={styles.drawerRoot}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+      enabled={!conversationVisible}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
     >
       {historyRendered ? (
         <ChatHistoryPanel
@@ -1339,6 +1461,9 @@ export default function ChatScreen() {
 
       <Animated.View
         key={`chat-surface-${surfaceResetKey}`}
+        pointerEvents={conversationVisible ? 'none' : 'auto'}
+        accessibilityElementsHidden={conversationVisible}
+        importantForAccessibility={conversationVisible ? 'no-hide-descendants' : 'auto'}
         style={[
           styles.chatSurface,
           historyRendered && styles.chatSurfaceRaised,
@@ -1368,7 +1493,7 @@ export default function ChatScreen() {
             styles.scrollContent,
             {
               paddingTop: insets.top + 80,
-              paddingBottom: composerBottom + 152,
+              paddingBottom: composerBottom + mainDockHeight + 16,
             },
           ]}
         >
@@ -1376,11 +1501,12 @@ export default function ChatScreen() {
             style={[
               styles.emptyStage,
               {
-                paddingTop: Math.max(135 - insets.top, 32),
+                paddingTop: emptyHeroVisible ? Math.max(135 - insets.top, 32) : 0,
+                minHeight: emptyHeroVisible ? 390 : 0,
               },
             ]}
           >
-            <ChatEmptyState compact={compactHeight} />
+            {emptyHeroVisible ? <ChatEmptyState compact={compactHeight} /> : null}
           </View>
         </ScrollView>
 
@@ -1392,6 +1518,9 @@ export default function ChatScreen() {
               bottom: composerBottom,
             },
           ]}
+          onLayout={(event) =>
+            setMainDockHeight(event.nativeEvent.layout.height)
+          }
         >
           <Animated.View
             pointerEvents={suggestionsVisible ? 'auto' : 'none'}
@@ -1440,12 +1569,12 @@ export default function ChatScreen() {
               />
             </Animated.View>
           </Animated.View>
-          {availabilityNotice ? (
-            <AppText role="caption" style={styles.availabilityNotice}>
-              {availabilityNotice}
-            </AppText>
-          ) : null}
+          {availabilityPanel}
           <ChatComposer
+            inputTestID="chat-main-input"
+            editable={
+              !readOnly && !consentAccepting && generationState !== 'thinking'
+            }
             disabled={!selectedModeReady || generationState === 'thinking'}
             value={draft}
             onChangeText={setDraft}
@@ -1456,17 +1585,23 @@ export default function ChatScreen() {
             onBlur={() => setComposerFocused(false)}
             onAdd={explainAttachments}
             onVoice={() =>
-              Alert.alert(
+              feedback.show(
                 'Голосовой ввод',
                 'Голосовой режим пока не подключён.',
               )
             }
           />
-          <AppText numberOfLines={2} role="caption" style={styles.aiDisclaimer}>
-            {
-              'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
-            }
-          </AppText>
+          {!keyboardVisible ? (
+            <AppText
+              numberOfLines={2}
+              role="caption"
+              style={styles.aiDisclaimer}
+            >
+              {
+                'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
+              }
+            </AppText>
+          ) : null}
         </View>
 
         {historyRendered ? (
@@ -1486,8 +1621,8 @@ export default function ChatScreen() {
       >
         <KeyboardAvoidingView
           style={[styles.conversationModal, styles.drawerRoot]}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
         >
           {historyRendered ? (
             <ChatHistoryPanel
@@ -1536,6 +1671,7 @@ export default function ChatScreen() {
               style={[
                 styles.conversationContentMotion,
                 {
+                  paddingBottom: conversationComposerBottom + conversationDockHeight,
                   opacity: conversationProgress.interpolate({
                     inputRange: [0, 0.28, 1],
                     outputRange: [0, 0, 1],
@@ -1561,7 +1697,7 @@ export default function ChatScreen() {
                   styles.conversationScrollContent,
                   {
                     paddingTop: insets.top + 102,
-                    paddingBottom: conversationComposerBottom + 92,
+                    paddingBottom: 16,
                   },
                 ]}
               >
@@ -1638,6 +1774,9 @@ export default function ChatScreen() {
 
             <Animated.View
               pointerEvents="box-none"
+              onLayout={(event) =>
+                setConversationDockHeight(event.nativeEvent.layout.height)
+              }
               style={[
                 styles.bottomDock,
                 {
@@ -1653,11 +1792,7 @@ export default function ChatScreen() {
                 },
               ]}
             >
-              {availabilityNotice ? (
-                <AppText role="caption" style={styles.availabilityNotice}>
-                  {availabilityNotice}
-                </AppText>
-              ) : null}
+              {availabilityPanel}
               {copyNoticeVisible ? (
                 <Animated.View
                   accessibilityRole="alert"
@@ -1693,6 +1828,12 @@ export default function ChatScreen() {
                 </Animated.View>
               ) : null}
               <ChatComposer
+                inputTestID="chat-conversation-input"
+                editable={
+                  !readOnly &&
+                  !consentAccepting &&
+                  generationState !== 'thinking'
+                }
                 disabled={!selectedModeReady || generationState === 'thinking'}
                 value={draft}
                 onChangeText={setDraft}
@@ -1703,21 +1844,23 @@ export default function ChatScreen() {
                 onBlur={() => setComposerFocused(false)}
                 onAdd={explainAttachments}
                 onVoice={() =>
-                  Alert.alert(
+                  feedback.show(
                     'Голосовой ввод',
                     'Голосовой режим пока не подключён.',
                   )
                 }
               />
-              <AppText
-                numberOfLines={2}
-                role="caption"
-                style={styles.aiDisclaimer}
-              >
-                {
-                  'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
-                }
-              </AppText>
+              {!keyboardVisible ? (
+                <AppText
+                  numberOfLines={2}
+                  role="caption"
+                  style={styles.aiDisclaimer}
+                >
+                  {
+                    'ИИ может ошибаться. Ответы не являются\nмедицинской рекомендацией.'
+                  }
+                </AppText>
+              ) : null}
             </Animated.View>
             {historyRendered ? (
               <Pressable
@@ -1730,19 +1873,21 @@ export default function ChatScreen() {
             ) : null}
           </Animated.View>
         </KeyboardAvoidingView>
+        {conversationVisible ? consentSheet : null}
+        {conversationVisible ? <ScreenFeedback feedback={feedback} /> : null}
       </ConversationOverlay>
-      <AiChatConsentSheet
-        accepting={consentAccepting}
-        assistant={pendingConsentRequest?.mode === 'assistant'}
-        visible={consentVisible}
-        onAccept={() => void acceptConsentAndContinue()}
-        onCancel={() => {
-          if (consentAccepting) return;
-          if (pendingConsentRequest?.kind === 'mode') setHeaderMode('chat');
-          setConsentVisible(false);
-          setPendingConsentRequest(undefined);
-        }}
-      />
+      {!conversationVisible ? consentSheet : null}
+      {!conversationVisible ? <ScreenFeedback feedback={feedback} /> : null}
+      {qaClient && !conversationVisible && !historyOpen ? (
+        <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + 65, alignSelf: 'center', zIndex: 60 }}>
+          <AppText role="caption">{`QA backend ${connectivity.backendStatus}`}</AppText>
+        </View>
+      ) : null}
+      {qaFixtureAllowed && historyOpen && !conversationVisible ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Создать синтетический QA-диалог" onPress={() => void createQaConversation()} style={{ position: 'absolute', left: 20, bottom: 120, zIndex: 200, padding: 16, backgroundColor: '#F4DDE7', borderRadius: 12 }}>
+          <AppText>Создать синтетический QA-диалог</AppText>
+        </Pressable>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -1817,6 +1962,14 @@ const styles = StyleSheet.create({
     color: colors.brand.burgundy,
     textAlign: 'center',
   },
+  availabilityAction: {
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: '#F0EEF0',
+    paddingHorizontal: 12,
+  },
   aiDisclaimer: {
     width: '100%',
     paddingHorizontal: 10,
@@ -1843,6 +1996,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(33,33,35,0.38)',
   },
   consentSheet: {
+    maxHeight: '90%',
     gap: 18,
     paddingHorizontal: 22,
     paddingTop: 24,

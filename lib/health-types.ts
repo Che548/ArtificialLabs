@@ -65,6 +65,8 @@ export type LabResult = {
   title: string;
   collectedAt: number;
   status: 'normal' | 'attention' | 'unreviewed';
+  /** User checked the transcription; this is not a clinical classification. */
+  confirmedAt?: number;
   analytes: Array<{
     name: string;
     value: string;

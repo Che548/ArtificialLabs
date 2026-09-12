@@ -84,6 +84,7 @@ const lab = v.object({
   catalogKey: v.string(),
   title: v.string(),
   collectedAt: v.number(),
+  confirmedAt: v.optional(v.number()),
   status: v.union(
     v.literal('normal'),
     v.literal('attention'),

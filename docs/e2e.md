@@ -1,5 +1,10 @@
 # Backend E2E
 
+For the new local document OCR pipeline, dependency builds, synthetic fixtures
+and still-pending native release gates, see `document-ocr.md`. Policy tests with
+a synthetic engine do not establish OCR accuracy. Native checks run one device
+at a time and require a freshly built package containing the OCR module.
+
 The live E2E suite targets the dedicated self-hosted ArtificialLabs deployment.
 It creates only disposable accounts matching
 `artificiallabs-e2e+<run-id>@example.test` and removes them with an internal,

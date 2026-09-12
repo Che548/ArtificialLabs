@@ -1,0 +1,15 @@
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
+---
+# On Today, a non-navigation status also says Profile. Select the Android
+# tab's existing accessibility ID, not arbitrary matching page text.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: 'e2e-tab-profile'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Профиль'

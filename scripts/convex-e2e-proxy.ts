@@ -2,6 +2,7 @@ import http, { type IncomingHttpHeaders, type IncomingMessage } from 'node:http'
 import https from 'node:https';
 import { readFileSync } from 'node:fs';
 import tls from 'node:tls';
+import { createTransportFaults } from './e2e-transport-faults';
 
 type ProxyDefinition = {
   name: string;
@@ -14,6 +15,7 @@ type ProxyDefinition = {
 const DEFAULT_BACKEND_PORT = 3320;
 const DEFAULT_SITE_PORT = 3321;
 const DEFAULT_IOS_BACKEND_PORT = 3340;
+const faults = createTransportFaults(process.env.E2E_ALLOW_TRANSPORT_FAULTS === '1');
 
 export function rewriteRequestHeaders(
   headers: IncomingHttpHeaders,
@@ -44,10 +46,12 @@ function serializeUpgradeRequest(request: IncomingMessage, target: URL) {
 function createProxy({ name, port, target, tlsCertificate, tlsKey }: ProxyDefinition) {
   const targetPort = Number(target.port || 443);
   const handleRequest: http.RequestListener = (request, response) => {
+    if (faults.handle(request, response)) return;
     if (request.url === '/__e2e_proxy_health') {
       response.writeHead(204).end();
       return;
     }
+    if (faults.offline) { response.writeHead(503).end('Synthetic QA transport outage'); return; }
 
     const upstream = https.request(
       {
@@ -64,9 +68,11 @@ function createProxy({ name, port, target, tlsCertificate, tlsKey }: ProxyDefini
       },
     );
     upstream.setTimeout(15_000, () => upstream.destroy(new Error(`${name} upstream timeout`)));
+    const release = faults.register(() => upstream.destroy());
+    upstream.once('close', release);
     upstream.on('error', (error) => {
       if (!response.headersSent) response.writeHead(502);
-      response.end(`E2E proxy error: ${error.message}`);
+      response.end('E2E proxy transport failure');
     });
     request.pipe(upstream);
   };
@@ -82,17 +88,21 @@ function createProxy({ name, port, target, tlsCertificate, tlsKey }: ProxyDefini
       : http.createServer(handleRequest);
 
   server.on('upgrade', (request, socket, head) => {
+    if (faults.offline) { socket.destroy(); return; }
     const upstream = tls.connect({
       host: target.hostname,
       port: targetPort,
       servername: target.hostname,
     });
     const closeBoth = (error?: Error) => {
-      if (error) console.error(`${name} WebSocket proxy error: ${error.message}`);
+      if (error) console.error(`${name} WebSocket proxy transport failure`);
       upstream.destroy();
       socket.destroy();
     };
     upstream.setTimeout(15_000, () => closeBoth(new Error('upstream timeout')));
+    const release = faults.register(() => closeBoth());
+    socket.once('close', release);
+    upstream.once('close', release);
     upstream.once('secureConnect', () => {
       upstream.setTimeout(0);
       upstream.write(serializeUpgradeRequest(request, target));
@@ -149,6 +159,12 @@ if (process.argv[1]?.endsWith('convex-e2e-proxy.ts')) {
     site.close();
     iosBackend.close();
   };
-  process.once('SIGINT', shutdown);
-  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', () => {
+    console.log('QA proxy shutdown signal: SIGINT');
+    shutdown();
+  });
+  process.once('SIGTERM', () => {
+    console.log('QA proxy shutdown signal: SIGTERM');
+    shutdown();
+  });
 }

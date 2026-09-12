@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   createSingleFlightRunner,
+  sanitizeCloudRecord,
   synchronizeMedicalCloud,
   utf8ByteLength,
   type CloudOutboxRow,
@@ -34,6 +35,15 @@ test('counts upload estimates as UTF-8 bytes', () => {
   assert.equal(utf8ByteLength('ASCII'), 5);
   assert.equal(utf8ByteLength('сфера'), Buffer.byteLength('сфера', 'utf8'));
   assert.equal(utf8ByteLength('🩷'), Buffer.byteLength('🩷', 'utf8'));
+});
+
+test('document cloud records strip accidental OCR draft fields as well as local paths', () => {
+  const result = sanitizeCloudRecord('documents', {
+    ...row.payload, ocrDraft: { text: 'synthetic private draft' }, extractedText: 'synthetic OCR',
+    documentExtraction: { pages: [] }, editedText: 'synthetic reviewed draft', pages: [{ text: 'synthetic page' }], unexpectedSecret: 'synthetic-not-a-secret',
+  });
+  for (const key of ['ocrDraft', 'extractedText', 'documentExtraction', 'editedText', 'pages', 'localFileUri', 'unexpectedSecret']) assert.equal(key in result, false);
+  assert.equal(result.localId, 'document-1');
 });
 
 test('syncs profile before outbox and acknowledges only accepted rows', async () => {

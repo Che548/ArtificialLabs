@@ -1,0 +1,7 @@
+appId: engineering.brainwaves.sfera
+---
+- runFlow: android-ocr-auth.yml
+- runFlow: chat-keyboard.yml
+- runFlow: chat-conversation.yml
+- runFlow: native-connection.yml
+- runFlow: document-ocr.yml

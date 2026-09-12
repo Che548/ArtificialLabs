@@ -242,6 +242,20 @@ describe('Yandex provider adapter', () => {
     });
   });
 
+  test('accepts an empty or partial plan without quota filling', () => {
+    for (const plan of [{ current: [], upcoming: [] }, { current: validPlanArguments().current, upcoming: [] }]) {
+      expect(validatePlanReviewResponse({ candidates: planCandidates, contextEnvelope: planContextEnvelope, response: planResponse(plan) })).toEqual({ ok: true, recommendations: [...plan.current, ...plan.upcoming] });
+    }
+  });
+
+  test('rejects too many active proposals and incorrect month grouping', () => {
+    const plan = validPlanArguments();
+    const current = [plan.current[0], ...plan.upcoming.slice(0, 3).map(item => ({ ...item, monthOffset: 0 }))];
+    for (const invalid of [{ current, upcoming: [] }, { current: plan.upcoming.slice(0, 1), upcoming: [] }, { current: [], upcoming: plan.current }]) {
+      expect(validatePlanReviewResponse({ candidates: planCandidates, contextEnvelope: planContextEnvelope, response: planResponse(invalid) }).ok).toBe(false);
+    }
+  });
+
   test('identifies a plan cut off before its required tool call', () => {
     expect(
       validatePlanReviewResponse({
@@ -278,7 +292,7 @@ describe('Yandex provider adapter', () => {
     vi.stubEnv('YANDEX_AI_MODEL', 'deepseek-v4-flash/latest');
     const bodies: string[] = [];
     const generatedResponses = [
-      planResponse({ current: [], upcoming: [] }),
+      planResponse({ current: null, upcoming: [] }),
       planResponse(validPlanArguments()),
     ];
     const fetchMock = vi.fn(
@@ -307,11 +321,11 @@ describe('Yandex provider adapter', () => {
     );
   });
 
-  test('uses a conservative server catalogue plan after two invalid generations', async () => {
+  test('does not invent catalogue recommendations after invalid generations', async () => {
     vi.stubEnv('YANDEX_AI_API_KEY', 'test-key');
     vi.stubEnv('YANDEX_AI_FOLDER_ID', 'folder-1');
     vi.stubEnv('YANDEX_AI_MODEL', 'deepseek-v4-flash/latest');
-    const invalidResponse = planResponse({ current: [], upcoming: [] });
+    const invalidResponse = planResponse({ current: null, upcoming: [] });
     const generatedResponses = [invalidResponse, invalidResponse];
     const fetchMock = vi.fn(async () => {
       const next = generatedResponses.shift();
@@ -329,21 +343,7 @@ describe('Yandex provider adapter', () => {
       requestId: 'plan_test_catalog_fallback',
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.provider).toBe('server-catalog');
-    expect(result.model).toBe('catalog-fallback-v1');
-    expect(result.recommendations).toHaveLength(6);
-    expect(
-      result.recommendations.filter(
-        (recommendation) => recommendation.monthOffset === 0,
-      ),
-    ).toHaveLength(1);
-    expect(
-      result.recommendations.every(
-        (recommendation) => recommendation.evidenceSourceIds.length === 0,
-      ),
-    ).toBe(true);
+    expect(result).toEqual({ ok: false, code: 'PROVIDER_UNAVAILABLE' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

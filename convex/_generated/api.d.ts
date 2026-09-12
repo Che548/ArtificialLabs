@@ -26,6 +26,8 @@ import type * as calibrationActions from "../calibrationActions.js";
 import type * as chat from "../chat.js";
 import type * as chatAction from "../chatAction.js";
 import type * as crons from "../crons.js";
+import type * as documentInterpretation from "../documentInterpretation.js";
+import type * as documentInterpretationAction from "../documentInterpretationAction.js";
 import type * as emailChange from "../emailChange.js";
 import type * as emailVerification from "../emailVerification.js";
 import type * as health from "../health.js";
@@ -74,6 +76,8 @@ declare const fullApi: ApiFromModules<{
   chat: typeof chat;
   chatAction: typeof chatAction;
   crons: typeof crons;
+  documentInterpretation: typeof documentInterpretation;
+  documentInterpretationAction: typeof documentInterpretationAction;
   emailChange: typeof emailChange;
   emailVerification: typeof emailVerification;
   health: typeof health;

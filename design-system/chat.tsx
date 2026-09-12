@@ -694,7 +694,10 @@ export function ChatHistoryPanel({
                   accessibilityRole="button"
                   accessibilityLabel={`Открыть чат: ${item.title}`}
                   accessibilityState={{ selected }}
-                  onPress={() => onSelect?.(item)}
+                  onPress={() => {
+                    setActionMenuId(null);
+                    onSelect?.(item);
+                  }}
                   style={[
                     styles.historyItemPressable,
                     selected && styles.historyItemPressableSelected,
@@ -993,7 +996,9 @@ export function ChatSendButtonVariantsCatalog() {
 
 export function ChatComposer({
   value,
+  inputTestID,
   disabled = false,
+  editable = !disabled,
   onChangeText,
   onSubmit,
   onAdd,
@@ -1002,7 +1007,9 @@ export function ChatComposer({
   onBlur,
 }: {
   value: string;
+  inputTestID?: string;
   disabled?: boolean;
+  editable?: boolean;
   onChangeText: (value: string) => void;
   onSubmit?: () => void;
   onAdd?: () => void;
@@ -1010,10 +1017,12 @@ export function ChatComposer({
   onFocus?: () => void;
   onBlur?: () => void;
 }) {
+  const [inputHeight, setInputHeight] = useState(35);
   const [canSubmit, setCanSubmit] = useState(
     () => !disabled && value.trim().length > 0,
   );
-  const actionProgress = useRef(new Animated.Value(canSubmit ? 1 : 0)).current;
+  const hasText = value.trim().length > 0;
+  const actionProgress = useRef(new Animated.Value(hasText ? 1 : 0)).current;
 
   useEffect(() => {
     setCanSubmit(!disabled && value.trim().length > 0);
@@ -1021,7 +1030,7 @@ export function ChatComposer({
 
   useEffect(() => {
     const animation = Animated.timing(actionProgress, {
-      toValue: canSubmit ? 1 : 0,
+      toValue: hasText ? 1 : 0,
       duration: 220,
       easing: Easing.bezier(0.22, 1, 0.36, 1),
       useNativeDriver: true,
@@ -1029,7 +1038,7 @@ export function ChatComposer({
 
     animation.start();
     return () => animation.stop();
-  }, [actionProgress, canSubmit]);
+  }, [actionProgress, hasText]);
 
   return (
     <View style={styles.composerRow}>
@@ -1037,10 +1046,11 @@ export function ChatComposer({
 
       <ChatComposerGlass radius={23} style={styles.composer}>
         <TextInput
+          testID={inputTestID}
           accessibilityLabel="Сообщение для Сферки"
-          accessibilityState={{ disabled }}
+          accessibilityState={{ disabled: !editable }}
           value={value}
-          editable={!disabled}
+          editable={editable}
           onChangeText={(nextValue) => {
             setCanSubmit(!disabled && nextValue.trim().length > 0);
             onChangeText(nextValue);
@@ -1048,6 +1058,11 @@ export function ChatComposer({
           placeholder="Спросить Сферку"
           placeholderTextColor="#5C5C5C"
           multiline
+          onContentSizeChange={(event) => {
+            const height = Math.ceil(event.nativeEvent.contentSize.height);
+            if (Number.isFinite(height))
+              setInputHeight(Math.min(94, Math.max(35, height)));
+          }}
           maxLength={1200}
           returnKeyType="send"
           blurOnSubmit={false}
@@ -1056,12 +1071,12 @@ export function ChatComposer({
           onSubmitEditing={() => {
             if (canSubmit) onSubmit?.();
           }}
-          style={styles.input}
+          style={[styles.input, { height: inputHeight }]}
         />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
-            canSubmit ? 'Отправить сообщение' : 'Голосовой ввод'
+            value.trim() ? 'Отправить сообщение' : 'Голосовой ввод'
           }
           onPress={canSubmit ? onSubmit : onVoice}
           disabled={disabled}
@@ -2783,6 +2798,10 @@ const styles = StyleSheet.create({
   },
   historyItemMenuOpen: {
     zIndex: 20,
+    // Native hit-testing clips descendants to the parent even when overflow
+    // is visible. Reserve the popup's 48px offset + 222px height in this row.
+    paddingBottom: 226,
+    alignItems: 'flex-start',
   },
   historyItemSelected: {
     paddingRight: 16,

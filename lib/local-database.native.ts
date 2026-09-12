@@ -2,6 +2,7 @@ import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
+import { copyDocumentExtraction, validateDocumentExtraction, type DocumentExtraction } from '../shared/document-policy';
 
 import type {
   ChatConversation,
@@ -17,7 +18,7 @@ import type {
   AnonymousTelemetryEvent,
   PendingTelemetryEvent,
 } from './telemetry-types';
-import { createEmptySnapshot } from './health-types';
+import { createEmptySnapshot, newLocalId } from './health-types';
 import { createChatTombstones } from './chat-deletion';
 import { sanitizeCloudRecord, utf8ByteLength } from './cloud-sync';
 import {
@@ -197,6 +198,10 @@ async function openDatabase() {
     );
     CREATE INDEX IF NOT EXISTS records_entity_time
       ON records(entity, occurred_at DESC);
+    CREATE TABLE IF NOT EXISTS document_extractions (
+      document_local_id TEXT PRIMARY KEY NOT NULL,
+      payload TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS outbox (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       entity TEXT NOT NULL,
@@ -288,7 +293,7 @@ export async function claimLocalDatabaseOwner(userId: string) {
   if (row?.value === userId) return false;
   await withWriteTransaction(async (transaction) => {
     await transaction.execAsync(
-      'DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings;',
+      'DELETE FROM document_extractions; DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings;',
     );
     await transaction.runAsync(
       `INSERT INTO settings (key, value) VALUES ('ownerId', ?)
@@ -351,6 +356,67 @@ export async function saveLocalSetting(key: string, value: unknown) {
 export async function deleteLocalSetting(key: string) {
   await withWriteTransaction(async (db) => {
     await db.runAsync('DELETE FROM settings WHERE key = ?', key);
+  });
+}
+
+/** Deliberately outside records, FTS, snapshots and the cloud outbox. */
+export async function saveLocalDocumentExtraction(value: DocumentExtraction) {
+  const payload = copyDocumentExtraction(value);
+  await withWriteTransaction(async db => {
+    const record = await db.getFirstAsync<{payload:string}>(
+      "SELECT payload FROM records WHERE entity = 'documents' AND local_id = ?", value.documentLocalId,
+    );
+    if (!record || JSON.parse(record.payload).deletedAt) throw new Error('DOCUMENT_NOT_FOUND');
+    await db.runAsync(
+      'INSERT INTO document_extractions(document_local_id,payload) VALUES (?,?) ON CONFLICT(document_local_id) DO UPDATE SET payload=excluded.payload',
+      value.documentLocalId, JSON.stringify(payload),
+    );
+  });
+}
+
+export async function loadLocalDocumentExtraction(documentLocalId: string) {
+  const db = await database();
+  const row = await db.getFirstAsync<{payload:string; document:string}>(
+    "SELECT e.payload, r.payload AS document FROM document_extractions e JOIN records r ON r.entity = 'documents' AND r.local_id = e.document_local_id WHERE e.document_local_id = ?", documentLocalId,
+  );
+  if (!row || JSON.parse(row.document).deletedAt) return undefined;
+  const extraction = JSON.parse(row.payload) as DocumentExtraction;
+  validateDocumentExtraction(extraction);
+  return extraction;
+}
+
+export async function saveConfirmedDocumentExtraction(value: DocumentExtraction) {
+  const payload = copyDocumentExtraction(value);
+  if (payload.state !== 'confirmed') throw new Error('DOCUMENT_REVIEW_REQUIRED');
+  await withWriteTransaction(async transaction => {
+    const row = await transaction.getFirstAsync<{ payload: string }>(
+      "SELECT payload FROM records WHERE entity = 'documents' AND local_id = ?", payload.documentLocalId,
+    );
+    if (!row) throw new Error('DOCUMENT_NOT_FOUND');
+    const document = JSON.parse(row.payload) as HealthEntityMap['documents'];
+    if (document.deletedAt) throw new Error('DOCUMENT_NOT_FOUND');
+    if (payload.analytes?.length) {
+      const existing = document.linkedLabResultLocalId
+        ? await transaction.getFirstAsync<{ payload: string }>("SELECT payload FROM records WHERE entity = 'labResults' AND local_id = ?", document.linkedLabResultLocalId)
+        : undefined;
+      const previous = existing ? JSON.parse(existing.payload) as HealthEntityMap['labResults'] : undefined;
+      if (previous && (previous.deletedAt || previous.sourceDocumentLocalId !== document.localId)) throw new Error('DOCUMENT_LINK_CONFLICT');
+      const result: HealthEntityMap['labResults'] = {
+        localId: previous?.localId ?? newLocalId('lab'), catalogKey: previous?.catalogKey ?? 'document',
+        title: previous?.title ?? document.title, collectedAt: payload.collectedAt!,
+        confirmedAt: payload.confirmedAt, status: 'unreviewed',
+        analytes: payload.analytes.map(({name,value,unit,reference}) => ({name,value,unit:unit || undefined,reference:reference || undefined})),
+        hasLocalSourceDocument: document.hasLocalFile, sourceDocumentLocalId: document.localId,
+        updatedAt: payload.updatedAt,
+      };
+      // No journal, plan completion, diagnosis or clinical classification is inferred here.
+      await writeLocalRecord(transaction, 'labResults', result);
+      await writeLocalRecord(transaction, 'documents', { ...document, linkedLabResultLocalId: result.localId, updatedAt: payload.updatedAt });
+    }
+    await transaction.runAsync(
+      'INSERT INTO document_extractions(document_local_id,payload) VALUES (?,?) ON CONFLICT(document_local_id) DO UPDATE SET payload=excluded.payload',
+      payload.documentLocalId, JSON.stringify(payload),
+    );
   });
 }
 
@@ -586,6 +652,7 @@ export async function tombstoneLocalDocumentBundle(
 ) {
   const now = Date.now();
   await withWriteTransaction(async (transaction) => {
+    await transaction.runAsync('DELETE FROM document_extractions WHERE document_local_id = ?', document.localId);
     await writeLocalRecord(
       transaction,
       'documents',
@@ -801,7 +868,7 @@ export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
 export async function clearLocalHealthData() {
   await withWriteTransaction(async (db) => {
     await db.execAsync(
-      "DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings WHERE key = 'profile';",
+      "DELETE FROM document_extractions; DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings WHERE key = 'profile';",
     );
   });
 }

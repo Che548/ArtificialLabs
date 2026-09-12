@@ -84,7 +84,8 @@ import {
   createJsonArchive,
   parseImportPayload,
 } from '../lib/data-transfer';
-import { persistLabDocument } from '../lib/local-files';
+import { discardUnreferencedLabDocument, persistLabDocument } from '../lib/local-files';
+import { ProfileDocumentsSection } from '../components/ProfileDocumentsSection';
 import { clearPendingTelemetryEvents } from '../lib/local-database';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import type { ServiceIssue } from '../lib/service-errors';
@@ -492,7 +493,7 @@ export default function ProfileScreen() {
       : await DocumentPicker.getDocumentAsync({
           copyToCacheDirectory: true,
           multiple: false,
-          type: '*/*',
+          type: ['application/pdf', 'image/jpeg', 'image/png'],
         });
     const asset = e2eDocumentFixtureUri
       ? {
@@ -506,15 +507,20 @@ export default function ProfileScreen() {
         : picked?.assets[0];
     if (!asset) return;
     const localFileUri = await persistLabDocument(asset.uri);
-    await saveDocument({
-      title: asset.name,
-      category: 'medical',
-      documentDate: Date.now(),
-      hasLocalFile: true,
-      localFileUri,
-      mimeType: asset.mimeType ?? undefined,
-      size: asset.size,
-    });
+    try {
+      await saveDocument({
+        title: asset.name,
+        category: 'medical',
+        documentDate: Date.now(),
+        hasLocalFile: true,
+        localFileUri,
+        mimeType: asset.mimeType ?? undefined,
+        size: asset.size,
+      });
+    } catch (cause) {
+      await discardUnreferencedLabDocument(localFileUri);
+      throw cause;
+    }
   };
 
   const closeSection = () => {
@@ -1874,56 +1880,7 @@ function renderProfileSectionDirect({
       );
 
     case 'documents':
-      return (
-        <View style={styles.medicalHistoryLayout}>
-          <ProfileActionRow
-            icon="doc.badge.plus"
-            label="Добавить документ"
-            pill
-            disabled={readOnly}
-            onPress={() => void saveDocumentFromPicker()}
-          />
-          {documents.length ? (
-            <ProfileSettingsGroup
-              title={
-                sourceDocumentId
-                  ? 'Источник ответа Ассистента'
-                  : `Сохранено: ${documentCount}`
-              }
-            >
-              {documents.map((item, index) => (
-                <ProfileSettingsRow
-                  key={item.localId}
-                  icon="doc.text.fill"
-                  fallback="Д"
-                  iconBackground={profileTones.health.tile}
-                  label={item.title}
-                  value={`${formatDate(item.documentDate)}${
-                    item.localId === sourceDocumentId ? ' · источник' : ''
-                  }`}
-                  isLast={index === documents.length - 1}
-                  onPress={() =>
-                    Alert.alert(
-                      item.title,
-                      `${formatDate(item.documentDate)} · содержимое файла не прочитано`,
-                      [
-                        { text: 'Закрыть', style: 'cancel' },
-                        {
-                          text: 'Удалить документ',
-                          style: 'destructive',
-                          onPress: () => void deleteRecord('documents', item),
-                        },
-                      ],
-                    )
-                  }
-                />
-              ))}
-            </ProfileSettingsGroup>
-          ) : (
-            <ProfileEmptyMessage title="Документы пока не добавлены" />
-          )}
-        </View>
-      );
+      return <ProfileDocumentsSection documents={documents} readOnly={readOnly} onAdd={saveDocumentFromPicker} onDelete={item => deleteRecord('documents', item)} />;
 
     case 'programs':
       return (

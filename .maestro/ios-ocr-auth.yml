@@ -1,0 +1,52 @@
+appId: com.anonymous.privateexpo
+---
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Continue'
+    timeout: 120000
+- tapOn:
+    text: 'Continue'
+- tapOn:
+    text: 'Close'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-auth-switch-flow'
+    timeout: 120000
+- tapOn:
+    id: 'e2e-auth-switch-flow'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-auth-password'
+    timeout: 120000
+- tapOn:
+    id: 'e2e-auth-password'
+- inputText: ${E2E_PASSWORD}
+- tapOn: 'сфера.'
+- tapOn:
+    id: 'e2e-auth-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-onboarding-next'
+    timeout: 60000
+- tapOn:
+    id: 'e2e-onboarding-next'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-onboarding-name'
+    direction: DOWN
+- tapOn:
+    id: 'e2e-onboarding-name'
+- inputText: 'Synthetic OCR QA'
+- pressKey: Enter
+- tapOn:
+    id: 'e2e-onboarding-next'
+- tapOn: '.*Не помню дату.*'
+- repeat:
+    times: 4
+    commands:
+      - tapOn:
+          id: 'e2e-onboarding-next'
+- assertVisible: 'Сегодня'

@@ -9,6 +9,11 @@ appId: ${MAESTRO_APP_ID || "engineering.brainwaves.sfera"}
 - tapOn:
     text: "Close"
     optional: true
+- runFlow:
+    when:
+      visible: "Go home"
+    commands:
+      - back
 - extendedWaitUntil:
     visible: "сфера."
     timeout: 120000

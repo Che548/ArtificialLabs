@@ -1,0 +1,37 @@
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
+---
+# Real native socket interruption through the test proxy, not a production
+# outage or a fake system reachability signal. No AI message is submitted.
+- tapOn: 'Сферка'
+- extendedWaitUntil:
+    visible: 'QA backend connected'
+    timeout: 60000
+- assertVisible: '(?s).*Synthetic overlay draft.*'
+- runScript:
+    file: transport-fault.js
+    env:
+      QA_TRANSPORT: down
+- extendedWaitUntil:
+    visible: 'QA backend unavailable'
+    timeout: 60000
+- tapOn:
+    id: 'chat-main-input'
+- runFlow:
+    file: assert-native-input.yml
+    env:
+      INPUT_ID: chat-main-input
+- inputText: ' Outage draft retained.'
+- tapOn: 'Чат'
+- assertVisible: '(?s).*Outage draft retained.*'
+- takeScreenshot: native-backend-unavailable
+- runScript:
+    file: transport-fault.js
+    env:
+      QA_TRANSPORT: up
+- extendedWaitUntil:
+    visible: 'QA backend connected'
+    timeout: 60000
+- assertVisible: '(?s).*Outage draft retained.*'
+- assertNotVisible: 'Сферка — защитница женского здоровья'
+- takeScreenshot: native-backend-reconnected
+- runFlow: open-profile-tab.yml

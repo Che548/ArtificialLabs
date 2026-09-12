@@ -8,29 +8,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { resolveConnectivity } from './connectivity-policy';
 
-type ConnectivityValue = {
-  isOffline: boolean;
-  isKnown: boolean;
-};
+type ConnectivityValue = ReturnType<typeof resolveConnectivity>;
 
 const ConnectivityContext = createContext<ConnectivityValue>({
   isOffline: false,
   isKnown: false,
+  networkStatus: 'unknown',
+  backendStatus: 'connecting',
 });
 
 export function ConnectivityProvider({ children }: PropsWithChildren) {
   const network = useNetworkState();
   const convexConnection = useConvexConnectionState();
   const value = useMemo<ConnectivityValue>(() => {
-    // A hermetic Android E2E client reaches Convex through `adb reverse` even
-    // when the emulator cannot validate its synthetic internet connection.
-    // Keep the production connectivity path unchanged.
-    const usesReversedE2EBackend =
-      Platform.OS === 'android' &&
-      process.env.EXPO_PUBLIC_E2E_MODE === '1' &&
-      Boolean(process.env.EXPO_PUBLIC_E2E_ANDROID_CONVEX_URL);
     return resolveConnectivity({
-      isAndroidReversedE2E: usesReversedE2EBackend,
       networkIsConnected: network.isConnected,
       networkIsInternetReachable: network.isInternetReachable,
       convexHasEverConnected: convexConnection.hasEverConnected,

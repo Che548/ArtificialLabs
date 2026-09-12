@@ -1,0 +1,97 @@
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
+---
+# Signed-in disposable account, cloud sync OFF, synthetic bundled fixture only.
+- runFlow: open-profile-tab.yml
+- tapOn:
+    text: 'Вернуться в профиль'
+    optional: true
+- scrollUntilVisible:
+    element:
+      text: '.*Документы.*'
+    direction: DOWN
+- tapOn: '.*Документы.*'
+- tapOn: 'Добавить документ'
+- extendedWaitUntil:
+    visible: '(?s).*e2e-medical-document\.jpg.*'
+    timeout: 30000
+- tapOn: '(?s).*e2e-medical-document\.jpg.*'
+- tapOn: 'Распознать на устройстве'
+- extendedWaitUntil:
+    visible: 'Распознавание завершено.*'
+    timeout: 120000
+- scrollUntilVisible:
+    element:
+      text: 'Проверяемый текст документа'
+    direction: DOWN
+- assertVisible: '(?s).*1,25.*12.50.*'
+- takeScreenshot: document-ocr-synthetic
+- scrollUntilVisible:
+    element:
+      text: 'Сохранить черновик'
+    direction: DOWN
+- runScript:
+    file: transport-fault.js
+    env:
+      QA_TRANSPORT: down
+- tapOn: 'Сохранить черновик'
+- scrollUntilVisible:
+    element:
+      text: 'Черновик сохранён только на этом устройстве.'
+    direction: UP
+- assertVisible: 'Черновик сохранён только на этом устройстве.'
+- runScript:
+    file: transport-fault.js
+    env:
+      QA_TRANSPORT: up
+- scrollUntilVisible:
+    element:
+      text: 'Закрыть документ'
+    direction: UP
+- tapOn: 'Закрыть документ'
+- tapOn: '(?s).*e2e-medical-document\.jpg.*'
+- scrollUntilVisible:
+    element:
+      text: 'Проверяемый текст документа'
+    direction: DOWN
+- assertVisible: '(?s).*1,25.*12.50.*'
+- takeScreenshot: document-ocr-restored-draft
+- tapOn: 'Закрыть документ'
+# Reopen SQLCipher after a real process restart, exercising repeatable initialization.
+- launchApp:
+    stopApp: true
+    permissions:
+      all: unset
+# Dev-client onboarding can reappear after a cold launch of the QA package.
+# Dismiss only the identified developer welcome, never an application consent.
+- extendedWaitUntil:
+    visible: '(?s).*(Вероятность не рассчитана|This is the developer menu).*'
+    timeout: 120000
+- runFlow:
+    when:
+      visible: '(?s).*This is the developer menu.*'
+    commands:
+      - tapOn: 'Continue'
+      - tapOn:
+          text: 'Close'
+          optional: true
+# Wait for fresh Home content, not a tab label also present in the pre-restart
+# accessibility snapshot. Otherwise a tap can race the native tab recreation.
+- extendedWaitUntil:
+    visible: 'Вероятность не рассчитана'
+    timeout: 120000
+- runFlow: open-profile-tab.yml
+- tapOn:
+    text: 'Вернуться в профиль'
+    optional: true
+- scrollUntilVisible:
+    element:
+      text: '.*Документы.*'
+    direction: DOWN
+- tapOn: '.*Документы.*'
+- tapOn: '(?s).*e2e-medical-document\.jpg.*'
+- scrollUntilVisible:
+    element:
+      text: 'Проверяемый текст документа'
+    direction: DOWN
+- assertVisible: '(?s).*1,25.*12.50.*'
+- takeScreenshot: document-ocr-after-process-restart

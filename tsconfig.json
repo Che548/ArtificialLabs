@@ -14,6 +14,9 @@
     "node_modules",
     "dist",
     "web-build",
+    "output",
+    "modules/document-ocr/vendor",
+    "modules/document-ocr/prebuilt",
     "tmp",
     "admin",
     "**/*.test.ts"

@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
 
 import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
@@ -153,6 +154,13 @@ export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
     .withIndex('by_user', (q) => q.eq('userId', userId as never))
     .unique();
   if (aiChatConsent) await ctx.db.delete(aiChatConsent._id);
+  const documentConsent = await ctx.db.query('documentInterpretationConsents')
+    .withIndex('by_user', q => q.eq('userId', userId as never)).unique();
+  if (documentConsent) await ctx.db.delete(documentConsent._id);
+  const documentRequests = await ctx.db.query('documentInterpretationRequests')
+    .withIndex('by_user_created', q => q.eq('userId', userId as never)).take(128);
+  for (const request of documentRequests) await ctx.db.delete(request._id);
+  if (documentRequests.length === 128) await ctx.scheduler.runAfter(0, internal.documentInterpretation.purgeForUser, { userId: userId as never });
   const aiAgentConsent = await ctx.db
     .query('aiAgentConsents')
     .withIndex('by_user', (q) => q.eq('userId', userId as never))

@@ -4,4 +4,5 @@ appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
 # Maestro localhost driver can become unavailable between separate CLI runs.
 - runFlow: open-dev-client.yml
 - runFlow: ios-primary.yml
+- runFlow: chat-keyboard.yml
 - runFlow: product-surface.yml

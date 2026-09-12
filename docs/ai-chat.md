@@ -1,5 +1,9 @@
 # Minimal Yandex AI Studio chat
 
+Explicit document interpretation has its own consent, default-off flag and
+text-only request boundary; see `document-ocr.md`. It does not reuse automatic
+chat history/context or upload files.
+
 The mobile chat calls a Convex Node action; the Expo bundle never receives the
 provider key. The action authenticates the user, checks for an active profile
 and the current Yandex disclosure consent, validates a text-only transcript,

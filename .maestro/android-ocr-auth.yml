@@ -1,0 +1,38 @@
+appId: engineering.brainwaves.sfera
+---
+- runFlow: android-auth-ready.yml
+- tapOn:
+    id: 'e2e-auth-switch-flow'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-auth-password'
+    timeout: 120000
+- tapOn:
+    id: 'e2e-auth-password'
+- inputText: ${E2E_PASSWORD}
+- back
+- tapOn:
+    id: 'e2e-auth-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-onboarding-next'
+    timeout: 120000
+- tapOn:
+    id: 'e2e-onboarding-next'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-onboarding-name'
+    direction: DOWN
+- tapOn:
+    id: 'e2e-onboarding-name'
+- inputText: 'Synthetic OCR QA'
+- back
+- tapOn:
+    id: 'e2e-onboarding-next'
+- tapOn: '.*Не помню дату.*'
+- repeat:
+    times: 4
+    commands:
+      - tapOn:
+          id: 'e2e-onboarding-next'
+- assertVisible: 'Сегодня'

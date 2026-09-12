@@ -1,0 +1,9 @@
+{
+  "engineVersion": "tesseract-5.5.0-leptonica-1.85.0-fast-87416418-rus-eng",
+  "artifacts": [
+    { "name": "tesseract.tar.gz", "url": "https://codeload.github.com/tesseract-ocr/tesseract/tar.gz/refs/tags/5.5.0", "sha256": "f2fb34ca035b6d087a42875a35a7a5c4155fa9979c6132365b1e5a28ebc3fc11", "directory": "tesseract-5.5.0" },
+    { "name": "leptonica.tar.gz", "url": "https://codeload.github.com/DanBloomberg/leptonica/tar.gz/refs/tags/1.85.0", "sha256": "c01376bce0379d4ea4bc2ec5d5cbddaa49e2f06f88242619ab8c059e21adf233", "directory": "leptonica-1.85.0" },
+    { "name": "eng.traineddata", "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata", "sha256": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2" },
+    { "name": "rus.traineddata", "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/rus.traineddata", "sha256": "e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225" }
+  ]
+}

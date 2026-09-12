@@ -1,0 +1,26 @@
+apply plugin: 'com.android.library'
+group = 'expo.modules.documentocr'
+version = '0.1.0'
+def expoModulesCorePlugin = new File(project(':expo-modules-core').projectDir.absolutePath, 'ExpoModulesCorePlugin.gradle')
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+useDefaultAndroidSdkVersions()
+def ocrArchitectures = (findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').split(',').collect { it.trim() }
+
+android {
+  namespace 'expo.modules.documentocr'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    ndk { abiFilters(*ocrArchitectures) }
+    externalNativeBuild {
+      cmake { arguments '-DANDROID_STL=c++_shared'; cppFlags '-std=c++17 -fexceptions -frtti' }
+    }
+  }
+  // This generated directory contains only the two checksum-verified models.
+  sourceSets { main { assets.srcDirs = ['../prebuilt/assets'] } }
+  externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
+}
+dependencies { implementation 'androidx.exifinterface:exifinterface:1.3.7' }

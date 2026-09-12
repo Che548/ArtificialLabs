@@ -13,7 +13,7 @@ import {
   releaseLocalAgentRunLease,
   tryAcquireLocalAgentRunLease,
 } from './local-database';
-import { agentTriggerIsDue, carePlanHasRequiredRanges } from './care-plan';
+import { agentTriggerIsDue } from './care-plan';
 import {
   AGENT_RETRY_DELAYS_MS,
   AGENT_STABLE_CONNECTION_MS,
@@ -184,14 +184,8 @@ export function AgentAutomationManager({ children }: PropsWithChildren) {
               recommendations: result.recommendations,
               model: result.model,
             });
-            if (
-              !proposalApplied &&
-              !carePlanHasRequiredRanges(
-                (await loadLocalSnapshot()).carePlanItems,
-              )
-            ) {
-              throw new Error('INVALID_AGENT_PLAN_PROPOSAL');
-            }
+            // A validated empty/no-op proposal is legitimate. In particular,
+            // existing accepted plans may exceed the new lower count limits.
             changed = proposalApplied || changed;
             const successfulAt = Date.now();
             await recordAgentPlanRun(

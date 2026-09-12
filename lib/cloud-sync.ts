@@ -52,10 +52,21 @@ export function sanitizeCloudRecord(
   entity: HealthEntityName,
   item: Record<string, unknown>,
 ) {
+  if (entity === 'documents') {
+    const allowed = ['localId', 'title', 'category', 'documentDate', 'hasLocalFile', 'mimeType', 'size',
+      'linkedLabResultLocalId', 'linkedCarePlanLocalId', 'contentIndexStatus', 'updatedAt', 'deletedAt'];
+    return Object.fromEntries(allowed.filter(key => Object.hasOwn(item, key)).map(key => [key, item[key]]));
+  }
   const {
     localImageUri: _image,
     localDocumentUri: _document,
     localFileUri: _file,
+    // Defense in depth: OCR lives outside records; never transport accidental draft fields.
+    ocrDraft: _ocrDraft,
+    extractedText: _extractedText,
+    documentExtraction: _documentExtraction,
+    editedText: _editedText,
+    pages: _ocrPages,
     ...syncable
   } = item;
   if (Array.isArray(syncable.attachments)) {

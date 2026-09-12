@@ -270,6 +270,13 @@ export default defineSchema({
     revokedAt: v.optional(v.number()),
     updatedAt: v.number(),
   }).index('by_user', ['userId']),
+  documentInterpretationConsents: defineTable({
+    userId: v.id('users'), policyVersion: v.string(), acceptedAt: v.number(), revokedAt: v.optional(v.number()),
+  }).index('by_user', ['userId']),
+  documentInterpretationRequests: defineTable({
+    userId: v.id('users'), requestId: v.string(), createdAt: v.number(),
+    status: v.union(v.literal('pending'), v.literal('complete'), v.literal('failed')),
+  }).index('by_user_request', ['userId', 'requestId']).index('by_user_created', ['userId', 'createdAt']),
   aiAgentConsents: defineTable({
     userId: v.id('users'),
     provider: v.literal('yandex-ai-studio'),
@@ -357,6 +364,7 @@ export default defineSchema({
     catalogKey: v.string(),
     title: v.string(),
     collectedAt: v.number(),
+    confirmedAt: v.optional(v.number()),
     status: v.union(
       v.literal('normal'),
       v.literal('attention'),

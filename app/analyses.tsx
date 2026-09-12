@@ -11,7 +11,6 @@ import { useConvexAuth, useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   Platform,
@@ -22,6 +21,8 @@ import {
 } from 'react-native';
 import type { ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CARE_PLAN_LIMITS } from '../shared/care-plan-policy';
+import { ScreenFeedback, useScreenFeedback } from '../components/ScreenFeedback';
 
 import {
   AnalysisAttentionHero,
@@ -44,7 +45,7 @@ import { analysisCatalogByKey } from '../lib/analysis-catalog';
 import { useConnectivity } from '../lib/connectivity';
 import { useHealthStore } from '../lib/health-store';
 import type { CarePlanItem } from '../lib/health-types';
-import { persistLabDocument } from '../lib/local-files';
+import { discardUnreferencedLabDocument, persistLabDocument } from '../lib/local-files';
 import {
   calculateCompletionScore,
   latestCarePlanDueAt,
@@ -224,6 +225,7 @@ function recommendationReasonLabel(reasonCode?: string) {
 }
 
 export default function AnalysesScreen() {
+  const feedback = useScreenFeedback();
   const { sourceId } = useLocalSearchParams<{ sourceId?: string }>();
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
@@ -385,7 +387,7 @@ export default function AnalysesScreen() {
     if (archivedPlan) {
       handledSource.current = sourceId;
       setActiveTab('completed');
-      Alert.alert(
+      feedback.show(
         archivedPlan.title,
         archivedPlan.status === 'completed'
           ? `Выполнено ${new Date(
@@ -403,7 +405,7 @@ export default function AnalysesScreen() {
     if (result) {
       handledSource.current = sourceId;
       setActiveTab('completed');
-      Alert.alert(
+      feedback.show(
         result.title,
         `${new Date(result.collectedAt).toLocaleDateString('ru-RU')} · ${
           result.status === 'unreviewed'
@@ -421,7 +423,7 @@ export default function AnalysesScreen() {
     if (scan) {
       handledSource.current = sourceId;
       setActiveTab('completed');
-      Alert.alert(
+      feedback.show(
         scan.testSystemKey === 'ovulation-strip'
           ? 'Тест на овуляцию'
           : scan.testSystemKey === 'pregnancy-strip'
@@ -544,7 +546,7 @@ export default function AnalysesScreen() {
       setPendingAttachment(undefined);
       setAttachmentError(undefined);
     } catch {
-      Alert.alert(
+      feedback.show(
         'Не удалось сохранить срок',
         'Проверьте выбранную дату и попробуйте ещё раз.',
       );
@@ -566,7 +568,7 @@ export default function AnalysesScreen() {
           if (event.type !== 'set' || !date) return;
           const normalized = normalizePlanDate(date);
           setScheduleDate(normalized);
-          Alert.alert(
+          feedback.show(
             'Подтвердить срок?',
             `${formatPlanDate(normalized.getTime())}. Дата будет отмечена как указанная вами, а не назначенная врачом.`,
             [
@@ -627,7 +629,7 @@ export default function AnalysesScreen() {
       const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
         multiple: false,
-        type: ['application/pdf', 'image/*'],
+        type: ['application/pdf', 'image/jpeg', 'image/png'],
       });
       if (result.canceled) return;
 
@@ -638,7 +640,6 @@ export default function AnalysesScreen() {
         uri: asset.uri,
       });
     } catch (cause) {
-      console.error('Picking analysis attachment failed', cause);
       setAttachmentError(
         'Не удалось прикрепить результат. Попробуйте ещё раз.',
       );
@@ -652,8 +653,10 @@ export default function AnalysesScreen() {
 
     setSaving(true);
     setAttachmentError(undefined);
+    let persistedDocumentUri: string | undefined;
+    let stored = false;
     try {
-      const persistedDocumentUri = await persistLabDocument(
+      persistedDocumentUri = await persistLabDocument(
         pendingAttachment.uri,
       );
       await addLabResult({
@@ -670,11 +673,15 @@ export default function AnalysesScreen() {
         hasLocalSourceDocument: true,
         localDocumentUri: persistedDocumentUri,
       });
+      stored = true;
       setSelectedAnalysis(undefined);
       setPendingAttachment(undefined);
     } catch (cause) {
-      console.error('Saving planned analysis result failed', cause);
-      setAttachmentError('Не удалось сохранить результат.');
+      if (persistedDocumentUri && !stored) await discardUnreferencedLabDocument(persistedDocumentUri);
+      const message = cause instanceof Error ? cause.message : '';
+      setAttachmentError(message.includes('DOCUMENT_')
+        ? 'Проверьте файл: PDF, JPEG или PNG, до 20 МБ и 20 страниц, без пароля. Для проверки нужна новая нативная сборка.'
+        : 'Не удалось сохранить результат.');
     } finally {
       setSaving(false);
     }
@@ -761,6 +768,12 @@ export default function AnalysesScreen() {
           onUpcoming={() => setActiveTab('upcoming')}
           style={styles.summaryWrap}
         />
+
+        <AppText style={{ marginHorizontal: 24, marginBottom: 16, fontSize: 13, lineHeight: 19 }}>
+          Рекомендации для обсуждения с врачом, не назначения. Новые предложения:
+          до {CARE_PLAN_LIMITS.current} активных и до {CARE_PLAN_LIMITS.upcoming} будущих анализов.
+          Если обоснованных рекомендаций меньше, список не дополняется ради количества.
+        </AppText>
 
         <View style={styles.tabsWrap}>
           <AnalysisTabs
@@ -873,7 +886,7 @@ export default function AnalysesScreen() {
                         : 'Подтверждено'
                   }
                   onView={() =>
-                    Alert.alert(
+                    feedback.show(
                       result.title,
                       [
                         `Дата сдачи: ${new Date(result.collectedAt).toLocaleDateString('ru-RU')}`,
@@ -919,7 +932,7 @@ export default function AnalysesScreen() {
                     : 'Ожидает подтверждения'
                 }
                 onView={() =>
-                  Alert.alert(
+                  feedback.show(
                     result.testSystemKey === 'ovulation-strip'
                       ? 'Тест на овуляцию'
                       : result.testSystemKey === 'pregnancy-strip'
@@ -964,7 +977,7 @@ export default function AnalysesScreen() {
                   }
                   statusLabel="Отмечено выполненным"
                   onView={() =>
-                    Alert.alert(
+                    feedback.show(
                       item.title,
                       [
                         catalog?.specimen ?? item.description,
@@ -1374,7 +1387,7 @@ export default function AnalysesScreen() {
                         accessibilityRole="button"
                         disabled={readOnly || saving}
                         onPress={() => {
-                          Alert.alert(
+                          feedback.show(
                             'Отказаться от рекомендации?',
                             'Сферка не предложит этот пункт снова в течение 90 дней.',
                             [
@@ -1383,7 +1396,7 @@ export default function AnalysesScreen() {
                                 text: 'Отказаться',
                                 style: 'destructive',
                                 onPress: () => {
-                                  void applyCarePlanAction(
+                                  return applyCarePlanAction(
                                     selectedAnalysis.carePlan,
                                     'decline',
                                   ).then(closeAnalysis);
@@ -1618,6 +1631,7 @@ export default function AnalysesScreen() {
             </View>
           </View>
         </View>
+        <ScreenFeedback feedback={feedback} />
       </Modal>
 
       <HealthInsightsPage
@@ -1636,6 +1650,7 @@ export default function AnalysesScreen() {
         labResults={labResults}
         scanResults={scanResults}
       />
+      {!selectedAnalysis && <ScreenFeedback feedback={feedback} />}
     </View>
   );
 }

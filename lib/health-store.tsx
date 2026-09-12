@@ -32,10 +32,12 @@ import {
   saveLocalSetting,
   saveAgentPlanChanges,
   saveLabResultBundle,
+  saveConfirmedDocumentExtraction,
   saveScanResultWithJournal,
   tombstoneLocalChatConversation,
   tombstoneLocalDocumentBundle,
 } from './local-database';
+import type { DocumentExtraction } from '../shared/document-policy';
 import type {
   AllergyRisk,
   AppPreferences,
@@ -135,6 +137,7 @@ type HealthStoreValue = HealthSnapshot & {
   saveMedication: (input: SavedInput<Medication>) => Promise<void>;
   saveAllergyRisk: (input: SavedInput<AllergyRisk>) => Promise<void>;
   saveDocument: (input: SavedInput<HealthDocument>) => Promise<void>;
+  confirmDocumentExtraction: (input: DocumentExtraction) => Promise<void>;
   saveConversation: (input: SavedInput<ChatConversation>) => Promise<string>;
   saveChatMessage: (input: SavedInput<ChatMessage>) => Promise<void>;
   applyCarePlanAction: (
@@ -1109,6 +1112,11 @@ export function HealthStoreProvider({
         saveTyped('allergyRisks', 'allergy', input).then(() => undefined),
       saveDocument: (input) =>
         saveTyped('documents', 'document', input).then(() => undefined),
+      confirmDocumentExtraction: async (input) => {
+        if (readOnly) throw new Error('DOCUMENT_NATIVE_ONLY');
+        await saveConfirmedDocumentExtraction(input);
+        await refresh();
+      },
       saveConversation,
       saveChatMessage,
       applyCarePlanAction,
@@ -1152,6 +1160,7 @@ export function HealthStoreProvider({
       addLabResult,
       addScanResult,
       saveTyped,
+      refresh,
       saveConversation,
       saveChatMessage,
       applyCarePlanAction,

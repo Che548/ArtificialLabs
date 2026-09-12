@@ -137,7 +137,13 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
   Review login exemptions are internal, audited, and bound to userId plus the
   current email; contact changes and recovery never inherit an exemption.
   Confirmed phone changes require the password and SMS on the new number.
-  OCR remains deferred. The admin console manages only catalogs, lots,
+  The approved OCR exception is local PDF/JPEG/PNG recognition with pinned
+  Tesseract 5 Russian/English models and explicit review. Drafts stay in the
+  separate SQLCipher document_extractions table, outside snapshots, outbox
+  and FTS. Only selected confirmed text may use the separately consented,
+  versioned interpretation action; AI_DOCUMENT_INTERPRETATION_ENABLED stays
+  off until native verification passes. Cloud OCR/file upload remain deferred.
+  The admin console manages only catalogs, lots,
   calibrations, published content, privacy-safe aggregates, monitoring and
   admin access and the restricted read-only account directory described above.
 

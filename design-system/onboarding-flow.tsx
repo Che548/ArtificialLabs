@@ -1,4 +1,5 @@
 import { fontStyle } from '../lib/font-style';
+import { onboardingLayout } from '../lib/onboarding-layout';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OnboardingSymbol as SymbolView } from './onboarding-symbol';
@@ -125,14 +126,8 @@ function OnboardingShell({
 }) {
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
-  const scale = width / 402;
-  const panelHeaderTop =
-    Math.max(470 * scale, height * 0.525) + 16 * scale;
-  const scrollTop = panelHeaderTop + headerHeight;
-  const actionBottomPadding = Math.max(insets.bottom - 10, 16 * scale);
-  const actionHeight = 46 + actionBottomPadding + 18 * scale;
-  const progressBottom = actionHeight + 6 * scale;
-  const scrollBottom = progressBottom + 20 * scale;
+  const { scale, panelHeaderTop, scrollTop, actionBottomPadding, actionHeight,
+    progressBottom, scrollBottom, shapeTop } = onboardingLayout(width, height, insets.top, insets.bottom, headerHeight);
 
   return (
     <View style={styles.root}>
@@ -154,7 +149,7 @@ function OnboardingShell({
       <ContentShape
         pointerEvents="none"
         height={361 * scale}
-        style={[styles.contentShape, { top: 413 * scale }]}
+        style={[styles.contentShape, { top: shapeTop }]}
         width={width}
       />
 

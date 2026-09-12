@@ -1,0 +1,19 @@
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
+---
+- assertVisible:
+    id: ${INPUT_ID}
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          id: ${INPUT_ID}
+          focused: true
+# XCUITest reports focused=false even for the active UITextView with a visible
+# caret. Check the actual iOS keyboard here; the caller then asserts typed text.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible:
+          id: 'UIKeyboardLayoutStar.*'

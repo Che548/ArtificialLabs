@@ -342,12 +342,27 @@ prepare_android_client() {
   fi
 }
 
-if [[ "$sequential_simulators" -ne 1 ]]; then
+if [[ "$sequential_simulators" -ne 1 && "${E2E_SKIP_ANDROID:-0}" -ne 1 ]]; then
   prepare_android_client 1 || true
+elif [[ "${E2E_SKIP_ANDROID:-0}" -eq 1 ]]; then
+  record_environment_blocked "Android explicitly skipped for an iOS-only diagnostic run"
 fi
 
 ios_dev_url="exp+private-expo://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A${metro_port}"
 android_dev_url="exp+private-expo://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A${metro_port}"
+# A cold Metro transform can outlive the development client's request timeout.
+# Compile before opening the client, so startup latency is not mistaken for an
+# application/network regression. No bundle is published by these local reads.
+warm_native_bundle() {
+  local platform="$1"
+  echo "Preparing local ${platform} development bundle"
+  curl --fail --silent --show-error --max-time 300 --output /dev/null \
+    "http://127.0.0.1:${metro_port}/node_modules/expo-router/entry.bundle?platform=${platform}&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app"
+}
+warm_native_bundle ios
+if [[ "$android_ready" -eq 1 ]]; then
+  warm_native_bundle android
+fi
 if [[ -z "$scan_fixture_source" ]]; then
   maestro --device "$ios_device" test .maestro/reset.yml
 fi
@@ -395,9 +410,10 @@ if [[ "$ios_primary_ok" -eq 1 ]]; then
   fi
 fi
 
-if [[ "$sequential_simulators" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
+if [[ "$sequential_simulators" -eq 1 && "$cloud_snapshot_ok" -eq 1 && "${E2E_SKIP_ANDROID:-0}" -ne 1 ]]; then
   xcrun simctl shutdown "$ios_device" >/dev/null 2>&1 || true
   if prepare_android_client 1; then
+    warm_native_bundle android
     adb -s "$android_device" shell am start -W -a android.intent.action.VIEW \
       -d "$android_dev_url" "$android_package" \
       >"$E2E_REPORT_DIR/android-launch-sequential.log" 2>&1 || true
@@ -443,6 +459,13 @@ if [[ "$android_ready" -eq 1 && "$cloud_snapshot_ok" -eq 1 ]]; then
       fi
     fi
   else
+    if ! MAESTRO_APP_ID="$android_package" maestro --device "$android_device" test .maestro/chat-keyboard.yml \
+      --env E2E_CHAT_KEYBOARD_SCREENSHOT="android-chat-keyboard"; then
+      record_failure "Android chat keyboard flow"
+    else
+      copy_maestro_screenshot chat-keyboard android-chat-keyboard \
+        "$E2E_REPORT_DIR/android-chat-keyboard.png"
+    fi
     if [[ "$android_device" == emulator-* ]]; then
       stop_convex_proxy
       if ! MAESTRO_APP_ID="$android_package" maestro --device "$android_device" test .maestro/offline-mode.yml \

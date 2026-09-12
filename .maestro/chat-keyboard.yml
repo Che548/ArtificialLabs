@@ -1,0 +1,34 @@
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
+---
+# Run only with a disposable signed-in test account. No message is submitted.
+- tapOn: 'Сферка'
+- tapOn: 'Сообщение для Сферки.*'
+- inputText: 'Synthetic keyboard draft with a second wrapped line and a visible cursor'
+- assertVisible: 'Synthetic keyboard draft with a second wrapped line and a visible cursor'
+- assertVisible: 'Отправить сообщение'
+- takeScreenshot: ${E2E_CHAT_KEYBOARD_SCREENSHOT || "chat-keyboard"}
+# iOS hideKeyboard can tap the availability action; the header dismisses input safely.
+- tapOn: 'Чат'
+- assertVisible: 'Профиль'
+- assertVisible: 'Synthetic keyboard draft with a second wrapped line and a visible cursor'
+- takeScreenshot: chat-without-keyboard
+- pressKey: home
+- launchApp:
+    stopApp: false
+    permissions:
+      all: unset
+- assertVisible: 'Synthetic keyboard draft with a second wrapped line and a visible cursor'
+- tapOn: 'Профиль'
+- tapOn: 'Сферка'
+- assertVisible: 'Synthetic keyboard draft with a second wrapped line and a visible cursor'
+- tapOn: 'Сообщение для Сферки.*'
+# Clear this known 72-character fixture, not 1,200 slow native key events.
+- eraseText: 72
+- assertNotVisible: 'Synthetic keyboard draft with a second wrapped line and a visible cursor'
+- tapOn: 'Чат'
+- tapOn: 'Профиль'
+- scrollUntilVisible:
+    element:
+      text: 'Разрешения и данные'
+    direction: DOWN
+- tapOn: 'Разрешения и данные'

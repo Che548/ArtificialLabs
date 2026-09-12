@@ -6,6 +6,57 @@ import { permanentlyDeleteUser } from './account';
 const E2E_EMAIL =
   /^(?:artificiallabs-e2e\+[a-z0-9-]{8,80}@example\.test|2taras2006\+artificiallabs-e2e-[a-z0-9-]{8,80}@gmail\.com)$/;
 
+// Internal, admin-key-only fixture preparation. Never accepts a real mailbox
+// or an established account; this is not email delivery/verification E2E.
+export const prepareVerifiedNativeFixture = internalMutation({
+  args: { email: v.string(), userId: v.id('users') },
+  handler: async (ctx, { email, userId }) => {
+    if (!/^artificiallabs-e2e\+[a-f0-9]{12}-native@example\.test$/.test(email))
+      throw new Error('NATIVE_FIXTURE_EMAIL_REQUIRED');
+    const user = await ctx.db.get(userId);
+    const now = Date.now();
+    if (
+      !user ||
+      user.email !== email ||
+      now - user._creationTime > 600_000 ||
+      user._creationTime > now
+    )
+      throw new Error('FRESH_NATIVE_FIXTURE_REQUIRED');
+    const [profile, admin, reviewer, accounts] = await Promise.all([
+      ctx.db
+        .query('profiles')
+        .withIndex('by_user', (q) => q.eq('userId', userId))
+        .first(),
+      ctx.db
+        .query('adminMemberships')
+        .withIndex('by_user', (q) => q.eq('userId', userId))
+        .first(),
+      ctx.db
+        .query('reviewLoginExceptions')
+        .withIndex('by_user', (q) => q.eq('userId', userId))
+        .first(),
+      ctx.db
+        .query('authAccounts')
+        .withIndex('userIdAndProvider', (q) => q.eq('userId', userId))
+        .take(2),
+    ]);
+    if (
+      profile ||
+      admin ||
+      reviewer ||
+      accounts.length !== 1 ||
+      accounts[0].provider !== 'password' ||
+      accounts[0].providerAccountId !== email
+    )
+      throw new Error('EMPTY_NATIVE_FIXTURE_REQUIRED');
+    await ctx.db.patch(userId, {
+      emailVerificationTime: user.emailVerificationTime ?? now,
+    });
+    await ctx.db.patch(accounts[0]._id, { emailVerified: email });
+    return { prepared: true };
+  },
+});
+
 export const purgeE2EAccount = internalMutation({
   args: { email: v.string() },
   handler: async (ctx, { email }) => {
