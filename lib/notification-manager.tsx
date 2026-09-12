@@ -120,14 +120,14 @@ export function NotificationManagerProvider({
           if (hasViewerIdentity && !readOnly) {
             void setRemoteEnabled({ enabled: false }).catch(() => undefined);
           }
-          setMessage('Уведомления выключены. Локальные данные не изменены.');
+          setMessage('Уведомления выключены.');
           return 'disabled';
         }
 
         if (!(await requestNotificationPermission())) {
           await savePreferences({ notificationsEnabled: false });
           setMessage(
-            'Системное разрешение не выдано. Его можно включить в настройках устройства.',
+            'Разрешите уведомления в настройках устройства.',
           );
           return 'denied';
         }
@@ -136,7 +136,7 @@ export function NotificationManagerProvider({
         const pushToken = await getExpoPushToken().catch(() => null);
         if (!pushToken) {
           setMessage(
-            'Локальные уведомления включены. Удалённые push станут доступны после настройки EAS.',
+            'Напоминания на устройстве включены. Уведомления с сервера пока недоступны.',
           );
           return 'local-only';
         }
@@ -144,11 +144,11 @@ export function NotificationManagerProvider({
         try {
           await registerToken({ pushToken });
           await setRemoteEnabled({ enabled: true });
-          setMessage('Локальные и удалённые уведомления включены.');
+          setMessage('Уведомления включены.');
           return 'enabled';
         } catch {
           setMessage(
-            'Локальные уведомления включены. Сервер недоступен — push зарегистрируется при следующем запуске.',
+            'Напоминания включены. Подключение к серверу повторим при следующем запуске.',
           );
           return 'local-only';
         }

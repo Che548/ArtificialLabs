@@ -33,19 +33,12 @@ appId: com.anonymous.privateexpo
     timeout: 60000
 - tapOn:
     id: 'e2e-onboarding-next'
-- scrollUntilVisible:
-    element:
-      id: 'e2e-onboarding-name'
-    direction: DOWN
-- tapOn:
-    id: 'e2e-onboarding-name'
-- inputText: 'Synthetic OCR QA'
-- pressKey: Enter
+- assertVisible: 'Год рождения'
 - tapOn:
     id: 'e2e-onboarding-next'
 - tapOn: '.*Не помню дату.*'
 - repeat:
-    times: 4
+    times: 3
     commands:
       - tapOn:
           id: 'e2e-onboarding-next'

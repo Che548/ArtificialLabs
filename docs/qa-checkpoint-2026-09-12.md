@@ -205,3 +205,53 @@ account and rejects missing required functions or the wrong deployment URL with
 stage, never the raw backend error/spec/credentials. Eight harness unit tests
 passed; read-only evaluation of the observed live spec correctly rejected it.
 No preview, production OTA, store release or root-task push has occurred.
+
+## Coordinated integration (03:46 follow-up)
+
+The user authorized coordination and merging without dropping current
+functionality. The concurrent maintainer identified upcoming work on Scan,
+analysis cards, pregnancy/monitoring/cycle onboarding, Android and
+non-Liquid-Glass fallback. Coordination did not authorize unrelated account,
+message, or desktop changes. Private correspondence is not included here.
+
+Local checkpoint `1109b9af` preserves OCR/chat work and the two auth commits.
+Branch `codex/integrate-sfera-ocr-chat` merges `9fe6ef89`: new sheets, assistant
+feed, animations, scan/cards and profile screens are retained, alongside local
+OCR review, safe contact changes, connection policy and keyboard/draft guards.
+The new chat on/off preference is retained. Ordinary text chat can work without
+medical cloud sync, but the preference is not provider consent: the existing
+versioned consent is still checked server-side before and after generation.
+Medical assistant context continues to require explicit cloud opt-in.
+
+The combined backend deployment completed at 03:43:30, preserving the main chat
+contract as well as auth and OCR functions. Fresh read-only checks confirmed
+REQUIRED/ALLOW_LEGACY flags and exactly two active email-bound audited store
+review exceptions; no store-account password login was performed. Guest OCR
+denials passed 3/3. Two synthetic accounts verified legacy login, rejection of a
+malformed new-client ticket without sending mail, verified-account new-client
+login, disabled document interpretation, and ownership/internal-API boundaries;
+both accounts were exactly purged.
+
+Merged `npm test`, standalone admin verification, and Chrome/WebKit read-only
+scenarios (4/4) passed. Type checking exposed a recursive generated-API return
+inference in chatAction; an explicit result type fixed it. A full `verify` run
+under concurrent native compilation timed out in one 5-second real-password
+unit test (37/38 passed); the timeout must be rerun without competing builds,
+not waived or treated as a product assertion failure. Focused contact/chat
+tests passed 27/27 separately. Android QA package rebuilt successfully with the
+new masked-view native dependency. Fold's merged native run is in progress;
+new iOS packages and merged native results remain unverified. No main push or
+preview publication yet.
+
+The first merged Fold run was deliberately stopped after inspection found that
+the old auth flow searched for the removed onboarding name field. Exact account
+cleanup passed; this interruption is not an app-crash or a native test pass.
+Both native auth flows now follow the new five-step UI. The QA seed is restricted
+to the authenticated generated fixture email instead of an editable profile
+display name. Inspection also found implicit cloud/analytics/AI activation in
+the incoming onboarding code: the new screens remain, but completion now starts
+locally and does not call any provider-consent or automation mutation. Explicit
+activation stays in Profile and the existing disclosure sheets. Regression
+coverage fixes all three onboarding defaults to false and rejects automatic
+consent calls. Focused privacy/chat/layout tests passed 24/24 and TypeScript
+passed. No previously stored real-account consent or preferences were changed.

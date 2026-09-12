@@ -11,7 +11,7 @@ export default defineConfig({
     { name: 'webkit', use: { browserName: 'webkit' } },
   ],
   webServer: {
-    command: 'CI=1 npx expo start --web --localhost --port 4333',
+    command: 'CI=1 npx expo start --web --localhost --port 4333 --max-workers 2',
     cwd: '../..',
     url: 'http://127.0.0.1:4333',
     // CI Metro does not reload changed modules. Never validate stale JS from

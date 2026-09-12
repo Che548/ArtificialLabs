@@ -1,3 +1,4 @@
+import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import { bundledFonts } from '../lib/bundled-fonts';
 import { fontStyle } from '../lib/font-style';
 import type { BlurTint } from 'expo-blur';
@@ -31,6 +32,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
+import { CycleAnimatedBackground } from '../design-system/cycle-animated-background';
 import BuyIcon from '../assets/figma/scan-screen/buy.svg';
 import HistoryIcon from '../assets/figma/scan-screen/history.svg';
 import InfoIcon from '../assets/figma/scan-screen/info.svg';
@@ -54,7 +56,7 @@ import {
 } from '../design-system';
 import { FallbackGlassBackdrop } from '../design-system/glass-fallback';
 import { useHealthStore } from '../lib/health-store';
-import { enqueueTelemetryEvent } from '../lib/local-database';
+import { enqueueTelemetryEvent, loadLocalSetting } from '../lib/local-database';
 import { loadScanHistory, saveScanToHistory } from '../services/scanning';
 
 const DESIGN_WIDTH = 402;
@@ -366,6 +368,13 @@ export default function ScanScreen() {
     useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [hasSeenScanBriefing, setHasSeenScanBriefing] = useState(false);
+  const openScanFlow = async () => {
+    const skip = await loadLocalSetting<boolean>('scan.skip-briefing.v1').catch(
+      () => false,
+    );
+    setHasSeenScanBriefing(skip === true);
+    setScanFlowVisible(true);
+  };
   const historyResultProgress = useRef(new Animated.Value(0)).current;
   const historyCorrectionProgress = useRef(new Animated.Value(0)).current;
   const photoPickerBusy = useRef(false);
@@ -530,7 +539,7 @@ export default function ScanScreen() {
 
       setHasSeenScanBriefing(true);
       setSelectedScanImageUri(imageUri);
-      setScanFlowVisible(true);
+      void openScanFlow();
     } catch (error) {
       console.error('Selecting scan photo failed', error);
       Alert.alert(
@@ -607,6 +616,7 @@ export default function ScanScreen() {
       style={[styles.root, Platform.OS === 'android' && styles.androidRoot]}
     >
       <StatusBar style="dark" hidden={false} />
+
       <View
         style={{
           width: DESIGN_WIDTH * scale,
@@ -615,13 +625,9 @@ export default function ScanScreen() {
       >
         <View style={[styles.scaledCanvas, { transform: [{ scale }] }]}>
           <View style={styles.canvas}>
-            <Image
-              accessibilityIgnoresInvertColors
-              source={require('../assets/figma/scan-screen/background.png')}
-              resizeMode="cover"
-              style={styles.scanPageBackground}
-            />
+            <CycleAnimatedBackground />
 
+            <TopChromeBackdrop headerTop={headerTop} style={{ zIndex: 4 }} />
             <AppHeader
               style={[styles.header, { top: headerTop }]}
               onHistory={() => setHistoryVisible(true)}
@@ -644,7 +650,7 @@ export default function ScanScreen() {
                   accessible
                   accessibilityRole="button"
                   accessibilityLabel="Начать сканирование"
-                  onPress={() => setScanFlowVisible(true)}
+                  onPress={() => void openScanFlow()}
                 >
                   {({ pressed }) => (
                     <View
@@ -697,7 +703,7 @@ export default function ScanScreen() {
                   onPress={() => {
                     setHasSeenScanBriefing(true);
                     setSelectedScanImageUri(e2eScanFixtureUri);
-                    setScanFlowVisible(true);
+                    void openScanFlow();
                   }}
                   style={styles.e2eFixtureButton}
                   testID="e2e-scan-fixture"
@@ -774,7 +780,6 @@ export default function ScanScreen() {
         onRequestClose={() => setScanFlowVisible(false)}
       >
         <View style={styles.flowModalRoot}>
-          <StatusBar style="dark" hidden={false} />
           <View
             style={{
               width: DESIGN_WIDTH * scale,
@@ -788,7 +793,6 @@ export default function ScanScreen() {
                   initialImageUri={selectedScanImageUri}
                   visible={scanFlowVisible}
                   showBriefing={!hasSeenScanBriefing}
-                  onBriefingSeen={() => setHasSeenScanBriefing(true)}
                   onClose={() => {
                     setSelectedScanImageUri(null);
                     setScanFlowVisible(false);
@@ -878,6 +882,7 @@ export default function ScanScreen() {
       <CalendarPageModal
         visible={calendarVisible}
         pregnancyMode={profile?.goal === 'pregnancy'}
+        highlightFertility={profile?.goal === 'planning'}
         initialDate={
           linkedJournalEntry
             ? new Date(linkedJournalEntry.occurredAt)
@@ -907,7 +912,7 @@ export default function ScanScreen() {
           }
 
           setOpenScanAfterHistoryDismiss(false);
-          setScanFlowVisible(true);
+          void openScanFlow();
         }}
         onRequestClose={() => {
           if (historyCorrectionVisible) {
@@ -953,6 +958,10 @@ export default function ScanScreen() {
                     },
                   ]}
                 >
+                  <TopChromeBackdrop
+                    headerTop={headerTop}
+                    style={{ zIndex: 1 }}
+                  />
                   <GlassControl
                     accessibilityLabel="Вернуться к сканированию"
                     onPress={() => setHistoryVisible(false)}
@@ -1134,11 +1143,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 40,
     backgroundColor: '#FDE9E3',
-  },
-  scanPageBackground: {
-    ...StyleSheet.absoluteFillObject,
-    width: DESIGN_WIDTH,
-    height: DESIGN_HEIGHT,
   },
   androidRoot: {
     justifyContent: 'flex-start',

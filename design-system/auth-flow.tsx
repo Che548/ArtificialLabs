@@ -1,3 +1,4 @@
+import { filterInput } from '../lib/input-format';
 import { fontStyle } from '../lib/font-style';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -17,7 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, GlassControl, LiquidGlassSurface } from './components';
+import { AppText, GlassControl, LiquidGlassSurface, SegmentedSwitcher } from './components';
 import {
   colors,
   fonts,
@@ -87,7 +88,7 @@ const stepMeta: Record<
 };
 
 function normalizePhone(value: string) {
-  return value.replace(/[^\d+]/g, '').slice(0, 16);
+  return filterInput(value, 'phone').slice(0, 16);
 }
 
 function AuthChannelPicker({
@@ -98,33 +99,12 @@ function AuthChannelPicker({
   onChange: (channel: AuthChannel) => void;
 }) {
   return (
-    <View accessibilityRole="tablist" style={styles.channelPicker}>
-      {(['phone', 'email'] as const).map((item) => {
-        const active = channel === item;
-        return (
-          <Pressable
-            cssInterop={false}
-            key={item}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            onPress={() => onChange(item)}
-            style={({ pressed }) => [
-              styles.channelOption,
-              active && styles.channelOptionActive,
-              pressed && styles.channelOptionPressed,
-            ]}
-          >
-            <AppText
-              role="label"
-              weight="medium"
-              color={active ? colors.text.primary : colors.text.secondary}
-            >
-              {item === 'phone' ? 'Телефон' : 'E-mail'}
-            </AppText>
-          </Pressable>
-        );
-      })}
-    </View>
+    <SegmentedSwitcher
+      accessibilityLabel="Способ входа"
+      options={[{ value: 'phone', label: 'Телефон' }, { value: 'email', label: 'E-mail' }]}
+      value={channel}
+      onChange={onChange}
+    />
   );
 }
 
@@ -157,7 +137,7 @@ function AuthField({
       </AppText>
       <TextInput
         value={value}
-        onChangeText={onChangeText}
+        onChangeText={(next) => onChangeText(filterInput(next, keyboardType === 'number-pad' ? 'integer' : keyboardType === 'phone-pad' ? 'phone' : 'text'))}
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete={autoComplete}
@@ -916,29 +896,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.92)',
     gap: spacing.md,
     ...shadows.card,
-  },
-  channelPicker: {
-    height: 46,
-    padding: 3,
-    borderRadius: 23,
-    backgroundColor: '#F0EEEE',
-    flexDirection: 'row',
-  },
-  channelOption: {
-    flex: 1,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  channelOptionActive: {
-    backgroundColor: colors.surface.raised,
-    shadowColor: '#2A1116',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 5,
-  },
-  channelOptionPressed: {
-    transform: [{ scale: 1.02 }],
   },
   fieldGroup: {
     gap: 7,

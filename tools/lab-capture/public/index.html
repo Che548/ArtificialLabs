@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f7f6">
+    <meta name="color-scheme" content="light">
+    <meta name="description" content="Локальная съёмка тестов и параллельные трёхминутные таймеры">
+    <title>Lab Capture</title>
+    <link rel="stylesheet" href="/styles.css?v=2">
+    <script src="/app.js?v=4" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#capture" aria-label="Lab Capture, съёмка">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img"><path d="M8 3h8M10 3v5.2l-5.5 9.1A2.4 2.4 0 0 0 6.6 21h10.8a2.4 2.4 0 0 0 2.1-3.7L14 8.2V3M8.6 14h6.8"/></svg>
+        </span>
+        <span>Lab Capture</span>
+      </a>
+
+      <div class="topbar-actions">
+        <div class="connection" id="connection-status" role="status" aria-live="polite">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="connection-label">Подключение…</span>
+        </div>
+        <button class="icon-button" id="open-settings" type="button" aria-label="Настройки устройства" title="Настройки устройства">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="mode-tabs" aria-label="Разделы">
+      <button class="mode-tab is-active" type="button" data-view="capture" aria-selected="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h2l1.2-2h4.6l1.2 2h2A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-8Z"/><circle cx="12" cy="12.5" r="3.5"/></svg>
+        Съёмка
+      </button>
+      <button class="mode-tab" type="button" data-view="timers" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M9 2h6"/></svg>
+        Таймеры
+        <span class="tab-count" id="active-timer-count" hidden>0</span>
+      </button>
+    </nav>
+
+    <main class="app-shell">
+      <section class="view is-active" id="capture-view" data-view-panel="capture" aria-labelledby="capture-title">
+        <div class="capture-layout">
+          <div class="capture-workspace">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Новый снимок</p>
+                <h1 id="capture-title">Выберите концентрацию</h1>
+              </div>
+              <button class="device-chip" id="device-chip" type="button" aria-label="Изменить устройство">
+                <span class="device-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10 5h4M11 18.5h2"/></svg>
+                </span>
+                <span id="device-chip-label">Устройство</span>
+              </button>
+            </div>
+
+            <fieldset class="concentration-fieldset">
+              <legend class="sr-only">Концентрация</legend>
+              <div class="concentration-grid" id="concentration-grid">
+                <label class="concentration-option">
+                  <input type="radio" name="concentration" value="2500">
+                  <span>2500</span>
+                </label>
+                <label class="concentration-option">
+                  <input type="radio" name="concentration" value="250">
+                  <span>250</span>
+                </label>
+                <label class="concentration-option">
+                  <input type="radio" name="concentration" value="25">
+                  <span>25</span>
+                </label>
+                <label class="concentration-option">
+                  <input type="radio" name="concentration" value="0">
+                  <span>0</span>
+                </label>
+                <label class="concentration-option concentration-option-background">
+                  <input type="radio" name="concentration" value="background">
+                  <span>Без полоски</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <input class="visually-hidden-input" id="camera-input" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*" capture="environment">
+            <button class="capture-button" id="capture-button" type="button">
+              <span class="capture-button-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h2l1.2-2h4.6l1.2 2h2A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-8Z"/><circle cx="12" cy="12.5" r="3.5"/></svg>
+              </span>
+              <span class="capture-button-copy">
+                <strong>Сфотографировать тест</strong>
+                <small>Концентрация <span id="capture-concentration">—</span></small>
+              </span>
+            </button>
+
+            <div class="upload-feedback" id="upload-feedback" role="status" aria-live="polite">
+              <span class="feedback-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>
+              </span>
+              <span id="upload-feedback-text">Готово к съёмке</span>
+            </div>
+
+            <div class="photo-total" aria-live="polite">
+              <span>Всего фотографий</span>
+              <strong id="photo-count">0</strong>
+            </div>
+
+            <div class="queue-bar" id="queue-bar" hidden>
+              <div>
+                <strong id="queue-title">В очереди: 0</strong>
+                <span id="queue-detail">Отправим автоматически после подключения</span>
+              </div>
+              <button class="text-button" id="retry-uploads" type="button">Повторить</button>
+            </div>
+          </div>
+
+          <aside class="activity-panel" aria-labelledby="recent-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Этот сервер</p>
+                <h2 id="recent-title">Последние снимки</h2>
+              </div>
+              <button class="icon-button icon-button-small" id="refresh-state" type="button" aria-label="Обновить данные" title="Обновить">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
+              </button>
+            </div>
+            <ol class="activity-list" id="recent-uploads-list"></ol>
+            <div class="empty-state" id="uploads-empty">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h5M8 16h3"/></svg>
+              <p>Снимков пока нет</p>
+              <span>Здесь появятся имя файла, источник и время.</span>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="timers-view" data-view-panel="timers" aria-labelledby="timers-title" hidden>
+        <div class="timers-header">
+          <div>
+            <p class="eyebrow">Параллельные партии</p>
+            <h1 id="timers-title">Трёхминутные таймеры</h1>
+            <p class="section-description">Каждый запуск создаёт отдельный таймер. Уже идущие не сбрасываются.</p>
+          </div>
+          <button class="new-timer-button" id="new-timer-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Новый таймер · 03:00
+          </button>
+        </div>
+
+        <div class="shortcut-banner" aria-hidden="true">
+          <span class="keyboard-key">ПРОБЕЛ</span>
+          <span>быстро запускает ещё один таймер на 3 минуты</span>
+        </div>
+
+        <section class="timer-section" aria-labelledby="active-timers-title">
+          <div class="timer-section-heading">
+            <h2 id="active-timers-title">Активные</h2>
+            <span class="section-count" id="active-section-count">0</span>
+          </div>
+          <div class="timer-grid" id="active-timers-list"></div>
+          <div class="empty-state timers-empty" id="timers-empty">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M9 2h6"/></svg>
+            <p>Нет активных таймеров</p>
+            <span>Нажмите пробел или кнопку выше.</span>
+          </div>
+        </section>
+
+        <section class="timer-section history-section" aria-labelledby="history-title">
+          <div class="timer-section-heading">
+            <h2 id="history-title">Завершённые</h2>
+            <button class="text-button danger-text" id="clear-completed" type="button" hidden>Очистить завершённые</button>
+          </div>
+          <div class="history-list" id="completed-timers-list"></div>
+          <p class="history-empty" id="history-empty">История появится после завершения первого таймера.</p>
+        </section>
+      </section>
+    </main>
+
+    <dialog class="setup-dialog" id="setup-dialog" aria-labelledby="setup-title">
+      <form class="setup-card" id="setup-form" method="dialog">
+        <div class="setup-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M8 3h8M10 3v5.2l-5.5 9.1A2.4 2.4 0 0 0 6.6 21h10.8a2.4 2.4 0 0 0 2.1-3.7L14 8.2V3M8.6 14h6.8"/></svg>
+        </div>
+        <p class="eyebrow">Настройка устройства</p>
+        <h2 id="setup-title">Куда сохранять снимки?</h2>
+        <p class="setup-description">Выбор определяет папку на компьютере. Его можно изменить позже.</p>
+
+        <fieldset class="platform-fieldset">
+          <legend>Тип телефона</legend>
+          <div class="platform-grid">
+            <label class="platform-option">
+              <input type="radio" name="platform" value="iPhone" required>
+              <span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10 5h4M11 18.5h2"/></svg>
+                <strong>iPhone</strong>
+              </span>
+            </label>
+            <label class="platform-option">
+              <input type="radio" name="platform" value="Android" required>
+              <span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M9 6h6M10.5 18.5h3"/></svg>
+                <strong>Android</strong>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <label class="field-label" for="device-name">Название телефона</label>
+        <input class="text-input" id="device-name" name="deviceName" type="text" maxlength="48" autocomplete="off" placeholder="Например, iPhone Саши" required>
+        <p class="field-error" id="setup-error" role="alert" hidden></p>
+
+        <div class="setup-actions">
+          <button class="secondary-button" id="cancel-settings" type="button" hidden>Отмена</button>
+          <button class="primary-button" type="submit">Сохранить и продолжить</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>

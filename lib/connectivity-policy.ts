@@ -18,9 +18,9 @@ export function resolveConnectivity({
     networkIsConnected === false ||
     typeof networkIsInternetReachable === 'boolean';
 
-  // Production network reachability and Convex availability are different
-  // signals. A backend/WebSocket outage must not disable OTA, sign-in, or any
-  // other service that is still reachable over the public internet.
+  // A live backend connection proves connectivity even when the OS reports
+  // unreachable (for example, with a VPN). The inverse is not true: a backend
+  // outage alone must not disable other reachable services.
   const networkIsOffline =
     networkIsConnected === false || networkIsInternetReachable === false;
 

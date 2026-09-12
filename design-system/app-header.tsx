@@ -17,6 +17,7 @@ export function AppHeader({
   dateAccessibilityLabel = 'Выбрать дату',
   historyAccessibilityLabel = 'Открыть историю',
   hideRightControl = false,
+  hideLeftControl = false,
   onCalendar,
   onDate,
   onHistory,
@@ -30,6 +31,7 @@ export function AppHeader({
   dateAccessibilityLabel?: string;
   historyAccessibilityLabel?: string;
   hideRightControl?: boolean;
+  hideLeftControl?: boolean;
   onCalendar?: () => void;
   onDate?: () => void;
   onHistory?: () => void;
@@ -40,20 +42,24 @@ export function AppHeader({
 }) {
   const content = (
     <>
-      <GlassControl
-        accessibilityLabel={historyAccessibilityLabel}
-        elevated={Platform.OS === 'android'}
-        onPress={onHistory}
-        tintColor={colors.surface.headerGlassWash}
-        washColor={colors.surface.headerGlassWash}
-        style={styles.headerCircle}
-      >
-        {Platform.OS === 'android' ? (
-          <AndroidHistoryIcon width={24} height={24} />
-        ) : (
-          <HeaderHistoryIcon width={22} height={22} color="#EA4087" />
-        )}
-      </GlassControl>
+      {hideLeftControl ? (
+        <View pointerEvents="none" style={styles.headerCircle} />
+      ) : (
+        <GlassControl
+          accessibilityLabel={historyAccessibilityLabel}
+          elevated={Platform.OS === 'android'}
+          onPress={onHistory}
+          tintColor={colors.surface.headerGlassWash}
+          washColor={colors.surface.headerGlassWash}
+          style={styles.headerCircle}
+        >
+          {Platform.OS === 'android' ? (
+            <AndroidHistoryIcon width={24} height={24} />
+          ) : (
+            <HeaderHistoryIcon width={22} height={22} color="#EA4087" />
+          )}
+        </GlassControl>
+      )}
 
       {centerContent ? (
         <View style={[styles.centerSlot, centerStyle]}>{centerContent}</View>
@@ -95,7 +101,12 @@ export function AppHeader({
     <View style={[styles.header, style]}>
       {Platform.OS === 'android' ? null : (
         <View pointerEvents="none" style={styles.shadowLayer}>
-          <View style={[styles.headerCircle, styles.shadowSurface]} />
+          <View
+            style={[
+              styles.headerCircle,
+              !hideLeftControl && styles.shadowSurface,
+            ]}
+          />
           <View
             style={[
               centerContent ? styles.centerSlot : styles.datePill,

@@ -5,11 +5,16 @@ export type ChatAvailabilityInput = {
   readOnly: boolean;
   cloudSyncEnabled: boolean;
   cloudProfileReady: boolean;
+  requiresCloudSync?: boolean;
   localReady: boolean;
   offline: boolean;
   backendUnavailable: boolean;
   statusError: boolean;
-  status?: { enabled: boolean; consentAccepted: boolean };
+  status?: {
+    enabled: boolean;
+    consentAccepted: boolean;
+    userEnabled?: boolean;
+  };
 };
 
 export function resolveChatAvailability(input: ChatAvailabilityInput) {
@@ -30,7 +35,8 @@ export function resolveChatAvailability(input: ChatAvailabilityInput) {
       'Войдите в аккаунт, чтобы получать ответы Сферки.',
       'profile',
     );
-  if (!input.cloudSyncEnabled)
+  const requiresCloudSync = input.requiresCloudSync !== false;
+  if (requiresCloudSync && !input.cloudSyncEnabled)
     return blocked(
       'sync',
       'Для ИИ-чата нужна облачная синхронизация. Включить её можно в настройках профиля.',
@@ -47,13 +53,23 @@ export function resolveChatAvailability(input: ChatAvailabilityInput) {
       'Не удалось связаться с сервисом ИИ. Черновик сохранён на этом экране.',
       'retry',
     );
-  if (!input.cloudProfileReady || !input.localReady || !input.status)
+  if (
+    (requiresCloudSync && !input.cloudProfileReady) ||
+    !input.localReady ||
+    !input.status
+  )
     return blocked(
       'loading',
       'Подготавливаем данные и проверяем доступность ИИ…',
     );
   if (!input.status.enabled)
     return blocked('disabled', 'Этот режим ИИ пока выключен администратором.');
+  if (input.status.userEnabled === false)
+    return blocked(
+      'user-disabled',
+      'ИИ-чат выключен вами. Включить его можно в профиле → Разрешения и данные.',
+      'profile',
+    );
   if (!input.status.consentAccepted)
     return {
       reason: 'consent',

@@ -80,8 +80,16 @@ test('startup unknown is not offline and reconnect clears offline', () => {
 test('legacy E2E flag cannot change production connectivity semantics', () => {
   for (const networkIsInternetReachable of [true, false, undefined]) {
     for (const convexIsWebSocketConnected of [true, false]) {
-      const input = { ...connected, networkIsInternetReachable, convexIsWebSocketConnected, convexConnectionRetries: 2 };
-      assert.deepEqual(resolveConnectivity({ ...input, isAndroidReversedE2E: true }), resolveConnectivity({ ...input, isAndroidReversedE2E: false }));
+      const input = {
+        ...connected,
+        networkIsInternetReachable,
+        convexIsWebSocketConnected,
+        convexConnectionRetries: 2,
+      };
+      assert.deepEqual(
+        resolveConnectivity({ ...input, isAndroidReversedE2E: true }),
+        resolveConnectivity({ ...input, isAndroidReversedE2E: false }),
+      );
     }
   }
   assert.equal(

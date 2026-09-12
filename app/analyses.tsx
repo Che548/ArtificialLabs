@@ -1,3 +1,10 @@
+import { AppSheet, sheetStyles } from '../components/AppSheet';
+import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
+import { AnalysisAttachmentThumbnail } from '../components/AnalysisAttachmentThumbnail';
+import { analysisCountdown } from '../lib/analysis-countdown';
+import { useProfileReducedMotion } from '../components/ProfileMotion';
+import { analysisCategoryImage } from '../lib/analysis-category-images';
+import { EmptyStateIcon, emptyStateColor } from '../components/EmptyStateIcon';
 import DateTimePicker, {
   DateTimePickerAndroid,
   type DateTimePickerEvent,
@@ -22,7 +29,11 @@ import {
 import type { ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CARE_PLAN_LIMITS } from '../shared/care-plan-policy';
-import { ScreenFeedback, useScreenFeedback } from '../components/ScreenFeedback';
+import {
+  ScreenFeedback,
+  useScreenFeedback,
+} from '../components/ScreenFeedback';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import {
   AnalysisAttentionHero,
@@ -45,15 +56,15 @@ import { analysisCatalogByKey } from '../lib/analysis-catalog';
 import { useConnectivity } from '../lib/connectivity';
 import { useHealthStore } from '../lib/health-store';
 import type { CarePlanItem } from '../lib/health-types';
-import { discardUnreferencedLabDocument, persistLabDocument } from '../lib/local-files';
+import {
+  discardUnreferencedLabDocument,
+  persistLabDocument,
+} from '../lib/local-files';
 import {
   calculateCompletionScore,
   latestCarePlanDueAt,
 } from '../lib/product-insights';
 
-const bloodTubesImage = require('../assets/analyses/blood-tubes.png');
-const ultrasoundImage = require('../assets/analyses/ultrasound.png');
-const hysteroscopeImage = require('../assets/analyses/hysteroscope.png');
 const mascotHandsImage = require('../assets/analyses/mascot-hands-reference.png');
 
 const e2eDocumentFixtureUri =
@@ -89,6 +100,7 @@ type PendingAnalysisAttachment = {
   kind: 'file' | 'photo';
   name: string;
   uri: string;
+  mimeType?: string;
 };
 
 function automationFailureStatus({
@@ -138,12 +150,6 @@ function automationFailureStatus({
   }
 }
 
-const planImages: Record<string, ImageSourcePropType> = {
-  'blood-tubes': bloodTubesImage,
-  ultrasound: ultrasoundImage,
-  hysteroscope: hysteroscopeImage,
-};
-
 function formatPlanDate(timestamp?: number) {
   if (!timestamp) return 'Дата уточняется';
   return new Intl.DateTimeFormat('ru-RU', {
@@ -180,48 +186,15 @@ function viewModelForPlan(item: CarePlanItem): PlannedAnalysis {
     dueLabel: item.status === 'current' ? 'Рекомендуемый срок' : 'Ориентир',
     dueValue: formatPlanDate(item.dueAt),
     id: item.localId,
-    image: item.illustrationKey ? planImages[item.illustrationKey] : undefined,
+    image: analysisCategoryImage(catalog?.category ?? item.category),
     purpose: item.rationale || catalog?.purpose || item.description,
     requirements: [catalog?.specimen ?? item.description].filter(Boolean),
     statusLabel,
     tab: item.status === 'current' ? 'current' : 'upcoming',
     title: item.title,
-    validityLabel: 'Основание',
-    validityValue:
-      item.scheduleBasis === 'model_inference'
-        ? 'Оценка ИИ'
-        : item.scheduleBasis === 'clinician'
-          ? 'Назначение врача'
-          : item.scheduleBasis === 'user'
-            ? 'Указано вами'
-            : 'Подтверждённые данные',
+    validityLabel: analysisCountdown(item.dueAt).label,
+    validityValue: analysisCountdown(item.dueAt).value,
   };
-}
-
-function recommendationReasonLabel(reasonCode?: string) {
-  const labels: Record<string, string> = {
-    MODEL_PLAN_PROPOSAL_VALIDATED:
-      'Добавлено после проверки профиля и подтверждённых данных.',
-    MODEL_REPLACEMENT_VALIDATED:
-      'Добавлено вместо ближайшего пункта после появления новых данных; рекомендация остаётся предварительной.',
-    NEW_CONFIRMED_EVIDENCE_SUPPORTED_BETTER_CANDIDATE:
-      'Ближайший пункт заменён после появления новых данных; рекомендация остаётся предварительной.',
-    NEW_EVIDENCE_SUPPORTED_BETTER_CANDIDATE:
-      'Ближайший пункт заменён после появления новых данных; рекомендация остаётся предварительной.',
-    DUE_WINDOW_REACHED:
-      'Срок наступил, поэтому пункт перенесён в текущий план.',
-    CONFIRMED_RESULT_MATCHED_DUE_WINDOW:
-      'Найден подтверждённый результат за соответствующий период.',
-    CURRENT_ITEM_REQUIRES_CLINICIAN_REVIEW:
-      'Пункт приостановлен до обсуждения с врачом.',
-    PREGNANCY_REQUIRES_CLINICIAN_SAFETY_REVIEW:
-      'При беременности требуется отдельная оценка безопасности врачом.',
-    CONFIRMED_CONTRAST_ALLERGY_REQUIRES_CLINICIAN_REVIEW:
-      'Указана тяжёлая аллергическая реакция, поэтому требуется оценка врачом.',
-  };
-  return reasonCode
-    ? (labels[reasonCode] ?? 'План пересмотрен по подтверждённым данным.')
-    : 'Это предварительная рекомендация, основанная на доступных подтверждённых данных.';
 }
 
 export default function AnalysesScreen() {
@@ -243,7 +216,6 @@ export default function AnalysesScreen() {
     scanResults,
     addLabResult,
     preferences,
-    recommendationEvents,
     readOnly,
   } = useHealthStore();
   const [activeTab, setActiveTab] = useState<AnalysisTabKey>('current');
@@ -257,8 +229,7 @@ export default function AnalysesScreen() {
     normalizePlanDate(new Date()),
   );
   const [attachmentPicking, setAttachmentPicking] = useState(false);
-  const [modalViewportHeight, setModalViewportHeight] = useState(0);
-  const [modalContentHeight, setModalContentHeight] = useState(0);
+  const reduceMotion = useProfileReducedMotion();
   const [chartsVisible, setChartsVisible] = useState(false);
   const handledSource = useRef<string | undefined>(undefined);
   const plannedAnalyses = useMemo(
@@ -575,7 +546,7 @@ export default function AnalysesScreen() {
               { text: 'Отмена', style: 'cancel' },
               {
                 text: 'Сохранить',
-                onPress: () => void saveUserConfirmedSchedule(normalized),
+                onPress: () => saveUserConfirmedSchedule(normalized),
               },
             ],
           );
@@ -622,6 +593,7 @@ export default function AnalysesScreen() {
           kind,
           name: asset.fileName || 'Фото результата',
           uri: asset.uri,
+          mimeType: asset.mimeType,
         });
         return;
       }
@@ -638,6 +610,7 @@ export default function AnalysesScreen() {
         kind,
         name: asset.name || 'Файл результата',
         uri: asset.uri,
+        mimeType: asset.mimeType,
       });
     } catch (cause) {
       setAttachmentError(
@@ -656,9 +629,7 @@ export default function AnalysesScreen() {
     let persistedDocumentUri: string | undefined;
     let stored = false;
     try {
-      persistedDocumentUri = await persistLabDocument(
-        pendingAttachment.uri,
-      );
+      persistedDocumentUri = await persistLabDocument(pendingAttachment.uri);
       await addLabResult({
         catalogKey: selectedAnalysis.carePlan.catalogKey,
         title: selectedAnalysis.title,
@@ -677,18 +648,18 @@ export default function AnalysesScreen() {
       setSelectedAnalysis(undefined);
       setPendingAttachment(undefined);
     } catch (cause) {
-      if (persistedDocumentUri && !stored) await discardUnreferencedLabDocument(persistedDocumentUri);
+      if (persistedDocumentUri && !stored)
+        await discardUnreferencedLabDocument(persistedDocumentUri);
       const message = cause instanceof Error ? cause.message : '';
-      setAttachmentError(message.includes('DOCUMENT_')
-        ? 'Проверьте файл: PDF, JPEG или PNG, до 20 МБ и 20 страниц, без пароля. Для проверки нужна новая нативная сборка.'
-        : 'Не удалось сохранить результат.');
+      setAttachmentError(
+        message.includes('DOCUMENT_')
+          ? 'Проверьте файл: PDF, JPEG или PNG, до 20 МБ и 20 страниц, без пароля. Для проверки нужна новая нативная сборка.'
+          : 'Не удалось сохранить результат.',
+      );
     } finally {
       setSaving(false);
     }
   };
-
-  const modalScrollEnabled =
-    modalViewportHeight > 0 && modalContentHeight > modalViewportHeight + 1;
 
   const visiblePlans =
     activeTab === 'upcoming'
@@ -705,34 +676,15 @@ export default function AnalysesScreen() {
   const selectedSavedResult = selectedAnalysis
     ? attachedResultsByPlan.get(selectedAnalysis.carePlan.catalogKey)
     : undefined;
-  const selectedPlanEvents = selectedAnalysis
-    ? recommendationEvents
-        .filter(
-          (event) =>
-            !event.deletedAt &&
-            event.carePlanLocalId === selectedAnalysis.carePlan.localId,
-        )
-        .sort((left, right) => right.occurredAt - left.occurredAt)
-    : [];
-  const selectedEvidence = selectedAnalysis
-    ? selectedAnalysis.carePlan.evidenceRefs.map((ref) => {
-        if (ref.source === 'journal')
-          return (
-            journalEntries.find(
-              (item) => !item.deletedAt && item.localId === ref.localId,
-            )?.label ?? 'Запись дневника'
-          );
-        if (ref.source === 'test')
-          return (
-            labResults.find(
-              (item) => !item.deletedAt && item.localId === ref.localId,
-            )?.title ?? 'Подтверждённый результат'
-          );
-        if (ref.source === 'care-plan') return ref.label;
-        return ref.label;
-      })
-    : [];
-  const hasSelectedResult = Boolean(pendingAttachment || selectedSavedResult);
+  const selectedSavedDocument = selectedSavedResult
+    ? documents.find(
+        (document) =>
+          !document.deletedAt &&
+          document.hasLocalFile &&
+          (document.localId === selectedSavedResult.sourceDocumentLocalId ||
+            document.linkedLabResultLocalId === selectedSavedResult.localId),
+      )
+    : undefined;
 
   return (
     <View style={styles.root}>
@@ -769,18 +721,22 @@ export default function AnalysesScreen() {
           style={styles.summaryWrap}
         />
 
-        <AppText style={{ marginHorizontal: 24, marginBottom: 16, fontSize: 13, lineHeight: 19 }}>
-          Рекомендации для обсуждения с врачом, не назначения. Новые предложения:
-          до {CARE_PLAN_LIMITS.current} активных и до {CARE_PLAN_LIMITS.upcoming} будущих анализов.
-          Если обоснованных рекомендаций меньше, список не дополняется ради количества.
+        <AppText
+          style={{
+            marginHorizontal: 24,
+            marginBottom: 16,
+            fontSize: 13,
+            lineHeight: 19,
+          }}
+        >
+          Рекомендации для обсуждения с врачом, не назначения. Новые
+          предложения: до {CARE_PLAN_LIMITS.current} активных и до{' '}
+          {CARE_PLAN_LIMITS.upcoming} будущих анализов. Если обоснованных
+          рекомендаций меньше, список не дополняется ради количества.
         </AppText>
 
         <View style={styles.tabsWrap}>
-          <AnalysisTabs
-            activeTab={activeTab}
-            onChange={setActiveTab}
-            variant={2}
-          />
+          <AnalysisTabs activeTab={activeTab} onChange={setActiveTab} />
         </View>
 
         {activeTab !== 'completed' ? (
@@ -791,10 +747,16 @@ export default function AnalysesScreen() {
                   key={item.id}
                   title={item.title}
                   description={item.description}
+                  purpose={item.purpose}
+                  readOnly={readOnly}
                   dueLabel={item.dueLabel}
                   dueValue={item.dueValue}
                   validityLabel={item.validityLabel}
                   validityValue={item.validityValue}
+                  dueAt={item.carePlan.dueAt}
+                  periodStartAt={
+                    item.carePlan.dueWindowStart ?? item.carePlan.updatedAt
+                  }
                   hasAttachedResult={attachedResultsByPlan.has(
                     item.carePlan.catalogKey,
                   )}
@@ -814,11 +776,13 @@ export default function AnalysesScreen() {
                     color={colors.brand.primary}
                     style={styles.emptySpinner}
                   />
-                ) : null}
+                ) : (
+                  <EmptyStateIcon kind="plan" />
+                )}
                 <AppText
                   role="body"
                   weight="semibold"
-                  style={styles.emptyTitle}
+                  style={styles.emptyPlanTitle}
                 >
                   {emptyPlanStatus.title}
                 </AppText>
@@ -863,6 +827,8 @@ export default function AnalysesScreen() {
                 <AnalysisReferencePlanCard
                   key={result.localId}
                   title={result.title}
+                  isCompleted
+                  purpose={catalog?.purpose}
                   dueLabel="Дата сдачи"
                   dueValue={new Date(result.collectedAt).toLocaleDateString(
                     'ru-RU',
@@ -873,11 +839,7 @@ export default function AnalysesScreen() {
                       ? `${firstAnalyte.value}${firstAnalyte.unit ? ` ${firstAnalyte.unit}` : ''}`
                       : 'Сохранён'
                   }
-                  image={
-                    catalog?.illustrationKey
-                      ? planImages[catalog.illustrationKey]
-                      : undefined
-                  }
+                  image={analysisCategoryImage(catalog?.category)}
                   statusLabel={
                     result.status === 'unreviewed'
                       ? 'Файл сохранён · содержимое не прочитано'
@@ -907,6 +869,10 @@ export default function AnalysesScreen() {
             {savedScans.map((result) => (
               <AnalysisReferencePlanCard
                 key={result.localId}
+                image={analysisCategoryImage(
+                  'Экспресс-тесты и домашняя диагностика',
+                )}
+                isCompleted
                 title={
                   result.testSystemKey === 'ovulation-strip'
                     ? 'Тест на овуляцию'
@@ -955,27 +921,20 @@ export default function AnalysesScreen() {
                 <AnalysisReferencePlanCard
                   key={item.localId}
                   title={item.title}
+                  isCompleted
+                  purpose={catalog?.purpose}
                   description={catalog?.specimen ?? item.description}
                   dueLabel="Дата выполнения"
                   dueValue={new Date(
                     item.performedAt ?? item.updatedAt,
                   ).toLocaleDateString('ru-RU')}
-                  validityLabel="Основание"
-                  validityValue={
-                    item.scheduleBasis === 'clinician'
-                      ? 'Назначение врача'
-                      : item.scheduleBasis === 'user'
-                        ? 'Указано вами'
-                        : item.scheduleBasis === 'confirmed_data'
-                          ? 'Подтверждённые данные'
-                          : 'Предварительный план'
-                  }
-                  image={
-                    item.illustrationKey
-                      ? planImages[item.illustrationKey]
-                      : undefined
-                  }
+                  validityLabel="Статус"
+                  validityValue="Выполнено"
+                  image={analysisCategoryImage(
+                    catalog?.category ?? item.category,
+                  )}
                   statusLabel="Отмечено выполненным"
+                  resultActionLabel="Открыть запись"
                   onView={() =>
                     feedback.show(
                       item.title,
@@ -993,6 +952,7 @@ export default function AnalysesScreen() {
           </View>
         ) : (
           <View style={styles.emptyState}>
+            <EmptyStateIcon kind="analysis" />
             <AppText role="body" weight="regular" style={styles.emptyTitle}>
               Здесь появятся результаты
             </AppText>
@@ -1000,411 +960,292 @@ export default function AnalysesScreen() {
         )}
       </ScrollView>
 
-      <LinearGradient
-        pointerEvents="none"
-        colors={[
-          colors.surface.canvas,
-          colors.surface.canvas,
-          'rgba(245,243,243,0)',
-        ]}
-        locations={[0, 0.72, 1]}
-        style={[styles.headerFade, { height: headerTop + 48 }]}
-      />
+      <TopChromeBackdrop headerTop={headerTop} />
 
       <View style={[styles.fixedHeader, { top: headerTop }]}>
         <AnalysisReferenceHeader
           onChart={() => setChartsVisible(true)}
           onDate={() => setActiveTab('current')}
-          onCalendar={() => setActiveTab('upcoming')}
         />
       </View>
 
-      <Modal
-        animationType="slide"
-        onRequestClose={closeAnalysis}
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
-        transparent
+      <AppSheet
         visible={Boolean(selectedAnalysis)}
+        title="Анализ"
+        onClose={closeAnalysis}
+        dismissDisabled={saving || attachmentPicking}
+        scroll={false}
       >
-        <View style={styles.analysisModalRoot}>
-          <Pressable
-            accessibilityLabel="Закрыть карточку анализа"
-            disabled={saving || attachmentPicking}
-            onPress={closeAnalysis}
-            style={styles.analysisModalScrim}
-          />
-
-          <ScrollView
-            alwaysBounceVertical={false}
-            bounces={modalScrollEnabled}
-            contentContainerStyle={styles.analysisModalPageContent}
-            onContentSizeChange={(_width, height) =>
-              setModalContentHeight(height)
-            }
-            onLayout={({ nativeEvent }) =>
-              setModalViewportHeight(nativeEvent.layout.height)
-            }
-            scrollEnabled={modalScrollEnabled}
-            showsVerticalScrollIndicator={false}
-            style={styles.analysisModalPageScroll}
-          >
-            <Pressable
-              accessibilityLabel="Закрыть карточку анализа"
-              disabled={saving || attachmentPicking}
-              onPress={closeAnalysis}
-              style={styles.analysisModalDismissArea}
-            />
-
-            {selectedAnalysis ? (
-              <View
-                style={[
-                  styles.analysisModalSheet,
-                  { paddingBottom: Math.max(insets.bottom + 102, 118) },
-                ]}
-              >
-                <View style={styles.analysisModalHandle} />
-
-                <View style={styles.analysisModalHero}>
-                  {selectedAnalysis.image ? (
-                    <View style={styles.analysisModalImageWrap}>
-                      <Image
-                        accessible
-                        accessibilityLabel={`Изображение: ${selectedAnalysis.title}`}
-                        resizeMode="contain"
-                        source={selectedAnalysis.image}
-                        style={styles.analysisModalImage}
-                      />
-                      <LinearGradient
-                        pointerEvents="none"
-                        colors={['rgba(255,255,255,0)', '#FFFFFF']}
-                        locations={[0.42, 1]}
-                        style={styles.analysisModalImageFade}
-                      />
-                    </View>
-                  ) : (
-                    <View style={styles.analysisModalNoImage}>
-                      <AppText
-                        weight="semibold"
-                        color={colors.brand.primary}
-                        style={styles.analysisModalNoImageText}
-                      >
-                        {selectedAnalysis.title.slice(0, 1)}
-                      </AppText>
-                    </View>
-                  )}
-
-                  <View style={styles.analysisModalHeroCopy}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          style={styles.analysisModalPageScroll}
+          contentContainerStyle={[
+            styles.analysisModalPageContent,
+            {
+              paddingBottom: 20,
+            },
+          ]}
+        >
+          {selectedAnalysis ? (
+            <View style={styles.analysisModalSheet}>
+              <View style={styles.analysisModalHero}>
+                {selectedAnalysis.image ? (
+                  <View style={styles.analysisModalImageWrap}>
+                    <Image
+                      accessible
+                      accessibilityLabel={`Изображение: ${selectedAnalysis.title}`}
+                      resizeMode="contain"
+                      source={selectedAnalysis.image}
+                      style={styles.analysisModalImage}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.analysisModalNoImage}>
                     <AppText
-                      role="caption"
                       weight="semibold"
                       color={colors.brand.primary}
-                      style={styles.analysisModalCategory}
+                      style={styles.analysisModalNoImageText}
                     >
-                      {selectedAnalysis.category}
-                    </AppText>
-                    <AppText
-                      role="title"
-                      weight="semibold"
-                      style={styles.analysisModalTitle}
-                    >
-                      {selectedAnalysis.title}
-                    </AppText>
-                    <AppText
-                      role="caption"
-                      color={colors.text.secondary}
-                      style={styles.analysisModalDescription}
-                    >
-                      {selectedAnalysis.description}
-                    </AppText>
-                    <AppText
-                      role="caption"
-                      weight="semibold"
-                      color={colors.brand.burgundy}
-                      style={styles.analysisModalStatus}
-                    >
-                      {selectedAnalysis.statusLabel}
+                      {selectedAnalysis.title.slice(0, 1)}
                     </AppText>
                   </View>
+                )}
+
+                <View style={styles.analysisModalHeroCopy}>
+                  <AppText
+                    role="title"
+                    weight="semibold"
+                    style={styles.analysisModalTitle}
+                  >
+                    {selectedAnalysis.title}
+                  </AppText>
+                </View>
+              </View>
+
+              <View style={styles.analysisModalDates}>
+                <View style={styles.analysisModalDateCell}>
+                  <AppText
+                    role="caption"
+                    color={colors.text.secondary}
+                    style={styles.analysisModalMetaLabel}
+                  >
+                    {selectedAnalysis.dueLabel}
+                  </AppText>
+                  <AppText
+                    role="label"
+                    weight="semibold"
+                    style={styles.analysisModalMetaValue}
+                  >
+                    {selectedAnalysis.dueValue}
+                  </AppText>
+                </View>
+                <View style={styles.analysisModalDateDivider} />
+                <View style={styles.analysisModalDateCell}>
+                  <AppText
+                    role="caption"
+                    color={colors.text.secondary}
+                    style={styles.analysisModalMetaLabel}
+                  >
+                    {analysisCountdown(selectedAnalysis.carePlan.dueAt).label}
+                  </AppText>
+                  <AppText
+                    role="label"
+                    weight="semibold"
+                    style={styles.analysisModalMetaValue}
+                  >
+                    {analysisCountdown(selectedAnalysis.carePlan.dueAt).value}
+                  </AppText>
+                </View>
+              </View>
+
+              <View style={styles.analysisModalSections}>
+                <View style={styles.analysisModalInfoCard}>
+                  <AppText role="caption" color={colors.text.secondary}>
+                    Материал и исследование
+                  </AppText>
+                  <AppText style={styles.analysisModalBodyText}>
+                    {selectedAnalysis.description}
+                  </AppText>
+                  <View style={styles.analysisModalInfoDivider} />
+                  <AppText role="caption" color={colors.text.secondary}>
+                    Зачем это нужно
+                  </AppText>
+                  <AppText style={styles.analysisModalBodyText}>
+                    {selectedAnalysis.purpose}
+                  </AppText>
                 </View>
 
-                <View style={styles.analysisModalDates}>
-                  <View style={styles.analysisModalDateCell}>
-                    <AppText
-                      role="caption"
-                      color={colors.text.secondary}
-                      style={styles.analysisModalMetaLabel}
-                    >
-                      {selectedAnalysis.dueLabel}
-                    </AppText>
-                    <AppText
-                      role="label"
-                      weight="semibold"
-                      style={styles.analysisModalMetaValue}
-                    >
-                      {selectedAnalysis.dueValue}
-                    </AppText>
-                  </View>
-                  <View style={styles.analysisModalDateDivider} />
-                  <View style={styles.analysisModalDateCell}>
-                    <AppText
-                      role="caption"
-                      color={colors.text.secondary}
-                      style={styles.analysisModalMetaLabel}
-                    >
-                      {selectedAnalysis.validityLabel}
-                    </AppText>
-                    <AppText
-                      role="label"
-                      weight="semibold"
-                      style={styles.analysisModalMetaValue}
-                    >
-                      {selectedAnalysis.validityValue}
-                    </AppText>
-                  </View>
-                </View>
-
-                <View style={styles.analysisModalSections}>
-                  <View style={styles.analysisModalSection}>
+                <View style={styles.analysisModalSection}>
+                  <View style={styles.analysisModalAttachmentHeading}>
                     <AppText role="label" weight="semibold">
-                      Что именно нужно сдать
+                      Результат
                     </AppText>
-                    <View style={styles.analysisModalInfoCard}>
-                      {selectedAnalysis.requirements.map((requirement) => (
-                        <View
-                          key={requirement}
-                          style={styles.analysisModalRequirement}
-                        >
-                          <View style={styles.analysisModalBullet} />
+                  </View>
+
+                  <View style={styles.analysisModalAttachmentCard}>
+                    {pendingAttachment || selectedSavedResult ? (
+                      <View style={styles.analysisModalAttachmentStatus}>
+                        <AnalysisAttachmentThumbnail
+                          uri={
+                            pendingAttachment
+                              ? pendingAttachment.uri
+                              : selectedSavedDocument?.localFileUri
+                          }
+                          name={
+                            pendingAttachment
+                              ? pendingAttachment.name
+                              : selectedSavedDocument?.title
+                          }
+                          mimeType={
+                            pendingAttachment
+                              ? pendingAttachment.mimeType
+                              : selectedSavedDocument?.mimeType
+                          }
+                          photo={pendingAttachment?.kind === 'photo'}
+                        />
+                        <View style={styles.analysisModalAttachmentCopy}>
                           <AppText
                             role="label"
-                            style={styles.analysisModalRequirementText}
+                            weight="semibold"
+                            numberOfLines={1}
                           >
-                            {requirement}
+                            {pendingAttachment?.name ||
+                              'Результат обследования'}
+                          </AppText>
+                          <AppText role="caption" color={colors.text.secondary}>
+                            {pendingAttachment
+                              ? 'Будет сохранён после подтверждения'
+                              : 'Сохранён на устройстве'}
                           </AppText>
                         </View>
+                      </View>
+                    ) : (
+                      <AppText
+                        role="caption"
+                        color={colors.text.secondary}
+                        style={styles.analysisModalAttachmentHint}
+                      >
+                        Добавьте заключение или результаты лаборатории
+                      </AppText>
+                    )}
+
+                    <View style={styles.analysisModalAttachmentActions}>
+                      {(['file', 'photo'] as const).map((kind) => (
+                        <Pressable
+                          cssInterop={false}
+                          key={kind}
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            kind === 'file'
+                              ? 'Прикрепить файл результата'
+                              : 'Прикрепить фото результата'
+                          }
+                          disabled={readOnly || attachmentPicking || saving}
+                          onPress={() => void pickAnalysisAttachment(kind)}
+                          style={({ pressed }) => [
+                            styles.analysisModalAttachmentButton,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          {attachmentPicking ? (
+                            <ActivityIndicator
+                              color={colors.brand.primary}
+                              size="small"
+                            />
+                          ) : (
+                            <>
+                              <Svg
+                                width={18}
+                                height={18}
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke={colors.brand.primary}
+                                strokeWidth={1.7}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                accessible={false}
+                              >
+                                {kind === 'file' ? (
+                                  <>
+                                    <Path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z" />
+                                    <Path d="M14 3v6h6M8 13h8M8 17h5" />
+                                  </>
+                                ) : (
+                                  <>
+                                    <Rect
+                                      x={3}
+                                      y={3}
+                                      width={18}
+                                      height={18}
+                                      rx={4}
+                                    />
+                                    <Circle cx={8} cy={8} r={1.5} />
+                                    <Path d="m3 17 5-5 4 4 4-6 5 7" />
+                                  </>
+                                )}
+                              </Svg>
+                              <AppText
+                                role="label"
+                                weight="semibold"
+                                color={colors.brand.primary}
+                                numberOfLines={1}
+                                style={
+                                  styles.analysisModalAttachmentButtonLabel
+                                }
+                              >
+                                {kind === 'file'
+                                  ? 'Выбрать файл'
+                                  : 'Выбрать фото'}
+                              </AppText>
+                            </>
+                          )}
+                        </Pressable>
                       ))}
                     </View>
                   </View>
 
-                  <View style={styles.analysisModalSection}>
-                    <AppText role="label" weight="semibold">
-                      Почему это изменилось
+                  {attachmentError ? (
+                    <AppText
+                      role="caption"
+                      color={colors.state.error}
+                      style={styles.analysisModalError}
+                    >
+                      {attachmentError}
                     </AppText>
-                    <View style={styles.analysisModalInfoCard}>
-                      <AppText
-                        role="label"
-                        color={colors.text.secondary}
-                        style={styles.analysisModalBodyText}
-                      >
-                        {recommendationReasonLabel(
-                          selectedPlanEvents[0]?.reasonCode ??
-                            selectedAnalysis.carePlan.safetyHoldReason,
-                        )}
+                  ) : null}
+                </View>
+                <View style={styles.analysisModalSection}>
+                  <AppText role="label" weight="semibold">
+                    План
+                  </AppText>
+                  <View style={styles.analysisModalPlanActions}>
+                    <Pressable
+                      cssInterop={false}
+                      accessibilityRole="button"
+                      disabled={readOnly || saving || attachmentPicking}
+                      onPress={() => {
+                        void applyCarePlanAction(
+                          selectedAnalysis.carePlan,
+                          'complete',
+                        ).then(closeAnalysis);
+                      }}
+                      style={({ pressed }) => [
+                        styles.analysisModalPlanButton,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <AppText weight="semibold" color={colors.brand.primary}>
+                        Отметить выполненным
                       </AppText>
-                    </View>
-                  </View>
-
-                  <View style={styles.analysisModalSection}>
-                    <AppText role="label" weight="semibold">
-                      Основания
-                    </AppText>
-                    <View style={styles.analysisModalInfoCard}>
-                      {selectedEvidence.length ? (
-                        selectedEvidence.slice(0, 6).map((label, index) => (
-                          <View
-                            key={`${label}-${index}`}
-                            style={styles.analysisModalRequirement}
-                          >
-                            <View style={styles.analysisModalBullet} />
-                            <AppText
-                              role="label"
-                              style={styles.analysisModalRequirementText}
-                            >
-                              {label}
-                            </AppText>
-                          </View>
-                        ))
-                      ) : (
-                        <AppText role="label" color={colors.text.secondary}>
-                          Общая цель профиля; рекомендация остаётся
-                          предварительной.
-                        </AppText>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={styles.analysisModalSection}>
-                    <AppText role="label" weight="semibold">
-                      Зачем это нужно?
-                    </AppText>
-                    <View style={styles.analysisModalInfoCard}>
-                      <AppText
-                        role="label"
-                        color={colors.text.secondary}
-                        style={styles.analysisModalBodyText}
-                      >
-                        {selectedAnalysis.purpose}
-                      </AppText>
-                    </View>
-                  </View>
-
-                  <View style={styles.analysisModalSection}>
-                    <AppText role="label" weight="semibold">
-                      Как использовать рекомендацию
-                    </AppText>
-                    <View style={styles.analysisModalClinicCard}>
-                      <View style={styles.analysisModalClinicIcon}>
-                        <AppText
-                          role="label"
-                          weight="semibold"
-                          color={colors.brand.primary}
-                        >
-                          +
-                        </AppText>
-                      </View>
-                      <View style={styles.analysisModalClinicCopy}>
-                        <AppText role="label" weight="semibold">
-                          {selectedAnalysis.clinic}
-                        </AppText>
-                        <AppText role="caption" color={colors.text.secondary}>
-                          Сферка не записывает на процедуры и не заменяет врача
-                        </AppText>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.analysisModalSection}>
-                    <AppText role="label" weight="semibold">
-                      Управление планом
-                    </AppText>
-                    <View style={styles.analysisModalPlanActions}>
+                    </Pressable>
+                    {selectedAnalysis.carePlan.status === 'upcoming' ? (
                       <Pressable
                         cssInterop={false}
                         accessibilityRole="button"
-                        disabled={readOnly || saving}
-                        onPress={() => {
-                          void applyCarePlanAction(
-                            selectedAnalysis.carePlan,
-                            'complete',
-                          ).then(closeAnalysis);
-                        }}
-                        style={({ pressed }) => [
-                          styles.analysisModalPlanButton,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <AppText weight="semibold" color={colors.brand.primary}>
-                          Отметить выполненным
-                        </AppText>
-                      </Pressable>
-                      {selectedAnalysis.carePlan.status === 'upcoming' ? (
-                        <Pressable
-                          cssInterop={false}
-                          accessibilityRole="button"
-                          accessibilityLabel="Уточнить срок рекомендации"
-                          disabled={readOnly || saving}
-                          onPress={requestUserConfirmedSchedule}
-                          style={({ pressed }) => [
-                            styles.analysisModalPlanButton,
-                            styles.analysisModalPlanButtonSecondary,
-                            pressed && styles.pressed,
-                          ]}
-                        >
-                          <AppText
-                            weight="medium"
-                            color={colors.text.secondary}
-                          >
-                            Уточнить срок
-                          </AppText>
-                        </Pressable>
-                      ) : null}
-                      {Platform.OS === 'ios' &&
-                      schedulePickerVisible &&
-                      selectedAnalysis.carePlan.status === 'upcoming' ? (
-                        <View style={styles.analysisModalSchedulePicker}>
-                          <AppText
-                            role="caption"
-                            color={colors.text.secondary}
-                            style={styles.analysisModalScheduleHint}
-                          >
-                            Срок будет отмечен как указанный вами, а не как
-                            назначение врача.
-                          </AppText>
-                          <DateTimePicker
-                            value={scheduleDate}
-                            mode="date"
-                            display="compact"
-                            locale="ru-RU"
-                            minimumDate={normalizePlanDate(new Date())}
-                            maximumDate={latestUpcomingPlanDate()}
-                            accentColor={colors.brand.primary}
-                            onChange={(_event, date) => {
-                              if (date)
-                                setScheduleDate(normalizePlanDate(date));
-                            }}
-                          />
-                          <View style={styles.analysisModalScheduleActions}>
-                            <Pressable
-                              cssInterop={false}
-                              accessibilityRole="button"
-                              disabled={saving}
-                              onPress={() => setSchedulePickerVisible(false)}
-                              style={({ pressed }) => [
-                                styles.analysisModalScheduleAction,
-                                pressed && styles.pressed,
-                              ]}
-                            >
-                              <AppText color={colors.text.secondary}>
-                                Отмена
-                              </AppText>
-                            </Pressable>
-                            <Pressable
-                              cssInterop={false}
-                              accessibilityRole="button"
-                              disabled={saving}
-                              onPress={() =>
-                                void saveUserConfirmedSchedule(scheduleDate)
-                              }
-                              style={({ pressed }) => [
-                                styles.analysisModalScheduleAction,
-                                styles.analysisModalScheduleActionPrimary,
-                                pressed && styles.pressed,
-                              ]}
-                            >
-                              <AppText
-                                weight="semibold"
-                                color={colors.text.inverse}
-                              >
-                                Сохранить
-                              </AppText>
-                            </Pressable>
-                          </View>
-                        </View>
-                      ) : null}
-                      <Pressable
-                        cssInterop={false}
-                        accessibilityRole="button"
-                        disabled={readOnly || saving}
-                        onPress={() => {
-                          feedback.show(
-                            'Отказаться от рекомендации?',
-                            'Сферка не предложит этот пункт снова в течение 90 дней.',
-                            [
-                              { text: 'Отмена', style: 'cancel' },
-                              {
-                                text: 'Отказаться',
-                                style: 'destructive',
-                                onPress: () => {
-                                  return applyCarePlanAction(
-                                    selectedAnalysis.carePlan,
-                                    'decline',
-                                  ).then(closeAnalysis);
-                                },
-                              },
-                            ],
-                          );
-                        }}
+                        accessibilityLabel="Уточнить срок рекомендации"
+                        disabled={readOnly || saving || attachmentPicking}
+                        onPress={requestUserConfirmedSchedule}
                         style={({ pressed }) => [
                           styles.analysisModalPlanButton,
                           styles.analysisModalPlanButtonSecondary,
@@ -1412,227 +1253,143 @@ export default function AnalysesScreen() {
                         ]}
                       >
                         <AppText weight="medium" color={colors.text.secondary}>
-                          Отказаться
+                          Уточнить срок
                         </AppText>
                       </Pressable>
-                    </View>
-                  </View>
-
-                  <View style={styles.analysisModalSection}>
-                    <View style={styles.analysisModalAttachmentHeading}>
-                      <AppText role="label" weight="semibold">
-                        Прикрепить результат
-                      </AppText>
-                      {hasSelectedResult ? (
-                        <View style={styles.analysisModalReadyPill}>
-                          <View style={styles.analysisModalReadyDot} />
-                          <AppText
-                            role="caption"
-                            weight="semibold"
-                            color={colors.brand.primary}
-                          >
-                            Прикреплён
-                          </AppText>
-                        </View>
-                      ) : null}
-                    </View>
-
-                    <View style={styles.analysisModalAttachmentCard}>
-                      {pendingAttachment || selectedSavedResult ? (
-                        <View style={styles.analysisModalAttachmentStatus}>
-                          <View style={styles.analysisModalFileIcon}>
-                            <AppText
-                              role="label"
-                              weight="semibold"
-                              color={colors.brand.primary}
-                            >
-                              ✓
-                            </AppText>
-                          </View>
-                          <View style={styles.analysisModalAttachmentCopy}>
-                            <AppText
-                              role="label"
-                              weight="semibold"
-                              numberOfLines={1}
-                            >
-                              {pendingAttachment?.name ||
-                                'Результат обследования'}
-                            </AppText>
-                            <AppText
-                              role="caption"
-                              color={colors.text.secondary}
-                            >
-                              {pendingAttachment
-                                ? 'Будет сохранён после подтверждения'
-                                : 'Сохранён на устройстве'}
-                            </AppText>
-                          </View>
-                        </View>
-                      ) : (
+                    ) : null}
+                    {Platform.OS === 'ios' &&
+                    schedulePickerVisible &&
+                    selectedAnalysis.carePlan.status === 'upcoming' ? (
+                      <View style={styles.analysisModalSchedulePicker}>
                         <AppText
                           role="caption"
                           color={colors.text.secondary}
-                          style={styles.analysisModalAttachmentHint}
+                          style={styles.analysisModalScheduleHint}
                         >
-                          Добавьте заключение или результаты лаборатории
+                          Срок будет отмечен как указанный вами, а не как
+                          назначение врача.
                         </AppText>
-                      )}
-
-                      <View style={styles.analysisModalAttachmentActions}>
-                        {(['file', 'photo'] as const).map((kind) => (
+                        <DateTimePicker
+                          value={scheduleDate}
+                          mode="date"
+                          display="spinner"
+                          themeVariant="light"
+                          style={{ width: '100%', height: 216 }}
+                          locale="ru-RU"
+                          minimumDate={normalizePlanDate(new Date())}
+                          maximumDate={latestUpcomingPlanDate()}
+                          accentColor={colors.brand.primary}
+                          onChange={(_event, date) => {
+                            if (date) setScheduleDate(normalizePlanDate(date));
+                          }}
+                        />
+                        <View style={styles.analysisModalScheduleActions}>
                           <Pressable
                             cssInterop={false}
-                            key={kind}
                             accessibilityRole="button"
-                            accessibilityLabel={
-                              kind === 'file'
-                                ? 'Прикрепить файл результата'
-                                : 'Прикрепить фото результата'
-                            }
-                            disabled={attachmentPicking || saving}
-                            onPress={() => void pickAnalysisAttachment(kind)}
+                            disabled={saving}
+                            onPress={() => setSchedulePickerVisible(false)}
                             style={({ pressed }) => [
-                              styles.analysisModalAttachmentButton,
+                              styles.analysisModalScheduleAction,
                               pressed && styles.pressed,
                             ]}
                           >
-                            {attachmentPicking ? (
-                              <ActivityIndicator
-                                color={colors.brand.primary}
-                                size="small"
-                              />
-                            ) : (
-                              <>
-                                <AppText
-                                  role="label"
-                                  weight="semibold"
-                                  color={colors.brand.primary}
-                                >
-                                  {kind === 'file' ? 'Файл' : 'Фото'}
-                                </AppText>
-                                <AppText
-                                  role="caption"
-                                  color={colors.text.secondary}
-                                >
-                                  {kind === 'file'
-                                    ? 'PDF или изображение'
-                                    : 'Из галереи'}
-                                </AppText>
-                              </>
-                            )}
+                            <AppText color={colors.text.secondary}>
+                              Отмена
+                            </AppText>
                           </Pressable>
-                        ))}
+                          <Pressable
+                            cssInterop={false}
+                            accessibilityRole="button"
+                            disabled={saving}
+                            onPress={() =>
+                              void saveUserConfirmedSchedule(scheduleDate)
+                            }
+                            style={({ pressed }) => [
+                              styles.analysisModalScheduleAction,
+                              styles.analysisModalScheduleActionPrimary,
+                              pressed && styles.pressed,
+                            ]}
+                          >
+                            <AppText
+                              weight="semibold"
+                              color={colors.text.inverse}
+                            >
+                              Сохранить
+                            </AppText>
+                          </Pressable>
+                        </View>
                       </View>
-                    </View>
-
-                    {attachmentError ? (
-                      <AppText
-                        role="caption"
-                        color={colors.state.error}
-                        style={styles.analysisModalError}
-                      >
-                        {attachmentError}
-                      </AppText>
                     ) : null}
+                    <Pressable
+                      cssInterop={false}
+                      accessibilityRole="button"
+                      disabled={readOnly || saving}
+                      onPress={() => {
+                        feedback.show(
+                          'Отказаться от рекомендации?',
+                          'Сферка не предложит этот пункт снова в течение 90 дней.',
+                          [
+                            { text: 'Отмена', style: 'cancel' },
+                            {
+                              text: 'Отказаться',
+                              style: 'destructive',
+                              onPress: () => {
+                                return applyCarePlanAction(
+                                  selectedAnalysis.carePlan,
+                                  'decline',
+                                ).then(closeAnalysis);
+                              },
+                            },
+                          ],
+                        );
+                      }}
+                      style={({ pressed }) => [
+                        styles.analysisModalPlanButton,
+                        styles.analysisModalPlanButtonSecondary,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <AppText weight="medium" color={colors.text.secondary}>
+                        Отказаться
+                      </AppText>
+                    </Pressable>
                   </View>
                 </View>
               </View>
-            ) : null}
-          </ScrollView>
-
-          <View
-            style={[
-              styles.analysisModalActionsFixed,
-              { paddingBottom: Math.max(insets.bottom + 18, 34) },
-            ]}
-          >
-            <View style={styles.analysisModalActions}>
-              <View style={styles.analysisModalActionSlot}>
-                <View style={styles.analysisModalCancel}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Закрыть"
-                    disabled={saving || attachmentPicking}
-                    onPress={closeAnalysis}
-                    style={StyleSheet.absoluteFillObject}
-                  >
-                    {({ pressed }) => (
-                      <View
-                        style={[
-                          styles.analysisModalActionContent,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <AppText role="label" weight="medium">
-                          Закрыть
-                        </AppText>
-                      </View>
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={styles.analysisModalActionSlot}>
-                <View
-                  style={[
-                    styles.analysisModalSave,
-                    !hasSelectedResult && styles.analysisModalSaveDisabled,
-                  ]}
-                >
-                  <Pressable
-                    accessibilityRole="button"
-                    testID="e2e-analysis-save"
-                    accessibilityLabel={
-                      pendingAttachment ? 'Сохранить результат' : 'Готово'
-                    }
-                    accessibilityState={{
-                      disabled:
-                        saving ||
-                        attachmentPicking ||
-                        readOnly ||
-                        !hasSelectedResult,
-                    }}
-                    disabled={
-                      saving ||
-                      attachmentPicking ||
-                      readOnly ||
-                      !hasSelectedResult
-                    }
-                    onPress={() =>
-                      pendingAttachment
-                        ? void saveAnalysisAttachment()
-                        : closeAnalysis()
-                    }
-                    style={StyleSheet.absoluteFillObject}
-                  >
-                    {({ pressed }) => (
-                      <View
-                        style={[
-                          styles.analysisModalActionContent,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        {saving ? (
-                          <ActivityIndicator color={colors.text.inverse} />
-                        ) : (
-                          <AppText
-                            role="label"
-                            weight="medium"
-                            color={colors.text.inverse}
-                          >
-                            {pendingAttachment ? 'Сохранить' : 'Готово'}
-                          </AppText>
-                        )}
-                      </View>
-                    )}
-                  </Pressable>
-                </View>
-              </View>
             </View>
+          ) : null}
+        </ScrollView>
+
+        {pendingAttachment ? (
+          <View style={[styles.analysisModalFooter, { paddingBottom: 8 }]}>
+            <Pressable
+              cssInterop={false}
+              accessibilityRole="button"
+              accessibilityLabel="Сохранить результат"
+              testID="e2e-analysis-save"
+              disabled={readOnly || saving || attachmentPicking}
+              onPress={() => void saveAnalysisAttachment()}
+              style={({ pressed }) => [
+                styles.analysisModalPrimaryAction,
+                pressed && styles.pressed,
+                (readOnly || saving || attachmentPicking) && {
+                  opacity: 0.5,
+                },
+              ]}
+            >
+              {saving ? (
+                <ActivityIndicator color={colors.text.inverse} />
+              ) : (
+                <AppText weight="medium" color={colors.text.inverse}>
+                  Сохранить результат
+                </AppText>
+              )}
+            </Pressable>
           </View>
-        </View>
+        ) : null}
         <ScreenFeedback feedback={feedback} />
-      </Modal>
+      </AppSheet>
 
       <HealthInsightsPage
         visible={chartsVisible}
@@ -1701,13 +1458,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyTitle: { textAlign: 'center', fontSize: 17, lineHeight: 22 },
+  emptyTitle: {
+    color: emptyStateColor,
+    textAlign: 'center',
+    fontSize: 17,
+    lineHeight: 22,
+  },
+  emptyPlanTitle: {
+    color: emptyStateColor,
+    textAlign: 'center',
+    fontSize: 20,
+    lineHeight: 26,
+  },
   emptyDescription: {
+    color: emptyStateColor,
     marginTop: spacing.xs,
     maxWidth: 310,
     textAlign: 'center',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 15,
+    lineHeight: 23,
   },
   emptySpinner: { marginBottom: spacing.sm },
   emptySettingsButton: {
@@ -1715,59 +1484,21 @@ const styles = StyleSheet.create({
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 22,
+    borderRadius: 18,
     backgroundColor: '#FBE7F0',
     paddingHorizontal: spacing.lg,
   },
-  analysisModalRoot: {
-    flex: 1,
-  },
-  analysisModalScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(43,31,36,0.24)',
-  },
-  analysisModalPageScroll: {
-    flex: 1,
-  },
-  analysisModalPageContent: {
-    flexGrow: 1,
-  },
-  analysisModalDismissArea: {
-    flex: 1,
-    minHeight: 88,
-  },
-  analysisModalSheet: {
-    width: '100%',
-    paddingTop: 10,
-    paddingHorizontal: 20,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    backgroundColor: colors.surface.raised,
-    ...shadows.floating,
-  },
-  analysisModalHandle: {
-    width: 38,
-    height: 5,
-    marginBottom: 16,
-    borderRadius: 3,
-    backgroundColor: '#DED9DB',
-    alignSelf: 'center',
-  },
+  analysisModalPageScroll: { flexShrink: 1 },
+  analysisModalPageContent: { paddingHorizontal: 20, paddingTop: 8 },
+  analysisModalSheet: { width: '100%' },
   analysisModalHero: {
-    minHeight: 126,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(33,31,32,0.10)',
-    paddingBottom: 14,
+    gap: 12,
+    paddingBottom: 20,
+    paddingRight: 4,
   },
-  analysisModalImageWrap: {
-    width: 104,
-    height: 116,
-    overflow: 'hidden',
-    flexShrink: 0,
-  },
+  analysisModalImageWrap: { width: 60, height: 60, flexShrink: 0 },
   analysisModalNoImage: {
     width: 92,
     height: 92,
@@ -1786,47 +1517,23 @@ const styles = StyleSheet.create({
   analysisModalImage: {
     width: '100%',
     height: '100%',
-    transform: [{ scale: 1.12 }],
-  },
-  analysisModalImageFade: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    height: 38,
   },
   analysisModalHeroCopy: {
     minWidth: 0,
     flex: 1,
   },
-  analysisModalCategory: {
-    marginBottom: 5,
-    fontSize: 12,
-    lineHeight: 15,
-    textTransform: 'uppercase',
-    letterSpacing: 0.35,
-  },
   analysisModalTitle: {
-    fontSize: 25,
-    lineHeight: 29,
+    fontSize: 20,
+    lineHeight: 25,
     letterSpacing: -0.55,
   },
-  analysisModalDescription: {
-    marginTop: 6,
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  analysisModalStatus: {
-    marginTop: 8,
-    fontSize: 12,
-    lineHeight: 15,
-  },
   analysisModalDates: {
-    minHeight: 68,
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(33,31,32,0.10)',
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: colors.surface.raised,
   },
   analysisModalDateCell: {
     minWidth: 0,
@@ -1847,77 +1554,34 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 20,
   },
-  analysisModalSections: {
-    paddingTop: 20,
-    gap: 20,
-  },
-  analysisModalSection: {
-    gap: 9,
-  },
+  analysisModalSections: { paddingTop: 14, gap: 14 },
+  analysisModalSection: { gap: 10 },
   analysisModalInfoCard: {
-    gap: 9,
-    padding: 14,
+    gap: 6,
+    padding: 16,
     borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(33,31,32,0.08)',
-    backgroundColor: '#F7F3F4',
+    backgroundColor: colors.surface.raised,
   },
-  analysisModalRequirement: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
+  analysisModalInfoDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.surface.divider,
+    marginVertical: 8,
   },
-  analysisModalBullet: {
-    width: 7,
-    height: 7,
-    marginTop: 6,
-    borderRadius: 4,
-    backgroundColor: colors.brand.primary,
+  analysisModalFooter: {
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    backgroundColor: colors.surface.canvas,
   },
-  analysisModalRequirementText: {
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 19,
-  },
+  analysisModalPrimaryAction: { ...sheetStyles.primary },
   analysisModalBodyText: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 22,
   },
-  analysisModalClinicCard: {
-    minHeight: 68,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.18)',
-    backgroundColor: '#FFF7FA',
-  },
-  analysisModalPlanActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  analysisModalPlanButton: {
-    minHeight: 46,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.22)',
-    backgroundColor: '#FFF0F6',
-    paddingHorizontal: 10,
-  },
-  analysisModalPlanButtonSecondary: {
-    borderColor: 'rgba(33,31,32,0.10)',
-    backgroundColor: '#F7F3F4',
-  },
+  analysisModalPlanActions: { gap: 8 },
+  analysisModalPlanButton: { ...sheetStyles.secondary },
+  analysisModalPlanButtonSecondary: { backgroundColor: colors.surface.raised },
   analysisModalSchedulePicker: {
     width: '100%',
-    flexBasis: '100%',
     gap: 10,
     padding: 12,
     borderRadius: 16,
@@ -1944,62 +1608,23 @@ const styles = StyleSheet.create({
   analysisModalScheduleActionPrimary: {
     backgroundColor: colors.brand.primary,
   },
-  analysisModalClinicIcon: {
-    width: 40,
-    height: 40,
-    flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    backgroundColor: '#F5E8ED',
-  },
-  analysisModalClinicCopy: {
-    minWidth: 0,
-    flex: 1,
-    gap: 2,
-  },
   analysisModalAttachmentHeading: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
-  analysisModalReadyPill: {
-    height: 25,
-    paddingHorizontal: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 13,
-    backgroundColor: '#FFF0F6',
-  },
-  analysisModalReadyDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.brand.primary,
-  },
   analysisModalAttachmentCard: {
     gap: 12,
-    padding: 12,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(33,31,32,0.09)',
-    backgroundColor: '#F7F3F4',
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: colors.surface.raised,
   },
   analysisModalAttachmentStatus: {
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  analysisModalFileIcon: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 19,
-    backgroundColor: '#FFF0F6',
   },
   analysisModalAttachmentCopy: {
     minWidth: 0,
@@ -2018,65 +1643,24 @@ const styles = StyleSheet.create({
   analysisModalAttachmentButton: {
     minWidth: 0,
     flex: 1,
-    height: 58,
+    height: 50,
+    flexDirection: 'row',
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 6,
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.20)',
-    backgroundColor: colors.surface.raised,
+    borderColor: 'transparent',
+    backgroundColor: colors.surface.canvas,
+  },
+  analysisModalAttachmentButtonLabel: {
+    flexShrink: 1,
+    fontSize: 14,
   },
   analysisModalError: {
     marginTop: -2,
     paddingHorizontal: 2,
-  },
-  analysisModalActionsFixed: {
-    position: 'absolute',
-    zIndex: 6,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    paddingTop: 14,
-    paddingHorizontal: 20,
-    backgroundColor: colors.surface.raised,
-    shadowColor: '#2B131B',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.07,
-    shadowRadius: 18,
-    elevation: 12,
-  },
-  analysisModalActions: {
-    width: '100%',
-    height: 48,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  analysisModalActionSlot: {
-    flex: 1,
-    height: 48,
-  },
-  analysisModalActionContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  analysisModalCancel: {
-    position: 'relative',
-    height: 48,
-    overflow: 'hidden',
-    borderRadius: 24,
-    backgroundColor: '#F5F1F2',
-  },
-  analysisModalSave: {
-    position: 'relative',
-    height: 48,
-    overflow: 'hidden',
-    borderRadius: 24,
-    backgroundColor: colors.brand.primary,
-  },
-  analysisModalSaveDisabled: {
-    opacity: 0.38,
   },
   pressed: {
     opacity: 0.76,

@@ -25,6 +25,9 @@ export function chatGenerationErrorText(code?: string, retryAfterMs?: number) {
   if (code === 'INVALID_REQUEST') {
     return 'Сообщение не удалось отправить. Сократите его и попробуйте снова.';
   }
+  if (code === 'USER_DISABLED') {
+    return 'ИИ-чат выключен. Включите его в профиле → Разрешения и данные.';
+  }
   if (code === 'CONSENT_REQUIRED') {
     return 'Нужно снова подтвердить передачу текста в Yandex AI Studio.';
   }

@@ -19,19 +19,12 @@ appId: engineering.brainwaves.sfera
     timeout: 120000
 - tapOn:
     id: 'e2e-onboarding-next'
-- scrollUntilVisible:
-    element:
-      id: 'e2e-onboarding-name'
-    direction: DOWN
-- tapOn:
-    id: 'e2e-onboarding-name'
-- inputText: 'Synthetic OCR QA'
-- back
+- assertVisible: 'Год рождения'
 - tapOn:
     id: 'e2e-onboarding-next'
 - tapOn: '.*Не помню дату.*'
 - repeat:
-    times: 4
+    times: 3
     commands:
       - tapOn:
           id: 'e2e-onboarding-next'

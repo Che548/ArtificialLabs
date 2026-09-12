@@ -6,11 +6,13 @@ import { DocumentReview } from './DocumentReview';
 
 export function ProfileDocumentsSection({
   documents,
+  sourceDocumentId,
   readOnly,
   onAdd,
   onDelete,
 }: {
   documents: HealthDocument[];
+  sourceDocumentId?: string;
   readOnly: boolean;
   onAdd: () => Promise<void>;
   onDelete: (document: HealthDocument) => Promise<void>;
@@ -72,6 +74,9 @@ export function ProfileDocumentsSection({
         </View>
       ) : null}
       {!documents.length && <AppText>Документы пока не добавлены</AppText>}
+      {sourceDocumentId && (
+        <AppText>Документ-источник ответа показан первым.</AppText>
+      )}
       {documents.map((document) => (
         <View
           key={document.localId}
@@ -88,7 +93,10 @@ export function ProfileDocumentsSection({
             style={{ minHeight: 48, justifyContent: 'center' }}
             onPress={() => setSelected(document)}
           >
-            <AppText>{document.title}</AppText>
+            <AppText>
+              {document.title}
+              {document.localId === sourceDocumentId ? ' · источник' : ''}
+            </AppText>
             <AppText>
               {new Date(document.documentDate).toLocaleDateString('ru-RU')} ·
               открыть и проверить

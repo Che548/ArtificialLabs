@@ -97,7 +97,103 @@ describe.sequential('AI chat consent and generation boundary', () => {
     process.env.AI_CHAT_ENABLED = 'true';
     await expect(
       client.action(api.chat.generate, generationArgs('revoked')),
+    ).resolves.toEqual({ ok: false, code: 'USER_DISABLED' });
+  });
+
+  test('defaults on, persists off, and can be re-enabled without fabricating consent', async () => {
+    process.env.AI_CHAT_ENABLED = 'true';
+    const t = setup();
+    const { client } = await createUser(t, 'preference@example.test');
+    await expect(
+      t.mutation(api.chat.setEnabled, { enabled: false }),
+    ).rejects.toThrow('UNAUTHENTICATED');
+    expect(await client.query(api.chat.status, {})).toMatchObject({
+      userEnabled: true,
+      consentAccepted: false,
+    });
+    await client.mutation(api.chat.setEnabled, { enabled: false });
+    expect(await client.query(api.chat.status, {})).toMatchObject({
+      userEnabled: false,
+    });
+    await expect(
+      client.action(api.chat.generate, generationArgs('disabled_by_user')),
+    ).resolves.toEqual({ ok: false, code: 'USER_DISABLED' });
+    expect(providerMock).not.toHaveBeenCalled();
+    await client.mutation(api.chat.setEnabled, { enabled: true });
+    expect(await client.query(api.chat.status, {})).toMatchObject({
+      userEnabled: true,
+      consentAccepted: false,
+    });
+    expect(
+      (await client.query(api.chat.status, {})).acceptedAt,
+    ).toBeUndefined();
+    await expect(
+      client.action(api.chat.generate, generationArgs('enabled_by_user')),
     ).resolves.toEqual({ ok: false, code: 'CONSENT_REQUIRED' });
+    expect(providerMock).not.toHaveBeenCalled();
+    await acceptConsent(client);
+    await expect(
+      client.action(api.chat.generate, generationArgs('consented_by_user')),
+    ).resolves.toMatchObject({ ok: true });
+  });
+
+  test('disabling one account does not disable another', async () => {
+    const t = setup();
+    const first = await createUser(t, 'first-pref@example.test');
+    const second = await createUser(t, 'second-pref@example.test');
+    await first.client.mutation(api.chat.setEnabled, { enabled: false });
+    expect(await second.client.query(api.chat.status, {})).toMatchObject({
+      userEnabled: true,
+    });
+  });
+
+  test('does not deliver an in-flight answer after the user disables chat', async () => {
+    process.env.AI_CHAT_ENABLED = 'true';
+    const t = setup();
+    const { client } = await createUser(t, 'in-flight@example.test');
+    await acceptConsent(client);
+    providerMock.mockImplementationOnce(async () => {
+      await client.mutation(api.chat.setEnabled, { enabled: false });
+      return {
+        ok: true as const,
+        reply: 'Тестовый ответ',
+        provider: 'yandex-ai-studio' as const,
+        model: 'test',
+        responseId: 'test',
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2,
+        durationMs: 1,
+        truncated: false,
+      };
+    });
+    await expect(
+      client.action(api.chat.generate, generationArgs('in_flight')),
+    ).resolves.toEqual({ ok: false, code: 'USER_DISABLED' });
+  });
+
+  test('preserves a legacy revocation and supports revocation before first use', async () => {
+    const t = setup();
+    const { client, userId } = await createUser(t, 'legacy@example.test');
+    await t.run((ctx) =>
+      ctx.db.insert('aiChatConsents', {
+        userId,
+        provider: 'yandex-ai-studio',
+        policyVersion: AI_CHAT_CONSENT_POLICY_VERSION,
+        acceptedAt: 1,
+        revokedAt: 2,
+        updatedAt: 2,
+      }),
+    );
+    expect(await client.query(api.chat.status, {})).toMatchObject({
+      userEnabled: false,
+    });
+    const fresh = await createUser(t, 'fresh-off@example.test');
+    await fresh.client.mutation(api.chat.revokeConsent, {});
+    expect(await fresh.client.query(api.chat.status, {})).toMatchObject({
+      userEnabled: false,
+      consentAccepted: false,
+    });
   });
 
   test('keeps AI chat independent of the opt-in medical cloud profile', async () => {
@@ -114,6 +210,10 @@ describe.sequential('AI chat consent and generation boundary', () => {
       enabled: true,
       consentAccepted: false,
     });
+    await expect(
+      client.action(api.chat.generate, generationArgs('unconsented_local')),
+    ).resolves.toEqual({ ok: false, code: 'CONSENT_REQUIRED' });
+    expect(providerMock).not.toHaveBeenCalled();
     await acceptConsent(client);
     await expect(
       client.action(api.chat.generate, generationArgs('missing_profile')),
@@ -121,7 +221,7 @@ describe.sequential('AI chat consent and generation boundary', () => {
     expect(providerMock).toHaveBeenCalledTimes(1);
   });
 
-  test('enforces consent before feature state and validates transcript roles and size', async () => {
+  test('enforces feature state and validates transcript roles and size', async () => {
     const t = setup();
     await expect(t.action(api.chat.generate, generationArgs())).rejects.toThrow(
       'UNAUTHENTICATED',

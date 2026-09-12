@@ -18,6 +18,37 @@ const ready: ChatAvailabilityInput = {
   statusError: false,
   status: { enabled: true, consentAccepted: true },
 };
+
+test('ordinary text chat can be local-only but still requires explicit AI consent', () => {
+  const input = {
+    ...ready,
+    requiresCloudSync: false,
+    cloudSyncEnabled: false,
+    cloudProfileReady: false,
+  };
+  assert.equal(resolveChatAvailability(input).reason, 'ready');
+  assert.equal(
+    resolveChatAvailability({
+      ...input,
+      status: { enabled: true, consentAccepted: false },
+    }).reason,
+    'consent',
+  );
+  assert.equal(
+    resolveChatAvailability({ ...input, requiresCloudSync: true }).reason,
+    'sync',
+  );
+});
+
+test('explicit user disable blocks sending and points to settings', () => {
+  const result = resolveChatAvailability({
+    ...ready,
+    status: { enabled: true, consentAccepted: true, userEnabled: false },
+  });
+  assert.equal(result.reason, 'user-disabled');
+  assert.equal(result.canSend, false);
+  assert.equal(result.action, 'profile');
+});
 for (const [reason, override, action] of [
   ['web', { web: true }, undefined],
   ['loading', { authLoading: true }, undefined],

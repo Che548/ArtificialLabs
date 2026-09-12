@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { LOCAL_ONBOARDING_PRIVACY } from '../shared/onboarding-privacy';
 import { onboardingLayout } from './onboarding-layout';
+
+test('new onboarding UI never manufactures cloud or provider consent', () => {
+  assert.deepEqual(LOCAL_ONBOARDING_PRIVACY, {
+    cloudSyncEnabled: false, anonymousAnalytics: false, medicalRecommendations: false,
+  });
+  const screen = readFileSync(new URL('../components/OnboardingScreen.tsx', import.meta.url), 'utf8');
+  const flow = readFileSync(new URL('../design-system/onboarding-flow.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(screen, /useMutation|acceptAgentConsent|acceptChatConsent|setAutomation/);
+  assert.match(flow, /\.\.\.LOCAL_ONBOARDING_PRIVACY/);
+});
 
 test('onboarding leaves a usable scroll viewport on phone, Fold and keyboard-resized windows', () => {
   for (const [width, height, top, bottom] of [[402, 874, 62, 34], [375, 667, 20, 0], [841, 701, 24, 24], [393, 851, 24, 24], [841, 390, 24, 24]]) {

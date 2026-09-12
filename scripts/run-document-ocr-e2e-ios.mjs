@@ -75,7 +75,7 @@ try {
     env.E2E_OCR_MATRIX_APP_ID = 'com.anonymous.privateexpo';
   }
   proxy = spawn(process.execPath, ['--import', 'tsx', 'scripts/convex-e2e-proxy.ts'], { cwd: root, env, stdio: ['ignore', privateLog, privateLog] });
-  metro = spawn('npx', ['expo', 'start', '--dev-client', '--localhost', '--port', '8083', '--scheme', 'private-expo'], { cwd: root, env, detached: true, stdio: ['ignore', privateLog, privateLog] });
+  metro = spawn('npx', ['expo', 'start', '--dev-client', '--localhost', '--port', '8083', '--scheme', 'private-expo', '--max-workers', '2'], { cwd: root, env, detached: true, stdio: ['ignore', privateLog, privateLog] });
   let ready = false;
   for (let attempt = 0; attempt < 90; attempt++) {
     try { ready = (await fetch('http://localhost:8083/status')).ok && (await fetch('http://localhost:3350/__e2e_proxy_health')).ok; } catch {}

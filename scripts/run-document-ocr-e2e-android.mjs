@@ -97,7 +97,7 @@ try {
     env.E2E_OCR_MATRIX_APP_ID = app;
   }
   proxy = spawn(process.execPath, ['--import', 'tsx', 'scripts/convex-e2e-proxy.ts'], { cwd: root, env, detached: true, stdio: ['ignore', log, log] });
-  metro = spawn('npx', ['expo', 'start', '--dev-client', '--localhost', '--port', '8083', '--scheme', 'private-expo'], { cwd: root, env, detached: true, stdio: ['ignore', log, log] });
+  metro = spawn('npx', ['expo', 'start', '--dev-client', '--localhost', '--port', '8083', '--scheme', 'private-expo', '--max-workers', '2'], { cwd: root, env, detached: true, stdio: ['ignore', log, log] });
   let ready = false;
   for (let attempt = 0; attempt < 90; attempt++) {
     try { ready = (await fetch('http://127.0.0.1:8083/status')).ok && (await fetch('http://127.0.0.1:3350/__e2e_proxy_health')).ok; } catch {}

@@ -1,5 +1,4 @@
 import { fontStyle } from '../lib/font-style';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Image,
   Platform,
@@ -12,24 +11,21 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import CalendarIcon from '../assets/figma/calendar-icon.svg';
 import MonitoringIcon from '../assets/figma/monitoring-icon.svg';
 import AndroidGraphIcon from '../assets/android-icons/graph.svg';
 import ArrowUpRightIcon from '../assets/figma/arrow-card.svg';
 import { AppText, GlassControl, HeaderDateLabel } from './components';
-import { colors, fonts, radii, shadows, spacing } from './tokens';
+import { colors, fonts, shadows, spacing } from './tokens';
 
 const headerGlass = colors.surface.headerGlassWash;
 const headerWash = colors.surface.headerGlassWash;
 
 export function AnalysisReferenceHeader({
   date = new Date(),
-  onCalendar,
   onChart,
   onDate,
 }: {
   date?: Date;
-  onCalendar?: () => void;
   onChart?: () => void;
   onDate?: () => void;
 }) {
@@ -72,18 +68,11 @@ export function AnalysisReferenceHeader({
         <HeaderDateLabel date={date} label="Сегодня" />
       </GlassControl>
 
-      <GlassControl
-        accessibilityLabel="Показать ближайшие анализы"
-        elevated
-        onPress={onCalendar}
-        tintColor={headerGlass}
-        washColor={headerWash}
+      <View
+        pointerEvents="none"
+        accessible={false}
         style={styles.headerCircle}
-      >
-        <View style={styles.headerIconOrientation}>
-          <CalendarIcon width={22} height={22} color={colors.brand.primary} />
-        </View>
-      </GlassControl>
+      />
     </View>
   );
 }
@@ -171,15 +160,20 @@ function DeadlineCard({
         <View style={styles.deadlineArrow}>
           <ArrowUpRightIcon width={16} height={16} />
         </View>
-        <Text numberOfLines={3} style={styles.deadlineCopy}>
+        <Text
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.85}
+          style={styles.deadlineCopy}
+        >
           {count ? (
             <>
-              {displayNoun} нужно{`\n`}сдать до{`\n`}
+              {displayNoun} нужно{`\n`}сдать до{' '}
               <Text style={styles.deadlineStrong}>{deadline}</Text>
             </>
           ) : (
             <>
-              В этом разделе{`\n`}пока нет{`\n`}
+              В этом разделе{`\n`}пока нет{' '}
               <Text style={styles.deadlineStrong}>анализов</Text>
             </>
           )}
@@ -222,164 +216,7 @@ export function AnalysisDeadlineSummary({
   );
 }
 
-export function AnalysisReferencePlanCard({
-  description,
-  dueLabel,
-  dueValue,
-  hasAttachedResult = false,
-  image,
-  onView,
-  statusLabel,
-  title,
-  validityLabel,
-  validityValue,
-}: {
-  description?: string;
-  dueLabel: string;
-  dueValue: string;
-  hasAttachedResult?: boolean;
-  image?: ImageSourcePropType;
-  onView?: () => void;
-  statusLabel?: string;
-  title: string;
-  validityLabel: string;
-  validityValue: string;
-}) {
-  return (
-    <View style={styles.planCard}>
-      {image ? (
-        <View style={styles.planMedia}>
-          <Image
-            accessible
-            accessibilityLabel={`Изображение: ${title}`}
-            source={image}
-            resizeMode="contain"
-            style={styles.planImage}
-          />
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(255,255,255,0)', '#FFFFFF']}
-            locations={[0.46, 1]}
-            style={styles.planImageFade}
-          />
-        </View>
-      ) : (
-        <View style={styles.planNoImageMark}>
-          <AppText weight="semibold" style={styles.planNoImageMarkText}>
-            {title.slice(0, 1).toLocaleUpperCase('ru-RU')}
-          </AppText>
-        </View>
-      )}
-
-      <View style={styles.planCopy}>
-        {hasAttachedResult ? (
-          <View style={styles.planAttachedBadge}>
-            <View style={styles.planAttachedDot} />
-            <AppText
-              role="caption"
-              weight="semibold"
-              style={styles.planAttachedText}
-            >
-              Результат прикреплён
-            </AppText>
-          </View>
-        ) : null}
-        {statusLabel ? (
-          <View style={styles.planStatusBadge}>
-            <AppText
-              role="caption"
-              weight="semibold"
-              style={styles.planStatusText}
-            >
-              {statusLabel}
-            </AppText>
-          </View>
-        ) : null}
-        <AppText weight="semibold" numberOfLines={1} style={styles.planTitle}>
-          {title}
-        </AppText>
-        {description ? (
-          <AppText
-            role="caption"
-            color={colors.text.secondary}
-            numberOfLines={2}
-            style={styles.planDescription}
-          >
-            {description}
-          </AppText>
-        ) : null}
-      </View>
-
-      <View style={styles.planFooter}>
-        <View style={styles.planMeta}>
-          <View style={styles.planMetaCell}>
-            <AppText
-              role="caption"
-              color={colors.text.secondary}
-              style={styles.planMetaLabel}
-            >
-              {dueLabel}
-            </AppText>
-            <AppText
-              role="label"
-              weight="semibold"
-              style={styles.planMetaValue}
-            >
-              {dueValue}
-            </AppText>
-          </View>
-          <View style={styles.planMetaDivider} />
-          <View style={styles.planMetaCell}>
-            <AppText
-              role="caption"
-              color={colors.text.secondary}
-              style={styles.planMetaLabel}
-            >
-              {validityLabel}
-            </AppText>
-            <AppText
-              role="label"
-              weight="semibold"
-              style={styles.planMetaValue}
-            >
-              {validityValue}
-            </AppText>
-          </View>
-        </View>
-
-        <View style={styles.planAction}>
-          <AppText
-            role="caption"
-            weight="semibold"
-            style={styles.planActionText}
-          >
-            Посмотреть ↗
-          </AppText>
-        </View>
-      </View>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Открыть: ${title}${
-          hasAttachedResult ? ', результат прикреплён' : ''
-        }`}
-        disabled={!onView}
-        onPress={onView}
-        style={StyleSheet.absoluteFillObject}
-      >
-        {({ pressed }) => (
-          <View
-            pointerEvents="none"
-            style={[
-              StyleSheet.absoluteFillObject,
-              pressed && onView && styles.planCardPressedOverlay,
-            ]}
-          />
-        )}
-      </Pressable>
-    </View>
-  );
-}
+export { AnalysisReferencePlanCard } from './labs-analysis-card';
 
 const styles = StyleSheet.create({
   pressed: {
@@ -478,7 +315,7 @@ const styles = StyleSheet.create({
   },
   deadlineCard: {
     position: 'relative',
-    height: 124,
+    height: 106,
     minWidth: 0,
     flexBasis: 0,
     flexGrow: 1,
@@ -498,7 +335,8 @@ const styles = StyleSheet.create({
     zIndex: 1,
     minWidth: 0,
     flex: 1,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: 6,
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
@@ -530,164 +368,5 @@ const styles = StyleSheet.create({
   deadlineStrong: {
     color: colors.text.primary,
     ...fontStyle(fonts.sfSemibold),
-  },
-  planCard: {
-    position: 'relative',
-    width: '100%',
-    height: 208,
-    overflow: 'hidden',
-    borderRadius: 24,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(33,31,32,0.10)',
-    backgroundColor: colors.surface.raised,
-  },
-  planCardPressedOverlay: {
-    backgroundColor: 'rgba(234,64,135,0.035)',
-  },
-  planMedia: {
-    position: 'absolute',
-    top: 12,
-    left: 18,
-    width: 88,
-    height: 108,
-    overflow: 'hidden',
-  },
-  planNoImageMark: {
-    position: 'absolute',
-    top: 24,
-    left: 22,
-    width: 72,
-    height: 72,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF0F6',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.18)',
-  },
-  planNoImageMarkText: {
-    color: colors.brand.primary,
-    fontSize: 28,
-    lineHeight: 32,
-  },
-  planImage: {
-    width: '100%',
-    height: '100%',
-    transform: [{ scale: 1.16 }],
-  },
-  planImageFade: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    height: 38,
-  },
-  planCopy: {
-    position: 'absolute',
-    top: 45,
-    right: 18,
-    left: 112,
-  },
-  planAttachedBadge: {
-    position: 'absolute',
-    right: 0,
-    bottom: '100%',
-    marginBottom: 7,
-    height: 24,
-    paddingHorizontal: 9,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFF0F6',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(234,64,135,0.22)',
-  },
-  planAttachedDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.brand.primary,
-  },
-  planAttachedText: {
-    color: colors.brand.primary,
-    fontSize: 11.5,
-    lineHeight: 14,
-  },
-  planStatusBadge: {
-    alignSelf: 'flex-start',
-    minHeight: 22,
-    justifyContent: 'center',
-    marginBottom: 6,
-    paddingHorizontal: 8,
-    borderRadius: 11,
-    backgroundColor: '#F3F0F1',
-  },
-  planStatusText: {
-    color: colors.text.secondary,
-    fontSize: 11,
-    lineHeight: 13,
-  },
-  planTitle: {
-    fontSize: 20,
-    lineHeight: 23,
-    letterSpacing: -0.45,
-  },
-  planDescription: {
-    marginTop: 3,
-    fontSize: 14,
-    lineHeight: 17,
-    letterSpacing: -0.2,
-  },
-  planFooter: {
-    position: 'absolute',
-    right: 20,
-    bottom: 13,
-    left: 14,
-    height: 59,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(33,31,32,0.10)',
-    paddingTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  planMeta: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  planMetaCell: {
-    minWidth: 0,
-    gap: 1,
-  },
-  planMetaLabel: {
-    fontSize: 13.5,
-    lineHeight: 16,
-  },
-  planMetaValue: {
-    fontSize: 16,
-    lineHeight: 19,
-  },
-  planMetaDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 31,
-    backgroundColor: 'rgba(33,31,32,0.12)',
-  },
-  planAction: {
-    width: 118,
-    height: 40,
-    flexShrink: 0,
-    borderRadius: 13,
-    backgroundColor: '#F5F1F3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  planActionText: {
-    fontSize: 14,
-    lineHeight: 17,
   },
 });

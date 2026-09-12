@@ -1,3 +1,4 @@
+import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import { fontStyle } from '../lib/font-style';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -1203,38 +1204,16 @@ function LifestyleCard({ buckets }: { buckets: DayBucket[] }) {
   );
   return (
     <InsightCard title="Показатели и активность">
-      <View style={styles.metricTabs}>
-        {(
-          [
-            { value: 'weight', label: 'Вес' },
-            { value: 'water', label: 'Вода' },
-            { value: 'activity', label: 'Активность' },
-          ] as const
-        ).map((item) => (
-          <Pressable
-            key={item.value}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === item.value }}
-            onPress={() => setTab(item.value)}
-            style={[
-              styles.metricTab,
-              tab === item.value && styles.metricTabSelected,
-            ]}
-          >
-            <AppText
-              role="caption"
-              weight={tab === item.value ? 'semibold' : 'regular'}
-              color={
-                tab === item.value
-                  ? colors.brand.primary
-                  : colors.text.secondary
-              }
-            >
-              {item.label}
-            </AppText>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedSwitcher
+        accessibilityLabel="Показатель здоровья"
+        options={[
+          { value: 'weight', label: 'Вес' },
+          { value: 'water', label: 'Вода' },
+          { value: 'activity', label: 'Активность' },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
       {tab === 'activity' ? (
         <>
           <View style={styles.metricTopline}>
@@ -1487,31 +1466,12 @@ function AnalyteLabsCard({ labs }: { labs: LabResult[] }) {
     : 0;
   return (
     <InsightCard title="Анализы">
-      <View style={styles.analyteTabs}>
-        {series.slice(0, 4).map((item) => (
-          <Pressable
-            key={item.key}
-            onPress={() => setSelectedKey(item.key)}
-            style={[
-              styles.analyteTab,
-              active.key === item.key && styles.analyteTabSelected,
-            ]}
-          >
-            <AppText
-              role="caption"
-              numberOfLines={1}
-              weight={active.key === item.key ? 'semibold' : 'regular'}
-              color={
-                active.key === item.key
-                  ? colors.brand.burgundy
-                  : colors.text.secondary
-              }
-            >
-              {item.name}
-            </AppText>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedSwitcher
+        accessibilityLabel="Показатель анализа"
+        options={series.slice(0, 4).map((item) => ({ value: item.key, label: item.name }))}
+        value={active.key}
+        onChange={setSelectedKey}
+      />
       <View style={styles.metricTopline}>
         <AppText numeric role="title" weight="semibold">
           {active.points.at(-1)?.value}
@@ -1721,16 +1681,7 @@ export function HealthInsightsPage({
           onPeriodChange={setPeriod}
         />
       </ScrollView>
-      <ExpoLinearGradient
-        pointerEvents="none"
-        colors={[
-          colors.surface.canvas,
-          colors.surface.canvas,
-          'rgba(245,243,243,0)',
-        ]}
-        locations={[0, 0.74, 1]}
-        style={[styles.pageHeaderFade, { height: headerTop + 58 }]}
-      />
+      <TopChromeBackdrop headerTop={headerTop} />
       <View style={[styles.pageHeader, { top: headerTop }]}>
         <GlassControl
           accessibilityLabel="Закрыть графики"

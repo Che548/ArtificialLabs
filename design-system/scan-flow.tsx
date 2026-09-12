@@ -1,3 +1,6 @@
+import { AppSheet, sheetStyles } from '../components/AppSheet';
+import { StatusBar } from 'expo-status-bar';
+import { loadLocalSetting, saveLocalSetting } from '../lib/local-database';
 import { fontStyle } from '../lib/font-style';
 import {
   CameraView,
@@ -127,7 +130,6 @@ type ScanFlowOverlayProps = {
   initialImageUri?: string | null;
   visible: boolean;
   showBriefing: boolean;
-  onBriefingSeen: () => void;
   onClose: () => void;
   onComplete: (record: PendingScanRecord) => void | Promise<void>;
 };
@@ -437,7 +439,7 @@ function FlowHeader({
   showHelp?: boolean;
   top: number;
 }) {
-  const color = light ? '#ffffff' : colors.text.primary;
+  const color = light ? '#FFFFFF' : colors.text.primary;
   const stepLabel = currentStep ? (
     <AppText
       numeric={emphasizeCurrentStep}
@@ -451,62 +453,68 @@ function FlowHeader({
   ) : null;
 
   return (
-    <FlowGlassGroup spacing={12} style={[styles.flowHeader, { top }]}>
-      {showClose ? (
-        <RoundGlassButton
-          accessibilityLabel={
-            leadingIcon === 'back'
-              ? 'Вернуться к истории'
-              : 'Закрыть сканирование'
-          }
-          darkContent={!light}
-          icon={leadingIcon}
-          iconColor={leadingIcon === 'back' ? colors.brand.primary : undefined}
-          onPress={onClose}
-        />
-      ) : (
-        <View style={styles.headerSpacer} />
-      )}
-
-      {currentStep ? (
-        hasNativeFlowGlass ? (
-          <GlassView
-            glassEffectStyle="clear"
-            colorScheme="auto"
-            style={[styles.stepPill, shadows.control]}
-          >
-            {stepLabel}
-          </GlassView>
+    <>
+      <FlowGlassGroup spacing={12} style={[styles.flowHeader, { top }]}>
+        {showClose ? (
+          <RoundGlassButton
+            accessibilityLabel={
+              leadingIcon === 'back'
+                ? 'Вернуться к истории'
+                : 'Закрыть сканирование'
+            }
+            darkContent={!light}
+            icon={leadingIcon}
+            iconColor={
+              !light && leadingIcon === 'back'
+                ? colors.brand.primary
+                : undefined
+            }
+            onPress={onClose}
+          />
         ) : (
-          <View style={[styles.stepPill, shadows.control]}>
-            <LiquidGlassSurface
-              variant="clear"
+          <View style={styles.headerSpacer} />
+        )}
+
+        {currentStep ? (
+          hasNativeFlowGlass ? (
+            <GlassView
+              glassEffectStyle="clear"
               colorScheme="auto"
-              fallbackTint="default"
-              washColor="transparent"
-              intensity={72}
-              showFallbackDecoration={false}
-              androidTone={light ? 'dark' : 'light'}
+              style={[styles.stepPill, shadows.control]}
             >
               {stepLabel}
-            </LiquidGlassSurface>
-          </View>
-        )
-      ) : (
-        <View />
-      )}
+            </GlassView>
+          ) : (
+            <View style={[styles.stepPill, shadows.control]}>
+              <LiquidGlassSurface
+                variant="clear"
+                colorScheme="auto"
+                fallbackTint="default"
+                washColor="transparent"
+                intensity={72}
+                showFallbackDecoration={false}
+                androidTone={light ? 'dark' : 'light'}
+              >
+                {stepLabel}
+              </LiquidGlassSurface>
+            </View>
+          )
+        ) : (
+          <View />
+        )}
 
-      {showHelp ? (
-        <RoundGlassButton
-          accessibilityLabel="Открыть инструктаж"
-          darkContent={!light}
-          icon="help"
-          onPress={onHelp}
-        />
-      ) : (
-        <View style={styles.headerSpacer} />
-      )}
-    </FlowGlassGroup>
+        {showHelp ? (
+          <RoundGlassButton
+            accessibilityLabel="Открыть инструктаж"
+            darkContent={!light}
+            icon="help"
+            onPress={onHelp}
+          />
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
+      </FlowGlassGroup>
+    </>
   );
 }
 
@@ -646,6 +654,60 @@ function BriefingScreen({
   onClose: () => void;
   onContinue: () => void;
 }) {
+  const [skipNextTime, setSkipNextTime] = useState(false);
+  const checkboxProgress = useRef(new Animated.Value(0)).current;
+  const [checkboxReduceMotion, setCheckboxReduceMotion] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((value) => {
+      if (active) setCheckboxReduceMotion(value);
+    });
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      setCheckboxReduceMotion,
+    );
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+  useEffect(() => {
+    const animation = Animated.timing(checkboxProgress, {
+      toValue: skipNextTime ? 1 : 0,
+      duration: checkboxReduceMotion ? 0 : 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [skipNextTime, checkboxReduceMotion, checkboxProgress]);
+  const [savingPreference, setSavingPreference] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void loadLocalSetting<boolean>('scan.skip-briefing.v1')
+      .then((value) => {
+        if (active) setSkipNextTime(value === true);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setSavingPreference(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const toggleSkip = async () => {
+    if (savingPreference) return;
+    setSavingPreference(true);
+    try {
+      await saveLocalSetting('scan.skip-briefing.v1', !skipNextTime);
+      setSkipNextTime(!skipNextTime);
+    } catch {
+      Alert.alert('Не удалось сохранить настройку', 'Попробуйте ещё раз.');
+    } finally {
+      setSavingPreference(false);
+    }
+  };
   const [activeStep, setActiveStep] = useState(0);
   const activeStepRef = useRef(0);
   const continuingRef = useRef(false);
@@ -705,7 +767,7 @@ function BriefingScreen({
   };
 
   const goNext = () => {
-    if (stepTransitioning || continuingRef.current) return;
+    if (stepTransitioning || continuingRef.current || savingPreference) return;
     if (activeStepRef.current === briefingInstructions.length - 1) {
       continuingRef.current = true;
       onContinue();
@@ -767,6 +829,54 @@ function BriefingScreen({
           />
         </Animated.View>
 
+        <Pressable
+          cssInterop={false}
+          accessibilityRole="checkbox"
+          accessibilityLabel="Больше не показывать инструкцию"
+          accessibilityState={{
+            checked: skipNextTime,
+            disabled: savingPreference,
+          }}
+          disabled={savingPreference}
+          onPress={() => void toggleSkip()}
+          style={styles.briefingSkipRow}
+        >
+          <View style={styles.briefingCheckbox} accessible={false}>
+            <Animated.View
+              style={[
+                styles.briefingCheckboxFill,
+                { opacity: checkboxProgress },
+              ]}
+            />
+            <Animated.View
+              style={{
+                opacity: checkboxProgress,
+                transform: [
+                  {
+                    scale: checkboxProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.75, 1],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Svg width={16} height={16} viewBox="0 0 24 24">
+                <Path
+                  d="m5 12 4 4L19 6"
+                  stroke="#FFFFFF"
+                  strokeWidth={2}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            </Animated.View>
+          </View>
+          <AppText style={styles.briefingSkipLabel}>
+            Больше не показывать инструкцию
+          </AppText>
+        </Pressable>
         <View style={styles.briefingActions}>
           <View
             style={[
@@ -802,8 +912,10 @@ function BriefingScreen({
               cssInterop={false}
               accessibilityRole="button"
               accessibilityLabel={isLastStep ? 'Продолжить' : 'Далее'}
-              accessibilityState={{ disabled: stepTransitioning }}
-              disabled={stepTransitioning}
+              accessibilityState={{
+                disabled: stepTransitioning || savingPreference,
+              }}
+              disabled={stepTransitioning || savingPreference}
               onPress={goNext}
               style={({ pressed }) => [
                 styles.briefingActionPressTarget,
@@ -844,7 +956,6 @@ function QrScannerScreen({
   const frameLeft = useRef(new Animated.Value(71)).current;
   const frameTop = useRef(new Animated.Value(headerTop + 203)).current;
   const frameSize = useRef(new Animated.Value(260)).current;
-  const qrOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(
     () => () => {
@@ -918,12 +1029,6 @@ function QrScannerScreen({
       : headerTop + 203;
 
     Animated.parallel([
-      Animated.timing(qrOpacity, {
-        toValue: 0,
-        duration: 120,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
       Animated.timing(frameLeft, {
         toValue: targetLeft,
         duration: 240,
@@ -1016,16 +1121,6 @@ function QrScannerScreen({
           height="100%"
           style={styles.scanFlowFrame}
         />
-        <Animated.View style={{ opacity: qrOpacity }}>
-          <View style={styles.qrArtwork}>
-            <Image
-              accessible={false}
-              resizeMode="contain"
-              source={require('../assets/figma/scan-screen/scan_flow_qr_final.png')}
-              style={styles.qrImage}
-            />
-          </View>
-        </Animated.View>
       </Animated.View>
 
       <View style={styles.cameraBottomGroup}>
@@ -1060,103 +1155,82 @@ function QrScannerScreen({
         </Pressable>
       </View>
 
-      <Modal
-        animationType="fade"
-        onRequestClose={closeManualCode}
-        statusBarTranslucent
-        transparent
+      <AppSheet
         visible={manualCodeVisible}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.manualCodeModalRoot}
-        >
-          <Pressable
-            accessibilityLabel="Закрыть ввод кода"
-            onPress={closeManualCode}
-            style={StyleSheet.absoluteFillObject}
-          >
-            <View style={styles.manualCodeBackdrop} />
-          </Pressable>
-
-          <View style={styles.manualCodeCard}>
-            <View style={styles.manualCodeHeader}>
-              <AppText role="heading" weight="semibold">
-                Введите код
-              </AppText>
-              <AppText
-                role="label"
-                color={colors.text.secondary}
-                style={styles.manualCodeSubtitle}
-              >
-                Код указан рядом с QR-кодом на упаковке теста.
-              </AppText>
-            </View>
-
-            <TextInput
-              autoCapitalize="characters"
-              autoCorrect={false}
-              autoFocus
-              accessibilityLabel="Код с упаковки теста"
-              onChangeText={(value) => {
-                setManualCode(value);
-                if (manualCodeError) {
-                  setManualCodeError(null);
-                }
-              }}
-              onSubmitEditing={submitManualCode}
-              placeholder="Код с упаковки"
-              placeholderTextColor="rgba(115,110,108,0.48)"
-              returnKeyType="done"
-              selectionColor={colors.brand.primary}
-              style={styles.manualCodeInput}
-              value={manualCode}
-            />
-
-            {manualCodeError ? (
-              <AppText
-                role="caption"
-                color={colors.brand.primary}
-                style={styles.manualCodeError}
-              >
-                {manualCodeError}
-              </AppText>
-            ) : null}
-
-            <View style={styles.manualCodeActions}>
-              <View style={styles.manualCodeActionSlot}>
-                <View style={styles.manualCodeCancelButton}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Отменить ввод кода"
-                    onPress={closeManualCode}
-                  >
-                    {({ pressed }) => (
-                      <View
-                        style={[
-                          styles.manualCodeCancelContent,
-                          pressed && styles.pressed,
-                        ]}
+        title="Введите код"
+        onClose={closeManualCode}
+        footer={
+          <View style={styles.manualCodeActions}>
+            <View style={styles.manualCodeActionSlot}>
+              <View style={styles.manualCodeCancelButton}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Отменить ввод кода"
+                  onPress={closeManualCode}
+                >
+                  {({ pressed }) => (
+                    <View
+                      style={[
+                        styles.manualCodeCancelContent,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <AppText
+                        role="label"
+                        weight="medium"
+                        color={colors.brand.primary}
                       >
-                        <AppText
-                          role="label"
-                          weight="medium"
-                          color={colors.brand.primary}
-                        >
-                          Отмена
-                        </AppText>
-                      </View>
-                    )}
-                  </Pressable>
-                </View>
+                        Отмена
+                      </AppText>
+                    </View>
+                  )}
+                </Pressable>
               </View>
-              <View style={styles.manualCodeActionSlot}>
-                <PrimaryButton label="Продолжить" onPress={submitManualCode} />
-              </View>
+            </View>
+            <View style={styles.manualCodeActionSlot}>
+              <PrimaryButton label="Продолжить" onPress={submitManualCode} />
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        }
+      >
+        <AppText
+          role="label"
+          color={colors.text.secondary}
+          style={styles.manualCodeSubtitle}
+        >
+          Код указан рядом с QR-кодом на упаковке теста.
+        </AppText>
+
+        <TextInput
+          autoCapitalize="characters"
+          autoCorrect={false}
+          autoFocus
+          accessibilityLabel="Код с упаковки теста"
+          onChangeText={(value) => {
+            setManualCode(value);
+            if (manualCodeError) {
+              setManualCodeError(null);
+            }
+          }}
+          onSubmitEditing={submitManualCode}
+          placeholder="Код с упаковки"
+          placeholderTextColor="rgba(115,110,108,0.48)"
+          returnKeyType="done"
+          selectionColor={colors.brand.primary}
+          style={styles.manualCodeInput}
+          value={manualCode}
+        />
+
+        {manualCodeError ? (
+          <AppText
+            role="caption"
+            color={colors.brand.primary}
+            style={styles.manualCodeError}
+          >
+            {manualCodeError}
+          </AppText>
+        ) : null}
+      </AppSheet>
     </View>
   );
 }
@@ -1609,13 +1683,6 @@ function TestScannerScreen({
           width="100%"
           height="100%"
           style={styles.scanFlowFrame}
-        />
-
-        <Image
-          accessible={false}
-          resizeMode="contain"
-          source={require('../assets/figma/scan-screen/scan_test_strip.png')}
-          style={styles.testStripImage}
         />
       </View>
       <Pressable
@@ -2401,7 +2468,6 @@ export function ScanFlowOverlay({
   initialImageUri = null,
   visible,
   showBriefing,
-  onBriefingSeen,
   onClose,
   onComplete,
 }: ScanFlowOverlayProps) {
@@ -2704,7 +2770,6 @@ export function ScanFlowOverlay({
             setReturnStage(null);
             navigateToStage(nextStage, 'back');
           } else {
-            onBriefingSeen();
             navigateToStage('qr', 'forward');
           }
         }}
@@ -2846,6 +2911,12 @@ export function ScanFlowOverlay({
 
   return (
     <View style={styles.overlay}>
+      {visible ? (
+        <StatusBar
+          style={stage === 'qr' || stage === 'test' ? 'light' : 'dark'}
+          hidden={false}
+        />
+      ) : null}
       <Animated.View
         style={[
           styles.pageTransition,
@@ -2958,16 +3029,6 @@ const styles = StyleSheet.create({
   scanFlowFrame: {
     ...StyleSheet.absoluteFillObject,
   },
-  qrArtwork: {
-    width: 144,
-    height: 144,
-    overflow: 'hidden',
-    opacity: 0.3,
-  },
-  qrImage: {
-    width: '100%',
-    height: '100%',
-  },
   cameraBottomGroup: {
     position: 'absolute',
     left: 16,
@@ -2989,26 +3050,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  manualCodeModalRoot: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  manualCodeBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(23,12,17,0.30)',
-  },
-  manualCodeCard: {
-    marginHorizontal: 12,
-    marginBottom: 12,
-    padding: 20,
-    borderRadius: 30,
-    backgroundColor: colors.surface.raised,
-    gap: 16,
-    ...shadows.floating,
-  },
-  manualCodeHeader: {
-    gap: 5,
   },
   manualCodeSubtitle: {
     lineHeight: 18,
@@ -3081,11 +3122,6 @@ const styles = StyleSheet.create({
     height: 330,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  testStripImage: {
-    width: 308,
-    height: 30,
-    opacity: 0.3,
   },
   cameraFocusReticle: {
     position: 'absolute',
@@ -3194,13 +3230,45 @@ const styles = StyleSheet.create({
     fontSize: 23,
     lineHeight: 27,
   },
+  briefingSkipRow: {
+    width: 358,
+    minHeight: 44,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  briefingCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#B4A4AC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  briefingCheckboxFill: {
+    position: 'absolute',
+    top: -1.5,
+    left: -1.5,
+    right: -1.5,
+    bottom: -1.5,
+    borderRadius: 6,
+    backgroundColor: colors.brand.primary,
+  },
+  briefingSkipLabel: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 19,
+    color: colors.text.secondary,
+  },
   briefingActions: {
     width: 358,
     alignSelf: 'center',
     height: 46,
     flexDirection: 'row',
     gap: 15,
-    marginTop: 32,
+    marginTop: 8,
     zIndex: 2,
   },
   briefingSecondaryAction: {

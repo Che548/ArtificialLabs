@@ -14,6 +14,5 @@ export * from './navigation';
 export * from './onboarding-flow';
 export * from './profile';
 export * from './scan-flow';
-export * from './scan-concepts';
 export * from './symptom-petal-contrast';
 export * from './tokens';

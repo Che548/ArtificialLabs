@@ -88,6 +88,12 @@ export const radii = {
   pill: 999,
 } as const;
 
+export const overlayRadii = {
+  sheet: 40,
+  popover: 28,
+  chatMenu: 48,
+} as const;
+
 export const sizes = {
   touch: 48,
   icon: 22,

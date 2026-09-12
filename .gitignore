@@ -39,6 +39,7 @@ output/builds/
 .maestro/runtime/
 .playwright-cli/
 /tmp/
+/tools/lab-capture/data/
 
 # Local visual QA artifacts
 /.codex-qa/

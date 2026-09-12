@@ -32,23 +32,50 @@ async function main() {
     for (let i = 0; i < 2; i++) {
       const tag = randomBytes(6).toString('hex');
       const email = `artificiallabs-e2e+${tag}-native@example.test`;
+      const password = `Qa1!${randomBytes(24).toString('hex')}`;
       created.push(email);
       const client = new ConvexHttpClient(url, { logger: false });
       const result = await client.action(api.auth.signIn, {
         provider: 'password',
         params: {
           email,
-          password: `Qa1!${randomBytes(24).toString('hex')}`,
+          password,
           flow: 'signUp',
         },
       });
       assert(result.tokens?.token);
+      // Existing legacy rollout remains usable; a malformed new-client ticket
+      // proves the gate without generating an email challenge or sending mail.
+      const legacy = await client.action(api.auth.signIn, {
+        provider: 'password',
+        params: { email, password, flow: 'signIn' },
+      });
+      assert(legacy.tokens?.token);
+      await denied(
+        () =>
+          client.action(api.auth.signIn, {
+            provider: 'password',
+            params: { email, password, flow: 'signIn', emailTicketToken: '' },
+          }),
+        /CONTACT_CLIENT_UPDATE_REQUIRED/,
+      );
       client.setAuth(result.tokens.token);
       const viewer = await client.query(api.profile.viewer, {});
       await mutate(internal.testing.prepareVerifiedNativeFixture, {
         email,
         userId: viewer.userId,
       });
+      const verified = await client.action(api.auth.signIn, {
+        provider: 'password',
+        params: {
+          email,
+          password,
+          flow: 'signIn',
+          emailTicketToken: randomBytes(32).toString('hex'),
+        },
+      });
+      assert(verified.tokens?.token);
+      client.setAuth(verified.tokens.token);
       accounts.push({ client, id: viewer.userId });
     }
     for (const account of accounts) {

@@ -1,3 +1,5 @@
+import { filterInput } from '../lib/input-format';
+import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -784,12 +786,7 @@ function sameDay(left: Date, right: Date) {
 }
 
 function sanitizeNumericInput(value: string) {
-  const cleaned = value.replace(/[^\d.,]/g, '');
-  const separatorIndex = cleaned.search(/[.,]/);
-  if (separatorIndex < 0) return cleaned;
-  return `${cleaned.slice(0, separatorIndex + 1)}${cleaned
-    .slice(separatorIndex + 1)
-    .replace(/[.,]/g, '')}`;
+  return filterInput(value, 'decimal');
 }
 
 function sanitizeNumericDraftInputs(values: Record<string, string>) {
@@ -1575,6 +1572,7 @@ export function JournalFlowModal({
               />
               <View pointerEvents="none" style={styles.backgroundScrim} />
 
+              <TopChromeBackdrop headerTop={headerTop} />
               <View style={[styles.header, { top: headerTop }]}>
                 <GlassControl
                   accessibilityLabel="Закрыть журнал"
@@ -2091,7 +2089,7 @@ const styles = StyleSheet.create({
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
-    borderRadius: 40,
+    borderRadius: Platform.OS === 'android' ? 0 : 40,
     backgroundColor: '#31564A',
   },
   background: {

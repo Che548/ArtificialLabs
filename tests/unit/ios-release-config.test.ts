@@ -35,7 +35,7 @@ test('iOS asset configuration excludes SF Pro while Android retains its fonts', 
   assert.match(readFileSync('lib/font-license.ts', 'utf8'), /SIL OPEN FONT LICENSE/);
   assert.doesNotMatch(readFileSync('lib/bundled-fonts.ts', 'utf8'), /Yaro/);
   assert.doesNotMatch(readFileSync('lib/bundled-fonts.ios.ts', 'utf8'), /require\([^)]*SF-Pro/);
-  for (const file of ['App.tsx', 'app/_layout.tsx', 'app/scan.tsx', 'app/design-system.tsx']) {
+  for (const file of ['App.tsx', 'app/_layout.tsx', 'app/scan.tsx']) {
     assert.doesNotMatch(readFileSync(file, 'utf8'), /require\([^)]*SF-Pro/);
   }
 });
