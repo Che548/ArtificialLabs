@@ -11,10 +11,11 @@ export type CloudProfileInput = LocalProfile & {
 export type CloudOutboxRow = {
   id: number;
   entity: HealthEntityName;
-  payload: HealthEntityMap[HealthEntityName];
+  payload: HealthEntityMap[HealthEntityName] & { syncRevision?: number };
 };
 
 export type CloudSyncBatch = Record<HealthEntityName, unknown[]>;
+export type CloudSyncRevision = { entity: string; localId: string; revision: number };
 
 export function utf8ByteLength(value: string) {
   let bytes = 0;
@@ -53,7 +54,7 @@ export function sanitizeCloudRecord(
   item: Record<string, unknown>,
 ) {
   if (entity === 'documents') {
-    const allowed = ['localId', 'title', 'category', 'documentDate', 'hasLocalFile', 'mimeType', 'size',
+    const allowed = ['localId', 'syncRevision', 'title', 'category', 'documentDate', 'hasLocalFile', 'mimeType', 'size',
       'linkedLabResultLocalId', 'linkedCarePlanLocalId', 'contentIndexStatus', 'updatedAt', 'deletedAt'];
     return Object.fromEntries(allowed.filter(key => Object.hasOwn(item, key)).map(key => [key, item[key]]));
   }
@@ -119,7 +120,7 @@ export async function synchronizeMedicalCloud({
   saveProfile: (profile: CloudProfileInput) => Promise<unknown>;
   loadPendingOutbox: () => Promise<CloudOutboxRow[]>;
   pushBatch: (batch: CloudSyncBatch) => Promise<unknown>;
-  acknowledge: (ids: number[], sentRows: CloudOutboxRow[]) => Promise<void>;
+  acknowledge: (ids: number[], sentRows: CloudOutboxRow[], revisions?: CloudSyncRevision[]) => Promise<void>;
 }) {
   await saveProfile({
     ...profile,
@@ -145,8 +146,8 @@ export async function synchronizeMedicalCloud({
           sanitizeCloudRecord(row.entity, row.payload as unknown as Record<string, unknown>),
         );
       }
-      await pushBatch(batch);
-      await acknowledge(group.map((row) => row.id), group);
+      const result = await pushBatch(batch) as { syncRevisions?: CloudSyncRevision[] } | undefined;
+      await acknowledge(group.map((row) => row.id), group, result?.syncRevisions);
       pushed += group.length;
     }
   }

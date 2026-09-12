@@ -4,6 +4,7 @@ export type ServiceIssue = {
   kind: ServiceIssueKind;
   message: string;
   retryable: boolean;
+  conflict?: boolean;
 };
 
 function errorText(error: unknown): string {
@@ -33,6 +34,15 @@ export function classifyServiceIssue(
   }
 
   const text = errorText(error).toLowerCase();
+  if (/cloud_sync_consent_revoked|cloud_sync_consent_required/.test(text)) {
+    return { kind: 'auth', retryable: false, message: 'Согласие на облачную синхронизацию отсутствует или отозвано для этой сессии. Проверьте настройку синхронизации. Локальные данные сохранены.' };
+  }
+  if (/profile_sync_conflict|record_sync_conflict|record_deleted_remotely/.test(text)) {
+    return { kind: 'unknown', retryable: false, conflict: true, message: 'Эту запись изменили или удалили на другом устройстве. Ваши изменения сохранены локально; автоматическая перезапись остановлена.' };
+  }
+  if (/sync_clock_invalid/.test(text)) {
+    return { kind: 'unknown', retryable: false, message: 'Время изменения записи находится в будущем. Проверьте дату и время устройства. Запись сохранена локально.' };
+  }
   if (
     /unauthenticated|not authenticated|authentication required|invalid token|token.*expired/.test(
       text,

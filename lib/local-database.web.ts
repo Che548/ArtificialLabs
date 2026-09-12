@@ -11,6 +11,8 @@ import type {
 import { createEmptySnapshot } from './health-types';
 import { createChatTombstones } from './chat-deletion';
 import type { DocumentExtraction } from '../shared/document-policy';
+import type { SyncConflictSelection } from './sync-conflict';
+export async function resolveLocalSyncConflict(_selection: SyncConflictSelection, _choice: 'local' | 'remote') { throw new Error('NATIVE_ONLY'); }
 import type { AnonymousTelemetryEvent } from './telemetry-types';
 
 let snapshot: HealthSnapshot = {
@@ -218,6 +220,7 @@ export async function pendingOutbox() {
   }>;
 }
 export async function acknowledgeOutbox(_ids: number[]) {}
+export async function mergeRemoteProfile(_profile: LocalProfile, _ownerId: string) { return false; }
 export async function searchLocalAgentIndex({
   entities,
   limit = 12,

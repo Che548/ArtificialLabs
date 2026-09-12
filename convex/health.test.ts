@@ -56,7 +56,7 @@ test('terminal replica states converge in either order without reactivation or p
 test('sync accepts terminal-state conflicts without blocking journal records or allowing changed rules', async () => {
   const t = convexTest(schema, modules);
   const { client } = await createUser(t, 'replica@example.test');
-  await client.mutation(api.profile.save, { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, consentToCloudSyncAt: 1, updatedAt: 2 });
+  await client.mutation(api.profile.save, { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, consentToCloudSyncAt: 1, updatedAt: 2, base: { displayName: 'replica@example.test', goal: 'planning', onboardingCompleted: true, updatedAt: 1 } });
   const base = syntheticTrigger();
   const suspended = { ...base, status: 'suspended' as const, updatedAt: base.updatedAt + 1 };
   const expired = { ...base, status: 'expired' as const, updatedAt: base.updatedAt + 2 };
@@ -75,7 +75,7 @@ test('sync accepts terminal-state conflicts without blocking journal records or 
 test('client and server timestamps for the same completed run converge through syncBatch', async () => {
   const t = convexTest(schema, modules);
   const { client } = await createUser(t, 'run-time@example.test');
-  await client.mutation(api.profile.save, { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, consentToCloudSyncAt: 1, updatedAt: 2 });
+  await client.mutation(api.profile.save, { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, consentToCloudSyncAt: 1, updatedAt: 2, base: { displayName: 'run-time@example.test', goal: 'planning', onboardingCompleted: true, updatedAt: 1 } });
   const base = syntheticTrigger();
   const first = { ...base, status: 'completed' as const, runCount: 1, lastRunAt: base.updatedAt + 1, updatedAt: base.updatedAt + 1 };
   const later = { ...first, lastRunAt: first.lastRunAt + 20, updatedAt: first.updatedAt + 20 };
@@ -113,6 +113,7 @@ async function createUser(t: ReturnType<typeof convexTest>, email: string) {
     goal: 'planning',
     onboardingCompleted: true,
     updatedAt: 1,
+    consentToCloudSyncAt: 1,
   });
   return { userId, client };
 }
@@ -401,16 +402,16 @@ describe('health ownership and sync', () => {
       ...emptyBatch(),
       medications: [medication],
     });
-    await client.mutation(api.health.syncBatch, {
+    await expect(client.mutation(api.health.syncBatch, {
       ...emptyBatch(),
       medications: [{ ...medication, name: 'Старая версия', updatedAt: 10 }],
-    });
+    })).rejects.toThrow('RECORD_SYNC_CONFLICT');
     let snapshot = await client.query(api.health.snapshot, {});
     expect(snapshot.medications[0]?.name).toBe('Новая версия');
 
     await client.mutation(api.health.syncBatch, {
       ...emptyBatch(),
-      medications: [{ ...medication, deletedAt: 30, updatedAt: 30 }],
+      medications: [{ ...medication, syncRevision: 1, deletedAt: 30, updatedAt: 30 }],
     });
     snapshot = await client.query(api.health.snapshot, {});
     expect(snapshot.medications[0]?.deletedAt).toBe(30);
@@ -476,20 +477,21 @@ describe('health ownership and sync', () => {
       goal: 'pregnancy',
       onboardingCompleted: true,
       updatedAt: 200,
+      base: { displayName: 'profile-conflict@example.test', goal: 'planning', onboardingCompleted: true, updatedAt: 1 },
     });
-    await client.mutation(api.profile.save, {
+    await expect(client.mutation(api.profile.save, {
       displayName: 'Старый профиль',
       goal: 'cycle',
       onboardingCompleted: true,
       consentToCloudSyncAt: 250,
       updatedAt: 100,
-    });
+    })).rejects.toThrow('PROFILE_SYNC_CONFLICT');
 
     const viewer = await client.query(api.profile.viewer, {});
     expect(viewer.profile?.displayName).toBe('Новый профиль');
     expect(viewer.profile?.goal).toBe('pregnancy');
-    expect(viewer.profile?.updatedAt).toBe(200);
-    expect(viewer.profile?.consentToCloudSyncAt).toBe(250);
+    expect(viewer.profile?.updatedAt).toBeGreaterThan(200);
+    expect(viewer.profile?.consentToCloudSyncAt).toBe(1);
   });
 
   test('blocks deleted accounts, restores them, then purges after deadline', async () => {

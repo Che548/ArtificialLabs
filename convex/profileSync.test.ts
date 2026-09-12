@@ -5,6 +5,7 @@ vi.mock('./lib/access', () => ({
   requireUserId: async () => 'synthetic-user',
   getOwnedProfile: async () => null,
 }));
+vi.mock('./lib/cloudConsent', () => ({ recordCloudReceipt: async () => {}, cloudSession: async () => ({}) }));
 import { save } from './profile';
 
 const input = { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, updatedAt: 10, consentToCloudSyncAt: 5 };
@@ -42,7 +43,7 @@ describe('profile subscription convergence', () => {
     }
   });
   test('changed fields at an equal timestamp and newer profiles still save', async () => {
-    expect(await apply({ ...input, displayName: 'Earlier' })).toHaveBeenCalledOnce();
+    await expect(apply({ ...input, displayName: 'Earlier' })).rejects.toThrow('PROFILE_SYNC_CONFLICT');
     expect(await apply({ ...input, updatedAt: 9 })).toHaveBeenCalledOnce();
   });
   test('stale fields are ignored but newer explicit consent is retained', async () => {

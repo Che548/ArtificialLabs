@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { hasAnyCloudConsent } from './lib/cloudConsent';
 
 import {
   internalMutation,
@@ -438,7 +439,7 @@ export const dueSyncedAutomation = internalQuery({
         continue;
       const profile = await ctx.db.get(trigger.profileId);
       if (
-        !profile?.consentToCloudSyncAt ||
+        !profile || !await hasAnyCloudConsent(ctx, profile.userId) ||
         !profile.lastMedicalSyncAt ||
         args.now - profile.lastMedicalSyncAt > 7 * 24 * 60 * 60_000
       )
@@ -919,7 +920,7 @@ export const applySyncedPlanProposal = internalMutation({
       trigger.nextEvaluationAt > args.now ||
       !preferences?.medicalRecommendations ||
       args.now - preferences.updatedAt > 7 * DAY_MS ||
-      !profile.consentToCloudSyncAt ||
+      !await hasAnyCloudConsent(ctx, profile.userId) ||
       !profile.lastMedicalSyncAt ||
       args.now - profile.lastMedicalSyncAt > 7 * 24 * 60 * 60_000
     )

@@ -1,5 +1,5 @@
 import { useAuthToken } from '@convex-dev/auth/react';
-import { useMutation, useQuery } from 'convex/react';
+import { useConvex, useMutation, useQuery } from 'convex/react';
 import {
   createContext,
   useCallback,
@@ -27,6 +27,7 @@ import {
   loadLocalSetting,
   loadLocalSnapshot,
   mergeRemoteSnapshot,
+  mergeRemoteProfile,
   pendingOutbox,
   saveLocalProfile,
   saveLocalRecord,
@@ -86,12 +87,14 @@ import { useConnectivity } from './connectivity';
 import { classifyServiceIssue, retryDelayMs } from './service-errors';
 import type { ServiceIssue } from './service-errors';
 import { reconcileAgentBackgroundRegistration } from './agent-background';
+import { portableProfile, sameProfileFields } from '../shared/profile-merge';
 
 const backendApi = api;
 const CLOUD_SYNC_SETTING = 'cloudSyncPreference.v1';
 export const LAST_SUCCESSFUL_SYNC_SETTING = 'lastSuccessfulSyncAt.v1';
 const AGENT_DATA_CLEARED_AT_SETTING = 'agentDataClearedAt.v1';
 const DELETION_DEADLINE_SETTING = 'accountDeletionDeadline.v1';
+const PROFILE_SYNC_BASE_SETTING = 'profileSyncBase.v1';
 
 function programTitleForGoal(goal: HealthGoal) {
   if (goal === 'pregnancy') return 'Сопровождение беременности';
@@ -172,6 +175,7 @@ type HealthStoreValue = HealthSnapshot & {
   clearAgentData: () => Promise<void>;
   importData: (preview: ImportPreview) => Promise<void>;
   syncNow: () => Promise<boolean>;
+  refreshLocalState: () => Promise<void>;
 };
 
 const HealthStoreContext = createContext<HealthStoreValue | null>(null);
@@ -208,6 +212,7 @@ export function HealthStoreProvider({
   mode = 'authenticated',
 }: PropsWithChildren<{ mode?: 'authenticated' | 'demo' | 'local' }>) {
   const [snapshot, setSnapshot] = useState<HealthSnapshot>(createEmptySnapshot);
+  const convex = useConvex();
   const [ready, setReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [serviceIssue, setServiceIssue] = useState<ServiceIssue>();
@@ -259,8 +264,20 @@ export function HealthStoreProvider({
   });
   const remoteSnapshot = useQuery(
     backendApi.health.snapshot,
-    canUseCloud && remoteProfile ? {} : 'skip',
+    canUseCloud && remoteProfile?.consentToCloudSyncAt ? {} : 'skip',
   );
+  useEffect(() => {
+    const revokedAt = viewer?.cloudSyncRevokedAt;
+    if (!revokedAt) return;
+    void (async () => {
+      const preference = await loadLocalSetting<CloudSyncPreference>(CLOUD_SYNC_SETTING);
+      if (!preference?.enabled || (preference.consentedAt ?? 0) > revokedAt) return;
+      await saveLocalSetting(CLOUD_SYNC_SETTING, { ...preference, enabled: false, revocationPending: false, updatedAt: Date.now() });
+      setCloudSyncEnabledState(false);
+      setSyncStatus('idle');
+      setServiceIssue(classifyServiceIssue(new Error('CLOUD_SYNC_CONSENT_REVOKED')));
+    })();
+  }, [viewer?.cloudSyncRevokedAt]);
   const localRevision = revisionFor(snapshot);
 
   useEffect(() => {
@@ -326,7 +343,6 @@ export function HealthStoreProvider({
 
   useEffect(() => {
     if (!canUseCloud || !remoteProfile) return;
-    if ((snapshot.profile?.updatedAt ?? 0) >= remoteProfile.updatedAt) return;
     const profile: LocalProfile = {
       displayName: remoteProfile.displayName,
       goal: remoteProfile.goal,
@@ -343,20 +359,42 @@ export function HealthStoreProvider({
       timezoneOffsetMinutes: remoteProfile.timezoneOffsetMinutes,
       updatedAt: remoteProfile.updatedAt,
     };
-    void saveLocalProfile(profile).then(refresh);
-  }, [canUseCloud, refresh, remoteProfile, snapshot.profile?.updatedAt]);
+    let active = true;
+    void (async () => {
+      if (!active) return;
+      const changed = await mergeRemoteProfile(profile, viewer!.userId);
+      if (active && changed) await refresh();
+    })().catch(() => setServiceIssue(classifyServiceIssue(new Error('PROFILE_SYNC_CONFLICT'))));
+    return () => { active = false; };
+  }, [canUseCloud, refresh, remoteProfile, snapshot.profile?.updatedAt, viewer?.userId]);
 
   useEffect(() => {
     if (!remoteSnapshot || !canUseCloud) return;
     const { profile: _profile, ...records } = remoteSnapshot;
     let active = true;
-    void mergeRemoteSnapshot(records as never).then(refresh).catch((error) => {
+    void (async () => {
+      await mergeRemoteSnapshot(records as never);
+      // The live snapshot is deliberately bounded. Fetch the remaining history
+      // in bounded owned pages; no file bytes or paths are part of this API.
+      for (const entity of ['journalEntries', 'labResults', 'scanResults', 'reminders', 'chatMessages', 'recommendationEvents'] as const) {
+        let cursor: string | null = null;
+        while (active) {
+          const result: { page: unknown[]; isDone: boolean; continueCursor: string } = await convex.query(backendApi.health.historyPage, { entity, paginationOpts: { cursor, numItems: 100 } });
+          if (!active) return;
+          await mergeRemoteSnapshot({ [entity]: result.page } as never);
+          if (result.isDone) break;
+          if (result.continueCursor === cursor) throw new Error('HISTORY_CURSOR_STALLED');
+          cursor = result.continueCursor;
+        }
+      }
+      if (active) await refresh();
+    })().catch((error) => {
       if (!active) return;
       setServiceIssue(classifyServiceIssue(error, offlineRef.current));
       setSyncStatus('error');
     });
     return () => { active = false; };
-  }, [canUseCloud, refresh, remoteSnapshot]);
+  }, [canUseCloud, convex, refresh, remoteSnapshot]);
 
   useEffect(() => {
     const clearedAt = remoteProfile?.agentDataClearedAt;
@@ -434,7 +472,17 @@ export function HealthStoreProvider({
           synchronizeMedicalCloud({
             profile: verifiedProfile,
             consentedAt,
-            saveProfile: (input) => saveRemoteProfile(input),
+            saveProfile: async (input) => {
+              let base = await loadLocalSetting<LocalProfile>(PROFILE_SYNC_BASE_SETTING);
+              if (!base) {
+                const current = await convex.query(backendApi.profile.current, {});
+                if (current && sameProfileFields(current, input)) base = portableProfile(current) as LocalProfile;
+              }
+              await saveRemoteProfile({ ...input, base });
+              await saveLocalSetting(PROFILE_SYNC_BASE_SETTING, portableProfile(input));
+              const current = await convex.query(backendApi.profile.current, {});
+              if (current && viewer?.userId && await mergeRemoteProfile(portableProfile(current) as LocalProfile, viewer.userId)) await refresh();
+            },
             loadPendingOutbox: pendingOutbox,
             pushBatch: (batch) => syncRemoteBatch(batch as never),
             acknowledge: acknowledgeOutbox,
@@ -445,7 +493,6 @@ export function HealthStoreProvider({
         setSyncStatus('idle');
         return true;
       } catch (error) {
-        console.error('Health sync failed', error);
         const issue = classifyServiceIssue(error, offlineRef.current);
         if (issue.retryable) retryAttempt.current += 1;
         setServiceIssue(issue);
@@ -453,7 +500,7 @@ export function HealthStoreProvider({
         return false;
       }
     },
-    [saveRemoteProfile, syncRemoteBatch, verifiedPhone],
+    [convex, refresh, saveRemoteProfile, syncRemoteBatch, verifiedPhone, viewer?.userId],
   );
 
   const syncNow = useCallback(async () => {
@@ -463,9 +510,9 @@ export function HealthStoreProvider({
         await loadLocalSetting<CloudSyncPreference>(CLOUD_SYNC_SETTING);
       if (!preference?.enabled) return false;
       await prepareChatCloud();
-      return synchronize(snapshot.profile, preference.consentedAt);
+      const latest = await loadLocalSnapshot();
+      return latest.profile ? synchronize(latest.profile, preference.consentedAt) : false;
     } catch (error) {
-      console.error('Failed to read cloud sync consent', error);
       setServiceIssue(classifyServiceIssue(error, offlineRef.current));
       setSyncStatus('error');
       return false;
@@ -1148,6 +1195,7 @@ export function HealthStoreProvider({
       clearAgentData,
       importData,
       syncNow,
+      refreshLocalState: refresh,
     }),
     [
       snapshot,

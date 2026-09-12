@@ -21,6 +21,8 @@ import type {
 import { createEmptySnapshot, newLocalId } from './health-types';
 import { createChatTombstones } from './chat-deletion';
 import { sanitizeCloudRecord, utf8ByteLength, type CloudOutboxRow } from './cloud-sync';
+import { sameProfileFields } from '../shared/profile-merge';
+import { conflictValue, preserveConflictSources, resolvedProfile, sameConflictValue, type SyncConflictSelection } from './sync-conflict';
 import { mergeAgentTriggerReplicas } from './agent-trigger-sync';
 import {
   isAllowedAgentTriggerMutation,
@@ -334,6 +336,24 @@ export async function saveLocalProfile(profile: LocalProfile) {
   });
 }
 
+export async function mergeRemoteProfile(profile: LocalProfile, ownerId: string) {
+  let changed = false;
+  await withWriteTransaction(async (db) => {
+    const owner = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'ownerId'");
+    if (owner?.value !== ownerId) return;
+    const currentRow = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'profile'");
+    const baseRow = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'profileSyncBase.v1'");
+    const current = currentRow ? JSON.parse(currentRow.value) : undefined;
+    const base = baseRow ? JSON.parse(baseRow.value) : undefined;
+    if (current && !sameProfileFields(current, profile) && (!base || !sameProfileFields(current, base))) return;
+    changed = !current || !sameProfileFields(current, profile) || current.updatedAt !== profile.updatedAt;
+    for (const key of ['profile', 'profileSyncBase.v1']) await db.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(profile),
+    );
+  });
+  return changed;
+}
+
 export async function loadLocalSetting<T>(key: string) {
   const db = await database();
   const row = await db.getFirstAsync<{ value: string }>(
@@ -341,6 +361,40 @@ export async function loadLocalSetting<T>(key: string) {
     key,
   );
   return row ? (JSON.parse(row.value) as T) : undefined;
+}
+
+export async function resolveLocalSyncConflict(selection: SyncConflictSelection, choice: 'local' | 'remote') {
+  await withWriteTransaction(async (db) => {
+    const owner = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'ownerId'");
+    if (owner?.value !== selection.ownerId) throw new Error('SYNC_REVIEW_CHANGED');
+    if (selection.entity === 'profile') {
+      const row = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'profile'");
+      if (!row || !sameConflictValue(conflictValue('profile', JSON.parse(row.value)), selection.local)) throw new Error('SYNC_REVIEW_CHANGED');
+      for (const [key, value] of [
+        ['syncConflictBackup.v1:profile', JSON.parse(row.value)],
+        ['profileSyncBase.v1', selection.remote],
+        ['profile', resolvedProfile(selection, choice)],
+      ] as const) await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
+      return;
+    }
+    const { entity } = selection;
+    const localId = selection.local.localId as string;
+    const row = await db.getFirstAsync<{ payload: string }>('SELECT payload FROM records WHERE entity = ? AND local_id = ?', entity, localId);
+    if (!row || !sameConflictValue(conflictValue(entity, JSON.parse(row.payload)), selection.local)) throw new Error('SYNC_REVIEW_CHANGED');
+    if (selection.remote.localId !== localId) throw new Error('SYNC_REVIEW_CHANGED');
+    if (choice === 'local' && selection.remote.deletedAt) throw new Error('RECORD_DELETED_REMOTELY');
+    // Retain the pre-choice version encrypted, outside outbox and search indexes.
+    await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', `syncConflictBackup.v1:${entity}:${localId}`, row.payload);
+    const original = JSON.parse(row.payload);
+    const selected = choice === 'local' ? original : selection.remote;
+    const next = preserveConflictSources({ ...selected, localId, syncRevision: selection.remote.syncRevision ?? 0,
+      updatedAt: choice === 'local' ? Math.max(Date.now(), Number(selection.remote.updatedAt) + 1) : selection.remote.updatedAt }, original);
+    // Source files stay on this device regardless of the selected cloud version.
+    await db.runAsync('DELETE FROM outbox WHERE entity = ? AND local_id = ?', entity, localId);
+    // Explicit reviewed replacement; bypass only timestamp ordering, not policy validation.
+    await db.runAsync('UPDATE records SET updated_at = 0, payload = ? WHERE entity = ? AND local_id = ?', JSON.stringify({ ...original, updatedAt: 0, syncRevision: next.syncRevision }), entity, localId);
+    await writeLocalRecord(db, entity, next as HealthEntityMap[typeof entity], choice === 'local');
+  });
 }
 
 export async function saveLocalSetting(key: string, value: unknown) {
@@ -483,15 +537,22 @@ async function writeLocalRecord<K extends HealthEntityName>(
   enqueue = true,
 ) {
   const existingAgentRow =
-    entity === 'carePlanItems' ||
-    entity === 'agentTriggers' ||
-    entity === 'recommendationEvents'
-      ? await transaction.getFirstAsync<{ payload: string }>(
+    await transaction.getFirstAsync<{ payload: string }>(
           'SELECT payload FROM records WHERE entity = ? AND local_id = ?',
           entity,
           item.localId,
-        )
-      : null;
+        );
+  if (enqueue && existingAgentRow?.payload) {
+    const existing = JSON.parse(existingAgentRow.payload) as { syncRevision?: number };
+    item = { ...item, syncRevision: existing.syncRevision };
+  }
+  if (!enqueue && entity !== 'agentTriggers') {
+    const pending = await transaction.getFirstAsync<{ payload: string }>(
+      'SELECT payload FROM outbox WHERE entity = ? AND local_id = ?', entity, item.localId,
+    );
+    // A remote subscription must not overwrite a local, unacknowledged edit.
+    if (pending?.payload) return;
+  }
   // Match the SQL last-write-wins guard before validating state transitions.
   // A delayed cloud snapshot is not an attempt to undo a newer local run.
   // Read inside this write transaction, not from the earlier merge snapshot.
@@ -804,7 +865,7 @@ export async function searchLocalAgentIndex({
   );
 }
 
-export async function acknowledgeOutbox(ids: number[], sentRows?: CloudOutboxRow[]) {
+export async function acknowledgeOutbox(ids: number[], sentRows?: CloudOutboxRow[], revisions?: import('./cloud-sync').CloudSyncRevision[]) {
   if (!ids.length) return;
   const placeholders = ids.map(() => '?').join(',');
   await withWriteTransaction(async (db) => {
@@ -816,6 +877,22 @@ export async function acknowledgeOutbox(ids: number[], sentRows?: CloudOutboxRow
           'DELETE FROM outbox WHERE id = ? AND updated_at = ? AND payload = ?',
           row.id, row.payload.updatedAt, JSON.stringify(row.payload),
         );
+        const receipt = revisions?.find(item => item.entity === row.entity && item.localId === row.payload.localId);
+        if (receipt && Number.isSafeInteger(receipt.revision) && receipt.revision >= 0) {
+          // Carry the acknowledged revision into a newer edit made in flight.
+          // Both updates are inside the same SQLCipher transaction as the ACK.
+          for (const table of ['records', 'outbox'] as const) {
+            const local = await db.getFirstAsync<{ payload: string }>(
+              `SELECT payload FROM ${table} WHERE entity = ? AND local_id = ?`, row.entity, row.payload.localId,
+            );
+            if (!local?.payload) continue;
+            const value = JSON.parse(local.payload) as Record<string, unknown>;
+            const sentRevision = (row.payload as unknown as Record<string, unknown>).syncRevision ?? 0;
+            if ((value.syncRevision ?? 0) !== sentRevision) continue;
+            await db.runAsync(`UPDATE ${table} SET payload = ? WHERE entity = ? AND local_id = ? AND payload = ?`,
+              JSON.stringify({ ...value, syncRevision: receipt.revision }), row.entity, row.payload.localId, local.payload);
+          }
+        }
       }
       return;
     }
@@ -895,7 +972,7 @@ export async function mergeRemoteSnapshot(remote: RemoteSnapshot) {
 export async function clearLocalHealthData() {
   await withWriteTransaction(async (db) => {
     await db.execAsync(
-      "DELETE FROM document_extractions; DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings WHERE key = 'profile';",
+      "DELETE FROM document_extractions; DELETE FROM records; DELETE FROM outbox; DELETE FROM telemetry_outbox; DELETE FROM agent_search_fts; DELETE FROM settings WHERE key IN ('profile', 'profileSyncBase.v1') OR key LIKE 'syncConflictBackup.v1:%';",
     );
   });
 }

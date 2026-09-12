@@ -103,6 +103,7 @@ async function deleteProfileData(ctx: MutationCtx, profileId: string) {
 export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
   for (const row of await ctx.db.query('contactVerificationChallenges').withIndex('by_user', q => q.eq('userId', userId as never)).collect()) await ctx.db.delete(row._id);
   for (const row of await ctx.db.query('reviewLoginExceptions').withIndex('by_user', q => q.eq('userId', userId as never)).collect()) await ctx.db.delete(row._id);
+  for (const row of await ctx.db.query('cloudSyncSessions').withIndex('by_user_session', q => q.eq('userId', userId as never)).collect()) await ctx.db.delete(row._id);
   const emailChanges = await ctx.db.query('emailChangeChallenges').withIndex('by_user', q => q.eq('userId', userId as never)).collect();
   for (const change of emailChanges) await ctx.db.delete(change._id);
   const profile = await ctx.db

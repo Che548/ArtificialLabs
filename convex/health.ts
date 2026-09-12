@@ -1,8 +1,10 @@
 import { v } from 'convex/values';
+import { paginationOptsValidator } from 'convex/server';
 
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { requireOwnedProfile } from './lib/access';
+import { hasCloudConsent } from './lib/cloudConsent';
 import { agentTriggerConflictFields, mergeAgentTriggerReplicas } from '../lib/agent-trigger-sync';
 import {
   isAllowedCarePlanMutation,
@@ -18,9 +20,34 @@ import type {
 
 const common = {
   localId: v.string(),
+  syncRevision: v.optional(v.number()),
   updatedAt: v.number(),
   deletedAt: v.optional(v.number()),
 };
+
+// Explicit bounded, owner-only lookup for native conflict review. No bulk export.
+export const conflictRecords = query({
+  args: { records: v.array(v.object({
+    entity: v.union(v.literal('programs'), v.literal('journalEntries'), v.literal('labResults'),
+      v.literal('scanResults'), v.literal('reminders'), v.literal('medicalConditions'),
+      v.literal('medications'), v.literal('allergyRisks'), v.literal('documents'),
+      v.literal('chatConversations'), v.literal('chatMessages'), v.literal('preferences'),
+      v.literal('carePlanItems'), v.literal('agentTriggers'), v.literal('recommendationEvents')),
+    localId: v.string(),
+  })) },
+  handler: async (ctx, { records }) => {
+    if (records.length > 30 || records.some(item => item.localId.length > 200)) throw new Error('SYNC_REVIEW_LIMIT');
+    const profile = await requireOwnedProfile(ctx);
+    if (!await hasCloudConsent(ctx, profile.userId)) throw new Error('CLOUD_SYNC_CONSENT_REQUIRED');
+    return Promise.all(records.map(async ({ entity, localId }) => {
+      const table = entity === 'programs' ? 'monitoringPrograms' : entity;
+      const row = await ctx.db.query(table).withIndex('by_profile_local', q => q.eq('profileId', profile._id).eq('localId', localId)).unique();
+      if (!row) return { entity, localId, record: null };
+      const { _id, _creationTime, profileId, ...record } = row;
+      return { entity, localId, record };
+    }));
+  },
+});
 const agentSourceRef = v.object({
   source: v.union(
     v.literal('journal'),
@@ -382,6 +409,9 @@ async function upsertLocal(
   profileId: Parameters<MutationCtx['db']['get']>[0],
   item: { localId: string; updatedAt: number; [key: string]: unknown },
 ) {
+  if (!Number.isFinite(item.updatedAt) || item.updatedAt > Date.now() + 300_000) {
+    throw new Error('SYNC_CLOCK_INVALID');
+  }
   const existing = await ctx.db
     .query(table)
     .withIndex('by_profile_local', (q) =>
@@ -404,8 +434,31 @@ async function upsertLocal(
     await ctx.db.patch(existing._id, item as never);
     return;
   }
+  if (existing && table !== 'recommendationEvents') {
+    if (existing.deletedAt && !item.deletedAt) {
+      // Planned reminders have an explicit existing re-enable lifecycle.
+      if (!(table === 'reminders' && item.localId.startsWith('agent-prep_'))) throw new Error('RECORD_DELETED_REMOTELY');
+    }
+    if (existing.updatedAt >= item.updatedAt) {
+      // An old deletion replay is harmless; active edits of a tombstone were
+      // rejected above so they stay pending for explicit native review.
+      if (existing.deletedAt && item.updatedAt < existing.updatedAt) return;
+      const current = existing as Record<string, unknown>;
+      if (Object.entries(item).some(([key, value]) => key !== 'updatedAt' && key !== 'syncRevision' && JSON.stringify(current[key]) !== JSON.stringify(value))) {
+        throw new Error('RECORD_SYNC_CONFLICT');
+      }
+      return;
+    }
+  }
   if (existing && existing.updatedAt >= item.updatedAt) return;
   if (existing && table === 'recommendationEvents') return;
+  if (existing && table !== 'agentTriggers') {
+    const plannedReminder = table === 'reminders' && item.localId.startsWith('agent-prep_');
+    const changed = (plannedReminder && existing.deletedAt !== item.deletedAt) || Object.entries(item).some(([key, value]) => key !== 'updatedAt' && key !== 'syncRevision' && JSON.stringify((existing as Record<string, unknown>)[key]) !== JSON.stringify(value));
+    if (!changed) return;
+    if (!plannedReminder && (item.syncRevision ?? 0) !== (existing.syncRevision ?? 0)) throw new Error('RECORD_SYNC_CONFLICT');
+  }
+  item = { ...item, syncRevision: (existing?.syncRevision ?? 0) + 1 };
   const existingRecord = existing as
     ({ [key: string]: unknown } & { updatedAt: number }) | null;
   if (
@@ -450,12 +503,7 @@ export const syncBatch = mutation({
   },
   handler: async (ctx, batch) => {
     const profile = await requireOwnedProfile(ctx);
-    if (
-      !profile.consentToCloudSyncAt &&
-      ((batch.carePlanItems?.length ?? 0) > 0 ||
-        (batch.agentTriggers?.length ?? 0) > 0 ||
-        (batch.recommendationEvents?.length ?? 0) > 0)
-    )
+    if (!(await hasCloudConsent(ctx, profile.userId)))
       throw new Error('CLOUD_SYNC_CONSENT_REQUIRED');
     const agentDataClearedAt = profile.agentDataClearedAt ?? 0;
     const carePlanItems = (batch.carePlanItems ?? []).filter(
@@ -483,42 +531,22 @@ export const syncBatch = mutation({
       )
     )
       throw new Error('INVALID_AGENT_SYNC_RECORD');
-    for (const item of batch.programs)
-      await upsertLocal(ctx, 'monitoringPrograms', profile._id, item);
-    for (const item of batch.journalEntries)
-      await upsertLocal(ctx, 'journalEntries', profile._id, item);
-    for (const item of batch.labResults)
-      await upsertLocal(ctx, 'labResults', profile._id, item);
-    for (const item of batch.scanResults)
-      await upsertLocal(ctx, 'scanResults', profile._id, item);
-    for (const item of batch.reminders)
-      await upsertLocal(ctx, 'reminders', profile._id, item);
-    for (const item of batch.medicalConditions)
-      await upsertLocal(ctx, 'medicalConditions', profile._id, item);
-    for (const item of batch.medications)
-      await upsertLocal(ctx, 'medications', profile._id, item);
-    for (const item of batch.allergyRisks)
-      await upsertLocal(ctx, 'allergyRisks', profile._id, item);
-    for (const item of batch.documents)
-      await upsertLocal(ctx, 'documents', profile._id, item);
-    for (const item of batch.chatConversations)
-      await upsertLocal(ctx, 'chatConversations', profile._id, item);
-    for (const item of batch.chatMessages)
-      await upsertLocal(ctx, 'chatMessages', profile._id, item);
-    for (const item of carePlanItems)
-      await upsertLocal(ctx, 'carePlanItems', profile._id, item);
-    for (const item of agentTriggers)
-      await upsertLocal(ctx, 'agentTriggers', profile._id, item);
-    for (const item of recommendationEvents)
-      await upsertLocal(ctx, 'recommendationEvents', profile._id, item);
-    for (const item of batch.preferences)
-      await upsertLocal(ctx, 'preferences', profile._id, item);
+    const syncRevisions: { entity: string; localId: string; revision: number }[] = [];
+    for (const [entity, rows] of Object.entries({ ...batch, carePlanItems, agentTriggers, recommendationEvents })) {
+      const table = (entity === 'programs' ? 'monitoringPrograms' : entity) as SyncTable;
+      for (const item of rows ?? []) {
+        await upsertLocal(ctx, table, profile._id, item);
+        const stored = await ctx.db.query(table).withIndex('by_profile_local', q => q.eq('profileId', profile._id).eq('localId', item.localId)).unique();
+        if (stored) syncRevisions.push({ entity, localId: item.localId, revision: stored.syncRevision ?? 0 });
+      }
+    }
     await ctx.db.patch(profile._id, { lastMedicalSyncAt: Date.now() });
     return {
       accepted: Object.values(batch).reduce(
         (n, rows) => n + (rows?.length ?? 0),
         0,
       ),
+      syncRevisions,
     };
   },
 });
@@ -527,6 +555,14 @@ export const snapshot = query({
   args: {},
   handler: async (ctx) => {
     const profile = await requireOwnedProfile(ctx);
+    // Old clients keep this subscription open after another device revokes.
+    // Return no medical payload rather than throwing into their React tree.
+    if (!(await hasCloudConsent(ctx, profile.userId))) return {
+      profile: null, programs: [], journalEntries: [], labResults: [], scanResults: [],
+      reminders: [], medicalConditions: [], medications: [], allergyRisks: [],
+      documents: [], chatConversations: [], chatMessages: [], carePlanItems: [],
+      agentTriggers: [], recommendationEvents: [], preferences: [],
+    };
     const [
       programs,
       journalEntries,
@@ -629,6 +665,20 @@ export const snapshot = query({
       ...(recommendationEvents.length ? { recommendationEvents } : {}),
       preferences,
     };
+  },
+});
+
+export const historyPage = query({
+  args: {
+    entity: v.union(v.literal('journalEntries'), v.literal('labResults'), v.literal('scanResults'), v.literal('reminders'), v.literal('chatMessages'), v.literal('recommendationEvents')),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const profile = await requireOwnedProfile(ctx);
+    if (!(await hasCloudConsent(ctx, profile.userId))) throw new Error('CLOUD_SYNC_CONSENT_REQUIRED');
+    const options = { ...args.paginationOpts, numItems: Math.min(100, Math.max(1, args.paginationOpts.numItems)) };
+    if (args.entity === 'reminders') return ctx.db.query('reminders').withIndex('by_profile_due', q => q.eq('profileId', profile._id)).order('desc').paginate(options);
+    return ctx.db.query(args.entity).withIndex('by_profile_time', q => q.eq('profileId', profile._id)).order('desc').paginate(options);
   },
 });
 

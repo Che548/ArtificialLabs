@@ -80,6 +80,7 @@ import {
 } from '../design-system';
 import { api } from '../convex/_generated/api';
 import { useHealthStore } from '../lib/health-store';
+import { SyncConflictResolver } from '../components/SyncConflictResolver';
 import { useNotificationManager } from '../lib/notification-manager';
 import {
   createEntityCsv,
@@ -1712,6 +1713,14 @@ function ProfileSectionContent({
                 onPress={syncNow}
                 isLast
               />
+              {serviceIssue ? (
+                <View accessibilityRole="alert">
+                  <AppText style={styles.transferCaption} color={colors.text.secondary}>
+                    {serviceIssue.message}
+                  </AppText>
+                </View>
+              ) : null}
+              <SyncConflictResolver />
             </ProfileCollapse>
           </ProfileSettingsGroup>
 

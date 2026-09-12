@@ -41,3 +41,11 @@ test('retry backoff is bounded', () => {
   assert.equal(retryDelayMs(3), 60_000);
   assert.equal(retryDelayMs(99), 120_000);
 });
+
+test('sync conflicts, revoked consent and bad clocks stay local and never retry automatically', () => {
+  for (const code of ['PROFILE_SYNC_CONFLICT', 'RECORD_SYNC_CONFLICT', 'RECORD_DELETED_REMOTELY', 'CLOUD_SYNC_CONSENT_REVOKED', 'SYNC_CLOCK_INVALID']) {
+    const issue = classifyServiceIssue(new Error(`${code} private-payload-marker`));
+    assert.equal(issue.retryable, false);
+    assert.doesNotMatch(issue.message, /private-payload-marker|PROFILE_SYNC|RECORD_SYNC/);
+  }
+});
