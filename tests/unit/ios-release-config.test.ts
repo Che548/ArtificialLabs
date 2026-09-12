@@ -4,6 +4,16 @@ import { getConfig } from '@expo/config';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
+import { nativeTabTopInset } from '../../lib/native-tab-insets';
+
+test('native tab inset changes only regular-width modern iPads', () => {
+  assert.equal(nativeTabTopInset(24, 1032, true), 88);
+  assert.equal(nativeTabTopInset(24, 1376, true), 88);
+  assert.equal(nativeTabTopInset(100, 1032, true), 100);
+  assert.equal(nativeTabTopInset(24, 500, true), 24);
+  assert.equal(nativeTabTopInset(47, 428, false), 47);
+  assert.equal(nativeTabTopInset(24, 1032, false), 24);
+});
 
 test('iOS uses system weights without changing other platform families', () => {
   const source = readFileSync('lib/font-style.ts', 'utf8');
@@ -51,7 +61,7 @@ test('App Store identity is explicit and legacy development remains separate', (
     const release = getConfig(process.cwd()).exp;
     assert.equal(release.ios?.bundleIdentifier, 'engineering.brainwaves.sfera');
     assert.equal(release.ios?.appleTeamId, '6HZGXYF43L');
-    assert.equal(release.ios?.buildNumber, '2');
+    assert.equal(release.ios?.buildNumber, '4');
     assert.equal(release.android?.package, 'engineering.brainwaves.sfera');
     process.env.EXPO_PUBLIC_E2E_MODE = '1';
     assert.throws(() => getConfig(process.cwd()), /must not enable E2E/);

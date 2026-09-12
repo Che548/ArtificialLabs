@@ -1,5 +1,6 @@
 import { bundledFonts } from '../lib/bundled-fonts';
 import { fontStyle } from '../lib/font-style';
+import { nativeTabTopInset } from '../lib/native-tab-insets';
 import { ConvexAuthProvider, useAuthToken } from '@convex-dev/auth/react';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useConvexAuth } from 'convex/react';
@@ -24,8 +25,9 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import '../global.css';
 import { AppGate } from '../components/AppGate';
@@ -85,7 +87,15 @@ const tabIcons = {
 
 function IOSNativeTabs() {
   const assistantUnread = useAssistantUnread();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const top = nativeTabTopInset(
+    insets.top,
+    width,
+    Platform.OS === 'ios' && Platform.isPad && Number.parseInt(String(Platform.Version), 10) >= 18,
+  );
   return (
+    <SafeAreaInsetsContext.Provider value={{ ...insets, top }}>
     <ThemeProvider value={DefaultTheme}>
       <NativeTabs
         tintColor={activeTint}
@@ -158,6 +168,7 @@ function IOSNativeTabs() {
         </NativeTabs.Trigger>
       </NativeTabs>
     </ThemeProvider>
+    </SafeAreaInsetsContext.Provider>
   );
 }
 
