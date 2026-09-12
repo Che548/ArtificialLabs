@@ -674,13 +674,20 @@ function MonitoringScreen({
 
   return (
     <View style={styles.canvas}>
+      <View pointerEvents="none" style={styles.heroTopExtension}>
+        <Image
+          source={require('./assets/figma/today_pregnancy_background.png')}
+          resizeMode="cover"
+          style={[styles.heroImage, { top: 0, opacity: colors.surface.canvas === defaultThemeColors.surface.canvas ? 1 : 0.72 }]}
+        />
+      </View>
       <Image
         source={require('./assets/figma/today_pregnancy_background.png')}
         resizeMode="cover"
-        style={[styles.heroImage, { opacity: colors.surface.canvas === defaultThemeColors.surface.canvas ? 1 : 0.22 }]}
+        style={[styles.heroImage, { opacity: colors.surface.canvas === defaultThemeColors.surface.canvas ? 1 : 0.72 }]}
       />
 
-      <TopChromeBackdrop headerTop={headerTop} />
+      <TopChromeBackdrop headerTop={headerTop} strength={0.28} />
 
       <LiquidGlassGroup
         spacing={12}
@@ -2024,12 +2031,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface.warm,
     borderRadius: Platform.OS === 'android' ? 0 : 40,
   },
+  heroTopExtension: { position: 'absolute', top: 0, left: 0, width: DESIGN_WIDTH, height: 24, overflow: 'hidden' },
   heroImage: {
     position: 'absolute',
     left: 0,
-    top: 48,
+    top: 24,
     width: DESIGN_WIDTH,
-    height: 714,
+    height: 762,
   },
   topBar: {
     position: 'absolute',
