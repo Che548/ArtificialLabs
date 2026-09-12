@@ -9,7 +9,9 @@ Compatible lifecycle states converge monotonically:
 `active < suspended < expired < completed`. This orders service scheduling
 states, not medical results. A higher existing run counter and its legal run
 metadata are preserved; timestamps cannot roll them back. Equal counters must
-have identical run metadata. Reconciliation never creates a new run.
+have identical schedule/cooldown metadata. For a recorded run, two valid
+`lastRunAt` timestamps converge to the later one without increasing the counter.
+Missing or future timestamps remain errors. Reconciliation never creates a new run.
 
 The server and SQLCipher merge use the same resolver, including delayed cloud
 snapshots. Local writes retain the original transition guard. Snapshot merge

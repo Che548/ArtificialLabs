@@ -5,7 +5,7 @@ import { api, internal } from './_generated/api';
 import schema from './schema';
 import { reconcileCarePlan } from '../lib/care-plan';
 import { createEmptySnapshot } from '../lib/health-types';
-import { mergeAgentTriggerReplicas } from '../lib/agent-trigger-sync';
+import { agentTriggerConflictFields, mergeAgentTriggerReplicas } from '../lib/agent-trigger-sync';
 
 function syntheticTrigger() {
   const snapshot = createEmptySnapshot();
@@ -34,6 +34,7 @@ test('terminal replica states converge in either order without reactivation or p
   expect(mergeAgentTriggerReplicas(base, { ...base, conditions: [] })).toBeUndefined();
   expect(mergeAgentTriggerReplicas(base, { ...base, nextEvaluationAt: base.nextEvaluationAt - 1 })).toBeUndefined();
   expect(mergeAgentTriggerReplicas(base, { ...base, deletedAt: base.updatedAt })).toBeUndefined();
+  expect(agentTriggerConflictFields(base, { ...base, lastRunAt: 123, status: 'suspended' })).toEqual(['status', 'lastRunAt']);
   const completed = { ...base, status: 'completed' as const, runCount: 1,
     lastRunAt: base.updatedAt + 100, updatedAt: base.updatedAt + 100 };
   const suspended = { ...base, status: 'suspended' as const, updatedAt: base.updatedAt + 200 };
@@ -43,6 +44,13 @@ test('terminal replica states converge in either order without reactivation or p
   expect(mergedRun.lastRunAt).toBe(completed.lastRunAt);
   expect(mergeAgentTriggerReplicas(suspended, completed)).toEqual(mergedRun);
   expect(mergeAgentTriggerReplicas(base, { ...completed, lastRunAt: undefined })).toBeUndefined();
+  const recordedLater = { ...completed, lastRunAt: completed.lastRunAt + 40, updatedAt: completed.updatedAt + 40 };
+  const sameRun = mergeAgentTriggerReplicas(completed, recordedLater)!;
+  expect(sameRun.lastRunAt).toBe(recordedLater.lastRunAt);
+  expect(sameRun.runCount).toBe(1);
+  expect(mergeAgentTriggerReplicas(recordedLater, completed)).toEqual(sameRun);
+  expect(mergeAgentTriggerReplicas(completed, { ...recordedLater, lastRunAt: recordedLater.updatedAt + 1 })).toBeUndefined();
+  expect(mergeAgentTriggerReplicas(completed, { ...recordedLater, nextEvaluationAt: recordedLater.nextEvaluationAt + 1 })).toBeUndefined();
 });
 
 test('sync accepts terminal-state conflicts without blocking journal records or allowing changed rules', async () => {
@@ -62,6 +70,22 @@ test('sync accepts terminal-state conflicts without blocking journal records or 
   await client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [suspended] });
   expect((await client.query(api.health.snapshot, {}))!.agentTriggers?.[0]?.status).toBe('expired');
   await expect(client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [{ ...expired, maxRuns: expired.maxRuns + 1, updatedAt: expired.updatedAt + 1 }] })).rejects.toThrow();
+});
+
+test('client and server timestamps for the same completed run converge through syncBatch', async () => {
+  const t = convexTest(schema, modules);
+  const { client } = await createUser(t, 'run-time@example.test');
+  await client.mutation(api.profile.save, { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, consentToCloudSyncAt: 1, updatedAt: 2 });
+  const base = syntheticTrigger();
+  const first = { ...base, status: 'completed' as const, runCount: 1, lastRunAt: base.updatedAt + 1, updatedAt: base.updatedAt + 1 };
+  const later = { ...first, lastRunAt: first.lastRunAt + 20, updatedAt: first.updatedAt + 20 };
+  for (const record of [first, later, first, later]) {
+    await client.mutation(api.health.syncBatch, { ...emptyBatch(), agentTriggers: [record] });
+  }
+  const record = (await client.query(api.health.snapshot, {}))!.agentTriggers?.[0];
+  expect(record?.lastRunAt).toBe(later.lastRunAt);
+  expect(record?.runCount).toBe(1);
+  expect(record?.status).toBe('completed');
 });
 
 const modules = import.meta.glob('./**/*.ts');

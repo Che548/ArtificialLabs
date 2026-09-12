@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { requireOwnedProfile } from './lib/access';
-import { mergeAgentTriggerReplicas } from '../lib/agent-trigger-sync';
+import { agentTriggerConflictFields, mergeAgentTriggerReplicas } from '../lib/agent-trigger-sync';
 import {
   isAllowedCarePlanMutation,
   validateAgentTrigger,
@@ -393,7 +393,7 @@ async function upsertLocal(
     const merged = mergeAgentTriggerReplicas(
       existingTrigger, item as unknown as AgentTrigger,
     );
-    if (!merged) throw new Error('AGENT_TRIGGER_IMMUTABLE');
+    if (!merged) throw new Error(`AGENT_TRIGGER_IMMUTABLE fields=${agentTriggerConflictFields(existingTrigger, item as unknown as AgentTrigger).join(',')}`);
     // Use only the portable incoming record, never Convex system fields.
     item = { ...item, status: merged.status, runCount: merged.runCount,
       nextEvaluationAt: merged.nextEvaluationAt, lastRunAt: merged.lastRunAt,
