@@ -3,10 +3,11 @@ import { test, expect, devices, webkit } from '@playwright/test';
 const apple = 'https://testflight.apple.com/join/Aq5UurM8';
 const group = 'https://groups.google.com/g/sfera-brainwaves-beta';
 const play = 'https://play.google.com/apps/testing/engineering.brainwaves.sfera';
+const base = process.env.BETA_BASE_URL || 'http://127.0.0.1:4321';
 
 test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, context }) => {
   const external: string[] = [];
-  page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:4321')) external.push(request.url()); });
+  page.on('request', request => { if (new URL(request.url()).origin !== new URL(base).origin) external.push(request.url()); });
   page.on('websocket', socket => external.push(socket.url()));
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/beta/');
@@ -17,7 +18,7 @@ test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, 
   await expect(page.locator('.beta-share svg')).toBeVisible();
   await page.locator('.beta-share svg').screenshot({ path: 'output/playwright/beta-qr.png' });
   await page.getByRole('button', { name: 'Скопировать ссылку' }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('http://127.0.0.1:4321/beta/');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(new URL('/beta/', base).href);
   await expect(page.getByRole('status')).toHaveText('Ссылка скопирована');
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
   await page.reload();
@@ -41,7 +42,7 @@ for (const item of [
       Object.defineProperty(navigator, 'platform', { value: 'MacIntel' });
     });
     const page = await context.newPage();
-    await page.goto('http://127.0.0.1:4321/beta/');
+    await page.goto(new URL('/beta/', base).href);
     await expect(page.getByRole('button', { name: expected, exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: 'Android', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'iPhone и iPad' })).toBeHidden();
@@ -62,7 +63,7 @@ for (const item of [
 test('without JS both instructions remain usable', async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
-  await page.goto('http://127.0.0.1:4321/beta/');
+  await page.goto(new URL('/beta/', base).href);
   await expect(page.getByRole('link', { name: 'Открыть в TestFlight' })).toBeVisible();
   await expect(page.getByRole('link', { name: '2. Установить бету' })).toBeVisible();
   await context.close();
