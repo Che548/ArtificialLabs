@@ -90,7 +90,7 @@
     "ota:publish:preview": "node scripts/ota-release.mjs publish --channel=preview",
     "typecheck": "tsc --noEmit",
     "typecheck:convex": "tsc --noEmit -p convex/tsconfig.json",
-    "test:contacts": "vitest run convex/contactVerification.test.ts convex/emailChange.test.ts convex/passwordRecovery.test.ts",
+    "test:contacts": "vitest run convex/contactVerification.test.ts convex/emailChange.test.ts convex/passwordRecovery.test.ts convex/adminDemoAccess.test.ts",
     "test:contacts:ui": "playwright test --config tests/contact-ui/playwright.config.ts",
     "test:chat-feedback": "tsx --test lib/chat-availability.test.ts lib/chat-consent.test.ts lib/connectivity-policy.test.ts lib/chat-layout.test.ts lib/onboarding-layout.test.ts",
     "test:chat-feedback:web": "playwright test --config tests/chat-web/playwright.config.ts",

@@ -11,6 +11,7 @@ import type { MutationCtx, QueryCtx, ActionCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { requireActiveAccount } from './lib/access';
 import { revokeReviewLoginExceptions } from './reviewAccess';
+import { clearDemoAdminLoginException } from './lib/adminAccess';
 import { generateSixDigitCode, hmacSha256, normalizeClientIp } from './lib/sms';
 import {
   includeAcceptedEmailInQuota,
@@ -423,6 +424,7 @@ export const commit = internalMutation({
       emailVerificationTime: Date.now(),
     });
     await revokeReviewLoginExceptions(ctx, userId, 'email_changed');
+    await clearDemoAdminLoginException(ctx, userId);
     await ctx.db.patch(account._id, {
       providerAccountId: row.newEmail,
       emailVerified: row.newEmail,

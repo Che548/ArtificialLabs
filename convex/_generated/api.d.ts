@@ -12,6 +12,7 @@ import type * as account from "../account.js";
 import type * as admin from "../admin.js";
 import type * as adminAssetActions from "../adminAssetActions.js";
 import type * as adminCatalog from "../adminCatalog.js";
+import type * as adminDemoAccess from "../adminDemoAccess.js";
 import type * as adminMigrations from "../adminMigrations.js";
 import type * as adminUsers from "../adminUsers.js";
 import type * as agent from "../agent.js";
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   adminAssetActions: typeof adminAssetActions;
   adminCatalog: typeof adminCatalog;
+  adminDemoAccess: typeof adminDemoAccess;
   adminMigrations: typeof adminMigrations;
   adminUsers: typeof adminUsers;
   agent: typeof agent;

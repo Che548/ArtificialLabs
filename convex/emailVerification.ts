@@ -9,6 +9,7 @@ import {
 } from './lib/contactVerification';
 import { generateSixDigitCode, normalizeClientIp } from './lib/sms';
 import { hasReviewLoginException } from './reviewAccess';
+import { hasDemoAdminLoginException } from './lib/adminAccess';
 import { sendEmail } from './emailChange';
 
 export const loginState = internalQuery({
@@ -31,7 +32,8 @@ export const loginState = internalQuery({
       required:
         process.env.EMAIL_VERIFICATION_REQUIRED === '1' &&
         !user.emailVerificationTime &&
-        !(await hasReviewLoginException(ctx, userId, user.email)),
+        !(await hasReviewLoginException(ctx, userId, user.email)) &&
+        !(await hasDemoAdminLoginException(ctx, userId, user.email)),
     };
   },
 });
