@@ -747,6 +747,7 @@ export default defineSchema({
     userId: v.id('users'),
     role: v.literal('admin'),
     emailSnapshot: v.string(),
+    // Compatibility with existing server-created demo memberships; never an access grant.
     demoLoginEmail: v.optional(v.string()),
     grantedBy: v.optional(v.id('users')),
     grantedAt: v.number(),
