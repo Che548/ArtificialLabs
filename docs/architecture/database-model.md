@@ -1,249 +1,118 @@
-# Логическая структура данных ArtificialLabs
+# Модель данных: Convex, устройство и временная обработка
 
-Диаграмма показывает доменную модель в ООП-представлении. Облачные сущности
-соответствуют `convex/schema.ts`; локальное хранилище показывает физическую
-модель SQLCipher и outbox на мобильном устройстве.
+Проверено 2026-09-13 по `main` `2837cda34bc06c8adf0251c11bbad0bf203af824`.
+Источники: [Convex schema](../../convex/schema.ts),
+[SQLCipher schema](../../lib/local-database.native.ts).
+Схема укрупняет группы таблиц: это не SQL DDL и не обещание foreign-key
+каскадов. Принадлежность проверяется сервером: `profiles.userId` указывает
+на владельца, медицинские записи связаны с профилем через `profileId`.
+
+## Логические связи
 
 ```mermaid
-classDiagram
-direction TB
-
-class User {
-  <<Convex Auth>>
-  +Id id
-  +string email
-}
-class AuthIdentity {
-  <<aggregate>>
-  +AuthAccount[] accounts
-  +AuthSession[] sessions
-  +AuthRefreshToken[] refreshTokens
-}
-class Profile {
-  <<cloud>>
-  +Id id
-  +Id userId
-  +string displayName
-  +Goal goal
-  +boolean onboardingCompleted
-  +string? phone
-  +number? birthDate
-  +number? lastPeriodStartAt
-  +number? cycleLengthDays
-  +number? consentToCloudSyncAt
-  +number updatedAt
-}
-class AccountState {
-  <<cloud>>
-  +Id userId
-  +number? deletionRequestedAt
-  +number? scheduledDeletionAt
-  +number? restoredAt
-}
-class AIChatConsent {
-  <<cloud>>
-  +Id userId
-  +string provider
-  +string policyVersion
-  +number acceptedAt
-  +number? revokedAt
-}
-
-class SyncEntity {
-  <<abstract>>
-  +string localId
-  +number updatedAt
-  +number? deletedAt
-}
-class MonitoringProgram {
-  +Goal type
-  +string title
-  +ProgramStatus status
-  +number startedAt
-}
-class JournalEntry {
-  +number occurredAt
-  +JournalKind kind
-  +string label
-  +string? textValue
-  +number? numericValue
-  +DataSource source
-}
-class LabResult {
-  +string catalogKey
-  +string title
-  +number collectedAt
-  +LabStatus status
-  +Analyte[] analytes
-  +boolean hasLocalSourceDocument
-}
-class ScanResult {
-  +string testSystemKey
-  +number capturedAt
-  +ScanValue confirmedValue
-  +ScanSource resultSource
-  +number? confidence
-  +string[] qualityFlags
-  +string algorithmVersion
-  +boolean confirmedByUser
-  +boolean hasLocalImage
-}
-class Reminder {
-  +ReminderType type
-  +string title
-  +string body
-  +number dueAt
-  +number? readAt
-}
-class MedicalCondition {
-  +string title
-  +ConditionStatus status
-  +number? diagnosedAt
-  +string? notes
-}
-class Medication {
-  +string name
-  +string? dosage
-  +string? frequency
-  +boolean active
-}
-class AllergyRisk {
-  +string allergen
-  +string? reaction
-  +Severity severity
-}
-class HealthDocument {
-  +string title
-  +DocumentCategory category
-  +number documentDate
-  +boolean hasLocalFile
-  +string? mimeType
-  +number? size
-}
-class ChatConversation {
-  +string title
-  +number createdAt
-  +number lastMessageAt
-}
-class ChatMessage {
-  +string conversationLocalId
-  +MessageRole role
-  +MessageSource source
-  +string text
-  +number sentAt
-  +Generation? generation
-  +Attachment[] attachments
-}
-class AppPreferences {
-  +boolean notificationsEnabled
-  +boolean journalNotifications
-  +boolean resultNotifications
-  +NotificationTone tone
-  +boolean anonymousAnalytics
-  +boolean medicalRecommendations
-  +string region
-}
-
-class TestSystem {
-  <<public catalog>>
-  +string key
-  +string name
-  +TestKind testKind
-  +string? publishedCalibrationVersion
-  +boolean active
-}
-class CalibrationVersion {
-  <<public catalog>>
-  +string testSystemKey
-  +string version
-  +CalibrationStatus status
-  +string algorithmVersion
-  +string[] instructions
-  +string checksum
-}
-
-class LocalDatabase {
-  <<device / SQLCipher>>
-  +settings key-value
-  +records entity-localId
-  +outbox idempotent queue
-}
-class LocalRecord {
-  <<encrypted JSON envelope>>
-  +string entity
-  +string localId
-  +string payload
-  +number occurredAt
-  +number updatedAt
-}
-class OutboxItem {
-  <<encrypted pending write>>
-  +number id
-  +string entity
-  +string localId
-  +string payload
-  +number updatedAt
-}
-class DeviceFile {
-  <<device only>>
-  +string uri
-  +FileKind kind
-  +boolean encryptedAtRest
-}
-
-User "1" *-- "1" AuthIdentity : authenticates
-User "1" *-- "0..1" Profile : owns
-User "1" *-- "0..1" AccountState : lifecycle
-User "1" *-- "0..1" AIChatConsent : grants
-
-SyncEntity <|-- MonitoringProgram
-SyncEntity <|-- JournalEntry
-SyncEntity <|-- LabResult
-SyncEntity <|-- ScanResult
-SyncEntity <|-- Reminder
-SyncEntity <|-- MedicalCondition
-SyncEntity <|-- Medication
-SyncEntity <|-- AllergyRisk
-SyncEntity <|-- HealthDocument
-SyncEntity <|-- ChatConversation
-SyncEntity <|-- ChatMessage
-SyncEntity <|-- AppPreferences
-
-Profile "1" *-- "0..*" MonitoringProgram
-Profile "1" *-- "0..*" JournalEntry
-Profile "1" *-- "0..*" LabResult
-Profile "1" *-- "0..*" ScanResult
-Profile "1" *-- "0..*" Reminder
-Profile "1" *-- "0..*" MedicalCondition
-Profile "1" *-- "0..*" Medication
-Profile "1" *-- "0..*" AllergyRisk
-Profile "1" *-- "0..*" HealthDocument
-Profile "1" *-- "0..*" ChatConversation
-Profile "1" *-- "0..*" ChatMessage
-Profile "1" *-- "0..1" AppPreferences
-
-ChatConversation "1" o-- "0..*" ChatMessage : conversationLocalId
-TestSystem "1" o-- "0..*" CalibrationVersion : versions
-ScanResult "0..*" --> "1" TestSystem : testSystemKey
-ScanResult "0..*" --> "0..1" CalibrationVersion : calibrationVersion
-
-LocalDatabase "1" *-- "0..*" LocalRecord
-LocalDatabase "1" *-- "0..*" OutboxItem
-LocalRecord ..> SyncEntity : serializes
-LabResult "0..1" --> "0..1" DeviceFile : source document
-ScanResult "0..1" --> "0..1" DeviceFile : source image
-HealthDocument "0..1" --> "0..1" DeviceFile : content
-ChatMessage "0..*" --> "0..*" DeviceFile : attachments
+flowchart TB
+  U["users + Auth tables<br>аккаунты · сессии · контакты"]
+  P["profiles + accountStates<br>профиль · жизненный цикл"]
+  C["Согласия<br>sync: user + session<br>chat · agent · OCR · interpretation · analytics"]
+  H["Owned health tables<br>profileId · localId · syncRevision<br>updatedAt · deletedAt"]
+  M["Job / request metadata<br>OCR attempts · interpretation<br>без текста и изображений"]
+  A["Администрирование<br>membership · audit · account counts"]
+  K["Каталоги и контент<br>testSystems → lots / calibrations<br>contentItems → versions"]
+  U --> P
+  U --> C
+  P --> H
+  U --> M
+  U --> A
+  H -.->|"ключ каталога / версия"| K
+  classDef identity fill:#edf3ff,stroke:#456ba0,color:#16314e
+  classDef health fill:#eaf6ef,stroke:#3f805e,color:#153d2b
+  classDef service fill:#fff3df,stroke:#a07b40,color:#4c3616
+  class U,P,C identity
+  class H,M health
+  class A,K service
 ```
 
-## Правила хранения
+### Постоянные серверные данные
 
-- `Profile` является корнем агрегата медицинских данных; серверные операции
-  дополнительно проверяют владельца через `userId`.
-- Все синхронизируемые сущности наследуют логические поля `localId`,
-  `updatedAt`, `deletedAt`. `deletedAt` передаёт tombstone между устройствами.
-- На устройстве сущности хранятся как типизированный JSON внутри общей таблицы
-  `records`; `outbox` содержит последнюю неподтверждённую версию каждой записи.
-- URI, фотографии тест-полосок, документы и вложения чата остаются в
-  `DeviceFile`. В Convex уходят только структурированные значения и признаки
-  наличия локального файла.
+| Группа | Реальные таблицы | Связи и ограничения |
+| --- | --- | --- |
+| Auth | `users`, `authAccounts`, `authSessions`, `authRefreshTokens` и остальные `authTables` | Связи управляются Auth; секреты не входят в admin directory |
+| Контакты / recovery | `contactVerificationChallenges`, `contactVerificationAttempts`, `emailChangeChallenges`, `emailChangeAttempts`, `passwordRecoveryChallenges`, `passwordRecoverySendAttempts`, `passwordRecoveryCodeFailures` | Ограниченные по времени challenge/attempts |
+| Жизненный цикл | `profiles`, `accountStates` | userId; deletionRequestedAt / scheduledDeletionAt / restoredAt; не универсальное поле account.status |
+| Review exemptions | `reviewLoginExceptions`, `reviewLoginAudit` | userId + актуальный email; active, store; аудит |
+| Облако | `cloudSyncSessions` | userId + sessionId; consentedAt / revokedAt. Profile.consentToCloudSyncAt — legacy metadata |
+| AI-согласия | `aiChatConsents`, `aiAgentConsents`, `documentOcrConsents`, `documentInterpretationConsents` | userId, policyVersion, отзыв; agent scopes; chat userEnabled отдельно от receipt |
+| OCR / interpretation | `documentOcrJobs`, `documentInterpretationRequests` | userId + jobId/requestId, время, страницы/attempts/status. Нет OCR text/bytes |
+| Медицинские записи | `monitoringPrograms`, `journalEntries`, `labResults`, `scanResults`, `reminders`, `medicalConditions`, `medications`, `allergyRisks`, `documents` | profileId → profiles.userId, переносимый localId и syncState; локальные URI исключены |
+| Диалоги / настройки | `chatConversations`, `chatMessages`, `preferences` | conversationLocalId связывает сообщения; client settings не равны cloud preferences |
+| План / агент | `carePlanItems`, `agentTriggers`, `recommendationEvents`, `agentRuns` | Происхождение и политика; immutable-правила не отменяются выбором конфликта |
+| SMS / доставка | `smsSendAttempts`, `smsDeliveryHints`, `smsDailyAggregates`, `smsTariffBalance`, `resendUsage` | HMAC buckets, короткоживущие hints, безопасные агрегаты; не raw SMS archive |
+| Каталог | `testSystems`, `testLots`, `calibrationVersions`, `calibrationValidations` | testSystemKey/version/lot; таблица не доказывает наличие валидаций |
+| Админка | `adminMemberships`, `adminAuditEvents`, `adminAssets`, `adminAccountLedger`, `adminAccountCounts`, `adminAccountMigration` | requireAdmin; cursor migration и идемпотентный учёт аккаунтов |
+| Контент | `contentItems`, `contentVersions` | Публикуемые версии отделены от редактирования |
+| Аналитика / мониторинг | `analyticsConsents`, `telemetryEvents`, `analyticsBuckets`, `analyticsDailyActiveKeys`, `analyticsDailyActiveCounts`, `analyticsWorkerState`, `serviceChecks` | Агрегаты; события/DAU не равны числу аккаунтов |
+
+Сервер хранит медицинские данные при разрешённой синхронизации, но
+административный directory их не возвращает. Его допустимые поля:
+account ID, email, регистрация, вычисленный статус; не profile и не токены.
+
+## Физическое хранилище устройства
+
+| Объект SQLCipher | Ключ / содержание | Синхронизация |
+| --- | --- | --- |
+| `settings` | key/value; owner, профиль, receipts, `profileSyncBase.v1`, `syncConflictBackup.v1:*`, `updateChatDraft.v1` | Не отправляется целиком; профиль проходит отдельный portable-контракт |
+| `records` | PK `(entity, local_id)`; JSON payload, occurred_at, updated_at | Только разрешённая структурированная часть |
+| `outbox` | id, entity, local_id, payload, updated_at; unique entity/local_id | Последняя ожидающая версия; ACK точного отправленного payload |
+| `document_extractions` | document_local_id → extraction JSON | **Не** snapshot/outbox/FTS |
+| `telemetry_outbox` | event_id, payload, occurred_at, attempts | Отдельный согласованный transport, не health batch |
+| `agent_search_fts` | entity, local_id, occurred_at, text | Локальный производный индекс |
+
+SQLCipher-ключ в SecureStore с `WHEN_UNLOCKED_THIS_DEVICE_ONLY`.
+Таблицы создаются `CREATE TABLE IF NOT EXISTS`, FTS имеет версию индекса.
+Это не означает автоматической миграции всех будущих схем. Смена владельца
+и удаление локальных данных очищают черновики, merge base и конфликтные копии.
+JSON envelopes не следует изображать отдельной SQL-таблицей для каждого типа.
+
+### Файлы и временная обработка
+
+- Исходный PDF/JPEG/PNG, фото скана и вложения — app document storage.
+  Их пути не передаются как поля Convex. Шифрование БД само по себе не
+  доказывает отдельное прикладное шифрование каждого файла.
+- `labResults.sourceDocumentLocalId` связывает результат с документом;
+  `documents.hasLocalFile` не предоставляет файл другому устройству.
+  Связь по localId не заменяет проверку наличия файла.
+- Extraction draft содержит состояние, версию движка, страницы/текст,
+  редактируемые показатели и подтверждение. Непроверенный OCR — не
+  лабораторный факт. Подтверждение обновляет результат локально без копии
+  исходника; outbox получает только разрешённые значения.
+- Облачный OCR временно передаёт подготовленную страницу через HTTP action
+  провайдеру. `documentOcrJobs` хранит метаданные, не результат OCR.
+- Интерпретация отправляет выбранный текст и requestId после отдельного
+  согласия; `documentInterpretationRequests` не хранит текст/ответ.
+  Временная обработка и provider retention — разные свойства.
+
+## Ревизии и конфликты
+
+`syncState`: localId, необязательный syncRevision, updatedAt, deletedAt.
+profileId задан медицинскими таблицами, userId — профилем и служебными
+сущностями. Отсутствующая ревизия старых записей — 0,
+не версия клиентского протокола. Протокол — отдельный аргумент запроса из
+[shared/client-compatibility.ts](../../shared/client-compatibility.ts).
+
+Новый health protocol проверяет ревизию, retry того же изменения идемпотентен.
+Профиль использует portable merge base и трёхстороннее сравнение, а не
+несуществующее profiles.syncRevision. Принятые legacy-записи продвигают
+ревизию, но остаются на timestamp-политике разрешения конкурирующих правок.
+
+Серверной таблицы `sync_conflicts` нет. Конфликт — ответ API и локальное
+состояние просмотра. Перед выбором проверяются актуальные версии; предыдущая
+локальная версия остаётся зашифрованно в settings вне outbox/FTS. Очередь
+не очищается из-за ошибки, нового протокола или конфликтующего snapshot.
+Подробнее: [multi-device sync](../multi-device-sync.md).
+
+## Проверка
+
+Сопоставлены имена таблиц/полей schema и CREATE TABLE native-кода.
+Реальные пользовательские записи не запрашивались: это проверка структуры,
+не наполненности БД. Runtime-флаги — в [сервисной архитектуре](service-architecture.md).
+Редактируемая [draw.io-схема](diagrams/database-model.drawio).

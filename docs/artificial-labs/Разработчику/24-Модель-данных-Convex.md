@@ -20,6 +20,9 @@ tags:
 
 Документ перечисляет группы таблиц, ключи синхронизации и требования при изменении схемы.
 
+Актуальная сверка схемы от 2026-09-13, main `2837cda3`:
+[полная карта групп, локальной БД и OCR](../../architecture/database-model.md).
+
 
 > [!summary] Кратко
 > Каждая персональная таблица связана с принадлежащим пользователю профилем. Изменение схемы требует синхронного обновления клиентских типов, локального хранения, синхронизации, удаления и испытаний.
@@ -30,6 +33,8 @@ tags:
 - `profiles` — принадлежащий пользователю профиль и отметки согласия;
 - `accountStates` — запрос удаления, срок и восстановление;
 - `aiChatConsents` и `aiAgentConsents` — отдельные согласия;
+- `cloudSyncSessions` — receipt/отзыв текущей Auth-сессии;
+- `documentOcrConsents`, `documentInterpretationConsents` — отдельные версионированные согласия; `documentOcrJobs`, `documentInterpretationRequests` — только метаданные обработки;
 - `agentRuns` — ограниченные сведения продолжения и аудита.
 
 ## Медицинские сущности
@@ -47,7 +52,10 @@ tags:
 | `documents` | категория, дата, MIME, размер и безопасные метаданные |
 | `preferences` | управляемые пользователем настройки |
 
-Синхронизируемые сущности используют `localId`, `updatedAt`, необязательное `deletedAt` и индексы по профилю.
+Синхронизируемые записи используют `localId`, `updatedAt`, необязательные
+`syncRevision` и `deletedAt`, индексы по профилю. Profile.syncRevision нет:
+профиль использует merge base. Серверной таблицы sync_conflicts нет;
+копия версии хранится локально в зашифрованных settings вне outbox/FTS.
 
 ## Диалоги и план сопровождения
 
@@ -58,6 +66,7 @@ tags:
 ## Административные и публичные сущности
 
 - `adminMemberships` и `adminAuditEvents` хранят роль, отзыв и ограниченный аудит действий;
+- `adminAccountLedger`, `adminAccountCounts`, `adminAccountMigration` — идемпотентный учёт и возобновляемая миграция счётчиков; read-only directory не раскрывает медицинские данные;
 - `testSystems`, `testLots`, `calibrationVersions`, `adminAssets` и `calibrationValidations` образуют неперсональный каталог;
 - `contentItems` и `contentVersions` управляют versioned CMS;
 - `analyticsConsents`, `telemetryEvents`, `analyticsBuckets`, `analyticsDailyActiveKeys`, `analyticsDailyActiveCounts` и `analyticsWorkerState` реализуют согласие, сырые технические события и агрегаты;

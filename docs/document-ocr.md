@@ -1,4 +1,23 @@
-# Local document recognition — implementation under verification
+# Document recognition — current architecture and historical local checkpoints
+
+## Current architecture checkpoint — 2026-09-13
+
+Reviewed main `2837cda34bc06c8adf0251c11bbad0bf203af824` contains the separately
+consented cloud OCR route `POST /document-ocr/page`, implemented by
+`convex/documentOcrHttp.ts` and gated by `convex/documentOcr.ts`. A prepared
+page is transiently sent to Yandex Qwen; job metadata, not page bytes or OCR
+text, are stored in Convex. SQLCipher extraction drafts remain outside
+snapshot/outbox/FTS. Source files are not uploaded by ordinary health sync.
+The local Tesseract module and the earlier checkpoints below remain in the
+repository; they must not be read as an exclusive description of current OCR.
+
+Runtime OCR/interpretation flags were not read or changed in this documentation
+review. Earlier statements that a live flag remains off are dated checkpoints,
+not a fresh inspection. Provider retention is distinct from application-side
+non-persistence. See the Russian [current service architecture](architecture/service-architecture.md)
+and [data model](architecture/database-model.md) for the current boundary.
+
+## Historical local implementation and verification
 
 Unexpected provider exceptions are sanitized to `DOCUMENT_SERVER_ERROR` and
 finalized as failed metadata-only reservations. The same request ID remains
