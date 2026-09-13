@@ -1,5 +1,5 @@
 import { convexTest } from 'convex-test';
-import { describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { api, internal } from './_generated/api';
 import { hmacSha256 } from './lib/sms';
@@ -12,6 +12,8 @@ const passwordRecoverySource = await import('./passwordRecovery.ts?raw').then(
 const modules = import.meta.glob('./**/*.ts');
 
 describe('password recovery storage', () => {
+  beforeEach(() => vi.stubEnv('PASSWORD_RECOVERY_HASH_SECRET', 'recovery-test-secret'));
+  afterEach(() => vi.unstubAllEnvs());
   test('uses the first-party HTTPS logo in recovery email HTML', () => {
     expect(passwordRecoverySource).toContain(
       'https://artificiallabs.bebra42.ru/email-logo.png',
@@ -109,6 +111,7 @@ describe('password recovery storage', () => {
       userId,
       passwordProviderAccountId: 'recover@example.test',
     });
+    expect((await t.run(ctx => ctx.db.get(userId)))?.emailVerificationTime).toBeUndefined();
     await t.mutation(internal.passwordRecovery.finishClaim, {
       challengeId,
       claimTokenHash: 'claim-hmac',
@@ -297,6 +300,15 @@ describe('password recovery storage', () => {
       expect(account?.secret).not.toBe('replacement-password');
       expect(account?.secret).not.toBe('old-hash');
       expect(challenge?.status).toBe('consumed');
+      expect((await t.run(ctx => ctx.db.get(userId)))?.emailVerificationTime).toBeTypeOf('number');
+      vi.stubEnv('EMAIL_VERIFICATION_REQUIRED', '1');
+      const { requireEmailForLogin } = await import('./emailVerification');
+      const dispatch = vi.fn(() => { throw new Error('Unexpected second verification'); });
+      await requireEmailForLogin({
+        runQuery: (fn: any, args: any) => t.query(fn, args),
+        runMutation: dispatch,
+      }, userId, 'a'.repeat(64));
+      expect(dispatch).not.toHaveBeenCalled();
     } finally {
       if (previousSecret === undefined) {
         delete process.env.PASSWORD_RECOVERY_HASH_SECRET;
@@ -305,4 +317,41 @@ describe('password recovery storage', () => {
       }
     }
   });
+
+  test.each(['email', 'sms', 'changed-email', 'wrong-owner', 'wrong-claim', 'expired', 'already-verified'])(
+    'email proof is narrowly bound when finishing: %s', async (scenario) => {
+      const t = convexTest(schema, modules);
+      const now = Date.now();
+      const email = 'proof@example.test';
+      const identifierHash = await hmacSha256('recovery-test-secret', `identifier:${email}`);
+      const userId = await t.run(ctx => ctx.db.insert('users', {
+        email: scenario === 'changed-email' ? 'changed@example.test' : email,
+        ...(scenario === 'already-verified' ? { emailVerificationTime: now - 1000 } : {}),
+      }));
+      const accountId = await t.run(async ctx => ctx.db.insert('authAccounts', {
+        userId: scenario === 'wrong-owner' ? await ctx.db.insert('users', {}) : userId,
+        provider: 'password', providerAccountId: email, secret: 'synthetic-hash',
+      }));
+      const challengeId = await t.run(ctx => ctx.db.insert('passwordRecoveryChallenges', {
+        userId, passwordAccountId: accountId, identifierHash, ipHash: 'synthetic-ip-hash',
+        channel: scenario === 'sms' ? 'sms' : 'email', codeHash: 'synthetic-code-hash',
+        status: 'claimed', claimTokenHash: 'synthetic-claim', claimedAt: now,
+        failedAttempts: 0, createdAt: now - 1000,
+        expiresAt: scenario === 'expired' ? now - 1 : now + 600000,
+      }));
+      const finish = () => t.mutation(internal.passwordRecovery.finishClaim, {
+        challengeId, claimTokenHash: scenario === 'wrong-claim' ? 'wrong' : 'synthetic-claim',
+      });
+      if (scenario === 'wrong-claim') {
+        await expect(finish()).rejects.toThrow('RECOVERY_CODE_INVALID_OR_EXPIRED');
+      } else {
+        await finish();
+        await expect(finish()).rejects.toThrow('RECOVERY_CODE_INVALID_OR_EXPIRED');
+      }
+      const user = await t.run(ctx => ctx.db.get(userId));
+      if (scenario === 'email') expect(user?.emailVerificationTime).toBeTypeOf('number');
+      else if (scenario === 'already-verified') expect(user?.emailVerificationTime).toBe(now - 1000);
+      else expect(user?.emailVerificationTime).toBeUndefined();
+    },
+  );
 });

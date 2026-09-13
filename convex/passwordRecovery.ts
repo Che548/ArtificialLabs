@@ -456,6 +456,22 @@ export const finishClaim = internalMutation({
     ) {
       throw new ConvexError('RECOVERY_CODE_INVALID_OR_EXPIRED');
     }
+    // A successfully completed email recovery proves control of that address.
+    // Re-read it in this transaction: a concurrent contact change must not
+    // transfer the recovery proof to a different email. SMS proves no email.
+    if (challenge.channel === 'email' && challenge.expiresAt > Date.now() && challenge.userId && challenge.passwordAccountId) {
+      const user = await ctx.db.get(challenge.userId);
+      const account = await ctx.db.get(challenge.passwordAccountId);
+      if (user?.email && account?.userId === user._id && account.provider === 'password') {
+        const currentEmailHash = await hmacSha256(
+          requiredSecret('PASSWORD_RECOVERY_HASH_SECRET'),
+          `identifier:${user.email.trim().toLowerCase()}`,
+        );
+        if (currentEmailHash === challenge.identifierHash && !user.emailVerificationTime) {
+          await ctx.db.patch(user._id, { emailVerificationTime: Date.now() });
+        }
+      }
+    }
     await ctx.db.patch(challenge._id, {
       status: 'consumed',
       claimTokenHash: undefined,

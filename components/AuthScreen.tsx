@@ -329,6 +329,8 @@ export function AuthScreen({
   };
 
   const requestRecoveryCode = async () => {
+    if (loginLock.current) return;
+    loginLock.current = true;
     setSubmitting(true);
     setError(undefined);
     setRecoveryCode('');
@@ -351,12 +353,14 @@ export function AuthScreen({
       console.error('Password recovery request failed');
       setError(recoveryError(cause));
     } finally {
+      loginLock.current = false;
       setSubmitting(false);
     }
   };
 
   const finishRecovery = async () => {
-    if (!recoveryChallengeId) return;
+    if (!recoveryChallengeId || loginLock.current) return;
+    loginLock.current = true;
     setSubmitting(true);
     setError(undefined);
     try {
@@ -388,6 +392,7 @@ export function AuthScreen({
       console.error('Password recovery completion failed');
       setError(recoveryError(cause));
     } finally {
+      loginLock.current = false;
       setSubmitting(false);
     }
   };
