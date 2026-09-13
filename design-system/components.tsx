@@ -735,7 +735,7 @@ type AppTextProps = PropsWithChildren<{
   color?: string;
   numberOfLines?: number;
   onTextLayout?: TextProps['onTextLayout'];
-} & Pick<TextProps, 'accessibilityRole' | 'selectable' | 'accessibilityElementsHidden' | 'importantForAccessibility'>>;
+} & Pick<TextProps, 'adjustsFontSizeToFit' | 'minimumFontScale' | 'accessibilityRole' | 'selectable' | 'accessibilityElementsHidden' | 'importantForAccessibility'>>;
 
 const sfByWeight = {
   regular: fonts.sfRegular,
@@ -2253,7 +2253,7 @@ export function JournalAssessment({
       </View>
     ) : variant === 'fraction' ? (
       <View style={styles.journalFraction}>
-        <AppText style={styles.fractionValue}>
+        <AppText numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.fractionValue}>
           {completedCount}/{total}
         </AppText>
         <View style={styles.fractionCopy}>
@@ -4733,9 +4733,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   fractionValue: {
     width: 58,
+    flexShrink: 0,
     color: colors.brand.success,
-    fontSize: 34,
-    lineHeight: 38,
+    fontSize: 32,
+    lineHeight: 42,
+    paddingTop: 4,
     letterSpacing: -0.68,
     textAlign: 'center',
   },

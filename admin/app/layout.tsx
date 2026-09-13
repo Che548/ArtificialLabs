@@ -3,7 +3,7 @@ import './globals.css';
 import './admin.css';
 
 export const metadata: Metadata = {
-  title: 'ArtificialLabs · Admin',
+  title: 'Сфера · Администрирование',
   description: 'Защищённая административная консоль ArtificialLabs',
 };
 

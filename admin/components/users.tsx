@@ -7,7 +7,7 @@ export function Users() {
   const [email, setEmail] = useUrlValue('email', '');
   const list = usePaginatedQuery(api.adminUsers.list, { email }, { initialNumItems: 25 });
   return <>
-    <header className="page-title"><div><p className="eyebrow">Платформа</p><h1>Пользователи</h1>
+    <header className="page-title"><div><h1>Пользователи</h1>
       <p className="muted">Аккаунты платформы. Только просмотр — без медицинских данных и переписки.</p></div></header>
     <section className="panel">
       <form className="inline-form" key={email} onSubmit={e => { e.preventDefault(); setEmail(String(new FormData(e.currentTarget).get('email') ?? '').trim().toLowerCase()); }}>

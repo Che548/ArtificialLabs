@@ -974,7 +974,7 @@ export default function AnalysesScreen() {
           contentContainerStyle={[
             styles.analysisModalPageContent,
             {
-              paddingBottom: 20,
+              paddingBottom: 0,
             },
           ]}
         >
@@ -1111,15 +1111,7 @@ export default function AnalysesScreen() {
                           </AppText>
                         </View>
                       </View>
-                    ) : (
-                      <AppText
-                        role="caption"
-                        color={colors.text.secondary}
-                        style={styles.analysisModalAttachmentHint}
-                      >
-                        Добавьте заключение или результаты лаборатории
-                      </AppText>
-                    )}
+                    ) : null}
 
                     <View style={styles.analysisModalAttachmentActions}>
                       {(['file', 'photo'] as const).map((kind) => (
@@ -1136,6 +1128,7 @@ export default function AnalysesScreen() {
                           onPress={() => void pickAnalysisAttachment(kind)}
                           style={({ pressed }) => [
                             styles.analysisModalAttachmentButton,
+                            (readOnly || attachmentPicking || saving) && { opacity: 0.5 },
                             pressed && styles.pressed,
                           ]}
                         >
@@ -1186,8 +1179,8 @@ export default function AnalysesScreen() {
                                 }
                               >
                                 {kind === 'file'
-                                  ? 'Выбрать файл'
-                                  : 'Выбрать фото'}
+                                  ? 'Файл'
+                                  : 'Фото'}
                               </AppText>
                             </>
                           )}
@@ -1207,9 +1200,6 @@ export default function AnalysesScreen() {
                   ) : null}
                 </View>
                 <View style={styles.analysisModalSection}>
-                  <AppText role="label" weight="semibold">
-                    План
-                  </AppText>
                   <View style={styles.analysisModalPlanActions}>
                     <Pressable
                       cssInterop={false}
@@ -1223,11 +1213,13 @@ export default function AnalysesScreen() {
                       }}
                       style={({ pressed }) => [
                         styles.analysisModalPlanButton,
+                        pendingAttachment && styles.analysisModalPlanButtonSecondary,
+                        (readOnly || saving || attachmentPicking) && { opacity: 0.5 },
                         pressed && styles.pressed,
                       ]}
                     >
-                      <AppText weight="semibold" color={colors.brand.primary}>
-                        Отметить выполненным
+                      <AppText weight="medium" color={pendingAttachment ? colors.brand.primary : colors.text.inverse}>
+                        Анализ сдан
                       </AppText>
                     </Pressable>
                     {selectedAnalysis.carePlan.status === 'upcoming' ? (
@@ -1337,7 +1329,7 @@ export default function AnalysesScreen() {
                       }}
                       style={({ pressed }) => [
                         styles.analysisModalPlanButton,
-                        styles.analysisModalPlanButtonSecondary,
+                        styles.analysisModalDeclineButton,
                         pressed && styles.pressed,
                       ]}
                     >
@@ -1569,8 +1561,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: 22,
   },
   analysisModalPlanActions: { gap: 8 },
-  analysisModalPlanButton: { ...sheetStyles.secondary, backgroundColor: colors.surface.divider },
+  analysisModalPlanButton: { ...sheetStyles.primary, minHeight: 52, borderRadius: 999 },
   analysisModalPlanButtonSecondary: { backgroundColor: colors.surface.raised },
+  analysisModalDeclineButton: { backgroundColor: 'transparent', borderWidth: 0, minHeight: 44 },
   analysisModalSchedulePicker: {
     width: '100%',
     gap: 10,
@@ -1606,13 +1599,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 12,
   },
   analysisModalAttachmentCard: {
-    gap: 12,
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: colors.surface.raised,
+    gap: 10,
   },
   analysisModalAttachmentStatus: {
-    minHeight: 44,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: colors.surface.raised,
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -1622,11 +1615,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  analysisModalAttachmentHint: {
-    paddingHorizontal: 2,
-    fontSize: 14,
-    lineHeight: 18,
-  },
   analysisModalAttachmentActions: {
     flexDirection: 'row',
     gap: 10,
@@ -1634,16 +1622,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   analysisModalAttachmentButton: {
     minWidth: 0,
     flex: 1,
-    height: 50,
+    minHeight: 52,
     flexDirection: 'row',
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'transparent',
-    backgroundColor: colors.surface.canvas,
+    gap: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surface.raised,
   },
   analysisModalAttachmentButtonLabel: {
     flexShrink: 1,

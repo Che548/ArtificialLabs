@@ -10,6 +10,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SymbolView } from 'expo-symbols';
@@ -129,6 +130,7 @@ export function AppSheet({
   footer,
   scroll = true,
   surface = 'grouped',
+  containsLiquidGlass = false,
   onClosed,
 }: {
   visible?: boolean;
@@ -139,11 +141,13 @@ export function AppSheet({
   footer?: ReactNode;
   scroll?: boolean;
   surface?: 'grouped' | 'white';
+  containsLiquidGlass?: boolean;
   onClosed?: () => void;
 }) {
   const sheetStyles = useSheetStyles();
   const styles = useProfileStyles(createStyles);
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const reducedMotion = useProfileReducedMotion();
   const [mounted, setMounted] = useState(visible);
   const [shown, setShown] = useState(false);
@@ -216,12 +220,13 @@ export function AppSheet({
               marginTop: insets.top + 12,
               marginBottom: 12,
               paddingBottom: Math.max(8, insets.bottom - 12),
-              opacity: progress,
+              // Native glass must not inherit animated opacity. Slide its sheet instead.
+              opacity: containsLiquidGlass ? 1 : progress,
               transform: [
                 {
                   translateY: progress.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [reducedMotion ? 0 : 28, 0],
+                    outputRange: [reducedMotion ? 0 : containsLiquidGlass ? windowHeight : 28, 0],
                   }),
                 },
               ],

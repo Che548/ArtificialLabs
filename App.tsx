@@ -1053,6 +1053,7 @@ function MonitoringScreen({
 }
 
 type PlanningQuickActionProps = {
+  glassVariant?: GlassStyle;
   glyph: ReactNode;
   label: string;
   primary?: boolean;
@@ -1064,6 +1065,7 @@ export function PlanningQuickAction({
   label,
   onPress,
   primary = false,
+  glassVariant = 'clear',
 }: PlanningQuickActionProps) {
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
@@ -1090,6 +1092,7 @@ export function PlanningQuickAction({
         <LiquidGlassPressable
           accessibilityLabel={label}
           controlStyle={styles.planningActionCircle}
+          variant={glassVariant}
           onPress={onPress}
           tintColor={primary ? TODAY_ACCENT : colors.surface.headerGlassWash}
           washColor={primary ? `${TODAY_ACCENT}F0` : colors.surface.glassWash}
