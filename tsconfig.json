@@ -19,6 +19,7 @@
     "modules/document-ocr/prebuilt",
     "tmp",
     "admin",
+    "tests/admin-ui",
     "**/*.test.ts"
   ]
 }
