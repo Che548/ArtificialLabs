@@ -67,6 +67,7 @@ export function DailySymptomsPrompt({ children }: PropsWithChildren) {
       visible={visible}
       title="Как ты себя чувствуешь?"
       scroll={false}
+      containsLiquidGlass
       onClose={() => setVisible(false)}
       onClosed={() => {
         if (openJournalAfterClose.current) {
@@ -86,6 +87,7 @@ export function DailySymptomsPrompt({ children }: PropsWithChildren) {
           Отметь симптомы за сегодня — я помогу сохранить их в дневнике.
         </AppText>
         <PlanningQuickAction
+          glassVariant="regular"
           glyph={<SymptomsIcon width={28} height={28} color={colors.brand.primary} />}
           label="Симптомы"
           onPress={() => {

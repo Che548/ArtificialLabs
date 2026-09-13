@@ -32,7 +32,8 @@ test('loading, empty and failed data are distinguishable', async ({ page }) => {
 
 test('access gates and missing migration', async ({ page }) => {
   await page.goto('/?fixture=guest');
-  await expect(page.getByRole('heading', { name: 'Административная консоль' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
   await expect(page.getByRole('navigation')).toHaveCount(0);
   await page.goto('/?fixture=ordinary');
   await expect(page.getByRole('heading', { name: 'Доступ запрещён' })).toBeVisible();
@@ -57,6 +58,7 @@ test('all catalog sections remain navigable without fake records', async ({ page
     await page.getByRole('button', { name, exact: true }).click();
     await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
     await expect(page.getByRole('alert')).toHaveCount(0);
+    await page.screenshot({ path: `output/playwright/admin-redesign-${name}.png`, animations: 'disabled' });
   }
 });
 

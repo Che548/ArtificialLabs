@@ -550,6 +550,9 @@ export default function ChatScreen() {
             : ('clinic' as const),
       })),
       ...contextual,
+      {id:'prepare-labs', title:'Как подготовиться к анализам?', icon:'analyses' as const},
+      {id:'daily-care', title:'Как поддерживать хорошее самочувствие?', icon:'clinic' as const},
+      {id:'journal-insights', title:'Как замечать изменения в дневнике?', icon:'nutrition' as const},
     ].slice(0, 3);
   }, [activeReminders, journalEntries, labResults, profile?.goal]);
 

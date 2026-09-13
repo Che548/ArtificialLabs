@@ -1551,11 +1551,6 @@ export function OnboardingPreviewFlow({
               >
                 Можно выбрать несколько вариантов.
               </AppText>
-              <AppText role="caption" color={colors.text.secondary}>
-                Фото и исходные документы остаются на устройстве. ИИ и облачная
-                синхронизация включаются по вашему согласию при регистрации;
-                изменить выбор можно в профиле. Аналитика включается отдельно.
-              </AppText>
               <View style={styles.factorPills}>
                 {cycleFactors.map((factor) => {
                   const selected = factors.has(factor);
