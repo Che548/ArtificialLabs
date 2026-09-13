@@ -200,4 +200,3 @@ finally {
     emulator.kill('SIGTERM');
   }
 }
-
