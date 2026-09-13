@@ -27,7 +27,7 @@
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "package": "engineering.brainwaves.sfera",
-      "versionCode": 6
+      "versionCode": 7
     },
     "web": {
       "favicon": "./assets/favicon.png"
