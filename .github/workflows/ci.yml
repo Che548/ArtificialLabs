@@ -29,12 +29,19 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            admin/package-lock.json
+            CV_Demo_WebAPP/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: Install admin dependencies
         run: npm --prefix admin ci
+
+      - name: Install CV demo dependencies
+        run: npm --prefix CV_Demo_WebAPP ci
 
       - name: Run unit tests
         run: npm test
@@ -46,6 +53,17 @@ jobs:
 
       - name: Build and smoke-test StripCV
         run: npm run test:strip-cv
+
+      - name: Verify CV demo with the shared native reader
+        run: npm --prefix CV_Demo_WebAPP run verify
+
+      - name: Install CV demo test browser
+        working-directory: CV_Demo_WebAPP
+        run: npx playwright install --with-deps chromium
+
+      - name: Test CV demo upload and camera
+        working-directory: CV_Demo_WebAPP
+        run: npx playwright test tests/learned-flow.spec.ts
 
       - name: Verify project
         run: npm run verify

@@ -32,7 +32,10 @@ if (process.env.CMAKE_PREFIX_PATH) {
 }
 
 execFileSync('cmake', configureArgs, { cwd: root, stdio: 'inherit' });
-execFileSync('cmake', ['--build', buildDir, '--config', 'Release', '-j2'], {
+const cliOnly = process.argv.includes('--cli-only');
+const buildArgs = ['--build', buildDir, '--config', 'Release', cliOnly ? '-j1' : '-j2'];
+if (cliOnly) buildArgs.push('--target', 'stripcv_cli');
+execFileSync('cmake', buildArgs, {
   cwd: root,
   stdio: 'inherit',
 });

@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include "stripcv/c_api.h"
+#include "stripcv/learned_reader.hpp"
 
 namespace {
 
@@ -110,8 +111,13 @@ int requiredPositiveInt(const json& request, const char* key) {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
   try {
+    const bool learned = argc == 3 && std::string(argv[1]) == "--learned";
+    if (argc != 1 && !learned) {
+      throw std::invalid_argument("Usage: stripcv_cli [--learned MODEL_DIRECTORY]");
+    }
+    cv::setNumThreads(1);
     constexpr int kMaxImageDimension = 32768;
     constexpr int kMaxRowStride = kMaxImageDimension * 4;
     constexpr std::size_t kMaxImageBytes = 128u * 1024u * 1024u;
@@ -125,7 +131,7 @@ int main() {
         row_stride > kMaxRowStride) {
       throw std::invalid_argument("Declared image dimensions are too large");
     }
-    const std::vector<std::uint8_t> rgb =
+    std::vector<std::uint8_t> rgb =
         decodeBase64(requiredString(request, "rgb_base64"));
     const std::size_t minimum_row_stride =
         static_cast<std::size_t>(width) * 3u;
@@ -134,6 +140,14 @@ int main() {
     if (required_bytes > kMaxImageBytes || rgb.size() < required_bytes ||
         static_cast<std::size_t>(row_stride) < minimum_row_stride) {
       throw std::invalid_argument("RGB payload is smaller than the declared image");
+    }
+
+    if (learned) {
+      // Same reader as iOS/Android. Pixels stay in memory and arrive via stdin.
+      stripcv::LearnedReader reader(argv[2]);
+      const cv::Mat image(height, width, CV_8UC3, rgb.data(), row_stride);
+      std::cout << reader.analyze_rgb(image).dump() << '\n';
+      return 0;
     }
 
     const std::string assay_profile =
