@@ -6,9 +6,10 @@
 ## Сборка и доставка
 
 Workflow `.github/workflows/cv-demo.yml` проверяет CV на синтетических данных и
-собирает Linux amd64 image `ghcr.io/che548/artificiallabs-cv`. Только проверенный
-`main` публикует `latest` и тег полного SHA; PR не получает ключей развёртывания.
-Первый пакет должен быть доступен для анонимного pull до запуска Compose.
+собирает Linux amd64 image `ghcr.io/che548/artificiallabs:cv-latest`. Только проверенный
+`main` публикует `cv-latest` и `cv-<полный SHA>`; PR не получает ключей развёртывания.
+Используется уже публичный GHCR-пакет, без нового registry-токена на сервере.
+Теги `latest` и `<SHA>` админки этот workflow не меняет.
 
 На `junk` разместить `compose.yml` в отдельном каталоге
 `/home/taras/deployments/artificiallabs_cv`, затем выполнить `docker compose pull`
@@ -50,6 +51,6 @@ volume при обновлении и не копировать его в Git и
 ## Откат
 
 Остановить только `artificiallabs_cv_watchtower`, выбрать предыдущий проверенный
-SHA в image CV-сервиса и выполнить `docker compose up -d cv-demo`.
-Сохранить volume. После устранения проблемы вернуть `latest` и Watchtower.
+тег `cv-<SHA>` в image CV-сервиса и выполнить `docker compose up -d cv-demo`.
+Сохранить volume. После устранения проблемы вернуть `cv-latest` и Watchtower.
 Не использовать `docker compose down -v` и не откатывать остальные сервисы.

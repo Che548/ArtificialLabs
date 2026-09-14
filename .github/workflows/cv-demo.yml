@@ -71,7 +71,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ghcr.io/che548/artificiallabs-cv:latest
-            ghcr.io/che548/artificiallabs-cv:${{ github.sha }}
+            ghcr.io/che548/artificiallabs:cv-latest
+            ghcr.io/che548/artificiallabs:cv-${{ github.sha }}
           cache-from: type=gha,scope=cv-demo
           cache-to: type=gha,scope=cv-demo,mode=max

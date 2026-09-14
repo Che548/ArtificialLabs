@@ -1,6 +1,6 @@
 services:
   cv-demo:
-    image: ghcr.io/che548/artificiallabs-cv:latest
+    image: ghcr.io/che548/artificiallabs:cv-latest
     container_name: artificiallabs_cv
     restart: unless-stopped
     init: true

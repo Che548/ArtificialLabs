@@ -19,7 +19,7 @@ RUN npm run verify
 FROM build AS browser-test
 RUN npx playwright install --with-deps chromium
 ENV CI=true CV_DEMO_DATA_DIR=/tmp/cv-demo-ci-access
-RUN npm run test:e2e
+RUN npm run test:e2e && rm -r /tmp/cv-demo-ci-access
 
 FROM node:22-trixie-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends libopencv-core410 libopencv-imgproc410 libopencv-imgcodecs410 libopencv-calib3d410 libopencv-dnn410 ca-certificates && rm -rf /var/lib/apt/lists/*
