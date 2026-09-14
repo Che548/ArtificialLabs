@@ -12,6 +12,7 @@ useDefaultAndroidSdkVersions()
 
 android {
   namespace 'expo.modules.stripcv'
+  sourceSets.main.assets.srcDirs += ['../models']
 
   defaultConfig {
     versionCode 1

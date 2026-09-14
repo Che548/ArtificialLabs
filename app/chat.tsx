@@ -100,13 +100,12 @@ type ActiveGeneration = {
   assistantMessageId: string;
   conversationLocalId: string;
   userMessageId: string;
-  mode: ChatHeaderMode;
 };
 
 type PendingConsentRequest =
-  | { kind: 'mode'; mode: ChatHeaderMode }
-  | { kind: 'new'; mode: ChatHeaderMode; text: string }
-  | { kind: 'retry'; mode: ChatHeaderMode; userMessage: ChatMessage };
+  | { kind: 'consent' }
+  | { kind: 'new'; text: string }
+  | { kind: 'retry'; userMessage: ChatMessage };
 
 const AGENT_LOCAL_TOOL_TIMEOUT_MS = 60_000;
 
@@ -162,14 +161,12 @@ function ConversationOverlay({
 
 function AiChatConsentSheet({
   accepting,
-  assistant,
   onAccept,
   onCancel,
   visible,
   error,
 }: {
   accepting: boolean;
-  assistant: boolean;
   onAccept: () => void;
   onCancel: () => void;
   visible: boolean;
@@ -181,11 +178,7 @@ function AiChatConsentSheet({
   return (
     <AppSheet
       visible={visible}
-      title={
-        assistant
-          ? 'Согласие для Ассистента'
-          : 'Согласие для чата'
-      }
+      title="Согласие для чата"
       onClose={onCancel}
       dismissDisabled={accepting}
       footer={
@@ -217,9 +210,21 @@ function AiChatConsentSheet({
     >
       <AppText style={styles.consentIntro}>Ответы с помощью Yandex AI Studio</AppText>
       <AppText style={styles.consentBody}>
-        {assistant
-          ? 'Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый текст чата; возраст, цель, параметры тела и данные цикла или беременности; указанные заболевания, лекарства и аллергии; записи дневника не старше 30 дней; подтверждённые результаты анализов и домашние тесты; активный план. По запросу Ассистент сможет искать более старые записи, другие ваши чаты и метаданные документов.\n\nЕсли вы отдельно включите автономные рекомендации, при проверке плана также могут передаваться новые сообщения, написанные вами в режиме «Ассистент», и факт появления нового документа с его категорией и датой. Обычные чаты, ответы ИИ, названия и содержимое файлов при такой проверке не передаются.\n\nСодержимое файлов, имя, контакты, пути к файлам, идентификаторы аккаунта и устройства не передаются.\n\nЛогирование запросов у Yandex отключено.'
-          : 'Для ответа Сферка отправит ваше сообщение и до 20 последних сообщений этого чата через наш сервер в Yandex AI Studio.\n\nСтруктурированные данные профиля, анализы и файлы автоматически не передаются — отправляется только видимый текст чата.\n\nЛогирование запросов у Yandex отключено. История хранится зашифрованно на устройстве и синхронизируется только при включённой облачной синхронизации.'}
+        Для ответа Сферка отправит через наш сервер в Yandex AI Studio видимый
+        текст чата; возраст, цель, параметры тела и данные цикла или
+        беременности; указанные заболевания, лекарства и аллергии; записи
+        дневника не старше 30 дней; подтверждённые результаты анализов и
+        домашние тесты; активный план. По запросу в чате Сферка сможет искать
+        более старые записи, другие ваши чаты и метаданные документов. Если вы
+        отдельно включите проверки плана, при проверке также могут передаваться
+        новые сообщения, написанные вами в чатах с доступом к данным здоровья, и
+        факт появления нового документа с его категорией и датой. Старые
+        текстовые чаты без такого доступа, ответы ИИ, названия и содержимое
+        файлов при такой проверке не передаются. Содержимое файлов, имя,
+        контакты, пути к файлам, идентификаторы аккаунта и устройства не
+        передаются. Логирование запросов у Yandex отключено. История хранится
+        зашифрованно на устройстве и синхронизируется только при включённой
+        облачной синхронизации.
       </AppText>
       <View style={styles.consentDocuments}>
         <LegalDocumentsButton variant="row" documentId="privacy" label="Политика конфиденциальности" />
@@ -293,10 +298,8 @@ export default function ChatScreen() {
     FunctionReturnType<typeof api.agent.status> | Error | undefined;
   const chatStatus = chatResult instanceof Error ? undefined : chatResult;
   const agentStatus = agentResult instanceof Error ? undefined : agentResult;
-  const generateChat = useAction(api.chat.generate);
   const startAgentTurn = useAction(api.chat.startAgentTurn);
   const continueAgentTurn = useAction(api.chat.continueAgentTurn);
-  const acceptAiConsent = useMutation(api.chat.acceptConsent);
   const acceptAgentConsent = useMutation(api.chat.acceptAgentConsent);
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ScreenMessage[]>([]);
@@ -414,17 +417,6 @@ export default function ChatScreen() {
   const activeGeneration = useRef<ActiveGeneration | undefined>(undefined);
   const knownUserMessages = useRef(new Map<string, ChatMessage>());
   const chatMessagesRef = useRef(chatMessages);
-  const aiReady =
-    aiEligible &&
-    chatStatus?.enabled === true &&
-    chatStatus?.userEnabled !== false;
-  const agentReady =
-    aiEligible &&
-    cloudSyncEnabled &&
-    cloudProfileReady &&
-    healthStore.ready &&
-    Boolean(profile) &&
-    agentStatus?.enabled === true;
   const availability = resolveChatAvailability({
     web: Platform.OS === 'web',
     authLoading,
@@ -432,23 +424,21 @@ export default function ChatScreen() {
     readOnly,
     cloudSyncEnabled,
     cloudProfileReady,
-    requiresCloudSync: headerMode === 'assistant',
-    localReady:
-      headerMode === 'chat' || (healthStore.ready && Boolean(profile)),
+    requiresCloudSync: true,
+    localReady: healthStore.ready && Boolean(profile),
     offline: connectivity.isOffline,
     backendUnavailable: connectivity.backendStatus === 'unavailable',
     statusError:
-      (headerMode === 'chat' ? chatResult : agentResult) instanceof Error ||
-      (headerMode === 'assistant' &&
-        !cloudProfileReady &&
-        healthStore.syncStatus === 'error'),
-    status: headerMode === 'chat' ? chatStatus : agentStatus,
+      chatResult instanceof Error ||
+      agentResult instanceof Error ||
+      (!cloudProfileReady && healthStore.syncStatus === 'error'),
+    status:
+      agentStatus && chatStatus
+        ? { ...agentStatus, userEnabled: chatStatus.userEnabled }
+        : undefined,
   });
   const selectedModeReady = availability.canSend;
-  const selectedConsentAccepted =
-    headerMode === 'assistant'
-      ? agentStatus?.consentAccepted === true
-      : chatStatus?.consentAccepted === true;
+  const selectedConsentAccepted = agentStatus?.consentAccepted === true;
   const availabilityNotice = availability.message;
   useEffect(() => {
     if (availability.reason === 'ready') setChatNotice(undefined);
@@ -781,10 +771,8 @@ export default function ChatScreen() {
         sourceRefs: message.sourceRefs,
       }),
     );
-    const conversation = chatConversations.find(
-      (candidate) => candidate.localId === item.id,
-    );
-    setHeaderMode(conversation?.mode ?? 'chat');
+    // Persisted modes describe data access, never the notification tab.
+    setHeaderMode('chat');
     const running = activeGeneration.current;
     if (
       running?.conversationLocalId === item.id &&
@@ -835,6 +823,7 @@ export default function ChatScreen() {
       if (sourceConversation) openRecentChat(sourceConversation);
       return;
     }
+    closeConversation();
     if (source.source === 'document') {
       router.push({
         pathname: '/profile',
@@ -967,52 +956,46 @@ export default function ChatScreen() {
         currentGeneration.conversationLocalId,
         userMessage,
       );
-      const result =
-        currentGeneration.mode === 'chat'
-          ? await generateChat({ requestId, messages: transcript })
-          : await (async () => {
-              const contextEnvelope = JSON.stringify(
-                buildAgentContextEnvelope(healthStore, Date.now(), {
-                  includeBodyMetrics: assistantQuestionNeedsBodyMetrics(
-                    userMessage.text,
-                  ),
-                }),
-              );
-              let step = await startAgentTurn({
-                requestId,
-                messages: transcript,
-                contextEnvelope,
-              });
-              const accumulatedProviderItems: Array<{
-                type: 'function_call';
-                call_id: string;
-                name: string;
-                arguments: string;
-              }> = [];
-              const accumulatedToolResults: AgentToolOutput[] = [];
-              while (step.ok && step.kind === 'tool_calls') {
-                const currentToolResults = await Promise.all(
-                  step.calls.map((call) =>
-                    executeAgentToolWithTimeout(
-                      healthStore,
-                      call as AgentToolCall,
-                    ),
-                  ),
-                );
-                accumulatedProviderItems.push(...step.providerItems);
-                accumulatedToolResults.push(...currentToolResults);
-                step = await continueAgentTurn({
-                  requestId,
-                  continuationId: step.continuationId,
-                  step: step.step,
-                  messages: transcript,
-                  contextEnvelope,
-                  providerItems: accumulatedProviderItems,
-                  toolResults: accumulatedToolResults,
-                });
-              }
-              return step;
-            })();
+      const result = await (async () => {
+        const contextEnvelope = JSON.stringify(
+          buildAgentContextEnvelope(healthStore, Date.now(), {
+            includeBodyMetrics: assistantQuestionNeedsBodyMetrics(
+              userMessage.text,
+            ),
+          }),
+        );
+        let step = await startAgentTurn({
+          requestId,
+          messages: transcript,
+          contextEnvelope,
+        });
+        const accumulatedProviderItems: Array<{
+          type: 'function_call';
+          call_id: string;
+          name: string;
+          arguments: string;
+        }> = [];
+        const accumulatedToolResults: AgentToolOutput[] = [];
+        while (step.ok && step.kind === 'tool_calls') {
+          const currentToolResults = await Promise.all(
+            step.calls.map((call) =>
+              executeAgentToolWithTimeout(healthStore, call as AgentToolCall),
+            ),
+          );
+          accumulatedProviderItems.push(...step.providerItems);
+          accumulatedToolResults.push(...currentToolResults);
+          step = await continueAgentTurn({
+            requestId,
+            continuationId: step.continuationId,
+            step: step.step,
+            messages: transcript,
+            contextEnvelope,
+            providerItems: accumulatedProviderItems,
+            toolResults: accumulatedToolResults,
+          });
+        }
+        return step;
+      })();
 
       if (!result.ok) {
         markGenerationError(
@@ -1085,7 +1068,7 @@ export default function ChatScreen() {
     }
   };
 
-  const startNewMessage = (text: string, mode = headerMode) => {
+  const startNewMessage = (text: string) => {
     if (generationInFlight.current) return;
     generationInFlight.current = true;
     setGenerationState((current) => transitionChatGeneration(current, 'start'));
@@ -1103,7 +1086,8 @@ export default function ChatScreen() {
             title: text.slice(0, 80),
             createdAt: messageTimestamp,
             lastMessageAt: messageTimestamp,
-            mode,
+            // Keep the legacy storage discriminator for plan-review eligibility.
+            mode: 'assistant',
           });
           setConversationId(activeConversationId);
           setSelectedHistoryId(activeConversationId);
@@ -1149,7 +1133,6 @@ export default function ChatScreen() {
           assistantMessageId,
           conversationLocalId: activeConversationId,
           userMessageId,
-          mode,
         };
         activeGeneration.current = currentGeneration;
         setMessages((current) => [
@@ -1193,7 +1176,7 @@ export default function ChatScreen() {
     })();
   };
 
-  const startRetry = (userMessage: ChatMessage, mode = headerMode) => {
+  const startRetry = (userMessage: ChatMessage) => {
     if (generationInFlight.current) return;
     generationInFlight.current = true;
     setGenerationState((current) => transitionChatGeneration(current, 'start'));
@@ -1201,7 +1184,6 @@ export default function ChatScreen() {
       assistantMessageId: `message_${Date.now()}_${Math.random().toString(36).slice(2, 9)}_assistant`,
       conversationLocalId: userMessage.conversationLocalId,
       userMessageId: userMessage.localId,
-      mode,
     };
     activeGeneration.current = currentGeneration;
     setMessages((current) => [
@@ -1235,19 +1217,8 @@ export default function ChatScreen() {
       );
     if (!userMessage || generationInFlight.current) return;
     knownUserMessages.current.set(userMessage.localId, userMessage);
-    const retryMode =
-      chatConversations.find(
-        (conversation) =>
-          conversation.localId === userMessage.conversationLocalId,
-      )?.mode ?? headerMode;
-    const retryReady =
-      !connectivity.isOffline &&
-      connectivity.backendStatus !== 'unavailable' &&
-      (retryMode === 'assistant' ? agentReady : aiReady);
-    const retryConsentAccepted =
-      retryMode === 'assistant'
-        ? agentStatus?.consentAccepted
-        : chatStatus?.consentAccepted;
+    const retryReady = availability.canSend;
+    const retryConsentAccepted = selectedConsentAccepted;
     if (!retryReady) {
       setChatNotice(
         availabilityNotice ?? 'Не удалось связаться с ИИ. Повторите позже.',
@@ -1259,18 +1230,18 @@ export default function ChatScreen() {
       setConsentError(undefined);
       setPendingConsentRequest({
         kind: 'retry',
-        mode: retryMode,
         userMessage,
       });
       setConsentVisible(true);
       return;
     }
-    startRetry(userMessage, retryMode);
+    startRetry(userMessage);
   };
 
   const send = () => {
     const text = draft.trim();
     if (
+      headerMode !== 'chat' ||
       !text ||
       generationInFlight.current ||
       consentInFlight.current ||
@@ -1284,7 +1255,7 @@ export default function ChatScreen() {
     if (!selectedConsentAccepted) {
       Keyboard.dismiss();
       setConsentError(undefined);
-      setPendingConsentRequest({ kind: 'new', mode: headerMode, text });
+      setPendingConsentRequest({ kind: 'new', text });
       setConsentVisible(true);
       return;
     }
@@ -1293,10 +1264,7 @@ export default function ChatScreen() {
 
   const acceptConsentAndContinue = async () => {
     const pending = pendingConsentRequest;
-    const policyVersion =
-      pending?.mode === 'assistant'
-        ? agentStatus?.policyVersion
-        : chatStatus?.policyVersion;
+    const policyVersion = agentStatus?.policyVersion;
     if (!pending || !policyVersion || consentInFlight.current) return;
     setConsentError(undefined);
     setConsentAccepting(true);
@@ -1304,22 +1272,16 @@ export default function ChatScreen() {
       await submitConsentOnce(
         consentInFlight,
         async () => {
-          if (pending.mode === 'assistant') {
-            await acceptAgentConsent({
-              policyVersion,
-              scopes: [...(agentStatus?.scopes ?? [])],
-            });
-          } else {
-            await acceptAiConsent({ policyVersion });
-          }
+          await acceptAgentConsent({
+            policyVersion,
+            scopes: [...(agentStatus?.scopes ?? [])],
+          });
         },
         () => {
           setConsentVisible(false);
           setPendingConsentRequest(undefined);
-          if (pending.kind === 'new')
-            startNewMessage(pending.text, pending.mode);
-          else if (pending.kind === 'retry')
-            startRetry(pending.userMessage, pending.mode);
+          if (pending.kind === 'new') startNewMessage(pending.text);
+          else if (pending.kind === 'retry') startRetry(pending.userMessage);
         },
       );
     } catch {
@@ -1354,7 +1316,7 @@ export default function ChatScreen() {
             } else {
               setConsentError(undefined);
               setReviewedConsentModes((modes) => modes.includes(headerMode) ? modes : [...modes, headerMode]);
-              setPendingConsentRequest({ kind: 'mode', mode: headerMode });
+              setPendingConsentRequest({ kind: 'consent' });
               setConsentVisible(true);
             }
           }}
@@ -1380,7 +1342,7 @@ export default function ChatScreen() {
     void Haptics.selectionAsync();
     feedback.show(
       'Документы в профиле',
-      'Добавьте PDF или фото в «Документы» профиля. Распознавание выполняется на устройстве. Для интерпретации отдельно проверьте и выберите текст, затем подтвердите его отправку. Файлы и изображения в чат не отправляются.',
+      'Добавьте PDF или фото в «Документы» профиля. После отдельного согласия изображения страниц распознаются через Yandex; исходник остаётся на устройстве. Для интерпретации отдельно проверьте и выберите текст, затем подтвердите его отправку. Файлы и изображения в чат не отправляются.',
     );
   };
 
@@ -1485,22 +1447,10 @@ export default function ChatScreen() {
 
   const changeMode = (nextMode: ChatHeaderMode) => {
     if (nextMode === headerMode || generationInFlight.current) return;
-    const activate = () => {
-      Keyboard.dismiss();
-      setComposerFocused(false);
-      if (conversationVisible) closeConversation();
-      setHeaderMode(nextMode);
-    };
-    if (conversationVisible && messages.length) {
-      feedback.show(
-        'Сменить режим разговора?',
-        'Текущий разговор останется в истории. Режимы используют разные разрешения на данные.',
-        [
-          { text: 'Отмена', style: 'cancel' },
-          { text: 'Продолжить', onPress: activate },
-        ],
-      );
-    } else activate();
+    Keyboard.dismiss();
+    setComposerFocused(false);
+    if (conversationVisible) closeConversation();
+    setHeaderMode(nextMode);
   };
 
   const historySurfaceMotionStyle =
@@ -1531,7 +1481,6 @@ export default function ChatScreen() {
     <AiChatConsentSheet
       error={consentError}
       accepting={consentAccepting}
-      assistant={pendingConsentRequest?.mode === 'assistant'}
       visible={consentVisible}
       onAccept={() => void acceptConsentAndContinue()}
       onCancel={() => {

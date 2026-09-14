@@ -1,0 +1,7 @@
+{
+  "reference": "frozen Python full-image inference",
+  "images": 803,
+  "final_count_status_and_reason_equal": true,
+  "non_finite_evidence_rejected": true,
+  "native_inference_verified": false
+}

@@ -64,20 +64,16 @@ export function PermissionAction({
         {!destructive && !disabled ? (
           <View style={styles.trailing}>
             <ProfileDisclosureArrow expanded={expanded === true}>
-            <Svg
-              width={18}
-              height={18}
-              viewBox="0 0 18 18"
-            >
-              <Path
-                d="m6.5 4 5 5-5 5"
-                fill="none"
-                stroke={colors.text.secondary}
-                strokeWidth={1.6}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
+              <Svg width={18} height={18} viewBox="0 0 18 18">
+                <Path
+                  d="m6.5 4 5 5-5 5"
+                  fill="none"
+                  stroke={colors.text.secondary}
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
             </ProfileDisclosureArrow>
           </View>
         ) : null}
@@ -123,11 +119,11 @@ export function AssistantDataDetails({
             ],
             [
               'Для автоматических проверок',
-              'Новые сообщения пользователя в режиме «Ассистент», категория и дата нового документа.',
+              'Новые сообщения пользователя в чатах с доступом к данным здоровья, категория и дата нового документа.',
             ],
             [
               'Не передаются автоматически',
-              'Обычные чаты, ответы ИИ, названия и содержимое файлов. Имя, контакты, идентификаторы и пути к файлам Ассистенту недоступны.',
+              'Старые текстовые чаты без доступа к данным здоровья, ответы ИИ, названия и содержимое файлов. Имя, контакты, идентификаторы и пути к файлам Сферке недоступны.',
             ],
           ].map(([title, description]) => (
             <View key={title} style={styles.detailItem}>
@@ -144,7 +140,7 @@ export function AssistantDataDetails({
           {!accepted ? (
             <View style={styles.details}>
               <AppText style={styles.caption} color={colors.text.secondary}>
-                Доступ можно предоставить в режиме «Ассистент» в чате.
+                Доступ можно предоставить во вкладке «Чат» перед первым ответом.
               </AppText>
             </View>
           ) : null}
@@ -156,7 +152,7 @@ export function AssistantDataDetails({
             />
           ) : null}
           <PermissionAction
-            label="Удалить данные Ассистента"
+            label="Удалить данные проверок плана"
             subtitle="План, правила и история изменений"
             disabled={disabled}
             destructive
@@ -260,7 +256,7 @@ export function PermissionPrivacyDetails() {
           </AppText>
           <AppText style={styles.caption} color={colors.text.secondary}>
             Ответы Сферки включены по умолчанию. Переписку обрабатывает Yandex
-            AI Studio. Доступ Ассистента к данным здоровья требует отдельного
+            AI Studio. Доступ чата к данным здоровья требует отдельного
             согласия.
           </AppText>
           <AppText style={styles.caption} color={colors.text.secondary}>
@@ -273,8 +269,8 @@ export function PermissionPrivacyDetails() {
             анализов.
           </AppText>
           <AppText style={styles.caption} color={colors.text.secondary}>
-            Удаление данных Ассистента не удаляет дневник, анализы, документы и
-            чаты.
+            Удаление данных проверок плана не удаляет дневник, анализы,
+            документы и чаты.
           </AppText>
         </View>
       </ProfileCollapse>

@@ -1,6 +1,9 @@
-import { useEffect, useSyncExternalStore } from 'react';
-import { Platform } from 'react-native';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { AppState, Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+
+import { useHealthStore } from './health-store';
+import { assistantInboxReminders } from './assistant-notifications';
 
 const welcomeReadKey = 'sferka.assistant.welcome.v1.read';
 const welcomeCreatedAtKey = 'sferka.assistant.welcome.v1.createdAt';
@@ -28,18 +31,27 @@ function load() {
         // The example remains readable when local preferences are unavailable.
       }
       try {
-        const stored = Platform.OS === 'web'
-          ? window.localStorage.getItem(welcomeCreatedAtKey)
-          : await SecureStore.getItemAsync(welcomeCreatedAtKey);
+        const stored =
+          Platform.OS === 'web'
+            ? window.localStorage.getItem(welcomeCreatedAtKey)
+            : await SecureStore.getItemAsync(welcomeCreatedAtKey);
         const parsed = Number(stored);
-        welcomeCreatedAt = Number.isFinite(parsed) && parsed > 0 ? parsed : Date.now();
+        welcomeCreatedAt =
+          Number.isFinite(parsed) && parsed > 0 ? parsed : Date.now();
         if (!stored || !Number.isFinite(parsed) || parsed <= 0) {
           if (Platform.OS === 'web') {
-            window.localStorage.setItem(welcomeCreatedAtKey, String(welcomeCreatedAt));
+            window.localStorage.setItem(
+              welcomeCreatedAtKey,
+              String(welcomeCreatedAt),
+            );
           } else {
-            await SecureStore.setItemAsync(welcomeCreatedAtKey, String(welcomeCreatedAt), {
-              keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-            });
+            await SecureStore.setItemAsync(
+              welcomeCreatedAtKey,
+              String(welcomeCreatedAt),
+              {
+                keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+              },
+            );
           }
         }
       } catch {
@@ -59,7 +71,24 @@ function subscribe(listener: () => void) {
   };
 }
 
+export function useAssistantReminders() {
+  const { reminders } = useHealthStore();
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNow(Date.now());
+    });
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, []);
+  return assistantInboxReminders(reminders, now);
+}
+
 export function useAssistantUnread() {
+  const reminders = useAssistantReminders();
   const value = useSyncExternalStore(
     subscribe,
     () => unread,
@@ -68,7 +97,7 @@ export function useAssistantUnread() {
   useEffect(() => {
     void load();
   }, []);
-  return value;
+  return value || reminders.some((reminder) => !reminder.readAt);
 }
 
 export function markAssistantWelcomeRead() {
@@ -90,7 +119,13 @@ export function markAssistantWelcomeRead() {
 }
 
 export function useAssistantWelcomeCreatedAt() {
-  const value = useSyncExternalStore(subscribe, () => welcomeCreatedAt, () => null);
-  useEffect(() => { void load(); }, []);
+  const value = useSyncExternalStore(
+    subscribe,
+    () => welcomeCreatedAt,
+    () => null,
+  );
+  useEffect(() => {
+    void load();
+  }, []);
   return value;
 }

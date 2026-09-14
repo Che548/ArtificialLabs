@@ -3,10 +3,13 @@
 #import <UIKit/UIKit.h>
 
 #include <vector>
+#include <memory>
+#include <mutex>
 
 #include <opencv2/imgproc.hpp>
 
 #include "stripcv/c_api.h"
+#include "stripcv/learned_reader.hpp"
 
 namespace {
 
@@ -28,7 +31,69 @@ UIImage *normalizeImage(UIImage *image) {
 
 }  // namespace
 
+@interface StripCvBridge ()
++ (nullable NSString *)runLearnedImageAtURL:(NSURL *)imageURL
+                            detectionOnly:(BOOL)detectionOnly
+                                    error:(NSError * _Nullable * _Nullable)error;
+@end
+
 @implementation StripCvBridge
+
++ (nullable NSString *)analyzeLearnedImageAtURL:(NSURL *)imageURL
+                                        error:(NSError * _Nullable * _Nullable)error {
+  return [self runLearnedImageAtURL:imageURL detectionOnly:NO error:error];
+}
+
++ (nullable NSString *)detectStripImageAtURL:(NSURL *)imageURL
+                                     error:(NSError * _Nullable * _Nullable)error {
+  return [self runLearnedImageAtURL:imageURL detectionOnly:YES error:error];
+}
+
++ (nullable NSString *)runLearnedImageAtURL:(NSURL *)imageURL
+                            detectionOnly:(BOOL)detectionOnly
+                                    error:(NSError * _Nullable * _Nullable)error {
+  @autoreleasepool {
+    try {
+      if (!imageURL.isFileURL) throw std::invalid_argument("reader_requires_local_image");
+      UIImage *source = [UIImage imageWithContentsOfFile:imageURL.path];
+      UIImage *image = source == nil ? nil : normalizeImage(source);
+      CGImageRef cgImage = image.CGImage;
+      if (cgImage == nil) throw std::invalid_argument("reader_image_decode_failed");
+      const size_t width = CGImageGetWidth(cgImage), height = CGImageGetHeight(cgImage);
+      if (width < 2 || height < 2 || width > 32768 || height > 32768 || width * height > 100000000)
+        throw std::invalid_argument("reader_image_dimensions_invalid");
+      std::vector<unsigned char> rgba(width * height * 4);
+      CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+      CGContextRef context = CGBitmapContextCreate(rgba.data(), width, height, 8, width * 4,
+          colorSpace, kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast);
+      CGColorSpaceRelease(colorSpace);
+      if (context == nil) throw std::runtime_error("reader_image_buffer_unavailable");
+      CGContextDrawImage(context, CGRectMake(0, 0, width, height), cgImage);
+      CGContextRelease(context);
+      cv::Mat rgbaMat(static_cast<int>(height), static_cast<int>(width), CV_8UC4, rgba.data(), width * 4);
+      cv::Mat rgb;
+      cv::cvtColor(rgbaMat, rgb, cv::COLOR_RGBA2RGB);
+
+      static std::once_flag loadOnce;
+      static std::unique_ptr<stripcv::LearnedReader> reader;
+      std::call_once(loadOnce, [] {
+        NSBundle *owner = [NSBundle bundleForClass:StripCvBridge.class];
+        NSURL *bundleURL = [owner URLForResource:@"StripCvReaderModels" withExtension:@"bundle"];
+        if (bundleURL == nil) bundleURL = [NSBundle.mainBundle URLForResource:@"StripCvReaderModels" withExtension:@"bundle"];
+        NSBundle *bundle = bundleURL == nil ? nil : [NSBundle bundleWithURL:bundleURL];
+        NSURL *detector = [bundle URLForResource:@"detector" withExtension:@"onnx"];
+        if (detector == nil) throw std::runtime_error("reader_models_not_bundled");
+        reader = std::make_unique<stripcv::LearnedReader>(detector.URLByDeletingLastPathComponent.path.UTF8String);
+      });
+      const std::string serialized = (detectionOnly ? reader->detect_rgb(rgb) : reader->analyze_rgb(rgb)).dump();
+      return [NSString stringWithUTF8String:serialized.c_str()];
+    } catch (const std::exception&) {
+      // Native library exceptions can contain paths; expose a bounded error only.
+      if (error != nil) *error = makeError(@"The local strip reader could not analyze this image.");
+      return nil;
+    }
+  }
+}
 
 + (nullable NSString *)analyzeImageAtURL:(NSURL *)imageURL
                         assayProfileJson:(NSString *)assayProfileJson

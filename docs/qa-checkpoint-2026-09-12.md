@@ -1,3 +1,15 @@
+---
+title: "QA checkpoint — 2026-09-12"
+document_id: SFERA-7082C711A1
+audience: developer
+status: archived
+updated: 2026-09-14
+baseline_commit: ea85ac93db13b81d674aefc2cbe55f67428471bf
+source_scope: working-tree
+---
+
+> Архивный материал. Описанные ниже действия и результаты относятся к исходной дате и ревизии; они не являются проверкой текущей рабочей копии. Действующие контракты и команды: [текущая документация](<README.md>).
+
 # QA checkpoint — 2026-09-12
 
 This is a partial verification checkpoint, not release approval.

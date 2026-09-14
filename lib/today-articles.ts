@@ -1,58 +1,49 @@
 import type { ImageSourcePropType } from 'react-native';
+import {
+  defaultTodayArticles,
+  defaultArticleMarkdown,
+  type TodayCardKind,
+  type TodayCoverPreset,
+} from '../shared/today-content';
 
 export type TodayArticle = {
   id: string;
   cardTitle: string;
+  cardKind: TodayCardKind;
   background: ImageSourcePropType;
+  fallbackBackground: ImageSourcePropType;
   title: string;
-  intro: string;
-  sections: ReadonlyArray<{ title: string; text: string }>;
+  markdown: string;
 };
-
-/** Add future cards here: every entry opens in the same native article sheet. */
-export const todayArticles: readonly TodayArticle[] = [
-  {
-    id: 'nutrition',
-    background: require('../assets/today/articles/nutrition.png'),
-    cardTitle: 'Заполнить\nпитание\nза сегодня',
-    title: 'Питание в дневнике',
-    intro:
-      'Короткая запись о питании помогает сохранить контекст дня и вернуться к нему позже.',
-    sections: [
-      {
-        title: 'Начните с простого',
-        text: 'Отметьте в дневнике то, что считаете важным: как проходили приёмы пищи, менялся ли аппетит, какие ощущения вы заметили. Не нужно превращать каждую запись в подробный отчёт.',
-      },
-      {
-        title: 'Записывайте наблюдения',
-        text: 'Описывайте свой опыт без оценок «хорошо» или «плохо». Если хотите обсудить питание на приёме, сохранённые записи помогут вспомнить конкретные вопросы.',
-      },
-      {
-        title: 'Возвращайтесь к записям',
-        text: 'Открывайте дневник за нужную дату, чтобы посмотреть отметки. Записи описывают ваши наблюдения и сами по себе не устанавливают причину изменений самочувствия.',
-      },
-    ],
-  },
-  {
-    id: 'care-plan',
-    background: require('../assets/today/articles/care-plan.png'),
-    cardTitle: 'План\nнаблюдения',
-    title: 'Как устроен план наблюдения',
-    intro:
-      'План в Сфере собирает рекомендации и помогает ориентироваться в их сроках и результатах.',
-    sections: [
-      {
-        title: 'Посмотрите подробности',
-        text: 'В разделе «Анализы» откройте интересующую карточку. В ней можно посмотреть рекомендуемый срок, пояснение и сведения о рекомендации.',
-      },
-      {
-        title: 'Сохраните результат',
-        text: 'Когда у вас появится результат, прикрепите к соответствующей карточке фото или файл. Проверьте выбранное вложение перед сохранением.',
-      },
-      {
-        title: 'Уточняйте план',
-        text: 'Рекомендация приложения не заменяет медицинское назначение. Необходимость исследования, подготовку к нему и сроки обсуждайте с врачом. В карточке можно уточнить срок или отказаться от рекомендации.',
-      },
-    ],
-  },
-];
+export const todayCovers = {
+  nutrition: require('../assets/today/articles/nutrition.png'),
+  'care-plan': require('../assets/today/articles/care-plan.png'),
+} as const;
+export type PublishedTodayArticle = {
+  id: string;
+  cardTitle: string;
+  cardKind: TodayCardKind;
+  coverPreset: TodayCoverPreset;
+  title: string;
+  markdown: string;
+  sortOrder: number;
+  imageUrl: string | null;
+};
+export function mapTodayArticle(article: PublishedTodayArticle): TodayArticle {
+  const fallbackBackground = todayCovers[article.coverPreset];
+  return {
+    ...article,
+    background: article.imageUrl
+      ? { uri: article.imageUrl }
+      : fallbackBackground,
+    fallbackBackground,
+  };
+}
+export const todayArticles: readonly TodayArticle[] = defaultTodayArticles.map(
+  (article) =>
+    mapTodayArticle({
+      ...article,
+      markdown: defaultArticleMarkdown(article),
+      imageUrl: null,
+    }),
+);

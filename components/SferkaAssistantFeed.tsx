@@ -4,11 +4,16 @@ import { useIsFocused } from '@react-navigation/native';
 import {
   markAssistantWelcomeRead,
   useAssistantUnread,
+  useAssistantReminders,
   useAssistantWelcomeCreatedAt,
 } from '../lib/assistant-inbox';
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, colors } from '../design-system';
+
+import { useRouter } from 'expo-router';
+import { useHealthStore } from '../lib/health-store';
+import { assistantReminderRoute } from '../lib/assistant-notifications';
 
 const mascot = require('../assets/figma/chat/mascot.png');
 
@@ -23,12 +28,21 @@ export function SferkaAssistantFeed({
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
   const focused = useIsFocused();
+  const router = useRouter();
+  const { markReminderRead, readOnly } = useHealthStore();
+  const reminders = useAssistantReminders();
   const unread = useAssistantUnread();
   const createdAt = useAssistantWelcomeCreatedAt();
-  const dateLabel = createdAt == null ? null : new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }).format(new Date(createdAt));
+  const dateLabel =
+    createdAt == null
+      ? null
+      : new Intl.DateTimeFormat('ru-RU', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(new Date(createdAt));
   useEffect(() => {
     if (!focused || !unread) return;
     const timer = setTimeout(markAssistantWelcomeRead, 1000);
@@ -69,19 +83,53 @@ export function SferkaAssistantFeed({
               />
             </View>
             {dateLabel ? (
-              <AppText style={styles.messageDate}>
-                {dateLabel}
-              </AppText>
+              <AppText style={styles.messageDate}>{dateLabel}</AppText>
             ) : null}
           </View>
         </View>
       </View>
+      {reminders.map((reminder) => (
+        <View key={reminder.localId} style={styles.messageRow}>
+          <View style={styles.avatar} accessible={false}>
+            <Image
+              source={mascot}
+              style={styles.avatarImage}
+              resizeMode="contain"
+            />
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${reminder.readAt ? '' : 'Новое уведомление. '}${reminder.title}`}
+            style={styles.messageBody}
+            onPress={() => {
+              if (!readOnly && !reminder.readAt)
+                void markReminderRead(reminder).catch(() => undefined);
+              router.push(assistantReminderRoute(reminder));
+            }}
+          >
+            <View style={styles.bubble}>
+              <AppText style={styles.copy} weight="semibold">
+                {reminder.title}
+              </AppText>
+              <AppText style={styles.copy}>{reminder.body}</AppText>
+              <AppText style={styles.messageDate}>
+                {new Intl.DateTimeFormat('ru-RU', {
+                  day: 'numeric',
+                  month: 'long',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }).format(new Date(reminder.dueAt))}
+              </AppText>
+            </View>
+          </Pressable>
+        </View>
+      ))}
     </ScrollView>
   );
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  content: { paddingHorizontal: 20, flexGrow: 1 },
+  content: { paddingHorizontal: 20, flexGrow: 1, gap: 16 },
   messageRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   avatar: {
     width: 36,
@@ -102,7 +150,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 12,
   },
   copy: { fontSize: 17, lineHeight: 23 },
-  messageDate: { fontSize: 12, lineHeight: 16, color: colors.text.secondary, textAlign: 'right' },
+  messageDate: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.text.secondary,
+    textAlign: 'right',
+  },
   illustration: {
     aspectRatio: 1.35,
     borderRadius: 16,

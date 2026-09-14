@@ -247,6 +247,14 @@ async function saveToolContinuation({
 }
 
 async function requireGenerationAccess(ctx: ActionCtx, userId: Id<'users'>) {
+  // The chat preference controls every interactive reply, including the
+  // legacy health-agent entry points. Health consent already discloses text;
+  // a separate text-only consent is not required for these turns.
+  const chatAccess = await ctx.runQuery(internal.chat.generationAccess, {
+    userId,
+  });
+  if (!chatAccess.ok && chatAccess.reason === 'USER_DISABLED')
+    return { ok: false as const, code: 'USER_DISABLED' as const };
   const access = await ctx.runQuery(internal.agent.generationAccess, {
     userId,
   });
@@ -413,20 +421,23 @@ function validToolItem(
           'collectedAt',
           'status',
           'values',
+          'omittedValueCount',
         ]) &&
         optionalSafeToolString(item.title, 160) &&
         finiteToolNumber(item.collectedAt) &&
         safeToolString(item.status, 40) &&
+        (item.omittedValueCount === undefined || (Number.isSafeInteger(item.omittedValueCount) && (item.omittedValueCount as number) >= 0 && (item.omittedValueCount as number) <= 2000)) &&
         Array.isArray(item.values) &&
         item.values.length <= 20 &&
         item.values.every(
           (value) =>
             isToolRecord(value) &&
-            hasOnlyToolKeys(value, ['name', 'value', 'unit', 'reference']) &&
+            hasOnlyToolKeys(value, ['name', 'value', 'unit', 'reference', 'section']) &&
             optionalSafeToolString(value.name, 100) &&
             optionalSafeToolString(value.value, 100) &&
             optionalSafeToolString(value.unit, 40) &&
-            optionalSafeToolString(value.reference, 100),
+            optionalSafeToolString(value.reference, 100) &&
+            optionalSafeToolString(value.section, 100),
         )
       );
     }

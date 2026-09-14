@@ -34,6 +34,21 @@ for index, line in enumerate(LINES):
     draw.text((60, 120 + index * 140), line, font=font, fill="black")
 image.save(OUT / "sample.png")
 image.save(OUT / "sample.jpg", quality=93)
+variants = Image.new("RGB", (2200, 1500), "white")
+variant_draw = ImageDraw.Draw(variants)
+for index, line in enumerate([
+    "SYNTHETIC LAB TABLE / СИНТЕТИЧЕСКАЯ ТАБЛИЦА",
+    "Дата взятия / Collection date: 2026-09-11",
+    "Test | Result | Units | Reference",
+    "Protein | negative | | negative",
+    "Образец C | <0,10 | ед/л | <0,50",
+    "Дата взятия / Collection date: 2026-09-12",
+    "Образец D | отрицательно | | отрицательно",
+    "Sample E | ≥2.50 | units/L | ≥1.00",
+]):
+    variant_draw.text((60, 70 + index * 150), line, font=font, fill="black")
+variants.save(OUT / "lab-variants.jpg", quality=95)
+Image.new("RGB", (1600, 1200), "white").save(OUT / "blank.jpg", quality=95)
 rotated = image.rotate(90, expand=True)
 rotated.save(OUT / "rotated.png")
 image.resize((550, 375)).filter(ImageFilter.GaussianBlur(1.2)).save(OUT / "poor-quality.jpg", quality=35)

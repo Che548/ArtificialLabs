@@ -42,6 +42,7 @@
     "expo-task-manager": "~14.0.9",
     "expo-updates": "~29.0.20",
     "expo-web-browser": "~15.0.11",
+    "markdown-it": "^14.3.2",
     "nativewind": "^4.2.6",
     "openai": "6.49.0",
     "react": "19.1.0",
@@ -59,6 +60,7 @@
   "devDependencies": {
     "@expo/fingerprint": "^0.15.5",
     "@playwright/test": "^1.62.1",
+    "@types/markdown-it": "^14.2.0",
     "@types/node": "^24.13.3",
     "@types/react": "~19.1.10",
     "@types/react-dom": "~19.1.7",
@@ -89,9 +91,10 @@
     "typecheck:convex": "tsc --noEmit -p convex/tsconfig.json",
     "test:contacts": "vitest run convex/contactVerification.test.ts convex/emailChange.test.ts convex/passwordRecovery.test.ts",
     "test:contacts:ui": "playwright test --config tests/contact-ui/playwright.config.ts",
-    "test:chat-feedback": "tsx --test lib/chat-availability.test.ts lib/chat-consent.test.ts lib/connectivity-policy.test.ts lib/chat-layout.test.ts lib/onboarding-layout.test.ts",
+    "test:chat-feedback": "tsx --test lib/chat-availability.test.ts lib/chat-consent.test.ts lib/connectivity-policy.test.ts lib/chat-layout.test.ts lib/onboarding-layout.test.ts lib/assistant-notifications.test.ts",
     "test:chat-feedback:web": "playwright test --config tests/chat-web/playwright.config.ts",
-    "test:document-policy": "node --test scripts/native-qa-config.test.mjs scripts/android-ui-tree.test.mjs scripts/android-resume-flow.test.mjs && tsx --test shared/care-plan-policy.test.ts shared/document-policy.test.ts lib/document-recognition.test.ts && vitest run tests/unit/yandex-provider.test.ts convex/documentInterpretation.test.ts convex/testing.test.ts convex/registrationConsent.test.ts lib/registration-consent.test.ts lib/registration-onboarding.test.ts",
+    "test:document-ui": "playwright test --config tests/document-ui/playwright.config.ts",
+    "test:document-policy": "node --test scripts/native-qa-config.test.mjs scripts/android-ui-tree.test.mjs scripts/android-resume-flow.test.mjs && tsx --test shared/document-structure.test.ts lib/analysis-document-import.test.ts lib/document-ocr-job.test.ts shared/care-plan-policy.test.ts shared/document-policy.test.ts lib/document-recognition.test.ts && vitest run lib/agent-document-context.test.ts lib/document-ocr-manager.test.ts convex/documentOcr.test.ts convex/ai/documentOcrProvider.test.ts tests/unit/yandex-provider.test.ts convex/documentInterpretation.test.ts convex/testing.test.ts convex/registrationConsent.test.ts lib/registration-consent.test.ts lib/registration-onboarding.test.ts",
     "check:expo": "expo install --check",
     "doctor": "npx --yes expo-doctor@latest",
     "build:expo-web": "expo export --platform web --output-dir dist",
@@ -114,12 +117,13 @@
     "e2e:coverage": "tsx scripts/validate-e2e-coverage.ts",
     "e2e:all": "npm run e2e:backend && npm run e2e:web && npm run e2e:native",
     "e2e:cleanup": "node --env-file-if-exists=.env.local --import tsx tests/e2e/native-account.ts cleanup",
-    "test:admin": "vitest run convex/adminUsers.test.ts convex/admin.test.ts convex/telemetry.test.ts",
+    "test:admin": "vitest run convex/adminUsers.test.ts convex/admin.test.ts convex/telemetry.test.ts convex/todayContent.test.ts",
     "test:admin-ui": "playwright test --config playwright.admin.config.ts",
     "preview:admin-ui": "node scripts/admin-ui-preview.mjs",
     "test:android-config": "node --test plugins/with-android-config-changes.test.js",
-    "test:ios-config": "node --test plugins/with-ios-health-backup-exclusion.test.js && tsx --test tests/unit/ios-release-config.test.ts",
-    "verify": "npm run test:android-registration && npm run test:document-policy && npm run test:chat-feedback && npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run typecheck:convex && npm run doctor && npm run build:expo-web && npm --prefix admin run verify"
+    "test:ios-config": "node --test plugins/with-ios-health-backup-exclusion.test.js plugins/with-ios-scene-lifecycle.test.js && tsx --test tests/unit/ios-release-config.test.ts",
+    "verify": "npm run test:today-content && npm run test:android-registration && npm run test:document-policy && npm run test:chat-feedback && npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run typecheck:convex && npm run doctor && npm run build:expo-web && npm --prefix admin run verify",
+    "test:today-content": "tsx --test shared/article-markdown.test.ts && vitest run convex/todayContent.test.ts"
   },
   "engines": {
     "node": ">=20.19.4"

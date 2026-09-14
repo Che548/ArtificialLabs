@@ -1,4 +1,5 @@
 import { useAppTheme } from '../lib/theme';
+import { SphereTilt } from '../components/SphereTilt';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import {
@@ -29,6 +30,7 @@ const sphereIdleMotion = [
   { x: 18, y: -16, scale: 0.035 },
   { x: -14, y: -22, scale: 0.028 },
 ];
+const sphereTiltLayers = ['back', 'middle', 'front'] as const;
 
 export type CycleBackgroundState = 'neutral' | 'menstruation' | 'ovulation';
 type SphereAsset = {
@@ -385,8 +387,12 @@ export function CycleAnimatedBackground({
             const driftStrength = Animated.subtract(1, convergence);
             const drift = Animated.multiply(motions[index], driftStrength);
             return (
-              <Animated.View
+              <SphereTilt
                 key={index}
+                layer={sphereTiltLayers[index]}
+                style={StyleSheet.absoluteFillObject}
+              >
+              <Animated.View
                 style={{
                   position: 'absolute',
                   left: x * REFERENCE_SCALE,
@@ -434,6 +440,7 @@ export function CycleAnimatedBackground({
                   }}
                 />
               </Animated.View>
+              </SphereTilt>
             );
           })}
         </Animated.View>

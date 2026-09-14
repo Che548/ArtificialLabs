@@ -10,12 +10,13 @@ Pod::Spec.new do |s|
   s.swift_version  = '5.9'
   s.source         = { :path => '.' }
   s.static_framework = true
+  s.resource_bundles = { 'StripCvReaderModels' => ['models/reader-20260914/*.{onnx,json}'] }
 
   s.dependency 'ExpoModulesCore'
   s.dependency 'OpenCV-Dynamic-Framework', '~> 4.10.0.1'
 
   s.source_files = 'ios/**/*.{h,m,mm,swift}', 'native/include/**/*.{h,hpp}', 'native/src/**/*.{cpp,hpp}', 'native/vendor/**/*.hpp'
-  s.exclude_files = 'native/src/cli.cpp'
+  s.exclude_files = 'native/src/cli.cpp', 'native/src/eval_cli.cpp', 'native/src/learned_reader_cli.cpp'
   s.public_header_files = 'ios/StripCvBridge.h', 'native/include/stripcv/c_api.h'
   s.header_mappings_dir = 'native/include'
   s.frameworks = 'Foundation', 'UIKit', 'CoreGraphics'

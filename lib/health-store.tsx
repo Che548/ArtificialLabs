@@ -130,7 +130,7 @@ type HealthStoreValue = HealthSnapshot & {
   ) => Promise<void>;
   addLabResult: (
     input: Omit<LabResult, 'localId' | 'updatedAt'>,
-  ) => Promise<void>;
+  ) => Promise<LabResult>;
   addScanResult: (
     input: Omit<ScanResult, 'localId' | 'updatedAt'>,
   ) => Promise<void>;
@@ -620,7 +620,7 @@ export function HealthStoreProvider({
 
   const addLabResult = useCallback(
     async (input: Omit<LabResult, 'localId' | 'updatedAt'>) => {
-      if (readOnly) return;
+      if (readOnly) throw new Error('DOCUMENT_NATIVE_ONLY');
       const result = {
         ...input,
         localId: newLocalId('lab'),
@@ -682,6 +682,7 @@ export function HealthStoreProvider({
       });
       await persistCarePlanReconciliation();
       await refresh();
+      return storedResult;
     },
     [readOnly, refresh, snapshot.carePlanItems],
   );

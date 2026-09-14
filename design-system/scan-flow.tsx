@@ -1,6 +1,8 @@
 import { AppThemeScope, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { colors as defaultThemeColors } from '../design-system/tokens';
 import { AppSheet, sheetStyles } from '../components/AppSheet';
+import { StripTrackingCorners } from '../components/StripTrackingCorners';
+import { getStripCaptureAdvice, mapStripTrackingBox } from '../services/scanning/strip-tracking';
 import { StatusBar } from 'expo-status-bar';
 import { loadLocalSetting, saveLocalSetting } from '../lib/local-database';
 import { fontStyle } from '../lib/font-style';
@@ -64,7 +66,7 @@ import {
   spacing,
 } from './tokens';
 import ScanFlowFrame from '../assets/figma/scan-screen/scan-flow-frame.svg';
-import type { AnalysisResult } from '../modules/strip-cv';
+import { detectStripAsync, isStripDetectorAvailable, type AnalysisResult, type StripDetection } from '../modules/strip-cv';
 import {
   deriveDetectedInterpretation,
   getAnalysisDecision,
@@ -604,6 +606,7 @@ function CameraBackdrop({
             facing="back"
             mode="picture"
             autofocus={autofocus}
+            animateShutter={false}
             onBarcodeScanned={onBarcodeScanned}
             onCameraReady={onCameraReady}
             onTouchEnd={onFocusTap}
@@ -1280,6 +1283,27 @@ const initialCvHint: CvLiveHint = {
 };
 
 const cvReasonHints: Record<string, CvLiveHint> = {
+  window_coverage_uncertain: {
+    kind: 'test', text: 'Покажите всю зону результата и снимайте сверху', tone: 'warning',
+  },
+  result_region_degenerate: {
+    kind: 'test', text: 'Приблизьте камеру и покажите тест целиком', tone: 'warning',
+  },
+  control_uncertain: {
+    kind: 'lowLight', text: 'Сделайте свет равномерным и наведите резкость', tone: 'warning',
+  },
+  control_absent: {
+    kind: 'test', text: 'Контрольная линия не видна — проверьте кадр', tone: 'warning',
+  },
+  test_uncertain: {
+    kind: 'lowLight', text: 'Уберите блики и держите камеру неподвижно', tone: 'warning',
+  },
+  readers_do_not_confidently_agree: {
+    kind: 'test', text: 'Линии пока неразличимы — приблизьте камеру', tone: 'warning',
+  },
+  spatial_test_absence_not_confirmed: {
+    kind: 'test', text: 'Наведите резкость на зону линий', tone: 'warning',
+  },
   unsupported_or_too_small_image: {
     kind: 'test',
     text: 'Разместите весь тест внутри рамки',
@@ -1501,9 +1525,13 @@ function TestScannerScreen({
   const [focusMode, setFocusMode] = useState<'on' | 'off'>('off');
   const [focusPoint, setFocusPoint] = useState<CameraPoint | null>(null);
   const [cameraLayout, setCameraLayout] = useState({ width: 0, height: 0 });
+  const [trackedStrip, setTrackedStrip] = useState<StripDetection | null>(null);
   const [exposureCompensation, setExposureCompensation] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const previewBusy = useRef(false);
+  const previewInFlight = useRef<Promise<void> | null>(null);
+  const captureRequested = useRef(false);
+  const mounted = useRef(true);
   const validStreak = useRef(0);
   const focusResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exposureControlHeight = 204;
@@ -1514,14 +1542,15 @@ function TestScannerScreen({
   const exposureTrackTravel = exposureTrackHeight - exposureThumbSize;
   const exposureValue = useRef(0);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       if (focusResetTimer.current) {
         clearTimeout(focusResetTimer.current);
       }
-    },
-    [],
-  );
+    };
+  }, []);
 
   const focusAt = (locationX: number, locationY: number) => {
     setFocusPoint({ x: locationX, y: locationY });
@@ -1601,17 +1630,34 @@ function TestScannerScreen({
 
     let active = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let lostTimer: ReturnType<typeof setTimeout> | null = null;
+    const trackingAvailable = !useLegacyPipeline && isStripDetectorAvailable;
+    let previousDetection: StripDetection | null = null;
+    let stableFrames = 0;
+    let lastReadAt = 0;
+    let lastReadHint: CvLiveHint | null = null;
+    let previousReadCount: 1 | 2 | null = null;
 
-    const scheduleNextCheck = (delay = 900) => {
+    const updateTracking = (detection: StripDetection | null) => {
+      if (detection) {
+        if (lostTimer) clearTimeout(lostTimer);
+        lostTimer = null;
+        setTrackedStrip(detection);
+      } else if (!lostTimer) {
+        lostTimer = setTimeout(() => { if (active) setTrackedStrip(null); lostTimer = null; }, 1000);
+      }
+    };
+
+    const scheduleNextCheck = (delay = trackingAvailable ? 250 : 900) => {
       if (active) {
         timer = setTimeout(() => {
-          void inspectCurrentFrame();
+          previewInFlight.current = inspectCurrentFrame();
         }, delay);
       }
     };
 
     const inspectCurrentFrame = async () => {
-      if (!active || previewBusy.current) {
+      if (!active || captureRequested.current || previewBusy.current) {
         scheduleNextCheck();
         return;
       }
@@ -1621,14 +1667,46 @@ function TestScannerScreen({
 
       try {
         const photo = await cameraRef.current?.takePictureAsync({
-          quality: 0.3,
-          skipProcessing: true,
+          quality: trackingAvailable ? 0.7 : 0.3,
+          skipProcessing: false,
           base64: false,
           exif: false,
           shutterSound: false,
         });
         previewUri = photo?.uri ?? null;
         if (!previewUri || !active) {
+          return;
+        }
+
+        if (trackingAvailable) {
+          const detection = await detectStripAsync(previewUri);
+          if (!active) return;
+          updateTracking(detection);
+          if (!detection) {
+            previousDetection = null; stableFrames = 0; validStreak.current = 0; lastReadHint = null; previousReadCount = null;
+            setCurrentHint(initialCvHint);
+            return;
+          }
+          const advice = getStripCaptureAdvice(detection, previousDetection);
+          previousDetection = detection;
+          if (advice) {
+            stableFrames = 0; validStreak.current = 0; lastReadHint = null; previousReadCount = null;
+            setCurrentHint({ kind: 'test', text: advice, tone: 'neutral' });
+            return;
+          }
+          stableFrames += 1;
+          if (stableFrames >= 2 && Date.now() - lastReadAt >= 2000) {
+            lastReadAt = Date.now();
+            const reading = await scanningService.analyze(previewUri, { includeRectifiedImage: false });
+            if (!active) return;
+            lastReadAt = Date.now();
+            const readable = getAnalysisDecision(reading) === 'reportable';
+            const count = reading.observed_line_count ?? null;
+            validStreak.current = readable ? (count === previousReadCount ? validStreak.current + 1 : 1) : 0;
+            previousReadCount = readable ? count : null;
+            lastReadHint = getCvLiveHint(reading, validStreak.current);
+          }
+          setCurrentHint(lastReadHint ?? { kind: 'test', text: 'Проверяем читаемость линий', tone: 'neutral' });
           return;
         }
 
@@ -1648,6 +1726,7 @@ function TestScannerScreen({
         setCurrentHint(nextHint);
       } catch {
         if (active) {
+          updateTracking(null);
           validStreak.current = 0;
           setCurrentHint(initialCvHint);
         }
@@ -1665,6 +1744,7 @@ function TestScannerScreen({
     scheduleNextCheck(500);
     return () => {
       active = false;
+      if (lostTimer) clearTimeout(lostTimer);
       if (timer) {
         clearTimeout(timer);
       }
@@ -1672,13 +1752,16 @@ function TestScannerScreen({
   }, [cameraReady, capturing, configuration, useLegacyPipeline]);
 
   const handleCapture = async () => {
-    if (!cameraReady || capturing || previewBusy.current) {
+    if (!cameraReady || capturing || captureRequested.current) {
       return;
     }
 
+    captureRequested.current = true;
     setCapturing(true);
 
     try {
+      await previewInFlight.current;
+      if (!mounted.current) return;
       const photo = await cameraRef.current?.takePictureAsync({
         quality: 1,
         skipProcessing: false,
@@ -1691,11 +1774,13 @@ function TestScannerScreen({
       }
       onCapture(photo.uri);
     } catch {
+      if (!mounted.current) return;
       Alert.alert(
         'Не удалось сделать снимок',
         'Проверьте доступ к камере и попробуйте ещё раз.',
       );
       setCapturing(false);
+      captureRequested.current = false;
     }
   };
 
@@ -1716,13 +1801,10 @@ function TestScannerScreen({
       />
       <BatchChip configuration={configuration} top={headerTop + 64} />
 
-      <View style={[styles.testTarget, { top: headerTop + 182 }]}>
-        <ScanFlowFrame
-          width="100%"
-          height="100%"
-          style={styles.scanFlowFrame}
-        />
-      </View>
+      <StripTrackingCorners rect={
+        (trackedStrip && mapStripTrackingBox(trackedStrip, cameraLayout)) ||
+        { x: 36, y: headerTop + 182, width: Math.max(28, (cameraLayout.width || 402) - 72), height: 330 }
+      } />
       <Pressable
         accessibilityLabel="Фокус камеры"
         accessibilityRole="button"

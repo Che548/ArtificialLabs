@@ -1,3 +1,4 @@
+import { isReviewedLabResult } from './reviewed-lab-result';
 import type { AgentSourceRef, HealthSnapshot } from './health-types';
 import {
   AGENT_RECENT_JOURNAL_DAYS,
@@ -59,6 +60,7 @@ export type AgentContextEnvelope = {
     title: string;
     collectedAt: number;
     values: string[];
+    omittedValueCount?: number;
   }>;
   carePlan: Array<{
     sourceRef: AgentSourceRef;
@@ -163,7 +165,7 @@ export function buildAgentContextEnvelope(
 
   const confirmedLabIds = new Set(
     snapshot.labResults
-      .filter((result) => !result.deletedAt && result.status !== 'unreviewed')
+      .filter((result) => !result.deletedAt && isReviewedLabResult(result, now))
       .map((result) => result.localId),
   );
   const confirmedScanIds = new Set(
@@ -213,7 +215,7 @@ export function buildAgentContextEnvelope(
     .filter(
       (result) =>
         !result.deletedAt &&
-        result.status !== 'unreviewed' &&
+        isReviewedLabResult(result, now) &&
         result.collectedAt <= now,
     )
     .map((result) => ({
@@ -226,10 +228,12 @@ export function buildAgentContextEnvelope(
       },
       title: safeAgentText(result.title, 160) ?? '',
       collectedAt: result.collectedAt,
+      omittedValueCount: Math.max(0, result.analytes.length - 20),
       values: result.analytes
         .slice(0, 20)
         .map((analyte) =>
           [
+            analyte.section ? `[${safeAgentText(analyte.section, 100)}]` : undefined,
             safeAgentText(analyte.name, 100),
             safeAgentText(analyte.value, 100),
             safeAgentText(analyte.unit, 40),

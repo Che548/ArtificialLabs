@@ -9,6 +9,8 @@ import androidx.exifinterface.media.ExifInterface
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONObject
+import java.io.File
+import java.security.MessageDigest
 
 private object StripCvNative {
   init {
@@ -21,11 +23,41 @@ private object StripCvNative {
     cardProfileJson: String?,
     optionsJson: String,
   ): String
+
+  external fun analyzeLearned(bitmap: Bitmap, modelDirectory: String, detectionOnly: Boolean): String
 }
 
 class StripCvModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("StripCv")
+
+    AsyncFunction("detectStripJsonAsync") { requestJson: String ->
+      val request = JSONObject(requestJson)
+      val context = requireNotNull(appContext.reactContext)
+      val uri = request.getString("imageUri")
+      require(Uri.parse(uri).scheme in listOf("file", "content")) { "A local image is required" }
+      val models = prepareLearnedModels(context)
+      val bitmap = decodeOrientedBitmap(context, uri)
+      try {
+        StripCvNative.analyzeLearned(bitmap, models.absolutePath, true)
+      } finally {
+        bitmap.recycle()
+      }
+    }
+
+    AsyncFunction("analyzeLearnedStripJsonAsync") { requestJson: String ->
+      val request = JSONObject(requestJson)
+      val context = requireNotNull(appContext.reactContext)
+      val uri = request.getString("imageUri")
+      require(Uri.parse(uri).scheme in listOf("file", "content")) { "A local image is required" }
+      val models = prepareLearnedModels(context)
+      val bitmap = decodeOrientedBitmap(context, uri)
+      try {
+        StripCvNative.analyzeLearned(bitmap, models.absolutePath, false)
+      } finally {
+        bitmap.recycle()
+      }
+    }
 
     AsyncFunction("analyzeStripJsonAsync") { requestJson: String ->
       val request = JSONObject(requestJson)
@@ -45,6 +77,55 @@ class StripCvModule : Module() {
       } finally {
         bitmap.recycle()
       }
+    }
+  }
+
+  companion object {
+    private var preparedModels: File? = null
+
+    @Synchronized
+    private fun prepareLearnedModels(context: Context): File {
+      preparedModels?.let { return it }
+      val assetRoot = "reader-20260914"
+      val manifest = context.assets.open("$assetRoot/manifest.json").bufferedReader().use {
+        JSONObject(it.readText())
+      }
+      require(manifest.getString("version") == "strip-reader-experimental-20260914")
+      val directory = File(context.noBackupFilesDir, "stripcv/$assetRoot")
+      check(directory.isDirectory || directory.mkdirs())
+      for (name in listOf("detector", "points", "presence", "coverage", "auxiliary")) {
+        val descriptor = manifest.getJSONObject("models").getJSONObject(name)
+        val filename = "$name.onnx"
+        require(descriptor.getString("path") == filename)
+        val expected = descriptor.getString("sha256")
+        val destination = File(directory, filename)
+        fun checksum(file: File): String {
+          val hash = MessageDigest.getInstance("SHA-256")
+          file.inputStream().use { input ->
+            val buffer = ByteArray(1024 * 64)
+            while (true) {
+              val read = input.read(buffer)
+              if (read < 0) break
+              hash.update(buffer, 0, read)
+            }
+          }
+          return hash.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        }
+        if (!destination.isFile || checksum(destination) != expected) {
+          val temporary = File(directory, "$filename.pending")
+          try {
+            context.assets.open("$assetRoot/$filename").use { input ->
+              temporary.outputStream().use { input.copyTo(it) }
+            }
+            check(checksum(temporary) == expected) { "Reader model verification failed" }
+            check(temporary.renameTo(destination)) { "Reader model preparation failed" }
+          } finally {
+            temporary.delete()
+          }
+        }
+      }
+      preparedModels = directory
+      return directory
     }
   }
 

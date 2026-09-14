@@ -11,6 +11,7 @@
     "nativewind-env.d.ts"
   ],
   "exclude": [
+    "cv-pipeline",
     "node_modules",
     "dist",
     "web-build",

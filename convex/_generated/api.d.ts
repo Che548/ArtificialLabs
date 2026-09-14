@@ -18,6 +18,7 @@ import type * as agent from "../agent.js";
 import type * as agentAction from "../agentAction.js";
 import type * as agentPlan from "../agentPlan.js";
 import type * as ai_agentContextValidation from "../ai/agentContextValidation.js";
+import type * as ai_documentOcrProvider from "../ai/documentOcrProvider.js";
 import type * as ai_yandexProvider from "../ai/yandexProvider.js";
 import type * as aiAgentConfig from "../aiAgentConfig.js";
 import type * as aiChatConfig from "../aiChatConfig.js";
@@ -28,6 +29,8 @@ import type * as chatAction from "../chatAction.js";
 import type * as crons from "../crons.js";
 import type * as documentInterpretation from "../documentInterpretation.js";
 import type * as documentInterpretationAction from "../documentInterpretationAction.js";
+import type * as documentOcr from "../documentOcr.js";
+import type * as documentOcrHttp from "../documentOcrHttp.js";
 import type * as emailChange from "../emailChange.js";
 import type * as emailVerification from "../emailVerification.js";
 import type * as health from "../health.js";
@@ -51,6 +54,7 @@ import type * as seed from "../seed.js";
 import type * as smsAuth from "../smsAuth.js";
 import type * as telemetry from "../telemetry.js";
 import type * as testing from "../testing.js";
+import type * as todayContent from "../todayContent.js";
 
 import type {
   ApiFromModules,
@@ -69,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   agentAction: typeof agentAction;
   agentPlan: typeof agentPlan;
   "ai/agentContextValidation": typeof ai_agentContextValidation;
+  "ai/documentOcrProvider": typeof ai_documentOcrProvider;
   "ai/yandexProvider": typeof ai_yandexProvider;
   aiAgentConfig: typeof aiAgentConfig;
   aiChatConfig: typeof aiChatConfig;
@@ -79,6 +84,8 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   documentInterpretation: typeof documentInterpretation;
   documentInterpretationAction: typeof documentInterpretationAction;
+  documentOcr: typeof documentOcr;
+  documentOcrHttp: typeof documentOcrHttp;
   emailChange: typeof emailChange;
   emailVerification: typeof emailVerification;
   health: typeof health;
@@ -102,6 +109,7 @@ declare const fullApi: ApiFromModules<{
   smsAuth: typeof smsAuth;
   telemetry: typeof telemetry;
   testing: typeof testing;
+  todayContent: typeof todayContent;
 }>;
 
 /**

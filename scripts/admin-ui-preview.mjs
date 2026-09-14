@@ -4,6 +4,8 @@ import path from 'node:path';
 const out = path.resolve('output/playwright/admin-preview');
 await mkdir(out, { recursive: true });
 await copyFile('tests/admin-ui/index.html', `${out}/index.html`);
+await mkdir(`${out}/today`, { recursive: true });
+for (const name of ['nutrition', 'care-plan']) await copyFile(`admin/public/today/${name}.png`, `${out}/today/${name}.png`);
 const ctx = await context({ entryPoints: ['tests/admin-ui/entry.tsx'], bundle: true, outfile: `${out}/bundle.js`, jsx: 'automatic',
   alias: { 'convex/react': path.resolve('tests/admin-ui/client.ts'), '@convex-dev/auth/react': path.resolve('tests/admin-ui/auth.ts'), react: path.resolve('node_modules/react'), 'react-dom': path.resolve('node_modules/react-dom') },
   define: { 'process.env.NEXT_PUBLIC_CONVEX_URL': '"http://127.0.0.1:4319"', 'process.env.NODE_ENV': '"development"' } });

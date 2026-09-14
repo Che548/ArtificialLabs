@@ -1,35 +1,71 @@
-# Registration activation
+---
+title: "Регистрационная активация облачных возможностей"
+document_id: SFERA-3EBB601AA2
+audience: developer
+status: active
+updated: 2026-09-14
+baseline_commit: ea85ac93db13b81d674aefc2cbe55f67428471bf
+source_scope: working-tree
+---
 
-The approved demo UX reuses the existing unchecked registration consent, with
-visible disclosure of Yandex AI Studio, cloud sync, health-context categories,
-chat responses and automatic recommendations. It does not infer consent from
-merely signing in. This implementation is not App Store/privacy approval and
-does not edit the Apple submission or the public legal website.
+# Регистрационная активация облачных возможностей
 
-- Native signup stores a versioned, device-only SecureStore receipt before
-  requesting account creation. A pending email challenge preserves it; an
-  ordinary signup failure removes it. Recovery/signIn do not create receipts.
-- Onboarding submits the receipt after authentication. The server binds it to
-  the authenticated account's email and creation time, accepts only the current
-  policy versions, and expires it after 24 hours. It also requires the stored
-  email verification timestamp, even if legacy compatibility allowed a session
-  without verification. A rejection retains the pending device receipt and
-  does not enable local services. It returns no medical data.
-- Chat and assistant consent are written atomically. Repeated application does
-  not duplicate rows or reverse revocation/disabled preferences. Provider calls
-  are not performed by this mutation; existing service flags still apply.
-- Successful application enables cloud sync and recommendations on that device.
-  Analytics stays off. Document interpretation retains its separate consent,
-  preview and disabled-until-verified flag. Source files and OCR drafts stay local.
-- Existing users and accounts without a matching receipt retain their current
-  explicit-consent/settings flow. Receipt deletion follows completed onboarding.
+## Согласия и активация облачных возможностей
 
-Tests: `convex/registrationConsent.test.ts`, `lib/onboarding-layout.test.ts`,
-`lib/registration-consent.test.ts` and `lib/registration-onboarding.test.ts`.
-The latter executes the real onboarding callback and real Convex mutation in
-an isolated test backend, with mocked device storage/local health writes. It
-checks unauthenticated rejection with receipt retention, authenticated
-activation/consumption, no-receipt login/recovery, and local-failure retry
-without duplicate grants. It does not send email or emulate a native keyboard.
-Native end-to-end signup/email-code/activation verification remains required;
-the prior native login fixtures intentionally do not manufacture this receipt.
+Согласие представлено версией политики, целью обработки и состоянием принятия или отзыва. Локальное разрешение на синхронизацию действует на конкретном устройстве; серверные согласия проверяют возможность внешней обработки для учётной записи. Пользовательские настройки ответов, рекомендаций и уведомлений дополняют согласия, но не заменяют их.
+
+| Возможность | Необходимое разрешение | Существенная граница |
+| --- | --- | --- |
+| Синхронизация | Явный opt-in устройства | Вход не включает обмен |
+| Диалог с ИИ | Версия согласия и облачный режим | Проверка перед продолжением |
+| Автоматический план | Отдельное разрешение рекомендаций | Ответы чата не включают автоматику |
+| OCR документов | Версия OCR и облачный режим | Старые документы только явно |
+| Интерпретация текста | Отдельное согласие и выбор текста | Архив целиком не передаётся |
+| Аналитика | Самостоятельное согласие | Регистрация оставляет её выключенной |
+
+Утверждённый регистрационный сценарий может использовать существующий изначально неотмеченный пункт согласия. Раскрытие должно называть облачную синхронизацию, Yandex AI Studio, категории медицинского контекста, ответы чата и автоматические рекомендации. До создания аккаунта нативный клиент сохраняет версионную квитанцию в SecureStore только на этом устройстве.
+
+При ожидающем email challenge квитанция сохраняется. Обычная ошибка регистрации удаляет её; вход и восстановление её не создают. После аутентификации onboarding передаёт квитанцию серверу, который связывает её с email и временем создания аккаунта, принимает только актуальные версии и ограничивает срок 24 часами. Для применения необходим сохранённый признак проверки email.
+
+Согласия чата и помощника фиксируются атомарно. Повторное применение не дублирует записи и не отменяет отзыв или отключённые настройки. После успешного применения устройство может включить синхронизацию и рекомендации; аналитика, OCR и интерпретация сохраняют собственные условия. Мутация принятия согласия не вызывает поставщика ИИ.
+
+Отзыв должен действовать на уже работающие менеджеры. OCR прекращает локальную очередь, сохраняет запрет при перезапуске и отбрасывает поздний ответ. Уже отправленный запрос невозможно отозвать из сети задним числом. Для чата проверка выключенных ответов выполняется как на старте, так и при продолжении запроса.
+
+Версионная квитанция фиксирует технический факт обработки конкретного сценария. Она не означает автоматического одобрения раскрытий магазинами или юридического соответствия. Изменение цели, поставщика или состава отправляемых данных требует пересмотра соответствующего согласия и эксплуатационного допуска.
+
+## Локальная квитанция регистрационного согласия
+
+Нативный адаптер хранит квитанцию под ключом sfera.registration-consent.v1 в SecureStore с доступностью WHEN_UNLOCKED_THIS_DEVICE_ONLY. В неё входят нормализованный email, acceptedAt и version. При чтении проверяются типы полей; повреждённая запись удаляется и не разрешает облачные возможности. Браузерный адаптер не сохраняет квитанцию и возвращает undefined, что поддерживает режим демонстрации без активации персональных служб.
+
+Квитанция фиксирует выбор пользователя в незавершённом регистрационном сценарии. Дальнейший допуск выполняется сервером по версии политики, времени создания аккаунта и подтверждению email, после чего устройство активирует разрешённые возможности. SecureStore не подменяет эту серверную проверку. Важен и обратный переход: завершение старого асинхронного шага не должно повторно включить обработку после отзыва согласия или после смены владельца локального хранилища.
+
+## Отзыв разрешения при незавершённом сетевом запросе
+
+Отзыв согласия на обработку документов применяется локально до обращения к серверу. Менеджер немедленно меняет accepted в текущих входных данных, устанавливает revoked, прерывает активный запрос и сохраняет documentOcrRevoked.v1 с ownerId. Только затем выполняется серверная мутация. Если сеть недоступна, локальный запрет продолжает ограничивать работу; при последующем появлении связи и ещё активном серверном согласии эффект повторяет его отзыв.
+
+Локальные записи согласия и отзыва учитываются только для совпадающего владельца. Кэш положительного согласия не является самостоятельным разрешением на отправку: цикл запуска дополнительно требует status.accepted от сервера. Ошибка запроса статуса выключает enabled. Такая последовательность не даёт восстановленному кэшу обойти отзыв или запустить работу при недостоверном серверном состоянии; при повторном разрешении локальная отметка отзыва снимается после успешной серверной операции.
+
+## Условия применения регистрационной квитанции
+
+Нативная регистрация сохраняет версионную квитанцию до запроса создания аккаунта. Ожидание проверки почты сохраняет её, обычный отказ регистрации удаляет. Вход и восстановление не создают такую квитанцию. После аутентификации onboarding передаёт её в серверную активацию; операция не возвращает медицинские записи и не вызывает поставщика ИИ.
+
+Сервер связывает квитанцию с нормализованным email текущего аккаунта и временем его создания, проверяет действующие версии и срок 24 часа. Требуется сохранённое подтверждение email, даже если совместимый режим ранее позволил получить сессию без него. Отказ не включает локальные службы и оставляет квитанцию для корректного завершения сценария.
+
+Согласия чата и помощника применяются атомарно. Повтор не должен создавать дубликаты, снимать отзыв или перезаписывать отключённые настройки. Успех позволяет этому устройству включить облачную синхронизацию и рекомендации; аналитика, обработка документов и интерпретация сохраняют отдельные основания. Удаление квитанции следует за завершением onboarding, чтобы отказ локального шага не превратился в потерю незавершённого выбора.
+
+## Первичные источники
+
+- [docs/registration-consent.md](<registration-consent.md>)
+- [convex/registrationConsent.ts](<../convex/registrationConsent.ts>)
+- [lib/registration-consent.ts](<../lib/registration-consent.ts>)
+- [lib/sync-policy.ts](<../lib/sync-policy.ts>)
+- [shared/document-ocr.ts](<../shared/document-ocr.ts>)
+- [convex/aiAgentConfig.ts](<../convex/aiAgentConfig.ts>)
+- [lib/registration-consent.native.ts](<../lib/registration-consent.native.ts>)
+- [lib/document-ocr-manager.tsx](<../lib/document-ocr-manager.tsx>)
+- [lib/registration-onboarding.test.ts](<../lib/registration-onboarding.test.ts>)
+
+## Связанные материалы
+
+- [Согласия и активация облачных возможностей](<technical/10-consents.md>)
+- [Единый индекс](<README.md>)

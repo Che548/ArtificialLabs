@@ -59,6 +59,7 @@ export type CardProfile = {
 
 export type AnalyzeStripRequest = {
   imageUri: string;
+  backend?: 'learned' | 'classical';
   assayProfile: AssayProfile;
   cardProfile?: CardProfile | null;
   cutoff?: number | null;
@@ -82,6 +83,8 @@ export type PeakMetrics = {
 export type AnalysisResult = {
   schema_version: '1.0';
   algorithm_version: string;
+  observed_line_count?: 1 | 2 | null;
+  requires_user_confirmation?: boolean;
   assay_profile: { id: string; version: string };
   rectified_image_uri?: string | null;
   status: 'valid' | 'review' | 'invalid';

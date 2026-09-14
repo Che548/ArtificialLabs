@@ -143,12 +143,18 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
   Review login exemptions are internal, audited, and bound to userId plus the
   current email; contact changes and recovery never inherit an exemption.
   Confirmed phone changes require the password and SMS on the new number.
-  The approved OCR exception is local PDF/JPEG/PNG recognition with pinned
-  Tesseract 5 Russian/English models and explicit review. Drafts stay in the
-  separate SQLCipher document_extractions table, outside snapshots, outbox
-  and FTS. Only selected confirmed text may use the separately consented,
-  versioned interpretation action; AI_DOCUMENT_INTERPRETATION_ENABLED stays
-  off until native verification passes. Cloud OCR/file upload remain deferred.
+  The approved document OCR exception sends rendered PDF/JPEG/PNG pages
+  transiently through the authenticated OCR HTTP endpoint to Yandex Qwen
+  qwen3.6-35b-a3b/latest. It requires cloud sync plus separate versioned OCR
+  consent; new imports then queue automatically, old documents require an
+  explicit action. Images and responses must never enter Convex storage,
+  mutations, scheduled actions or logs. Originals stay on the device. Drafts
+  stay in the separate SQLCipher document_extractions table, outside snapshots,
+  outbox and FTS. Only explicitly selected, reviewed rows and a confirmed date
+  may become lab results. Old Tesseract drafts remain readable. Only selected
+  confirmed text may use the separately consented interpretation action.
+  AI_DOCUMENT_OCR_ENABLED remains off until synthetic provider and native
+  verification pass; never enable consent on a user's behalf.
   The admin console manages only catalogs, lots,
   calibrations, published content, privacy-safe aggregates, monitoring and
   admin access and the restricted read-only account directory described above.

@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 
 import StripCvModule from './StripCvModule';
+import { adaptLearnedStripResult } from './LearnedStripResult';
 import type { AnalysisResult, AnalyzeStripRequest } from './StripCv.types';
 
 export const isStripCvAvailable =
@@ -14,6 +15,15 @@ export async function analyzeStripAsync(
     throw new Error(
       'StripCV requires a native development build and is unavailable in Expo Go.',
     );
+  }
+  // Capability detection keeps older installed native binaries compatible.
+  // Explicit photometric calibration and manual geometry use the existing core.
+  if (Platform.OS !== 'web' && request.backend !== 'classical' &&
+      typeof nativeModule.analyzeLearnedStripJsonAsync === 'function' &&
+      !request.cornerOverride && !request.flipOrientation &&
+      request.cutoff == null && request.assayProfile.default_cutoff == null) {
+    const json = await nativeModule.analyzeLearnedStripJsonAsync(JSON.stringify({ imageUri: request.imageUri }));
+    return adaptLearnedStripResult(json, request.assayProfile);
   }
   const payload = {
     imageUri: request.imageUri,

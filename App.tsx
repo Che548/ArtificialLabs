@@ -2,11 +2,16 @@ import { AndroidMaterialBackdrop } from './design-system/android-material';
 import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from './lib/theme';
 import { colors as defaultThemeColors } from './design-system/tokens';
 import { TodayArticleSheet } from './components/TodayArticleSheet';
-import { todayArticles, type TodayArticle } from './lib/today-articles';
+import type { TodayArticle } from './lib/today-articles';
+import { useTodayArticles } from './lib/use-today-articles';
+import { todayCardTitle } from './shared/today-content';
 import { AppSheet, sheetStyles } from './components/AppSheet';
 import { TopChromeBackdrop } from './components/TopChromeBackdrop';
 import { GradientBlur } from './components/GradientBlur';
 import { useProfileReducedMotion } from './components/ProfileMotion';
+import { PregnancySphere } from './components/PregnancySphere';
+import { SphereTiltProvider } from './components/SphereTilt';
+import { pregnancySphereStageHeight } from './lib/pregnancy-sphere';
 import { bundledFonts } from './lib/bundled-fonts';
 import { fontStyle } from './lib/font-style';
 import { BlurView } from 'expo-blur';
@@ -412,17 +417,20 @@ function ProjectText({
 type FeatureCardProps = {
   title: string;
   background: TodayArticle['background'];
+  fallbackBackground: TodayArticle['background'];
   onPress?: () => void;
 };
 
-function FeatureCard({ title, background, onPress }: FeatureCardProps) {
+function FeatureCard({ title, background, fallbackBackground, onPress }: FeatureCardProps) {
+  const [failedSource, setFailedSource] = useState<FeatureCardProps['background']>();
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.featureCard, styles.featureCardSoft]}>
       <Image
         accessible={false}
-        source={background}
+        source={failedSource === background ? fallbackBackground : background}
+        onError={() => setFailedSource(background)}
         resizeMode="cover"
         style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
       />
@@ -514,6 +522,7 @@ function TodayArticleCards({
   checkupCount: number;
 }) {
   const [article, setArticle] = useState<TodayArticle | null>(null);
+  const articles = useTodayArticles();
   return (
     <>
       <ScrollView
@@ -522,17 +531,12 @@ function TodayArticleCards({
         contentContainerStyle={{ gap: 10, paddingRight: 2 }}
       >
         <ImportantMascotCard onPress={onImportantPress} />
-        {todayArticles.map((item) => (
+        {articles.map((item) => (
           <FeatureCard
             key={item.id}
             background={item.background}
-            title={
-              item.id === 'care-plan'
-                ? checkupCount
-                  ? `План наблюдения\nПунктов: ${checkupCount}`
-                  : 'План наблюдения\nпока пуст'
-                : item.cardTitle
-            }
+            fallbackBackground={item.fallbackBackground}
+            title={todayCardTitle(item, checkupCount)}
             onPress={() => setArticle(item)}
           />
         ))}
@@ -596,6 +600,8 @@ function MonitoringScreen({
   const pregnancyWeek = pregnancyWeekFromStart(profile?.pregnancyStartAt);
   const initialWeek = pregnancyWeek ?? 1;
   const [activeWeek, setActiveWeek] = useState(initialWeek);
+  const sphereStageHeight = pregnancySphereStageHeight(headerTop);
+  const scrollY = useRef(new Animated.Value(0)).current;
   const fontsReady = useContext(FontReadyContext);
   const weekScrollRef = useRef<ScrollView>(null);
   const hapticWeekRef = useRef(initialWeek);
@@ -674,13 +680,8 @@ function MonitoringScreen({
 
   return (
     <View style={styles.canvas}>
-      <Image
-        source={require('./assets/figma/today_pregnancy_background.png')}
-        resizeMode="cover"
-        style={[styles.heroImage, { opacity: colors.surface.canvas === defaultThemeColors.surface.canvas ? 1 : 0.22 }]}
-      />
-
-      <TopChromeBackdrop headerTop={headerTop} />
+      <CycleAnimatedBackground state="menstruation" scrollY={scrollY} />
+      <TopChromeBackdrop headerTop={headerTop} style={{ height: headerTop + 56 }} />
 
       <LiquidGlassGroup
         spacing={12}
@@ -756,14 +757,23 @@ function MonitoringScreen({
         </LiquidGlassPressable>
       </LiquidGlassGroup>
 
-      <ScrollView
+      <Animated.ScrollView
+        testID="pregnancy-today-scroll"
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
+        scrollEventThrottle={16}
         contentInsetAdjustmentBehavior="never"
         nestedScrollEnabled
         showsVerticalScrollIndicator={false}
         style={styles.dashboardScroll}
         contentContainerStyle={styles.dashboardScrollContent}
       >
-        <View style={styles.dashboardScrollCanvas}>
+        {pregnancyWeek ? (
+          <PregnancySphere week={activeWeek} headerTop={headerTop} stageHeight={sphereStageHeight} />
+        ) : <View style={{ height: sphereStageHeight }} />}
+        <View testID="pregnancy-today-details" style={styles.dashboardScrollCanvas}>
           {pregnancyWeek ? (
             <>
               <Animated.ScrollView
@@ -1029,7 +1039,7 @@ function MonitoringScreen({
             />
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       <LinearGradient
         pointerEvents="none"
@@ -1906,6 +1916,7 @@ export default function App() {
 
   return (
     <FontReadyContext.Provider value={fontsLoaded && !fontError}>
+      <SphereTiltProvider enabled={!calendarVisible && !chartsVisible && !planningIntimacyVisible && !journalFlowDate}>
       <View
         style={[styles.root, Platform.OS === 'android' && styles.androidRoot]}
       >
@@ -1998,6 +2009,7 @@ export default function App() {
           scanResults={scanResults}
         />
       </View>
+      </SphereTiltProvider>
     </FontReadyContext.Provider>
   );
 }
@@ -2023,13 +2035,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.surface.warm,
     borderRadius: Platform.OS === 'android' ? 0 : 40,
-  },
-  heroImage: {
-    position: 'absolute',
-    left: 0,
-    top: 48,
-    width: DESIGN_WIDTH,
-    height: 714,
   },
   topBar: {
     position: 'absolute',
@@ -2347,12 +2352,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   dashboardScrollContent: {
     width: DESIGN_WIDTH,
-    height: 970,
+    paddingBottom: 32,
   },
   dashboardScrollCanvas: {
     width: DESIGN_WIDTH,
     height: 551,
-    marginTop: 423,
   },
   planningCanvas: {
     width: DESIGN_WIDTH,

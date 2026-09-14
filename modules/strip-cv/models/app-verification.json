@@ -1,0 +1,9 @@
+{
+  "model_files_sha256": "passed (5/5)",
+  "policy_reference_parity": "passed (803/803)",
+  "typecheck": "passed",
+  "podspec_syntax": "passed",
+  "full_app_verify": "failed: convex/ai/documentOcrProvider.test.ts, unrelated OCR image retransmission assertion",
+  "native_inference_connected": true,
+  "native_build_and_device_validation": "iOS Release build, model packaging, signing and iPhone installation passed on 2026-09-14; functional device accuracy and native reference parity not performed"
+}

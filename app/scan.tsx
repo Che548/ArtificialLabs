@@ -339,7 +339,6 @@ function HistoryBackIcon() {
 }
 
 export default function ScanScreen() {
-  const { mode } = useAppTheme();
   const styles = useThemeStyles(createStyles);
   const { journalId } = useLocalSearchParams<{ journalId?: string }>();
   const {
@@ -710,7 +709,7 @@ export default function ScanScreen() {
               ) : null}
             </View>
 
-            {mode !== 'dark' ? <View
+            <View
               style={[
                 styles.scanContentPanel,
                 { top: contentPanelTop, bottom: navbarClearance },
@@ -723,7 +722,7 @@ export default function ScanScreen() {
                 resizeMode="contain"
                 style={styles.testStrips}
               />
-            </View> : null}
+            </View>
 
             <EdgeFadeGradient
               edge="bottom"

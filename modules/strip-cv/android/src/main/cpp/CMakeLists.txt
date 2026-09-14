@@ -15,6 +15,7 @@ add_library(stripcv SHARED
   ${STRIPCV_ROOT}/src/calibration.cpp
   ${STRIPCV_ROOT}/src/c_api.cpp
   ${STRIPCV_ROOT}/src/locator.cpp
+  ${STRIPCV_ROOT}/src/learned_reader.cpp
   ${STRIPCV_ROOT}/src/transverse_width_scorer.cpp
   ${STRIPCV_ROOT}/src/types.cpp
 )

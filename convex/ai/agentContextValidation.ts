@@ -154,14 +154,15 @@ function validJournalItem(value: unknown) {
 function validTestItem(value: unknown) {
   return (
     isObject(value) &&
-    hasOnlyKeys(value, ['sourceRef', 'title', 'collectedAt', 'values']) &&
+    hasOnlyKeys(value, ['sourceRef', 'title', 'collectedAt', 'values', 'omittedValueCount']) &&
     validSourceRef(value.sourceRef) &&
     (value.sourceRef as JsonObject).source === 'test' &&
     safeString(value.title, 160) &&
     finiteNumber(value.collectedAt) &&
+    (value.omittedValueCount === undefined || (Number.isSafeInteger(value.omittedValueCount) && (value.omittedValueCount as number) >= 0 && (value.omittedValueCount as number) <= 2000)) &&
     Array.isArray(value.values) &&
     value.values.length <= 20 &&
-    value.values.every((item) => safeString(item, 360))
+    value.values.every((item) => safeString(item, 480))
   );
 }
 

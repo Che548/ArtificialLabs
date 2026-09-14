@@ -47,6 +47,7 @@ export class ScanningService {
     });
     return analyzeStripAsync({
       imageUri,
+      backend: useLegacyPipeline ? 'classical' : undefined,
       assayProfile: configuration.assayProfile,
       cardProfile: configuration.cardProfile,
       cutoff: configuration.cutoff,

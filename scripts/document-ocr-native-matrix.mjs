@@ -75,6 +75,19 @@ async function runMatrix(base) {
         }
       });
     }
+    state.phase = 'Qwen image export';
+    await lease(async () => {
+      for (const file of ['sample.jpg', 'sample.png', 'two-pages.pdf', 'rotated.png']) {
+        for (const rotation of [0, 90, 180, 270]) {
+          const image = await native.exportPageAsync(base + file, 1, rotation);
+          check(`Qwen JPEG export ${file} ${rotation}`, typeof image === 'string' && image.startsWith('/9j/') && image.length <= 8388608 && image.length > 100);
+        }
+      }
+      const page2 = await native.exportPageAsync(base + 'two-pages.pdf', 2, 0);
+      check('Qwen PDF second page exports', page2.startsWith('/9j/'));
+      check('Qwen out-of-range page rejects', await errorMatches(() => native.exportPageAsync(base + 'two-pages.pdf', 3, 0), 'DOCUMENT_PAGES'));
+      check('Qwen invalid rotation rejects', await errorMatches(() => native.exportPageAsync(base + 'sample.png', 1, 45), 'DOCUMENT_ROTATION'));
+    });
     state.phase = 'twenty sequential pages';
     await lease(async () => {
       for (let page = 1; page <= 20; page++) {
@@ -107,6 +120,60 @@ async function runMatrix(base) {
   } finally { state.done = true; }
 }
 
+async function runStorageContract(base) {
+  const state = globalThis.__sferaOcrStorageQa = {done:false, checks:[]};
+  const check = (name, passed) => state.checks.push({name,passed:Boolean(passed)});
+  const find = name => Array.from(globalThis.__r.getModules().values()).map(m=>m.publicModule?.exports).find(e=>e && typeof e[name]==='function');
+  try {
+    const db=find('saveLocalDocumentExtraction');
+    const jobs=find('runDocumentOcrJob');
+    const renderer=find('renderDocumentPage');
+    if(!db || !jobs || !renderer) throw new Error('QA_MODULE_MISSING');
+    await db.initializeLocalDatabase();
+    await db.claimLocalDatabaseOwner('ocr_synthetic_owner');
+    const now=Date.now();
+    await db.saveLocalRecord('documents',{localId:'ocr_synthetic_document',title:'Synthetic native OCR',category:'medical',documentDate:now,hasLocalFile:true,localFileUri:base+'two-pages.pdf',updatedAt:now},false);
+    let request=0;
+    const draft={version:2,documentLocalId:'ocr_synthetic_document',engineVersion:'qwen-ocr-v1',provider:'yandex-ai-studio',state:'queued',pages:[],editedText:'',updatedAt:now,job:{id:'job_synthetic_123',ownerId:'ocr_synthetic_owner'}};
+    await jobs.runDocumentOcrJob(draft,{
+      allowed:()=>true,requestId:()=>`request_synthetic_${++request}`,
+      save:value=>db.saveLocalDocumentExtraction(value),
+      render:page=>renderer.renderDocumentPage(base+'two-pages.pdf',page,0),
+      send:async()=>{
+        const date=request===1?'2026-09-11':'2026-09-12';
+        const text=`Specimen panel\nCollected: ${date}\nSynthetic 1,25 units/L\nConclusion: synthetic sample processed.`;
+        return {version:2,text,rows:[{kind:'observation',section:'Specimen panel',name:'Synthetic',value:'1,25',unit:'units/L',reference:'',date:'',sourceText:'Synthetic 1,25 units/L',issues:[]}],dates:[date],issues:[],
+          structure:{version:1,title:'Specimen panel',pageRole:'content',dates:[{kind:'collection',text:date,sourceText:`Collected: ${date}`,section:''}],blocks:[{kind:'conclusion',section:'Specimen panel',text:'Conclusion: synthetic sample processed.'}]}};
+      },
+    },new AbortController().signal);
+    const loaded=await db.loadLocalDocumentExtraction(draft.documentLocalId);
+    check('v2 OCR pages survive SQLCipher reload',loaded.version===2 && loaded.pages.length===2 && loaded.pages[0].confidence===null && loaded.analytes[0].value==='1,25');
+    check('structured blocks and sections survive SQLCipher reload',loaded.pages[0].structure.blocks[0].kind==='conclusion' && loaded.analytes[0].section==='Specimen panel');
+    check('unreviewed OCR creates no lab result',(await db.loadLocalSnapshot()).labResults.length===0);
+    check('OCR draft never enters outbox',(await db.pendingOutbox()).length===0);
+    let denied=false;
+    try {await db.saveConfirmedDocumentExtraction({...loaded,state:'confirmed',confirmedAt:now,collectedAt:new Date(2026,8,11,12).getTime(),analytes:loaded.analytes.map(a=>({...a,selected:true}))});}catch{denied=true;}
+    check('native confirmation rejects unreviewed rows',denied);
+    const confirmed={...loaded,state:'confirmed',confirmedAt:now,collectedAt:new Date(2026,8,11,12).getTime(),updatedAt:now+1,analytes:loaded.analytes.map((a,i)=>({...a,selected:i===0,reviewed:i===0}))};
+    await db.saveConfirmedDocumentExtraction(confirmed);
+    check('only reviewed selected row becomes a local result',(await db.loadLocalSnapshot()).labResults[0].analytes.length===1);
+    check('confirmed lab rows retain section context',(await db.loadLocalSnapshot()).labResults[0].analytes[0].section==='Specimen panel');
+    check('confirmation after sync is disabled stays local',(await db.pendingOutbox()).length===0);
+    await db.saveLocalSetting('cloudSyncPreference.v1',{enabled:true});
+    await db.saveConfirmedDocumentExtraction({...confirmed,collectedAt:new Date(2026,8,12,12).getTime(),updatedAt:now+2,analytes:loaded.analytes.map((a,i)=>({...a,selected:i===1,reviewed:i===1}))});
+    check('different collection dates retain separate lab results',(await db.loadLocalSnapshot()).labResults.length===2);
+    const outbox=await db.pendingOutbox();
+    const transport=outbox.map(row=>find('sanitizeCloudRecord').sanitizeCloudRecord(row.entity,row.payload));
+    check('only structured confirmed values enter sync',outbox.length===2 && !JSON.stringify(transport).includes(base) && !JSON.stringify(transport).includes('sourceText') && !JSON.stringify(transport).includes('nextRequestId'));
+    check('sync keeps reviewed sections but excludes report conclusions',JSON.stringify(transport).includes('Specimen panel') && !JSON.stringify(transport).includes('synthetic sample processed'));
+    await db.claimLocalDatabaseOwner('ocr_other_synthetic_owner');
+    denied=false;try{await db.saveLocalDocumentExtraction(loaded);}catch{denied=true;}
+    check('previous account cannot save late OCR',denied);
+    await db.clearLocalHealthData();
+  } catch { check('native storage contract completed',false); }
+  finally {state.done=true;}
+}
+
 try {
   let ready = false;
   for (let attempt = 0; attempt < 120; attempt++) {
@@ -123,12 +190,38 @@ try {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   if (!result?.done) throw new Error('Native matrix timed out.');
+  await evaluate(hermesQaExpression(runStorageContract, root));
+  let storage;
+  for(let attempt=0;attempt<90;attempt++){
+    storage=await evaluate('globalThis.__sferaOcrStorageQa');
+    if(storage?.done)break;
+    await new Promise(resolve=>setTimeout(resolve,1000));
+  }
+  if(!storage?.done)throw new Error('Native storage contract timed out.');
+  result.checks.push(...storage.checks);
+  for (const [file, output] of [['sample.jpg', 'native-synthetic.jpg'], ['lab-variants.jpg', 'native-variants.jpg'], ['blank.jpg', 'native-blank.jpg']]) {
+    await evaluate(hermesQaExpression(async uri => {
+      const n = globalThis.expo.modules.DocumentOcr;
+      if (!n.begin()) throw new Error('QA_BUSY');
+      try { globalThis.__ocrSyntheticJpeg = await n.exportPageAsync(uri, 1, 0); }
+      finally { await n.cleanupAsync(); }
+    }, root + file));
+    let jpeg;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      jpeg = await evaluate('globalThis.__ocrSyntheticJpeg');
+      if (jpeg) break;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    if (typeof jpeg !== 'string' || !jpeg.startsWith('/9j/')) throw new Error('Synthetic JPEG export failed');
+    writeFileSync(join(process.env.E2E_REPORT_DIR, output), Buffer.from(jpeg, 'base64'), { mode: 0o600 });
+    await evaluate('delete globalThis.__ocrSyntheticJpeg; true');
+  }
   const report = { syntheticOnly: true, clinicalAccuracyClaim: false, appId, checks: result.checks };
   writeFileSync(join(process.env.E2E_REPORT_DIR, 'native-matrix.json'), JSON.stringify(report, null, 2), { mode: 0o600 });
   const failed = result.checks.filter(item => !item.passed);
   console.log(`Native OCR checks: ${result.checks.length - failed.length}/${result.checks.length} passed.`);
   if (failed.length) { console.log(failed.map(item => item.name).join('\n')); process.exitCode = 1; }
 } finally {
-  await evaluate('delete globalThis.__sferaOcrQa; true').catch(() => {});
+  await evaluate('delete globalThis.__sferaOcrQa; delete globalThis.__sferaOcrStorageQa; delete globalThis.__ocrSyntheticJpeg; true').catch(() => {});
   socket.close();
 }

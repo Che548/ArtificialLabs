@@ -62,13 +62,13 @@ export const contentByKey = query({
       .query('contentItems')
       .withIndex('by_key', (q) => q.eq('key', key))
       .unique();
-    if (!item?.currentPublishedVersionId) return null;
+    if (!item?.currentPublishedVersionId || item.deletedAt !== undefined) return null;
     const version = await ctx.db.get(item.currentPublishedVersionId);
     if (!version || version.status !== 'published') return null;
     let imageUrl: string | null = null;
     if (version.imageAssetId) {
       const asset = await ctx.db.get(version.imageAssetId);
-      if (asset?.status === 'validated') {
+      if (asset?.status === 'validated' && asset.kind === 'cms_image') {
         imageUrl = await ctx.storage.getUrl(asset.storageId);
       }
     }

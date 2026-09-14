@@ -5,6 +5,26 @@ public final class StripCvModule: Module {
   public func definition() -> ModuleDefinition {
     Name("StripCv")
 
+    AsyncFunction("detectStripJsonAsync") { (requestJson: String) throws -> String in
+      guard let data = requestJson.data(using: .utf8),
+            let request = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = request["imageUri"] as? String,
+            let url = URL(string: uri), url.isFileURL else {
+        throw InvalidRequestException()
+      }
+      return try StripCvBridge.detectStripImage(at: url, error: ())
+    }
+
+    AsyncFunction("analyzeLearnedStripJsonAsync") { (requestJson: String) throws -> String in
+      guard let data = requestJson.data(using: .utf8),
+            let request = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = request["imageUri"] as? String,
+            let url = URL(string: uri), url.isFileURL else {
+        throw InvalidRequestException()
+      }
+      return try StripCvBridge.analyzeLearnedImage(at: url, error: ())
+    }
+
     AsyncFunction("analyzeStripJsonAsync") { (requestJson: String) throws -> String in
       guard let requestData = requestJson.data(using: .utf8),
             let request = try JSONSerialization.jsonObject(with: requestData) as? [String: Any],

@@ -1,3 +1,4 @@
+import { isReviewedLabResult } from './reviewed-lab-result';
 import { searchLocalAgentIndex } from './local-database';
 import { journalAgeMetadata } from './agent-context-policy';
 import type {
@@ -61,6 +62,7 @@ export type AgentContextEnvelope = {
     title: string;
     collectedAt: number;
     values: string[];
+    omittedValueCount?: number;
   }>;
   carePlan: Array<{
     sourceRef: AgentSourceRef;
@@ -185,7 +187,7 @@ export function buildAgentContextEnvelope(
 
   const confirmedLabIds = new Set(
     snapshot.labResults
-      .filter((result) => !result.deletedAt && result.status !== 'unreviewed')
+      .filter((result) => !result.deletedAt && isReviewedLabResult(result, now))
       .map((result) => result.localId),
   );
   const confirmedScanIds = new Set(
@@ -235,7 +237,7 @@ export function buildAgentContextEnvelope(
     .filter(
       (result) =>
         !result.deletedAt &&
-        result.status !== 'unreviewed' &&
+        isReviewedLabResult(result, now) &&
         result.collectedAt <= now,
     )
     .map((result) => ({
@@ -248,10 +250,12 @@ export function buildAgentContextEnvelope(
       },
       title: safeText(result.title, 160) ?? '',
       collectedAt: result.collectedAt,
+      omittedValueCount: Math.max(0, result.analytes.length - 20),
       values: result.analytes
         .slice(0, 20)
         .map((analyte) =>
           [
+            analyte.section ? `[${safeText(analyte.section, 100)}]` : undefined,
             safeText(analyte.name, 100),
             safeText(analyte.value, 100),
             safeText(analyte.unit, 40),
@@ -596,7 +600,7 @@ export async function executeLocalAgentTool(
               (result) =>
                 !result.deletedAt &&
                 result.localId === entry.sourceLocalId &&
-                result.status !== 'unreviewed',
+                isReviewedLabResult(result, now),
             ))) ||
         (entry.source === 'scan' &&
           (!entry.sourceLocalId ||
@@ -636,7 +640,7 @@ export async function executeLocalAgentTool(
     }
     if (hit.entity === 'labResults') {
       const result = item as HealthSnapshot['labResults'][number];
-      if (result.status === 'unreviewed' || result.collectedAt > now) return [];
+      if (!isReviewedLabResult(result, now) || result.collectedAt > now) return [];
       const ref: AgentSourceRef = {
         source: 'test',
         localId: result.localId,
@@ -649,12 +653,14 @@ export async function executeLocalAgentTool(
           sourceId: result.localId,
           title: safeText(result.title, 160),
           collectedAt: result.collectedAt,
-          status: result.status,
+          status: result.status === 'unreviewed' ? 'user_confirmed_not_medically_classified' : result.status,
+          omittedValueCount: Math.max(0, result.analytes.length - 20),
           values: result.analytes.slice(0, 20).map((analyte) => ({
             name: safeText(analyte.name, 100),
             value: safeText(analyte.value, 100),
             unit: safeText(analyte.unit, 40),
             reference: safeText(analyte.reference, 100),
+            section: safeText(analyte.section, 100),
           })),
         },
       ];

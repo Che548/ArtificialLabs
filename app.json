@@ -11,6 +11,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.privateexpo",
+      "infoPlist": {
+        "NSMotionUsageDescription": "Наклон телефона плавно двигает декоративные сферы. Данные движения не сохраняются и не передаются."
+      },
       "associatedDomains": [
         "webcredentials:artificiallabs.bebra42.ru",
         "applinks:artificiallabs.bebra42.ru"
@@ -72,6 +75,7 @@
       ],
       "./plugins/with-camera-controls",
       "./plugins/with-ios-health-backup-exclusion",
+      "./plugins/with-ios-scene-lifecycle",
       "./plugins/with-ios-system-fonts",
       "./plugins/with-android-config-changes",
       [

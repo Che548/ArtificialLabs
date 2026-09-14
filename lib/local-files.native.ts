@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { createLocalDocumentEngine } from '../modules/document-ocr';
+import { inspectLocalDocument } from '../modules/document-ocr';
 import { DOCUMENT_LIMITS, validateDocumentMetadata } from '../shared/document-policy';
 
 async function persist(uri: string, folder: string, extension = 'jpg') {
@@ -29,16 +29,14 @@ export async function persistLabDocument(uri: string) {
   const info = await FileSystem.getInfoAsync(uri);
   if (!info.exists || info.isDirectory || info.size <= 0 || info.size > DOCUMENT_LIMITS.bytes) throw new Error('DOCUMENT_SIZE');
   const destination = await persist(uri, 'lab-documents', 'bin');
-  let engine: ReturnType<typeof createLocalDocumentEngine> | undefined;
   try {
-    engine = createLocalDocumentEngine();
-    const metadata = await engine.inspect(destination);
+    const metadata = await inspectLocalDocument(destination);
     validateDocumentMetadata(metadata.mime, metadata.bytes, metadata.pages);
     return destination;
   } catch (error) {
     await discardPersistedLabDocument(destination);
     throw error;
-  } finally { await engine?.cleanup(); }
+  }
 }
 export const persistChatAttachment = (uri: string) =>
   persist(uri, 'chat-attachments', 'bin');

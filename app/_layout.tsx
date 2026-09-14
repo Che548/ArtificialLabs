@@ -36,6 +36,7 @@ import { convex } from '../lib/convex';
 import { useAssistantUnread } from '../lib/assistant-inbox';
 import { AgentAutomationManager } from '../lib/agent-automation-manager';
 import { ConnectivityBanner, ConnectivityProvider } from '../lib/connectivity';
+import { DocumentOcrManager } from '../lib/document-ocr-manager';
 import { HealthStoreProvider } from '../lib/health-store';
 import { NotificationManagerProvider } from '../lib/notification-manager';
 import { TelemetryManager } from '../lib/telemetry-manager';
@@ -560,6 +561,7 @@ function NativeApp() {
 
   return (
     <HealthStoreProvider>
+      <DocumentOcrManager>
       <NotificationManagerProvider>
         <TelemetryManager />
         <AgentAutomationManager>
@@ -568,6 +570,7 @@ function NativeApp() {
           </AppGate>
         </AgentAutomationManager>
       </NotificationManagerProvider>
+      </DocumentOcrManager>
     </HealthStoreProvider>
   );
 }

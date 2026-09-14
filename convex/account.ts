@@ -154,6 +154,7 @@ export async function permanentlyDeleteUser(ctx: MutationCtx, userId: string) {
     .withIndex('by_user', (q) => q.eq('userId', userId as never))
     .unique();
   if (aiChatConsent) await ctx.db.delete(aiChatConsent._id);
+  await ctx.scheduler.runAfter(0, internal.documentOcr.purgeForUser, { userId: userId as never });
   const documentConsent = await ctx.db.query('documentInterpretationConsents')
     .withIndex('by_user', q => q.eq('userId', userId as never)).unique();
   if (documentConsent) await ctx.db.delete(documentConsent._id);

@@ -1,8 +1,9 @@
 import * as Crypto from 'expo-crypto';
+import { canReuseDocumentLabResult } from './analysis-document-import';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
-import { copyDocumentExtraction, validateDocumentExtraction, type DocumentExtraction } from '../shared/document-policy';
+import { copyDocumentExtraction, migrateDocumentExtraction, validateDocumentExtraction, type DocumentExtraction } from '../shared/document-policy';
 
 import type {
   ChatConversation,
@@ -364,6 +365,10 @@ export async function deleteLocalSetting(key: string) {
 export async function saveLocalDocumentExtraction(value: DocumentExtraction) {
   const payload = copyDocumentExtraction(value);
   await withWriteTransaction(async db => {
+    if (payload.job) {
+      const owner = await db.getFirstAsync<{value:string}>("SELECT value FROM settings WHERE key = 'ownerId'");
+      if (owner?.value !== payload.job.ownerId) throw new Error('OCR_ACCOUNT_UNAVAILABLE');
+    }
     const record = await db.getFirstAsync<{payload:string}>(
       "SELECT payload FROM records WHERE entity = 'documents' AND local_id = ?", value.documentLocalId,
     );
@@ -383,36 +388,43 @@ export async function loadLocalDocumentExtraction(documentLocalId: string) {
   if (!row || JSON.parse(row.document).deletedAt) return undefined;
   const extraction = JSON.parse(row.payload) as DocumentExtraction;
   validateDocumentExtraction(extraction);
-  return extraction;
+  return migrateDocumentExtraction(extraction);
 }
 
 export async function saveConfirmedDocumentExtraction(value: DocumentExtraction) {
   const payload = copyDocumentExtraction(value);
   if (payload.state !== 'confirmed') throw new Error('DOCUMENT_REVIEW_REQUIRED');
   await withWriteTransaction(async transaction => {
+    if (payload.job) {
+      const owner = await transaction.getFirstAsync<{value:string}>("SELECT value FROM settings WHERE key = 'ownerId'");
+      if (owner?.value !== payload.job.ownerId) throw new Error('OCR_ACCOUNT_UNAVAILABLE');
+    }
+    const preference = await transaction.getFirstAsync<{value:string}>("SELECT value FROM settings WHERE key = 'cloudSyncPreference.v1'");
+    const enqueue = preference ? JSON.parse(preference.value).enabled === true : false;
     const row = await transaction.getFirstAsync<{ payload: string }>(
       "SELECT payload FROM records WHERE entity = 'documents' AND local_id = ?", payload.documentLocalId,
     );
     if (!row) throw new Error('DOCUMENT_NOT_FOUND');
     const document = JSON.parse(row.payload) as HealthEntityMap['documents'];
     if (document.deletedAt) throw new Error('DOCUMENT_NOT_FOUND');
-    if (payload.analytes?.length) {
+    const selected = payload.analytes?.filter(row => row.selected !== false) ?? [];
+    if (selected.length) {
       const existing = document.linkedLabResultLocalId
         ? await transaction.getFirstAsync<{ payload: string }>("SELECT payload FROM records WHERE entity = 'labResults' AND local_id = ?", document.linkedLabResultLocalId)
         : undefined;
       const previous = existing ? JSON.parse(existing.payload) as HealthEntityMap['labResults'] : undefined;
       if (previous && (previous.deletedAt || previous.sourceDocumentLocalId !== document.localId)) throw new Error('DOCUMENT_LINK_CONFLICT');
       const result: HealthEntityMap['labResults'] = {
-        localId: previous?.localId ?? newLocalId('lab'), catalogKey: previous?.catalogKey ?? 'document',
+        localId: previous && canReuseDocumentLabResult(previous, payload.collectedAt!) ? previous.localId : newLocalId('lab'), catalogKey: previous?.catalogKey ?? 'document',
         title: previous?.title ?? document.title, collectedAt: payload.collectedAt!,
         confirmedAt: payload.confirmedAt, status: 'unreviewed',
-        analytes: payload.analytes.map(({name,value,unit,reference}) => ({name,value,unit:unit || undefined,reference:reference || undefined})),
+        analytes: selected.map(({name,value,unit,reference,section}) => ({name,value,unit:unit || undefined,reference:reference || undefined,section:section || undefined})),
         hasLocalSourceDocument: document.hasLocalFile, sourceDocumentLocalId: document.localId,
         updatedAt: payload.updatedAt,
       };
       // No journal, plan completion, diagnosis or clinical classification is inferred here.
-      await writeLocalRecord(transaction, 'labResults', result);
-      await writeLocalRecord(transaction, 'documents', { ...document, linkedLabResultLocalId: result.localId, updatedAt: payload.updatedAt });
+      await writeLocalRecord(transaction, 'labResults', result, enqueue);
+      await writeLocalRecord(transaction, 'documents', { ...document, linkedLabResultLocalId: result.localId, updatedAt: payload.updatedAt }, enqueue);
     }
     await transaction.runAsync(
       'INSERT INTO document_extractions(document_local_id,payload) VALUES (?,?) ON CONFLICT(document_local_id) DO UPDATE SET payload=excluded.payload',

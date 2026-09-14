@@ -271,6 +271,10 @@ export default defineSchema({
     revokedAt: v.optional(v.number()),
     updatedAt: v.number(),
   }).index('by_user', ['userId']),
+  documentOcrConsents: defineTable({ userId:v.id('users'), policyVersion:v.string(), acceptedAt:v.number(), revokedAt:v.optional(v.number()) }).index('by_user',['userId']),
+  documentOcrJobs: defineTable({ userId:v.id('users'), jobId:v.string(), pageCount:v.number(), createdAt:v.number(),
+    attempts:v.array(v.object({requestId:v.string(),page:v.number(),at:v.number(),status:v.union(v.literal('pending'),v.literal('complete'),v.literal('failed'))}))
+  }).index('by_user_job',['userId','jobId']).index('by_user_created',['userId','createdAt']),
   documentInterpretationConsents: defineTable({
     userId: v.id('users'), policyVersion: v.string(), acceptedAt: v.number(), revokedAt: v.optional(v.number()),
   }).index('by_user', ['userId']),
@@ -377,6 +381,7 @@ export default defineSchema({
         value: v.string(),
         unit: v.optional(v.string()),
         reference: v.optional(v.string()),
+        section: v.optional(v.string()),
       }),
     ),
     hasLocalSourceDocument: v.boolean(),
@@ -801,6 +806,10 @@ export default defineSchema({
   })
     .index('by_calibration_time', ['calibrationId', 'createdAt'])
     .index('by_time', ['createdAt']),
+  contentCollections: defineTable({
+    key: v.string(),
+    createdAt: v.number(),
+  }).index('by_key', ['key']),
   contentItems: defineTable({
     key: v.string(),
     category: v.union(
@@ -812,14 +821,20 @@ export default defineSchema({
     ),
     placement: v.string(),
     currentPublishedVersionId: v.optional(v.id('contentVersions')),
+    deletedAt: v.optional(v.number()),
     createdBy: v.id('users'),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_key', ['key'])
-    .index('by_category_updated', ['category', 'updatedAt']),
+    .index('by_category_updated', ['category', 'updatedAt'])
+    .index('by_placement_deleted', ['placement', 'deletedAt']),
   contentVersions: defineTable({
     contentItemId: v.id('contentItems'),
+    cardTitle: v.optional(v.string()),
+    cardKind: v.optional(v.union(v.literal('article'), v.literal('care-plan'))),
+    coverPreset: v.optional(v.union(v.literal('nutrition'), v.literal('care-plan'))),
+    sortOrder: v.optional(v.number()),
     version: v.number(),
     title: v.string(),
     markdown: v.string(),

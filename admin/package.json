@@ -11,6 +11,10 @@
   },
   "dependencies": {
     "@convex-dev/auth": "0.0.94",
+    "@tiptap/markdown": "^3.31.3",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/react": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
     "convex": "1.42.3",
     "next": "16.3.2",
     "react": "19.1.0",

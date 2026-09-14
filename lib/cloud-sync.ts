@@ -86,6 +86,12 @@ export function sanitizeCloudRecord(
       return { ...ref, label: ref.source };
     });
   }
+  if (entity === 'labResults' && Array.isArray(syncable.analytes)) {
+    syncable.analytes = syncable.analytes.map(raw => {
+      const row = raw as Record<string, unknown>;
+      return Object.fromEntries(['name','value','unit','reference','section'].filter(key => row[key] !== undefined).map(key => [key,row[key]]));
+    });
+  }
   return syncable;
 }
 

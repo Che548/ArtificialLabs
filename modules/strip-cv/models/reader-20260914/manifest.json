@@ -1,0 +1,106 @@
+{
+  "version": "strip-reader-experimental-20260914",
+  "format": "onnx",
+  "opset": 17,
+  "models": {
+    "points": {
+      "path": "points.onnx",
+      "sha256": "88388121846d8efb97726f71f64b51d30105d8f755a62800e980f3bbbfb8c939",
+      "input_shape": [
+        1,
+        3,
+        512,
+        512
+      ],
+      "output_shape": [
+        1,
+        4,
+        128,
+        128
+      ],
+      "max_abs_error": 1.1444091796875e-05,
+      "source_checkpoint_sha256": "5441554807b1ec84805c61c0f22b93c059ddf13ea42c87357ecc4267d042bf15"
+    },
+    "presence": {
+      "path": "presence.onnx",
+      "sha256": "88972824233b5c3a59065bcc26e5cc4d225f614158bd5ac0594d36377668d1b8",
+      "input_shape": [
+        1,
+        3,
+        128,
+        384
+      ],
+      "output_shape": [
+        1,
+        2
+      ],
+      "max_abs_error": 9.5367431640625e-07,
+      "source_checkpoint_sha256": "18aaa29af5068954c475e40a2821a80ee8a26a61ab4cd5339b9e8b53913a3cc0"
+    },
+    "coverage": {
+      "path": "coverage.onnx",
+      "sha256": "3979792c7d2e60de16edce14171242ae1d0def441dfa44a333c58f6be1d9d902",
+      "input_shape": [
+        1,
+        3,
+        128,
+        384
+      ],
+      "output_shape": [
+        1,
+        3
+      ],
+      "max_abs_error": 3.814697265625e-06,
+      "source_checkpoint_sha256": "5189089f61f92cc7df896e0be7928324671953ad51286533f25a376d55225055"
+    },
+    "auxiliary": {
+      "path": "auxiliary.onnx",
+      "sha256": "da35934809664f3cdec61b3bca712e9df3d6b5d9cc366e04eb397d67ce048313",
+      "input_shape": [
+        1,
+        3,
+        128,
+        384
+      ],
+      "output_shape": [
+        1,
+        2
+      ],
+      "max_abs_error": 1.9073486328125e-06,
+      "source_checkpoint_sha256": "87187a87d085f6e1fd41be694467e9aed38ad4ebe8519cfc6f1a99388fdeeb54"
+    },
+    "detector": {
+      "path": "detector.onnx",
+      "sha256": "46f6cf7c847ec912405f8e07edba01517d3c0e065747bae4af2732e41ad40825",
+      "input_shape": [
+        1,
+        3,
+        640,
+        640
+      ],
+      "output_shape": [
+        1,
+        5,
+        8400
+      ],
+      "source_checkpoint_sha256": "b83492c1e3c4dd2f1f7cf95f8324bcb71eeb11ab27a59d029661b85b9a70212f",
+      "numerical_parity": "pending",
+      "postprocessing": "external NMS; confidence .05, IoU .7; select highest confidence proposal"
+    }
+  },
+  "policy": {
+    "route": "absence_checked",
+    "detector_confidence": 0.05,
+    "detector_imgsz": 640,
+    "detector_nms_iou": 0.7,
+    "point_crop_padding": 0.25,
+    "control_present": 0.9,
+    "test_present": 0.9,
+    "test_absent": 0.1,
+    "coverage_present": 0.9,
+    "minimum_result_length": 16,
+    "spatial_test_absence_threshold": 0.1
+  },
+  "runtime_status": "native OpenCV inference, iOS/Android methods and app routing implemented; new native build and device validation required",
+  "photos_included": false
+}

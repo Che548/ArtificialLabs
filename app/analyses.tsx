@@ -1,7 +1,15 @@
-import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import {
+  ThemeStatusBar,
+  useAppTheme,
+  useThemeStyles,
+  type ThemeColors,
+} from '../lib/theme';
 import { colors as defaultThemeColors } from '../design-system/tokens';
 import { AppSheet, sheetStyles } from '../components/AppSheet';
 import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
+import { DocumentReview } from '../components/DocumentReview';
+import { useDocumentOcr } from '../lib/document-ocr-manager';
+import { importAnalysisDocument } from '../lib/analysis-document-import';
 import { AnalysisAttachmentThumbnail } from '../components/AnalysisAttachmentThumbnail';
 import { analysisCountdown } from '../lib/analysis-countdown';
 import { useProfileReducedMotion } from '../components/ProfileMotion';
@@ -222,6 +230,13 @@ export default function AnalysesScreen() {
     preferences,
     readOnly,
   } = useHealthStore();
+  const documentOcr = useDocumentOcr();
+  const attachmentSaveLock = useRef(false);
+  const pendingReviewId = useRef<string | undefined>(undefined);
+  const [reviewDocumentId, setReviewDocumentId] = useState<string>();
+  const reviewDocument = documents.find(
+    (document) => document.localId === reviewDocumentId && !document.deletedAt,
+  );
   const [activeTab, setActiveTab] = useState<AnalysisTabKey>('current');
   const [selectedAnalysis, setSelectedAnalysis] = useState<PlannedAnalysis>();
   const [pendingAttachment, setPendingAttachment] =
@@ -626,34 +641,41 @@ export default function AnalysesScreen() {
   };
 
   const saveAnalysisAttachment = async () => {
-    if (!selectedAnalysis || !pendingAttachment || readOnly) return;
+    if (
+      !selectedAnalysis ||
+      !pendingAttachment ||
+      readOnly ||
+      attachmentSaveLock.current
+    )
+      return;
 
+    attachmentSaveLock.current = true;
     setSaving(true);
     setAttachmentError(undefined);
-    let persistedDocumentUri: string | undefined;
-    let stored = false;
     try {
-      persistedDocumentUri = await persistLabDocument(pendingAttachment.uri);
-      await addLabResult({
-        catalogKey: selectedAnalysis.carePlan.catalogKey,
-        title: selectedAnalysis.title,
-        collectedAt: Date.now(),
-        status: 'unreviewed',
-        analytes: [
-          {
-            name: 'Результат',
-            value: 'Прикреплён',
-          },
-        ],
-        hasLocalSourceDocument: true,
-        localDocumentUri: persistedDocumentUri,
-      });
-      stored = true;
+      const { documentId, ocrFailed } = await importAnalysisDocument(
+        {
+          uri: pendingAttachment.uri,
+          catalogKey: selectedAnalysis.carePlan.catalogKey,
+          title: selectedAnalysis.title,
+        },
+        {
+          persist: persistLabDocument,
+          discardUnreferenced: discardUnreferencedLabDocument,
+          save: addLabResult,
+          imported: documentOcr.imported,
+        },
+      );
       setSelectedAnalysis(undefined);
       setPendingAttachment(undefined);
+      setActiveTab('completed');
+      pendingReviewId.current = documentId;
+      if (ocrFailed)
+        feedback.show(
+          'Файл сохранён',
+          'Не удалось начать распознавание. Откройте результат и повторите попытку.',
+        );
     } catch (cause) {
-      if (persistedDocumentUri && !stored)
-        await discardUnreferencedLabDocument(persistedDocumentUri);
       const message = cause instanceof Error ? cause.message : '';
       setAttachmentError(
         message.includes('DOCUMENT_')
@@ -661,6 +683,7 @@ export default function AnalysesScreen() {
           : 'Не удалось сохранить результат.',
       );
     } finally {
+      attachmentSaveLock.current = false;
       setSaving(false);
     }
   };
@@ -724,7 +747,6 @@ export default function AnalysesScreen() {
           onUpcoming={() => setActiveTab('upcoming')}
           style={styles.summaryWrap}
         />
-
 
         <View style={styles.tabsWrap}>
           <AnalysisTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -814,13 +836,28 @@ export default function AnalysesScreen() {
             {savedResults.map((result) => {
               const firstAnalyte = result.analytes[0];
               const catalog = analysisCatalogByKey.get(result.catalogKey);
+              const sourceDocument = documents.find(
+                (document) =>
+                  !document.deletedAt &&
+                  document.hasLocalFile &&
+                  document.localFileUri &&
+                  (document.localId === result.sourceDocumentLocalId ||
+                    document.linkedLabResultLocalId === result.localId),
+              );
+              const ocrState =
+                sourceDocument &&
+                documentOcr.drafts[sourceDocument.localId]?.state;
               return (
                 <AnalysisReferencePlanCard
                   key={result.localId}
                   title={result.title}
                   isCompleted
                   purpose={catalog?.purpose}
-                  dueLabel="Дата сдачи"
+                  dueLabel={
+                    result.status === 'unreviewed' && !result.confirmedAt
+                      ? 'Дата добавления'
+                      : 'Дата сдачи'
+                  }
                   dueValue={new Date(result.collectedAt).toLocaleDateString(
                     'ru-RU',
                   )}
@@ -832,27 +869,39 @@ export default function AnalysesScreen() {
                   }
                   image={analysisCategoryImage(catalog?.category)}
                   statusLabel={
-                    result.status === 'unreviewed'
-                      ? 'Файл сохранён · содержимое не прочитано'
-                      : result.status === 'attention'
-                        ? 'Требует внимания'
-                        : 'Подтверждено'
+                    result.confirmedAt
+                      ? 'Данные проверены вами'
+                      : ocrState === 'queued'
+                        ? 'Ожидает распознавания'
+                        : ocrState === 'recognizing'
+                          ? 'Распознаётся'
+                          : ocrState === 'review'
+                            ? 'Распознано · требуется проверка'
+                            : ocrState === 'error' || ocrState === 'cancelled'
+                              ? 'Распознавание остановлено · откройте для повтора'
+                              : result.status === 'unreviewed'
+                                ? 'Файл сохранён · требуется проверка'
+                                : result.status === 'attention'
+                                  ? 'Требует внимания'
+                                  : 'Подтверждено'
                   }
                   onView={() =>
-                    feedback.show(
-                      result.title,
-                      [
-                        `Дата сдачи: ${new Date(result.collectedAt).toLocaleDateString('ru-RU')}`,
-                        result.analytes.length
-                          ? result.analytes
-                              .map(
-                                (analyte) =>
-                                  `${analyte.name}: ${analyte.value}${analyte.unit ? ` ${analyte.unit}` : ''}`,
-                              )
-                              .join('\n')
-                          : 'Структурированные показатели не добавлены.',
-                      ].join('\n\n'),
-                    )
+                    sourceDocument && !readOnly
+                      ? setReviewDocumentId(sourceDocument.localId)
+                      : feedback.show(
+                          result.title,
+                          [
+                            `Дата сдачи: ${new Date(result.collectedAt).toLocaleDateString('ru-RU')}`,
+                            result.analytes.length
+                              ? result.analytes
+                                  .map(
+                                    (analyte) =>
+                                      `${analyte.section ? `${analyte.section} · ` : ''}${analyte.name}: ${analyte.value}${analyte.unit ? ` ${analyte.unit}` : ''}`,
+                                  )
+                                  .join('\n')
+                              : 'Структурированные показатели не добавлены.',
+                          ].join('\n\n'),
+                        )
                   }
                 />
               );
@@ -964,6 +1013,12 @@ export default function AnalysesScreen() {
         visible={Boolean(selectedAnalysis)}
         title="Анализ"
         onClose={closeAnalysis}
+        onClosed={() => {
+          if (pendingReviewId.current) {
+            setReviewDocumentId(pendingReviewId.current);
+            pendingReviewId.current = undefined;
+          }
+        }}
         dismissDisabled={saving || attachmentPicking}
         scroll={false}
       >
@@ -1121,6 +1176,44 @@ export default function AnalysesScreen() {
                       </AppText>
                     )}
 
+                    {selectedSavedDocument && !pendingAttachment ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => {
+                          setSelectedAnalysis(undefined);
+                          pendingReviewId.current = selectedSavedDocument.localId;
+                        }}
+                        disabled={readOnly || saving}
+                        style={styles.analysisModalAttachmentButton}
+                      >
+                        <AppText color={colors.brand.primary}>
+                          Открыть и проверить результат
+                        </AppText>
+                      </Pressable>
+                    ) : null}
+                    <AppText role="caption" color={colors.text.secondary}>
+                      {documentOcr.accepted && documentOcr.enabled
+                        ? 'После сохранения начнётся распознавание. Показатели и дату нужно проверить и подтвердить.'
+                        : 'Файл сохранится на устройстве. Для автоматического распознавания включите облачную синхронизацию и дайте согласие в разделе «Документы».'}
+                    </AppText>
+                    {!documentOcr.accepted || !documentOcr.enabled ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => {
+                          closeAnalysis();
+                          router.push({
+                            pathname: '/profile',
+                            params: { panel: 'documents' },
+                          });
+                        }}
+                        disabled={saving || attachmentPicking}
+                      >
+                        <AppText color={colors.brand.primary}>
+                          Настроить распознавание
+                        </AppText>
+                      </Pressable>
+                    ) : null}
+
                     <View style={styles.analysisModalAttachmentActions}>
                       {(['file', 'photo'] as const).map((kind) => (
                         <Pressable
@@ -1264,7 +1357,11 @@ export default function AnalysesScreen() {
                           value={scheduleDate}
                           mode="date"
                           display="spinner"
-                          themeVariant={colors.surface.canvas === "#161417" ? "dark" : "light"}
+                          themeVariant={
+                            colors.surface.canvas === '#161417'
+                              ? 'dark'
+                              : 'light'
+                          }
                           style={{ width: '100%', height: 216 }}
                           locale="ru-RU"
                           minimumDate={normalizePlanDate(new Date())}
@@ -1382,6 +1479,14 @@ export default function AnalysesScreen() {
         <ScreenFeedback feedback={feedback} />
       </AppSheet>
 
+      {reviewDocument && !readOnly ? (
+        <DocumentReview
+          key={reviewDocument.localId}
+          document={reviewDocument}
+          onClose={() => setReviewDocumentId(undefined)}
+        />
+      ) : null}
+
       <HealthInsightsPage
         visible={chartsVisible}
         initialPeriod="90"
@@ -1403,260 +1508,275 @@ export default function AnalysesScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.surface.canvas,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-  },
-  headerFade: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    left: 0,
-    zIndex: 8,
-  },
-  fixedHeader: {
-    position: 'absolute',
-    right: sizes.screenGutter,
-    left: sizes.screenGutter,
-    zIndex: 10,
-  },
-  addButtonDisabled: {
-    backgroundColor: colors.state.disabled,
-  },
-  heroWrap: {
-    marginTop: spacing.md,
-    zIndex: 2,
-  },
-  summaryWrap: {
-    alignSelf: 'stretch',
-    marginTop: 16,
-  },
-  tabsWrap: {
-    marginTop: 16,
-  },
-  cardsList: {
-    marginTop: 20,
-    gap: spacing.md,
-  },
-  emptyState: {
-    marginTop: 32,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTitle: {
-    color: emptyStateColor,
-    textAlign: 'center',
-    fontSize: 17,
-    lineHeight: 22,
-  },
-  emptyPlanTitle: {
-    color: emptyStateColor,
-    textAlign: 'center',
-    fontSize: 20,
-    lineHeight: 26,
-  },
-  emptyDescription: {
-    color: emptyStateColor,
-    marginTop: spacing.xs,
-    maxWidth: 310,
-    textAlign: 'center',
-    fontSize: 15,
-    lineHeight: 23,
-  },
-  emptySpinner: { marginBottom: spacing.sm },
-  emptySettingsButton: {
-    marginTop: spacing.md,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FBE7F0',
-    paddingHorizontal: spacing.lg,
-  },
-  analysisModalPageScroll: { flexShrink: 1 },
-  analysisModalPageContent: { paddingHorizontal: 20, paddingTop: 8 },
-  analysisModalSheet: { width: '100%' },
-  analysisModalHero: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingBottom: 20,
-    paddingRight: 4,
-  },
-  analysisModalImageWrap: { width: 60, height: 60, flexShrink: 0 },
-  analysisModalNoImage: {
-    width: 92,
-    height: 92,
-    flexShrink: 0,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF0F6',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(234,64,135,0.18)',
-  },
-  analysisModalNoImageText: {
-    fontSize: 34,
-    lineHeight: 38,
-  },
-  analysisModalImage: {
-    width: '100%',
-    height: '100%',
-  },
-  analysisModalHeroCopy: {
-    minWidth: 0,
-    flex: 1,
-  },
-  analysisModalTitle: {
-    fontSize: 20,
-    lineHeight: 25,
-    letterSpacing: -0.55,
-  },
-  analysisModalDates: {
-    minHeight: 76,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 18,
-    padding: 12,
-    backgroundColor: colors.surface.raised,
-  },
-  analysisModalDateCell: {
-    minWidth: 0,
-    flex: 1,
-    gap: 2,
-    paddingHorizontal: 8,
-  },
-  analysisModalDateDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 34,
-    backgroundColor: 'rgba(33,31,32,0.12)',
-  },
-  analysisModalMetaLabel: {
-    fontSize: 13.5,
-    lineHeight: 16,
-  },
-  analysisModalMetaValue: {
-    fontSize: 17,
-    lineHeight: 20,
-  },
-  analysisModalSections: { paddingTop: 14, gap: 14 },
-  analysisModalSection: { gap: 10 },
-  analysisModalInfoCard: {
-    gap: 6,
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: colors.surface.raised,
-  },
-  analysisModalInfoDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.surface.divider,
-    marginVertical: 8,
-  },
-  analysisModalFooter: {
-    paddingTop: 12,
-    paddingHorizontal: 20,
-    backgroundColor: colors.surface.canvas,
-  },
-  analysisModalPrimaryAction: { ...sheetStyles.primary },
-  analysisModalBodyText: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  analysisModalPlanActions: { gap: 8 },
-  analysisModalPlanButton: { ...sheetStyles.secondary, backgroundColor: colors.surface.divider },
-  analysisModalPlanButtonSecondary: { backgroundColor: colors.surface.raised },
-  analysisModalSchedulePicker: {
-    width: '100%',
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(33,31,32,0.10)',
-    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F7F3F4',
-  },
-  analysisModalScheduleHint: {
-    fontSize: 13,
-    lineHeight: 17,
-  },
-  analysisModalScheduleActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  analysisModalScheduleAction: {
-    minHeight: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    borderRadius: 13,
-  },
-  analysisModalScheduleActionPrimary: {
-    backgroundColor: colors.brand.primary,
-  },
-  analysisModalAttachmentHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  analysisModalAttachmentCard: {
-    gap: 12,
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: colors.surface.raised,
-  },
-  analysisModalAttachmentStatus: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  analysisModalAttachmentCopy: {
-    minWidth: 0,
-    flex: 1,
-    gap: 2,
-  },
-  analysisModalAttachmentHint: {
-    paddingHorizontal: 2,
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  analysisModalAttachmentActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  analysisModalAttachmentButton: {
-    minWidth: 0,
-    flex: 1,
-    height: 50,
-    flexDirection: 'row',
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'transparent',
-    backgroundColor: colors.surface.canvas,
-  },
-  analysisModalAttachmentButtonLabel: {
-    flexShrink: 1,
-    fontSize: 14,
-  },
-  analysisModalError: {
-    marginTop: -2,
-    paddingHorizontal: 2,
-  },
-  pressed: {
-    opacity: 0.76,
-    transform: [{ scale: 0.985 }],
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.surface.canvas,
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+    },
+    headerFade: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      left: 0,
+      zIndex: 8,
+    },
+    fixedHeader: {
+      position: 'absolute',
+      right: sizes.screenGutter,
+      left: sizes.screenGutter,
+      zIndex: 10,
+    },
+    addButtonDisabled: {
+      backgroundColor: colors.state.disabled,
+    },
+    heroWrap: {
+      marginTop: spacing.md,
+      zIndex: 2,
+    },
+    summaryWrap: {
+      alignSelf: 'stretch',
+      marginTop: 16,
+    },
+    tabsWrap: {
+      marginTop: 16,
+    },
+    cardsList: {
+      marginTop: 20,
+      gap: spacing.md,
+    },
+    emptyState: {
+      marginTop: 32,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyTitle: {
+      color: emptyStateColor,
+      textAlign: 'center',
+      fontSize: 17,
+      lineHeight: 22,
+    },
+    emptyPlanTitle: {
+      color: emptyStateColor,
+      textAlign: 'center',
+      fontSize: 20,
+      lineHeight: 26,
+    },
+    emptyDescription: {
+      color: emptyStateColor,
+      marginTop: spacing.xs,
+      maxWidth: 310,
+      textAlign: 'center',
+      fontSize: 15,
+      lineHeight: 23,
+    },
+    emptySpinner: { marginBottom: spacing.sm },
+    emptySettingsButton: {
+      marginTop: spacing.md,
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 18,
+      backgroundColor:
+        colors.surface.canvas === '#161417' ? colors.surface.rose : '#FBE7F0',
+      paddingHorizontal: spacing.lg,
+    },
+    analysisModalPageScroll: { flexShrink: 1 },
+    analysisModalPageContent: { paddingHorizontal: 20, paddingTop: 8 },
+    analysisModalSheet: { width: '100%' },
+    analysisModalHero: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingBottom: 20,
+      paddingRight: 4,
+    },
+    analysisModalImageWrap: { width: 60, height: 60, flexShrink: 0 },
+    analysisModalNoImage: {
+      width: 92,
+      height: 92,
+      flexShrink: 0,
+      borderRadius: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor:
+        colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF0F6',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor:
+        colors.surface.canvas === '#161417'
+          ? colors.surface.divider
+          : 'rgba(234,64,135,0.18)',
+    },
+    analysisModalNoImageText: {
+      fontSize: 34,
+      lineHeight: 38,
+    },
+    analysisModalImage: {
+      width: '100%',
+      height: '100%',
+    },
+    analysisModalHeroCopy: {
+      minWidth: 0,
+      flex: 1,
+    },
+    analysisModalTitle: {
+      fontSize: 20,
+      lineHeight: 25,
+      letterSpacing: -0.55,
+    },
+    analysisModalDates: {
+      minHeight: 76,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: 18,
+      padding: 12,
+      backgroundColor: colors.surface.raised,
+    },
+    analysisModalDateCell: {
+      minWidth: 0,
+      flex: 1,
+      gap: 2,
+      paddingHorizontal: 8,
+    },
+    analysisModalDateDivider: {
+      width: StyleSheet.hairlineWidth,
+      height: 34,
+      backgroundColor: 'rgba(33,31,32,0.12)',
+    },
+    analysisModalMetaLabel: {
+      fontSize: 13.5,
+      lineHeight: 16,
+    },
+    analysisModalMetaValue: {
+      fontSize: 17,
+      lineHeight: 20,
+    },
+    analysisModalSections: { paddingTop: 14, gap: 14 },
+    analysisModalSection: { gap: 10 },
+    analysisModalInfoCard: {
+      gap: 6,
+      padding: 16,
+      borderRadius: 18,
+      backgroundColor: colors.surface.raised,
+    },
+    analysisModalInfoDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.surface.divider,
+      marginVertical: 8,
+    },
+    analysisModalFooter: {
+      paddingTop: 12,
+      paddingHorizontal: 20,
+      backgroundColor: colors.surface.canvas,
+    },
+    analysisModalPrimaryAction: { ...sheetStyles.primary },
+    analysisModalBodyText: {
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    analysisModalPlanActions: { gap: 8 },
+    analysisModalPlanButton: {
+      ...sheetStyles.secondary,
+      backgroundColor: colors.surface.divider,
+    },
+    analysisModalPlanButtonSecondary: {
+      backgroundColor: colors.surface.raised,
+    },
+    analysisModalSchedulePicker: {
+      width: '100%',
+      gap: 10,
+      padding: 12,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor:
+        colors.surface.canvas === '#161417'
+          ? colors.surface.divider
+          : 'rgba(33,31,32,0.10)',
+      backgroundColor:
+        colors.surface.canvas === '#161417' ? colors.surface.raised : '#F7F3F4',
+    },
+    analysisModalScheduleHint: {
+      fontSize: 13,
+      lineHeight: 17,
+    },
+    analysisModalScheduleActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 8,
+    },
+    analysisModalScheduleAction: {
+      minHeight: 38,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14,
+      borderRadius: 13,
+    },
+    analysisModalScheduleActionPrimary: {
+      backgroundColor: colors.brand.primary,
+    },
+    analysisModalAttachmentHeading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    analysisModalAttachmentCard: {
+      gap: 12,
+      padding: 16,
+      borderRadius: 18,
+      backgroundColor: colors.surface.raised,
+    },
+    analysisModalAttachmentStatus: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    analysisModalAttachmentCopy: {
+      minWidth: 0,
+      flex: 1,
+      gap: 2,
+    },
+    analysisModalAttachmentHint: {
+      paddingHorizontal: 2,
+      fontSize: 14,
+      lineHeight: 18,
+    },
+    analysisModalAttachmentActions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    analysisModalAttachmentButton: {
+      minWidth: 0,
+      flex: 1,
+      height: 50,
+      flexDirection: 'row',
+      paddingHorizontal: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'transparent',
+      backgroundColor: colors.surface.canvas,
+    },
+    analysisModalAttachmentButtonLabel: {
+      flexShrink: 1,
+      fontSize: 14,
+    },
+    analysisModalError: {
+      marginTop: -2,
+      paddingHorizontal: 2,
+    },
+    pressed: {
+      opacity: 0.76,
+      transform: [{ scale: 0.985 }],
+    },
+  });
 
 const styles = createStyles(defaultThemeColors);

@@ -72,6 +72,7 @@ export type LabResult = {
     value: string;
     unit?: string;
     reference?: string;
+    section?: string;
   }>;
   hasLocalSourceDocument: boolean;
   sourceDocumentLocalId?: string;

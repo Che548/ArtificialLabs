@@ -4,6 +4,8 @@ import { ProfileAppearanceScope } from '../lib/profile-appearance';
 import { LegalDocumentsButton } from '../components/LegalDocumentsModal';
 import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { colors as defaultThemeColors } from '../design-system/tokens';
+import { useDocumentOcr } from '../lib/document-ocr-manager';
+import { newLocalId as newDocumentLocalId } from '../lib/health-types';
 import { filterInput } from '../lib/input-format';
 import { AppSheet, sheetStyles, useSheetStyles } from '../components/AppSheet';
 import { ProfileCollapse } from '../components/ProfileMotion';
@@ -405,7 +407,7 @@ function ProfileContent() {
   const confirmAgentConsentRevocation = () => {
     if (!aiAgentStatus?.consentAccepted) return;
     Alert.alert(
-      'Отключить Ассистента?',
+      'Отозвать доступ чата к данным?',
       'Доступ к данным здоровья будет отозван, а автономные проверки приостановлены. Локальный план останется видимым.',
       [
         { text: 'Отмена', style: 'cancel' },
@@ -422,7 +424,7 @@ function ProfileContent() {
               .catch((error) => {
                 console.error('Revoking AI agent consent failed', error);
                 Alert.alert(
-                  'Не удалось отключить Ассистента',
+                  'Не удалось отозвать доступ чата',
                   'Проверьте подключение и попробуйте ещё раз.',
                 );
               });
@@ -434,7 +436,7 @@ function ProfileContent() {
 
   const confirmAgentDataDeletion = () => {
     Alert.alert(
-      'Удалить данные Ассистента?',
+      'Удалить данные проверок плана?',
       'План, автономные правила и история их изменений будут удалены. Дневник, анализы, документы и чаты останутся.',
       [
         { text: 'Отмена', style: 'cancel' },
@@ -484,6 +486,7 @@ function ProfileContent() {
     setActiveSection(section);
   };
 
+  const documentOcr = useDocumentOcr();
   const addDocumentFromPicker = async () => {
     if (readOnly) return;
     const picked = e2eDocumentFixtureUri
@@ -505,8 +508,10 @@ function ProfileContent() {
         : picked?.assets[0];
     if (!asset) return;
     const localFileUri = await persistLabDocument(asset.uri);
+    const localId = newDocumentLocalId('document');
     try {
       await saveDocument({
+        localId,
         title: asset.name,
         category: 'medical',
         documentDate: Date.now(),
@@ -518,6 +523,10 @@ function ProfileContent() {
     } catch (cause) {
       await discardUnreferencedLabDocument(localFileUri);
       throw cause;
+    }
+    // Recognition is independent: a failed enqueue must never remove an imported file.
+    try { await documentOcr.imported(localId); } catch {
+      Alert.alert('Документ сохранён', 'Не удалось начать распознавание. Откройте документ и повторите попытку.');
     }
   };
 
@@ -1715,7 +1724,7 @@ function ProfileSectionContent({
             </ProfileCollapse>
           </ProfileSettingsGroup>
 
-          <ProfileSettingsGroup title="Сферка и Ассистент">
+          <ProfileSettingsGroup title="Чат и проверки плана">
             <PermissionToggle
               label="Ответы Сферки"
               subtitle={aiChatUnavailable ? 'Временно недоступно' : undefined}
@@ -1727,9 +1736,9 @@ function ProfileSectionContent({
               label="Проверки плана"
               subtitle={
                 !agentEnabled
-                  ? 'Ассистент временно недоступен'
+                  ? 'Проверки плана временно недоступны'
                   : !agentConsentAccepted
-                    ? 'Разрешите доступ в чате Ассистента'
+                    ? 'Разрешите доступ к данным в чате'
                     : !agentAutomationEnabled || !agentProviderConfigured
                       ? 'Сервис временно недоступен'
                       : !agentAutomationAccepted && medicalRecommendations
