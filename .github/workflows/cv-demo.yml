@@ -37,23 +37,17 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Verify the actual Linux runtime and isolated browser scenarios
+        uses: docker/build-push-action@v7
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: CV_Demo_WebAPP/package-lock.json
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake g++ libopencv-dev
-      - run: npm --prefix CV_Demo_WebAPP ci
-      - run: npm --prefix CV_Demo_WebAPP run build:cv
-      - run: npm --prefix CV_Demo_WebAPP run verify
-      - name: Install browser for isolated demo tests
-        working-directory: CV_Demo_WebAPP
-        run: npx playwright install --with-deps chromium
-      - name: Exercise synthetic CV and guest access
-        run: npm --prefix CV_Demo_WebAPP run test:e2e
-        env:
-          CI: true
-          CV_DEMO_DATA_DIR: /tmp/cv-demo-ci-access
+          context: .
+          file: CV_Demo_WebAPP/Dockerfile
+          target: browser-test
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=cv-demo
+          cache-to: type=gha,scope=cv-demo,mode=max
   publish:
     needs: verify
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

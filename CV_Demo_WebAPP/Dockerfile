@@ -1,5 +1,6 @@
-FROM node:22-bookworm-slim AS build
-RUN apt-get update && apt-get install -y --no-install-recommends cmake g++ libopencv-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM node:22-trixie-slim AS native
+# Debian 12/OpenCV 4.6 cannot import the R2 detector's ONNX Split node.
+RUN apt-get update && apt-get install -y --no-install-recommends cmake make g++ libopencv-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY CV_Demo_WebAPP/package*.json ./CV_Demo_WebAPP/
 RUN npm --prefix CV_Demo_WebAPP ci
@@ -11,10 +12,17 @@ COPY scripts/verify-strip-reader-package.mjs ./scripts/verify-strip-reader-packa
 RUN npm --prefix CV_Demo_WebAPP run build:cv
 WORKDIR /app/CV_Demo_WebAPP
 ENV NEXT_TELEMETRY_DISABLED=1
+
+FROM native AS build
 RUN npm run verify
 
-FROM node:22-bookworm-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends libopencv-core406 libopencv-imgproc406 libopencv-imgcodecs406 libopencv-calib3d406 libopencv-dnn406 ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM build AS browser-test
+RUN npx playwright install --with-deps chromium
+ENV CI=true CV_DEMO_DATA_DIR=/tmp/cv-demo-ci-access
+RUN npm run test:e2e
+
+FROM node:22-trixie-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends libopencv-core410 libopencv-imgproc410 libopencv-imgcodecs410 libopencv-calib3d410 libopencv-dnn410 ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/CV_Demo_WebAPP
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 CV_DEMO_DATA_DIR=/data STRIPCV_CLI=/app/bin/stripcv_cli STRIPCV_MODELS=/app/models/reader-20260914
 COPY --from=build /app/CV_Demo_WebAPP/package*.json ./

@@ -24,3 +24,6 @@ scripts/*
 **/playwright-report
 **/*.tsbuildinfo
 **/AGENTS.md
+CV_Demo_WebAPP/Dockerfile*
+CV_Demo_WebAPP/compose.yml
+CV_Demo_WebAPP/DEPLOYMENT.md
