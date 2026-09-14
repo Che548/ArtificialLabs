@@ -80,7 +80,7 @@ test('App Store identity is explicit and legacy development remains separate', (
     const release = getConfig(process.cwd()).exp;
     assert.equal(release.ios?.bundleIdentifier, 'engineering.brainwaves.sfera');
     assert.equal(release.ios?.appleTeamId, '6HZGXYF43L');
-    assert.equal(release.ios?.buildNumber, '6');
+    assert.equal(release.ios?.buildNumber, '7');
     assert.equal(release.android?.package, 'engineering.brainwaves.sfera');
     process.env.EXPO_PUBLIC_E2E_MODE = '1';
     assert.throws(() => getConfig(process.cwd()), /must not enable E2E/);
