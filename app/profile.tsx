@@ -3032,15 +3032,16 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 const styles = createStyles(defaultThemeColors);
 
 function InterfaceSettings() {
-  const { mode, setMode } = useAppTheme();
+  const { preference, setMode, saveError } = useAppTheme();
   return (
-    <ProfileSettingsGroup title="Оформление" footer="Светлая тема включена по умолчанию. Выбранная тема сохраняется на этом устройстве.">
+    <ProfileSettingsGroup title="Оформление" footer={saveError ?? 'По умолчанию тема меняется вместе с темой устройства. Ручной выбор сохраняется только на этом устройстве.'}>
       <ProfileVerticalChoiceControl
         accessibilityLabel="Тема приложения"
-        defaultValue="light"
-        value={mode}
+        defaultValue="system"
+        value={preference}
         grouped
         options={[
+          { label: 'Как на устройстве', value: 'system' },
           { label: 'Светлая тема', value: 'light' },
           { label: 'Тёмная тема', value: 'dark' },
         ]}
