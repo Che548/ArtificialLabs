@@ -1,4 +1,4 @@
-import type { AssayProfile, CardProfile } from '../../modules/strip-cv';
+import type { AssayProfile, CardProfile } from '../../modules/strip-cv/src/StripCv.types';
 
 export const CV_PROFILE_QR_SCHEMA = 'artificial-labs.cv-profile/1' as const;
 

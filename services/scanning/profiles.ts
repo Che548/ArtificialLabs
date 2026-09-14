@@ -1,4 +1,4 @@
-import type { AssayProfile, CardProfile } from '../../modules/strip-cv';
+import type { AssayProfile, CardProfile } from '../../modules/strip-cv/src/StripCv.types';
 
 // Latest checked-in test profile from StripCV. Its thresholds are provisional and
 // it intentionally contains no medical/biological cutoff.

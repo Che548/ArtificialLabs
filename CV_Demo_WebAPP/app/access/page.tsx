@@ -1,0 +1,4 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {api} from '../../lib/client';
+export default function Access(){const started=useRef(false);const [error,setError]=useState('');useEffect(()=>{if(started.current)return;started.current=true;const token=new URLSearchParams(location.hash.slice(1)).get('token');history.replaceState(null,'','/access');if(!token){setError('В ссылке нет кода доступа.');return;}api('/api/access','POST',{token}).then(()=>location.replace('/')).catch(e=>setError(e.message));},[]);return <main className="access-state"><div className="brand">сфера <span>scan</span></div>{error?<><h1>Ссылка недоступна</h1><p>{error}</p><a className="primary" href="/">Войти по логину</a></>:<><div className="spinner"/><h1>Открываем доступ</h1><p className="muted">Проверяем приглашение…</p></>}</main>;}
