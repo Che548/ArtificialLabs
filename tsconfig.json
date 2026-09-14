@@ -3,7 +3,10 @@
   "compilerOptions": {
     "strict": true,
     "allowImportingTsExtensions": true,
-    "moduleSuffixes": [".native", ""]
+    "moduleSuffixes": [
+      ".native",
+      ""
+    ]
   },
   "include": [
     "**/*.ts",
@@ -21,6 +24,7 @@
     "tmp",
     "admin",
     "tests/admin-ui",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "CV_Demo_WebAPP"
   ]
 }

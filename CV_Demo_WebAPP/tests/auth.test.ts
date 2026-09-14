@@ -1,0 +1,12 @@
+import {test,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {checkCredentials,createSession,getSession,logout,createLink,exchangeLink,revokeLink,listLinks,rateLimit} from '../lib/auth';
+const folder=mkdtempSync(path.join(tmpdir(),'sfera-auth-test-'));process.env.CV_DEMO_DATA_DIR=folder;after(()=>rmSync(folder,{recursive:true,force:true}));
+test('rejects invalid credentials and excessive input',()=>{assert.equal(checkCredentials('other','wrong'),false);assert.equal(checkCredentials('admin','x'.repeat(257)),false);});
+test('signed sessions reject tampering and are revoked at logout',()=>{const {token,session}=createSession('admin');assert.equal(getSession(token)?.id,session.id);assert.equal(getSession(token+'a'),null);assert.equal(getSession('x.y'),null);logout(token);assert.equal(getSession(token),null);});
+test('guest link scopes access and revocation invalidates existing sessions',()=>{const {token,link}=createLink('Synthetic test',1);const access=exchangeLink(token)!;assert.equal(access.session.role,'guest');assert.equal(access.session.owner,`guest-${link.id}`);assert.ok(getSession(access.token));assert.equal(listLinks().find(l=>l.id===link.id)?.uses,1);assert.equal(readFileSync(path.join(folder,'access.json'),'utf8').includes(token),false);revokeLink(link.id);assert.equal(exchangeLink(token),null);assert.equal(getSession(access.token),null);});
+test('expired and malformed access links do not authenticate',()=>{const {token}=createLink('expired',-1);assert.equal(exchangeLink(token),null);assert.equal(exchangeLink('invalid'),null);});
+test('throttle persists and isolates buckets',()=>{assert.equal(rateLimit('one',1),true);assert.equal(rateLimit('one',1),false);assert.equal(rateLimit('two',1),true);});

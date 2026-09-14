@@ -1,4 +1,4 @@
-import type { AnalysisResult } from '../../modules/strip-cv';
+import type { AnalysisResult } from '../../modules/strip-cv/src/StripCv.types';
 
 export type DetectedInterpretation = 'positive' | 'negative';
 export type AnalysisDecision = 'reportable' | 'review' | 'retake';
