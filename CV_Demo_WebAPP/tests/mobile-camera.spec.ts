@@ -2,7 +2,7 @@ import {test,expect,chromium} from '@playwright/test';
 import {createSession} from '../lib/auth';
 
 for(const width of [320,390,430])test(`camera flow fits ${width}px screen`,async()=>{
- const browser=await chromium.launch({channel:'chromium',args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream']});
+ const browser=await chromium.launch({channel:process.env.CV_DEMO_BROWSER_CHANNEL || 'chromium',args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream']});
  const context=await browser.newContext({viewport:{width,height:844},permissions:['camera']});
  const {token}=createSession('admin');
  await context.addCookies([{name:'cv_demo_session',value:token,url:'http://127.0.0.1:3040',httpOnly:true,sameSite:'Lax'}]);
