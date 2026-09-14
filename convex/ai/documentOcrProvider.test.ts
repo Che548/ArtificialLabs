@@ -130,7 +130,7 @@ test('never retries or exposes raw provider error, credentials or content', asyn
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
-test('v2 separates image transcription from structured extraction without retransmitting the image or rewriting text', async () => {
+test('v2 preserves the fixed transcription and reuses only the same page for layout extraction', async () => {
   const source='Conclusion: sample processed.';
   const structured={rows:[],issues:[],structure:{version:1,title:'',pageRole:'content',dates:[],blocks:[{kind:'conclusion',text:source,section:''}]}};
   const requests:Record<string,any>[]=[];
@@ -141,7 +141,11 @@ test('v2 separates image transcription from structured extraction without retran
   });
   const output=(await recognizeWithQwen('/9j/AAAA',2)).result;
   expect(requests).toHaveLength(2);expect(requests[0].messages[1].content[1].type).toBe('image_url');
-  expect(JSON.stringify(requests[1])).not.toContain('/9j/');expect(requests[1].messages[1].content).toBe(JSON.stringify({transcription:source}));
+  expect(requests[1].messages[1].content).toEqual([
+    {type: 'text', text: JSON.stringify({transcription: source})},
+    {type: 'image_url', image_url: {url: 'data:image/jpeg;base64,/9j/AAAA'}},
+  ]);
+  expect(requests.every(r => r.tools === undefined)).toBe(true);
   expect(requests.every(r=>r.store===false && r.model===`gpt://synthetic-folder/${OCR_MODEL}`)).toBe(true);
   expect(output.text).toBe(source);expect(output.issues).toContain('source_unclear');expect(output.structure?.blocks[0].kind).toBe('conclusion');
 });

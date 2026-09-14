@@ -1029,7 +1029,7 @@ export default function AnalysesScreen() {
           contentContainerStyle={[
             styles.analysisModalPageContent,
             {
-              paddingBottom: 20,
+              paddingBottom: 0,
             },
           ]}
         >
@@ -1166,15 +1166,7 @@ export default function AnalysesScreen() {
                           </AppText>
                         </View>
                       </View>
-                    ) : (
-                      <AppText
-                        role="caption"
-                        color={colors.text.secondary}
-                        style={styles.analysisModalAttachmentHint}
-                      >
-                        Добавьте заключение или результаты лаборатории
-                      </AppText>
-                    )}
+                    ) : null}
 
                     {selectedSavedDocument && !pendingAttachment ? (
                       <Pressable
@@ -1229,6 +1221,7 @@ export default function AnalysesScreen() {
                           onPress={() => void pickAnalysisAttachment(kind)}
                           style={({ pressed }) => [
                             styles.analysisModalAttachmentButton,
+                            (readOnly || attachmentPicking || saving) && { opacity: 0.5 },
                             pressed && styles.pressed,
                           ]}
                         >
@@ -1279,8 +1272,8 @@ export default function AnalysesScreen() {
                                 }
                               >
                                 {kind === 'file'
-                                  ? 'Выбрать файл'
-                                  : 'Выбрать фото'}
+                                  ? 'Файл'
+                                  : 'Фото'}
                               </AppText>
                             </>
                           )}
@@ -1300,9 +1293,6 @@ export default function AnalysesScreen() {
                   ) : null}
                 </View>
                 <View style={styles.analysisModalSection}>
-                  <AppText role="label" weight="semibold">
-                    План
-                  </AppText>
                   <View style={styles.analysisModalPlanActions}>
                     <Pressable
                       cssInterop={false}
@@ -1316,11 +1306,13 @@ export default function AnalysesScreen() {
                       }}
                       style={({ pressed }) => [
                         styles.analysisModalPlanButton,
+                        pendingAttachment && styles.analysisModalPlanButtonSecondary,
+                        (readOnly || saving || attachmentPicking) && { opacity: 0.5 },
                         pressed && styles.pressed,
                       ]}
                     >
-                      <AppText weight="semibold" color={colors.brand.primary}>
-                        Отметить выполненным
+                      <AppText weight="medium" color={pendingAttachment ? colors.brand.primary : colors.text.inverse}>
+                        Анализ сдан
                       </AppText>
                     </Pressable>
                     {selectedAnalysis.carePlan.status === 'upcoming' ? (
@@ -1434,7 +1426,7 @@ export default function AnalysesScreen() {
                       }}
                       style={({ pressed }) => [
                         styles.analysisModalPlanButton,
-                        styles.analysisModalPlanButtonSecondary,
+                        styles.analysisModalDeclineButton,
                         pressed && styles.pressed,
                       ]}
                     >
@@ -1508,275 +1500,256 @@ export default function AnalysesScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    root: {
-      flex: 1,
-      backgroundColor: colors.surface.canvas,
-    },
-    scrollContent: {
-      paddingHorizontal: 16,
-    },
-    headerFade: {
-      position: 'absolute',
-      top: 0,
-      right: 0,
-      left: 0,
-      zIndex: 8,
-    },
-    fixedHeader: {
-      position: 'absolute',
-      right: sizes.screenGutter,
-      left: sizes.screenGutter,
-      zIndex: 10,
-    },
-    addButtonDisabled: {
-      backgroundColor: colors.state.disabled,
-    },
-    heroWrap: {
-      marginTop: spacing.md,
-      zIndex: 2,
-    },
-    summaryWrap: {
-      alignSelf: 'stretch',
-      marginTop: 16,
-    },
-    tabsWrap: {
-      marginTop: 16,
-    },
-    cardsList: {
-      marginTop: 20,
-      gap: spacing.md,
-    },
-    emptyState: {
-      marginTop: 32,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.lg,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    emptyTitle: {
-      color: emptyStateColor,
-      textAlign: 'center',
-      fontSize: 17,
-      lineHeight: 22,
-    },
-    emptyPlanTitle: {
-      color: emptyStateColor,
-      textAlign: 'center',
-      fontSize: 20,
-      lineHeight: 26,
-    },
-    emptyDescription: {
-      color: emptyStateColor,
-      marginTop: spacing.xs,
-      maxWidth: 310,
-      textAlign: 'center',
-      fontSize: 15,
-      lineHeight: 23,
-    },
-    emptySpinner: { marginBottom: spacing.sm },
-    emptySettingsButton: {
-      marginTop: spacing.md,
-      minHeight: 44,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 18,
-      backgroundColor:
-        colors.surface.canvas === '#161417' ? colors.surface.rose : '#FBE7F0',
-      paddingHorizontal: spacing.lg,
-    },
-    analysisModalPageScroll: { flexShrink: 1 },
-    analysisModalPageContent: { paddingHorizontal: 20, paddingTop: 8 },
-    analysisModalSheet: { width: '100%' },
-    analysisModalHero: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      paddingBottom: 20,
-      paddingRight: 4,
-    },
-    analysisModalImageWrap: { width: 60, height: 60, flexShrink: 0 },
-    analysisModalNoImage: {
-      width: 92,
-      height: 92,
-      flexShrink: 0,
-      borderRadius: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor:
-        colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF0F6',
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor:
-        colors.surface.canvas === '#161417'
-          ? colors.surface.divider
-          : 'rgba(234,64,135,0.18)',
-    },
-    analysisModalNoImageText: {
-      fontSize: 34,
-      lineHeight: 38,
-    },
-    analysisModalImage: {
-      width: '100%',
-      height: '100%',
-    },
-    analysisModalHeroCopy: {
-      minWidth: 0,
-      flex: 1,
-    },
-    analysisModalTitle: {
-      fontSize: 20,
-      lineHeight: 25,
-      letterSpacing: -0.55,
-    },
-    analysisModalDates: {
-      minHeight: 76,
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderRadius: 18,
-      padding: 12,
-      backgroundColor: colors.surface.raised,
-    },
-    analysisModalDateCell: {
-      minWidth: 0,
-      flex: 1,
-      gap: 2,
-      paddingHorizontal: 8,
-    },
-    analysisModalDateDivider: {
-      width: StyleSheet.hairlineWidth,
-      height: 34,
-      backgroundColor: 'rgba(33,31,32,0.12)',
-    },
-    analysisModalMetaLabel: {
-      fontSize: 13.5,
-      lineHeight: 16,
-    },
-    analysisModalMetaValue: {
-      fontSize: 17,
-      lineHeight: 20,
-    },
-    analysisModalSections: { paddingTop: 14, gap: 14 },
-    analysisModalSection: { gap: 10 },
-    analysisModalInfoCard: {
-      gap: 6,
-      padding: 16,
-      borderRadius: 18,
-      backgroundColor: colors.surface.raised,
-    },
-    analysisModalInfoDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.surface.divider,
-      marginVertical: 8,
-    },
-    analysisModalFooter: {
-      paddingTop: 12,
-      paddingHorizontal: 20,
-      backgroundColor: colors.surface.canvas,
-    },
-    analysisModalPrimaryAction: { ...sheetStyles.primary },
-    analysisModalBodyText: {
-      fontSize: 16,
-      lineHeight: 22,
-    },
-    analysisModalPlanActions: { gap: 8 },
-    analysisModalPlanButton: {
-      ...sheetStyles.secondary,
-      backgroundColor: colors.surface.divider,
-    },
-    analysisModalPlanButtonSecondary: {
-      backgroundColor: colors.surface.raised,
-    },
-    analysisModalSchedulePicker: {
-      width: '100%',
-      gap: 10,
-      padding: 12,
-      borderRadius: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor:
-        colors.surface.canvas === '#161417'
-          ? colors.surface.divider
-          : 'rgba(33,31,32,0.10)',
-      backgroundColor:
-        colors.surface.canvas === '#161417' ? colors.surface.raised : '#F7F3F4',
-    },
-    analysisModalScheduleHint: {
-      fontSize: 13,
-      lineHeight: 17,
-    },
-    analysisModalScheduleActions: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-      gap: 8,
-    },
-    analysisModalScheduleAction: {
-      minHeight: 38,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 14,
-      borderRadius: 13,
-    },
-    analysisModalScheduleActionPrimary: {
-      backgroundColor: colors.brand.primary,
-    },
-    analysisModalAttachmentHeading: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 12,
-    },
-    analysisModalAttachmentCard: {
-      gap: 12,
-      padding: 16,
-      borderRadius: 18,
-      backgroundColor: colors.surface.raised,
-    },
-    analysisModalAttachmentStatus: {
-      minHeight: 44,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    analysisModalAttachmentCopy: {
-      minWidth: 0,
-      flex: 1,
-      gap: 2,
-    },
-    analysisModalAttachmentHint: {
-      paddingHorizontal: 2,
-      fontSize: 14,
-      lineHeight: 18,
-    },
-    analysisModalAttachmentActions: {
-      flexDirection: 'row',
-      gap: 10,
-    },
-    analysisModalAttachmentButton: {
-      minWidth: 0,
-      flex: 1,
-      height: 50,
-      flexDirection: 'row',
-      paddingHorizontal: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      borderRadius: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: 'transparent',
-      backgroundColor: colors.surface.canvas,
-    },
-    analysisModalAttachmentButtonLabel: {
-      flexShrink: 1,
-      fontSize: 14,
-    },
-    analysisModalError: {
-      marginTop: -2,
-      paddingHorizontal: 2,
-    },
-    pressed: {
-      opacity: 0.76,
-      transform: [{ scale: 0.985 }],
-    },
-  });
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.surface.canvas,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+  },
+  headerFade: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    zIndex: 8,
+  },
+  fixedHeader: {
+    position: 'absolute',
+    right: sizes.screenGutter,
+    left: sizes.screenGutter,
+    zIndex: 10,
+  },
+  addButtonDisabled: {
+    backgroundColor: colors.state.disabled,
+  },
+  heroWrap: {
+    marginTop: spacing.md,
+    zIndex: 2,
+  },
+  summaryWrap: {
+    alignSelf: 'stretch',
+    marginTop: 16,
+  },
+  tabsWrap: {
+    marginTop: 16,
+  },
+  cardsList: {
+    marginTop: 20,
+    gap: spacing.md,
+  },
+  emptyState: {
+    marginTop: 32,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    color: emptyStateColor,
+    textAlign: 'center',
+    fontSize: 17,
+    lineHeight: 22,
+  },
+  emptyPlanTitle: {
+    color: emptyStateColor,
+    textAlign: 'center',
+    fontSize: 20,
+    lineHeight: 26,
+  },
+  emptyDescription: {
+    color: emptyStateColor,
+    marginTop: spacing.xs,
+    maxWidth: 310,
+    textAlign: 'center',
+    fontSize: 15,
+    lineHeight: 23,
+  },
+  emptySpinner: { marginBottom: spacing.sm },
+  emptySettingsButton: {
+    marginTop: spacing.md,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FBE7F0',
+    paddingHorizontal: spacing.lg,
+  },
+  analysisModalPageScroll: { flexShrink: 1 },
+  analysisModalPageContent: { paddingHorizontal: 20, paddingTop: 8 },
+  analysisModalSheet: { width: '100%' },
+  analysisModalHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 20,
+    paddingRight: 4,
+  },
+  analysisModalImageWrap: { width: 60, height: 60, flexShrink: 0 },
+  analysisModalNoImage: {
+    width: 92,
+    height: 92,
+    flexShrink: 0,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.rose : '#FFF0F6',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(234,64,135,0.18)',
+  },
+  analysisModalNoImageText: {
+    fontSize: 34,
+    lineHeight: 38,
+  },
+  analysisModalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  analysisModalHeroCopy: {
+    minWidth: 0,
+    flex: 1,
+  },
+  analysisModalTitle: {
+    fontSize: 20,
+    lineHeight: 25,
+    letterSpacing: -0.55,
+  },
+  analysisModalDates: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: colors.surface.raised,
+  },
+  analysisModalDateCell: {
+    minWidth: 0,
+    flex: 1,
+    gap: 2,
+    paddingHorizontal: 8,
+  },
+  analysisModalDateDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 34,
+    backgroundColor: 'rgba(33,31,32,0.12)',
+  },
+  analysisModalMetaLabel: {
+    fontSize: 13.5,
+    lineHeight: 16,
+  },
+  analysisModalMetaValue: {
+    fontSize: 17,
+    lineHeight: 20,
+  },
+  analysisModalSections: { paddingTop: 14, gap: 14 },
+  analysisModalSection: { gap: 10 },
+  analysisModalInfoCard: {
+    gap: 6,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: colors.surface.raised,
+  },
+  analysisModalInfoDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.surface.divider,
+    marginVertical: 8,
+  },
+  analysisModalFooter: {
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    backgroundColor: colors.surface.canvas,
+  },
+  analysisModalPrimaryAction: { ...sheetStyles.primary },
+  analysisModalBodyText: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  analysisModalPlanActions: { gap: 8 },
+  analysisModalPlanButton: { ...sheetStyles.primary, minHeight: 52, borderRadius: 999 },
+  analysisModalPlanButtonSecondary: { backgroundColor: colors.surface.raised },
+  analysisModalDeclineButton: { backgroundColor: 'transparent', borderWidth: 0, minHeight: 44 },
+  analysisModalSchedulePicker: {
+    width: '100%',
+    gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.surface.canvas === '#161417' ? colors.surface.divider : 'rgba(33,31,32,0.10)',
+    backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.raised : '#F7F3F4',
+  },
+  analysisModalScheduleHint: {
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  analysisModalScheduleActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  analysisModalScheduleAction: {
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 13,
+  },
+  analysisModalScheduleActionPrimary: {
+    backgroundColor: colors.brand.primary,
+  },
+  analysisModalAttachmentHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  analysisModalAttachmentCard: {
+    gap: 10,
+  },
+  analysisModalAttachmentStatus: {
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: colors.surface.raised,
+    minHeight: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  analysisModalAttachmentCopy: {
+    minWidth: 0,
+    flex: 1,
+    gap: 2,
+  },
+  analysisModalAttachmentHint: { paddingHorizontal: 2, fontSize: 14, lineHeight: 18 },
+  analysisModalAttachmentActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  analysisModalAttachmentButton: {
+    minWidth: 0,
+    flex: 1,
+    minHeight: 52,
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surface.raised,
+  },
+  analysisModalAttachmentButtonLabel: {
+    flexShrink: 1,
+    fontSize: 14,
+  },
+  analysisModalError: {
+    marginTop: -2,
+    paddingHorizontal: 2,
+  },
+  pressed: {
+    opacity: 0.76,
+    transform: [{ scale: 0.985 }],
+  },
+});
 
 const styles = createStyles(defaultThemeColors);

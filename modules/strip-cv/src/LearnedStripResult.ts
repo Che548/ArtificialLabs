@@ -1,4 +1,4 @@
-import { decideLearnedStrip, type LearnedStripEvidence } from './LearnedStripDecision';
+import { decideLearnedStrip, hasCoincidentSingleLineEvidence, type LearnedStripEvidence } from './LearnedStripDecision';
 import type { AnalysisResult, AssayProfile, PeakMetrics } from './StripCv.types';
 
 type NativeReaderResult = {
@@ -27,7 +27,7 @@ const peak = (detected: boolean): PeakMetrics => ({
 export function adaptLearnedStripResult(json: string, assay: AssayProfile): AnalysisResult {
   const raw = JSON.parse(json) as NativeReaderResult;
   const value = raw?.result;
-  if (raw?.schema_version !== '1.0' || raw.algorithm_version !== 'strip-reader-experimental-20260914' ||
+  if (raw?.schema_version !== '1.0' || !['strip-reader-experimental-20260914', 'strip-reader-experimental-20260914-r2'].includes(raw.algorithm_version) ||
       !value || !['one_line', 'two_line', 'review', 'invalid'].includes(value.observed_label) ||
       typeof value.reason !== 'string' || typeof value.reportable !== 'boolean' ||
       !Number.isFinite(raw.width) || !Number.isFinite(raw.height) || raw.width < 2 || raw.height < 2 ||
@@ -37,7 +37,8 @@ export function adaptLearnedStripResult(json: string, assay: AssayProfile): Anal
   const evidence = raw.evidence;
   if (evidence && (!Array.isArray(evidence.primary) || evidence.primary.length !== 2 ||
                   !Array.isArray(evidence.auxiliary) || evidence.auxiliary.length !== 2 ||
-                  typeof evidence.detectorFound !== 'boolean')) {
+                  typeof evidence.detectorFound !== 'boolean' ||
+                  (evidence.spatialPeaksCoincide !== undefined && typeof evidence.spatialPeaksCoincide !== 'boolean'))) {
     throw new Error('The local strip reader returned invalid evidence.');
   }
   const checked = evidence ? decideLearnedStrip(evidence) : null;
@@ -52,7 +53,7 @@ export function adaptLearnedStripResult(json: string, assay: AssayProfile): Anal
     ? Math.min(primary[0], auxiliary[0], evidence.coverage,
       count === 2 ? primary[1] : 1 - primary[1],
       count === 2 ? auxiliary[1] : 1 - auxiliary[1],
-      count === 1 ? 1 - evidence.spatialTest : 1)
+      count === 1 && !hasCoincidentSingleLineEvidence(evidence) ? 1 - evidence.spatialTest : 1)
     : 0;
   const finite = (n: number | undefined) => Number.isFinite(n) ? n! : 0;
   return {

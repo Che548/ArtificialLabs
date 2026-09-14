@@ -4,19 +4,20 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { requireActiveAccount } from './lib/access';
+import { getAuthUserId } from '@convex-dev/auth/server';
+import { hasCloudConsent } from './lib/cloudConsent';
 import { OCR_MODEL, OCR_POLICY_VERSION } from '../shared/document-ocr';
 
 const configured = () =>
   process.env.AI_DOCUMENT_OCR_ENABLED === '1' &&
   process.env.YANDEX_DOCUMENT_OCR_MODEL === OCR_MODEL;
 async function access(ctx: QueryCtx | MutationCtx, userId: Id<'users'>) {
+  // HTTP actions propagate the caller identity to internal mutations. Never
+  // borrow another session's consent via the retained profile timestamp.
+  if (await getAuthUserId(ctx) !== userId) throw new Error('OCR_ACCOUNT_UNAVAILABLE');
   const user = await ctx.db.get(userId);
   const state = await ctx.db
     .query('accountStates')
-    .withIndex('by_user', (q) => q.eq('userId', userId))
-    .unique();
-  const profile = await ctx.db
-    .query('profiles')
     .withIndex('by_user', (q) => q.eq('userId', userId))
     .unique();
   const consent = await ctx.db
@@ -26,7 +27,7 @@ async function access(ctx: QueryCtx | MutationCtx, userId: Id<'users'>) {
   if (!user || state?.scheduledDeletionAt)
     throw new Error('OCR_ACCOUNT_UNAVAILABLE');
   if (!configured()) throw new Error('OCR_SERVICE_DISABLED');
-  if (!profile?.consentToCloudSyncAt)
+  if (!(await hasCloudConsent(ctx, userId)))
     throw new Error('OCR_CLOUD_SYNC_REQUIRED');
   if (
     !consent ||

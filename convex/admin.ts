@@ -113,6 +113,7 @@ export const grant = mutation({
         grantedAt: now,
         revokedBy: undefined,
         revokedAt: undefined,
+        demoLoginEmail: undefined,
         updatedAt: now,
       });
       membershipId = existing._id;
@@ -157,6 +158,7 @@ export const revoke = mutation({
     await ctx.db.patch(membershipId, {
       revokedBy: actorUserId,
       revokedAt: now,
+      demoLoginEmail: undefined,
       updatedAt: now,
     });
     await writeAdminAudit(ctx, {

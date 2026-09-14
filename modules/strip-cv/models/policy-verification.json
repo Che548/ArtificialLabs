@@ -3,5 +3,7 @@
   "images": 803,
   "final_count_status_and_reason_equal": true,
   "non_finite_evidence_rejected": true,
-  "native_inference_verified": false
+  "native_inference_verified": false,
+  "algorithm_version": "strip-reader-experimental-20260914",
+  "scope": "Historical initial-policy reference parity; excludes the r2 threshold change"
 }

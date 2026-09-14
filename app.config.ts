@@ -32,7 +32,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           appleTeamId: '6HZGXYF43L',
         }
       : {}),
-    buildNumber: appStoreBuild ? '5' : (baseConfig.ios?.buildNumber ?? '1'),
+    buildNumber: appStoreBuild ? '7' : (baseConfig.ios?.buildNumber ?? '1'),
     infoPlist: {
       ...(baseConfig.ios?.infoPlist ?? {}),
       ...(localOtaE2E

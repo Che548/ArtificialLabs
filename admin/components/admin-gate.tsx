@@ -39,13 +39,6 @@ export function AdminGate({ children }: PropsWithChildren) {
     return (
       <main className="gate">
         <form className="gate-card login" onSubmit={submit}>
-          <div className="brand-mark">AL</div>
-          <p className="eyebrow">ArtificialLabs</p>
-          <h1>Административная консоль</h1>
-          <p className="muted">
-            Доступ выдаётся действующим администратором. Саморегистрация
-            отключена.
-          </p>
           <label>
             Email
             <input

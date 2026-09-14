@@ -22,7 +22,8 @@ constexpr int kHeatSize = 128;
 constexpr int kStride = 4;
 constexpr double kPresent = .9;
 constexpr double kAbsent = .1;
-constexpr const char* kVersion = "strip-reader-experimental-20260914";
+constexpr double kCoverage = .85;
+constexpr const char* kVersion = "strip-reader-experimental-20260914-r2";
 
 Json decision(const char* label, const char* reason) {
   const std::string value(label);
@@ -165,7 +166,7 @@ Peak peak(const cv::Mat& heat, int channel, const cv::Matx33d& inverse,
 
 Json read_count(float c, float t, float q, bool length_ok) {
   if (!length_ok) return decision("invalid", "result_region_degenerate");
-  if (q < kPresent) return decision("review", "window_coverage_uncertain");
+  if (q < kCoverage) return decision("review", "window_coverage_uncertain");
   if (c <= kAbsent) return decision("invalid", "control_absent");
   if (c < kPresent) return decision("review", "control_uncertain");
   if (t >= kPresent) return decision("two_line", "ct_present");
@@ -278,14 +279,18 @@ struct LearnedReader::Impl {
           const float q = sigmoid(coverage_logits.ptr<float>()[2]);
           const float ac = sigmoid(auxiliary_logits.ptr<float>()[0]);
           const float at = sigmoid(auxiliary_logits.ptr<float>()[1]);
+          const bool coincident_peaks = control.input == test.input;
+          const bool coincident_single = coincident_peaks && c >= .99 && ac >= .99 && t <= .02 && at <= .02;
           const auto primary = read_count(c, t, q, input_length >= 16);
           const auto secondary = read_count(ac, at, q, input_length >= 16);
           result = primary;
           if (primary["reportable"].get<bool>()) {
             if (!secondary["reportable"].get<bool>() || primary["observed_label"] != secondary["observed_label"])
               result = decision("review", "readers_do_not_confidently_agree");
-            else if (primary["observed_label"] == "one_line" && test.score > kAbsent)
+            else if (primary["observed_label"] == "one_line" && test.score > kAbsent && !coincident_single)
               result = decision("review", "spatial_test_absence_not_confirmed");
+            else if (primary["observed_label"] == "one_line" && test.score > kAbsent)
+              result = decision("one_line", "window_readers_agree_on_coincident_peak");
             else result = decision(primary["observed_label"].get<std::string>().c_str(),
                                    primary["observed_label"] == "one_line"
                                        ? "window_readers_and_spatial_absence_agree" : "readers_agree");
@@ -295,7 +300,7 @@ struct LearnedReader::Impl {
           output["window_coverage_score"] = q;
           output["evidence"] = {{"detectorFound", true}, {"resultLength", input_length},
                                 {"coverage", q}, {"primary", {c, t}}, {"auxiliary", {ac, at}},
-                                {"spatialTest", test.score}};
+                                {"spatialTest", test.score}, {"spatialPeaksCoincide", coincident_peaks}};
           output["window_source_to_input"] = {{affine(0, 0), affine(0, 1), affine(0, 2)},
                                               {affine(1, 0), affine(1, 1), affine(1, 2)}};
         }

@@ -32,6 +32,7 @@ import type { Id } from '../convex/_generated/dataModel';
 import { useConnectivity } from '../lib/connectivity';
 import { otpAutofillProps } from '../lib/otp-autofill';
 import { classifyServiceIssue } from '../lib/service-errors';
+import { UpdateRequiredNotice } from './UpdateRequiredNotice';
 import { listenForSmsOtp, startSmsRetriever } from '../lib/sms-otp-retriever';
 import { rememberRegistrationConsent, clearRegistrationConsent } from '../lib/registration-consent';
 
@@ -328,6 +329,8 @@ export function AuthScreen({
   };
 
   const requestRecoveryCode = async () => {
+    if (loginLock.current) return;
+    loginLock.current = true;
     setSubmitting(true);
     setError(undefined);
     setRecoveryCode('');
@@ -350,12 +353,14 @@ export function AuthScreen({
       console.error('Password recovery request failed');
       setError(recoveryError(cause));
     } finally {
+      loginLock.current = false;
       setSubmitting(false);
     }
   };
 
   const finishRecovery = async () => {
-    if (!recoveryChallengeId) return;
+    if (!recoveryChallengeId || loginLock.current) return;
+    loginLock.current = true;
     setSubmitting(true);
     setError(undefined);
     try {
@@ -387,6 +392,7 @@ export function AuthScreen({
       console.error('Password recovery completion failed');
       setError(recoveryError(cause));
     } finally {
+      loginLock.current = false;
       setSubmitting(false);
     }
   };
@@ -448,7 +454,7 @@ export function AuthScreen({
       if (flow === 'signUp') await clearRegistrationConsent();
       const issue = classifyServiceIssue(cause, isOffline);
       setError(
-        issue.retryable
+        issue.kind === 'update-required' ? 'CLIENT_UPDATE_REQUIRED' : issue.retryable
           ? issue.message
           : flow === 'signIn'
             ? 'Не удалось войти. Проверьте данные и пароль.'
@@ -746,7 +752,7 @@ export function AuthScreen({
                   </View>
                 ) : null}
 
-                {visibleError ? (
+                {visibleError === 'CLIENT_UPDATE_REQUIRED' ? <UpdateRequiredNotice /> : visibleError ? (
                   <Text
                     accessibilityRole="alert"
                     style={[

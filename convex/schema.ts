@@ -9,6 +9,7 @@ const goal = v.union(
 );
 const syncState = {
   localId: v.string(),
+  syncRevision: v.optional(v.number()),
   updatedAt: v.number(),
   deletedAt: v.optional(v.number()),
 };
@@ -135,6 +136,12 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_user', ['userId']),
+  cloudSyncSessions: defineTable({
+    userId: v.id('users'),
+    sessionId: v.string(),
+    consentedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+  }).index('by_user_session', ['userId', 'sessionId']),
   smsSendAttempts: defineTable({
     requestId: v.string(),
     phoneHash: v.string(),
@@ -741,6 +748,8 @@ export default defineSchema({
     userId: v.id('users'),
     role: v.literal('admin'),
     emailSnapshot: v.string(),
+    // Compatibility with existing server-created demo memberships; never an access grant.
+    demoLoginEmail: v.optional(v.string()),
     grantedBy: v.optional(v.id('users')),
     grantedAt: v.number(),
     revokedBy: v.optional(v.id('users')),

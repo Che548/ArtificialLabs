@@ -77,6 +77,9 @@
     "vitest": "^4.1.10"
   },
   "scripts": {
+    "test:client-update": "vitest run convex/clientCompatibility.test.ts lib/update-restart.test.ts && tsx --test lib/service-errors.test.ts lib/cloud-sync.test.ts",
+    "preverify": "npm run test:client-update",
+    "pretest": "npm run test:client-update",
     "test:android-registration": "tsx --test lib/onboarding-layout.test.ts && vitest run lib/local-database-merge.test.ts",
     "start": "EXPO_PUBLIC_GIT_COMMIT=$(git rev-parse HEAD) expo start",
     "android": "EXPO_PUBLIC_GIT_COMMIT=$(git rev-parse HEAD) PATH=/opt/homebrew/opt/node@22/bin:$PATH expo run:android",
@@ -89,9 +92,9 @@
     "ota:publish:preview": "node scripts/ota-release.mjs publish --channel=preview",
     "typecheck": "tsc --noEmit",
     "typecheck:convex": "tsc --noEmit -p convex/tsconfig.json",
-    "test:contacts": "vitest run convex/contactVerification.test.ts convex/emailChange.test.ts convex/passwordRecovery.test.ts",
+    "test:contacts": "vitest run convex/contactVerification.test.ts convex/emailChange.test.ts convex/passwordRecovery.test.ts convex/adminDemoAccess.test.ts",
     "test:contacts:ui": "playwright test --config tests/contact-ui/playwright.config.ts",
-    "test:chat-feedback": "tsx --test lib/chat-availability.test.ts lib/chat-consent.test.ts lib/connectivity-policy.test.ts lib/chat-layout.test.ts lib/onboarding-layout.test.ts lib/assistant-notifications.test.ts",
+    "test:chat-feedback": "tsx --test lib/chat-availability.test.ts lib/chat-consent.test.ts lib/connectivity-policy.test.ts lib/chat-layout.test.ts lib/onboarding-layout.test.ts lib/assistant-notifications.test.ts lib/theme/preference.test.ts",
     "test:chat-feedback:web": "playwright test --config tests/chat-web/playwright.config.ts",
     "test:document-ui": "playwright test --config tests/document-ui/playwright.config.ts",
     "test:document-policy": "node --test scripts/native-qa-config.test.mjs scripts/android-ui-tree.test.mjs scripts/android-resume-flow.test.mjs && tsx --test shared/document-structure.test.ts lib/analysis-document-import.test.ts lib/document-ocr-job.test.ts shared/care-plan-policy.test.ts shared/document-policy.test.ts lib/document-recognition.test.ts && vitest run lib/agent-document-context.test.ts lib/document-ocr-manager.test.ts convex/documentOcr.test.ts convex/ai/documentOcrProvider.test.ts tests/unit/yandex-provider.test.ts convex/documentInterpretation.test.ts convex/testing.test.ts convex/registrationConsent.test.ts lib/registration-consent.test.ts lib/registration-onboarding.test.ts",
@@ -108,7 +111,7 @@
     "verify:lab-capture": "npm run test:lab-capture && npm run test:lab-capture:browser",
     "web:serve": "node scripts/web-server.mjs",
     "web:full": "npm run build:expo-web && npm run build:strip-cv && npm run web:serve",
-    "test": "npm run test:document-policy && npm --prefix infra/convex/sms-gateway test && tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts services/scanning/scan-overlay-geometry.test.ts modules/strip-cv/src/StripCv.web-request.test.ts lib/auth-session.test.ts lib/chat-context.test.ts lib/chat-deletion.test.ts lib/chat-generation-state.test.ts lib/safe-markdown.test.ts lib/cloud-sync.test.ts lib/connectivity-policy.test.ts lib/cycle-insights.test.ts lib/data-transfer.test.ts lib/diagnostics-access.test.ts lib/health-insights.test.ts lib/input-format.test.ts lib/journal-options.test.ts lib/notification-schedule.test.ts lib/otp-autofill.test.ts lib/sms-otp-retriever.test.ts lib/product-insights.test.ts lib/service-errors.test.ts lib/sync-policy.test.ts tests/e2e/convex-e2e-proxy.test.ts tests/unit/password-recovery-ui.test.ts && vitest run convex/profileSync.test.ts convex/health.test.ts convex/chat.test.ts convex/admin.test.ts convex/telemetry.test.ts convex/smsAuth.test.ts convex/passwordRecovery.test.ts tests/unit/yandex-provider.test.ts tests/unit/sms-auth.test.ts",
+    "test": "npm run test:strip-reader && npm run test:document-policy && npm --prefix infra/convex/sms-gateway test && tsx --test services/scanning/profile-qr.test.ts services/scanning/result-interpretation.test.ts services/scanning/scan-overlay-geometry.test.ts modules/strip-cv/src/StripCv.web-request.test.ts lib/auth-session.test.ts lib/chat-context.test.ts lib/chat-deletion.test.ts lib/chat-generation-state.test.ts lib/safe-markdown.test.ts lib/cloud-sync.test.ts lib/connectivity-policy.test.ts lib/cycle-insights.test.ts lib/data-transfer.test.ts lib/diagnostics-access.test.ts lib/health-insights.test.ts lib/input-format.test.ts lib/journal-options.test.ts lib/notification-schedule.test.ts lib/otp-autofill.test.ts lib/sms-otp-retriever.test.ts lib/product-insights.test.ts lib/service-errors.test.ts lib/sync-policy.test.ts tests/e2e/convex-e2e-proxy.test.ts tests/unit/password-recovery-ui.test.ts && vitest run convex/multiDeviceAudit.test.ts lib/local-database-merge.test.ts convex/profileSync.test.ts convex/health.test.ts convex/chat.test.ts convex/admin.test.ts convex/telemetry.test.ts convex/smsAuth.test.ts convex/passwordRecovery.test.ts tests/unit/yandex-provider.test.ts tests/unit/sms-auth.test.ts",
     "e2e:backend": "node --env-file-if-exists=.env.local --import tsx tests/e2e/backend.live.ts",
     "e2e:yandex": "node --env-file-if-exists=.env.local --import tsx tests/e2e/yandex-ai.live.ts",
     "e2e:sms": "node --env-file-if-exists=.env.local --import tsx tests/e2e/sms.live.ts",
@@ -122,8 +125,10 @@
     "preview:admin-ui": "node scripts/admin-ui-preview.mjs",
     "test:android-config": "node --test plugins/with-android-config-changes.test.js",
     "test:ios-config": "node --test plugins/with-ios-health-backup-exclusion.test.js plugins/with-ios-scene-lifecycle.test.js && tsx --test tests/unit/ios-release-config.test.ts",
-    "verify": "npm run test:today-content && npm run test:android-registration && npm run test:document-policy && npm run test:chat-feedback && npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run typecheck:convex && npm run doctor && npm run build:expo-web && npm --prefix admin run verify",
-    "test:today-content": "tsx --test shared/article-markdown.test.ts && vitest run convex/todayContent.test.ts"
+    "verify": "npm run test:strip-reader && npm run test:today-content && npm run test:android-registration && npm run test:document-policy && npm run test:chat-feedback && npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run typecheck:convex && npm run doctor && npm run build:expo-web && npm --prefix admin run verify",
+    "test:today-content": "tsx --test shared/article-markdown.test.ts && vitest run convex/todayContent.test.ts",
+    "test:multi-device": "vitest run convex/multiDeviceAudit.test.ts lib/sync-conflict.test.ts lib/local-database-merge.test.ts convex/profileSync.test.ts convex/health.test.ts",
+    "test:strip-reader": "node scripts/verify-strip-reader-package.mjs && tsx --test modules/strip-cv/src/LearnedStripDecision.test.ts"
   },
   "engines": {
     "node": ">=20.19.4"

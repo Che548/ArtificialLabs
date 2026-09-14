@@ -19,6 +19,24 @@ async function user(t: ReturnType<typeof convexTest>, email: string) {
 }
 
 describe('admin access and audit', () => {
+  test('preserves demo metadata without restoring revoked admin access', async () => {
+    const t = convexTest(schema, modules);
+    const demo = await user(t, 'demo@example.test');
+    await t.run((ctx) => ctx.db.insert('adminMemberships', {
+      userId: demo.userId,
+      role: 'admin',
+      emailSnapshot: 'demo@example.test',
+      demoLoginEmail: 'demo@example.test',
+      grantedAt: 1,
+      revokedAt: 2,
+      updatedAt: 2,
+    }));
+    await expect(demo.client.query(api.admin.viewer, {})).resolves.toMatchObject({ isAdmin: false });
+    await expect(demo.client.query(api.adminCatalog.listTestSystems, {
+      paginationOpts: { numItems: 25, cursor: null },
+    })).rejects.toThrow('ADMIN_REQUIRED');
+  });
+
   test('bootstraps exactly once and never permits self-assignment', async () => {
     const t = convexTest(schema, modules);
     const first = await user(t, 'first-admin@example.test');

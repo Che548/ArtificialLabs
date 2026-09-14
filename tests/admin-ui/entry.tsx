@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import AdminPage from '../../admin/app/page';
+import AdminPage from '../../admin/app/(protected)/page';
 import { AdminGate } from '../../admin/components/admin-gate';
 import { DataBoundary } from '../../admin/components/data-state';
 import '../../admin/app/globals.css';

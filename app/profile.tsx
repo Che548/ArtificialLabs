@@ -82,6 +82,7 @@ import {
 } from '../design-system';
 import { api } from '../convex/_generated/api';
 import { useHealthStore } from '../lib/health-store';
+import { SyncConflictResolver } from '../components/SyncConflictResolver';
 import { useNotificationManager } from '../lib/notification-manager';
 import {
   createEntityCsv,
@@ -123,6 +124,7 @@ import { ProfileContacts } from '../components/ProfileContacts';
 import { getAppVersionInfo } from '../lib/app-version';
 import { registerDiagnosticsTap } from '../lib/diagnostics-access';
 import { useUpdateManager } from '../lib/update-manager';
+import { UpdateRequiredNotice } from '../components/UpdateRequiredNotice';
 
 const e2eDocumentFixtureUri =
   __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
@@ -1721,6 +1723,14 @@ function ProfileSectionContent({
                 onPress={syncNow}
                 isLast
               />
+              {serviceIssue?.kind === 'update-required' ? <UpdateRequiredNotice localChangesSaved /> : serviceIssue ? (
+                <View accessibilityRole="alert">
+                  <AppText style={styles.transferCaption} color={colors.text.secondary}>
+                    {serviceIssue.message}
+                  </AppText>
+                </View>
+              ) : null}
+              <SyncConflictResolver />
             </ProfileCollapse>
           </ProfileSettingsGroup>
 
@@ -3031,15 +3041,16 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 const styles = createStyles(defaultThemeColors);
 
 function InterfaceSettings() {
-  const { mode, setMode } = useAppTheme();
+  const { preference, setMode, saveError } = useAppTheme();
   return (
-    <ProfileSettingsGroup title="Оформление" footer="Светлая тема включена по умолчанию. Выбранная тема сохраняется на этом устройстве.">
+    <ProfileSettingsGroup title="Оформление" footer={saveError ?? 'По умолчанию тема меняется вместе с темой устройства. Ручной выбор сохраняется только на этом устройстве.'}>
       <ProfileVerticalChoiceControl
         accessibilityLabel="Тема приложения"
-        defaultValue="light"
-        value={mode}
+        defaultValue="system"
+        value={preference}
         grouped
         options={[
+          { label: 'Как на устройстве', value: 'system' },
           { label: 'Светлая тема', value: 'light' },
           { label: 'Тёмная тема', value: 'dark' },
         ]}

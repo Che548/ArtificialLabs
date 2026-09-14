@@ -681,7 +681,7 @@ function MonitoringScreen({
   return (
     <View style={styles.canvas}>
       <CycleAnimatedBackground state="menstruation" scrollY={scrollY} />
-      <TopChromeBackdrop headerTop={headerTop} style={{ height: headerTop + 56 }} />
+      <TopChromeBackdrop headerTop={headerTop} strength={0.28} style={{ height: headerTop + 56 }} />
 
       <LiquidGlassGroup
         spacing={12}
@@ -1056,6 +1056,7 @@ function MonitoringScreen({
 }
 
 type PlanningQuickActionProps = {
+  glassVariant?: GlassStyle;
   glyph: ReactNode;
   label: string;
   primary?: boolean;
@@ -1067,6 +1068,7 @@ export function PlanningQuickAction({
   label,
   onPress,
   primary = false,
+  glassVariant = 'clear',
 }: PlanningQuickActionProps) {
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
@@ -1093,6 +1095,7 @@ export function PlanningQuickAction({
         <LiquidGlassPressable
           accessibilityLabel={label}
           controlStyle={styles.planningActionCircle}
+          variant={glassVariant}
           onPress={onPress}
           tintColor={primary ? TODAY_ACCENT : colors.surface.headerGlassWash}
           washColor={primary ? `${TODAY_ACCENT}F0` : colors.surface.glassWash}

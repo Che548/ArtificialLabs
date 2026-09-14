@@ -11,6 +11,7 @@ function Svg({ size = 16, children, ...props }: IconProps) {
 }
 
 export const Icons = {
+  user: (p: IconProps) => <Svg {...p}><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></Svg>,
   grid: (p: IconProps) => <Svg {...p}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></Svg>,
   table: (p: IconProps) => <Svg {...p}><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18M8 4v16M16 4v16"/></Svg>,
   chart: (p: IconProps) => <Svg {...p}><path d="M4 19V5M4 19h16M7 15l4-4 3 2 5-7"/></Svg>,

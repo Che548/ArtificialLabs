@@ -1,9 +1,10 @@
 {
   "model_files_sha256": "passed (5/5)",
-  "policy_reference_parity": "passed (803/803)",
+  "policy_reference_parity": "initial policy: passed (803/803); r2: see README saved-prediction regression",
   "typecheck": "passed",
   "podspec_syntax": "passed",
-  "full_app_verify": "failed: convex/ai/documentOcrProvider.test.ts, unrelated OCR image retransmission assertion",
+  "full_app_verify": "Partial: all test stages, Expo dependency checks, app/Convex typechecks and Expo Doctor passed. Stopped during Expo web export to honor the request for an immediate low-load push; web exports and admin verification remain for CI.",
   "native_inference_connected": true,
-  "native_build_and_device_validation": "iOS Release build, model packaging, signing and iPhone installation passed on 2026-09-14; functional device accuracy and native reference parity not performed"
+  "native_build_and_device_validation": "Initial iOS policy: Release build, model packaging, signing and iPhone installation passed on 2026-09-14. R2 native rebuild/install and functional device accuracy/reference parity not performed.",
+  "r2_policy_tests": "passed (3/3), including legacy native review compatibility"
 }

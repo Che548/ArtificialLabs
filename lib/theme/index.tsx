@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
-import { Alert, Appearance, Platform } from 'react-native';
+import { Appearance, Platform } from 'react-native';
 import { StatusBar, type StatusBarProps } from 'expo-status-bar';
 import Storage from 'expo-sqlite/kv-store';
 import { colors as lightColors } from '../../design-system/tokens';
 
-export type ThemeMode = 'light' | 'dark';
+import { appearanceOverride, parseThemePreference, resolveThemeMode, type ThemeMode, type ThemePreference } from './preference';
+export type { ThemeMode, ThemePreference } from './preference';
 export type ThemeColors = { [K in keyof typeof lightColors]: { [P in keyof typeof lightColors[K]]: string } };
 export const darkColors: ThemeColors = {
   brand: { ...lightColors.brand, burgundy: '#EBA6AE' },
@@ -16,31 +17,41 @@ export const darkColors: ThemeColors = {
   state: { disabled: '#716A72', error: '#FF737D' },
 };
 const key = 'sfera.interface.theme';
-const ThemeContext = createContext({ mode: 'light' as ThemeMode, colors: lightColors as ThemeColors, setMode: (_mode: ThemeMode) => {} });
+const ThemeContext = createContext({ mode: 'light' as ThemeMode, preference: 'system' as ThemePreference, saveError: undefined as string | undefined, colors: lightColors as ThemeColors, setMode: (_mode: ThemePreference) => {} });
 
-function readMode(): ThemeMode {
+function readPreference(): ThemePreference {
   try {
     const saved = Platform.OS === 'web' ? globalThis.localStorage?.getItem(key) : Storage.getItemSync(key);
-    return saved === 'dark' ? 'dark' : 'light';
-  } catch { return 'light'; }
+    return parseThemePreference(saved);
+  } catch { return 'system'; }
 }
 
 export function AppThemeProvider({ children }: PropsWithChildren) {
-  const [mode, updateMode] = useState<ThemeMode>(readMode);
+  const [preference, updatePreference] = useState<ThemePreference>(readPreference);
+  const [systemMode, updateSystemMode] = useState(Appearance.getColorScheme);
+  const [saveError, setSaveError] = useState<string>();
+  const mode = resolveThemeMode(preference, systemMode);
   useEffect(() => {
-    if (Platform.OS !== 'web') Appearance.setColorScheme(mode);
+    const subscription = Appearance.addChangeListener(({ colorScheme }) => updateSystemMode(colorScheme));
+    // Reset the native override when returning from a manual theme to automatic.
+    if (Platform.OS !== 'web') Appearance.setColorScheme(appearanceOverride(preference));
+    updateSystemMode(Appearance.getColorScheme());
+    return () => subscription.remove();
+  }, [preference]);
+  useEffect(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') document.documentElement.style.colorScheme = mode;
   }, [mode]);
   const value = useMemo(() => ({
-    mode, colors: mode === 'dark' ? darkColors : lightColors,
-    setMode(next: ThemeMode) {
+    mode, preference, saveError, colors: mode === 'dark' ? darkColors : lightColors,
+    setMode(next: ThemePreference) {
+      updatePreference(next);
+      setSaveError(undefined);
       try {
         if (Platform.OS === 'web') globalThis.localStorage.setItem(key, next);
         else Storage.setItemSync(key, next);
-        updateMode(next);
-      } catch { Alert.alert('Не удалось сохранить тему', 'Попробуйте ещё раз.'); }
+      } catch { setSaveError('Тема применена, но не сохранена. После перезапуска выбор может сброситься. Попробуйте выбрать её ещё раз.'); }
     },
-  }), [mode]);
+  }), [mode, preference, saveError]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 

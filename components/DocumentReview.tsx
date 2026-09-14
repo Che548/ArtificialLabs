@@ -1,3 +1,4 @@
+import { useBeforeUpdateRestart } from '../lib/update-manager';
 import {
   documentCollectionDates,
   documentReportBlocks,
@@ -232,6 +233,10 @@ export function DocumentReview({
   const [reply, setReply] = useState('');
   const lock = useRef(false);
   const receivedLiveDraft = useRef(false);
+  useBeforeUpdateRestart(async () => {
+    if (busy || lock.current) throw new Error('EDITOR_BUSY');
+    if (draft) await saveLocalDocumentExtraction({ ...draft, collectedAt: parseDate(date) });
+  });
   const requestId = useRef<string | undefined>(undefined);
 
   const queries = useMemo((): RequestForQueries => {

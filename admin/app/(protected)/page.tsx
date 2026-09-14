@@ -4,11 +4,13 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { useMutation, usePaginatedQuery, useQuery, useConvexConnectionState } from 'convex/react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
-import { TodayContentManager } from '../components/today-content';
-import { Users, AccountMetrics } from '../components/users';
-import { DataBoundary, LoadingState, useUrlValue } from '../components/data-state';
+import { api } from '../../../convex/_generated/api';
+import { Icons } from '../../components/icons';
+import sferaLogo from '../../assets/sfera-logo.png';
+import type { Id } from '../../../convex/_generated/dataModel';
+import { Users, AccountMetrics } from '../../components/users';
+import { DataBoundary, LoadingState, useUrlValue } from '../../components/data-state';
+import { TodayContentManager } from '../../components/today-content';
 
 type Section =
   | 'users'
@@ -22,8 +24,8 @@ type Section =
   | 'admins'
   | 'audit';
 const sections: Array<[Section, string]> = [
-  ['users', 'Пользователи'],
   ['dashboard', 'Обзор'],
+  ['users', 'Пользователи'],
   ['systems', 'Тест-системы'],
   ['lots', 'Партии'],
   ['calibrations', 'Калибровки'],
@@ -33,6 +35,16 @@ const sections: Array<[Section, string]> = [
   ['admins', 'Администраторы'],
   ['audit', 'Аудит'],
 ];
+const sectionIcons = {
+  dashboard: Icons.chart, users: Icons.user, systems: Icons.crosshair,
+  lots: Icons.layers, calibrations: Icons.sliders, validation: Icons.check,
+  content: Icons.file, monitoring: Icons.bolt, admins: Icons.lock, audit: Icons.table,
+};
+const navigationGroups = [
+  { title: 'Приложение', ids: ['dashboard', 'users', 'content'] },
+  { title: 'Лаборатория', ids: ['systems', 'lots', 'calibrations', 'validation'] },
+  { title: 'Управление', ids: ['monitoring', 'admins', 'audit'] },
+] as const;
 const requestId = () => crypto.randomUUID();
 function adminError(error: unknown) {
   const text = String(error);
@@ -145,7 +157,6 @@ function PageTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <header className="page-title">
       <div>
-        <p className="eyebrow">ArtificialLabs Admin</p>
         <h1>{title}</h1>
         <p className="muted">{subtitle}</p>
       </div>
@@ -1338,12 +1349,19 @@ export default function AdminPage() {
         <button
           className="nav-toggle"
           aria-label="Открыть навигацию"
+          aria-expanded={navOpen}
+          aria-controls="admin-navigation"
           onClick={() => setNavOpen((v) => !v)}
         >
-          ☰
+          <Icons.sidebar size={19} />
         </button>
-        <div className="brand-mark small">AL</div>
-        <strong>ArtificialLabs Admin</strong>
+        <img
+          className="admin-brand-logo"
+          src={sferaLogo.src}
+          width={sferaLogo.width}
+          height={sferaLogo.height}
+          alt="Сфера"
+        />
         <div className="connection"><LiveConvexStatus /></div>
         <button onClick={() => void signOut()}>Выйти</button>
       </header>
@@ -1355,21 +1373,25 @@ export default function AdminPage() {
             onClick={() => setNavOpen(false)}
           />
         )}
-        <nav className={navOpen ? 'open' : ''}>
-          {sections.map(([id, label]) => (
-            <button
-              key={id}
-              className={section === id ? 'active' : ''}
-              aria-current={section === id ? 'page' : undefined}
-              onClick={() => {
-                setSection(id);
-                setNavOpen(false);
-              }}
-            >
-              {label}
-            </button>
+        <nav id="admin-navigation" aria-label="Разделы админки" className={navOpen ? 'open' : ''}>
+          {navigationGroups.map(group => (
+            <div className="admin-nav-group" key={group.title}>
+              <p className="admin-nav-label">{group.title}</p>
+              {group.ids.map(id => {
+                const Icon = sectionIcons[id];
+                const label = sections.find(([key]) => key === id)![1];
+                return <button key={id} className={section === id ? 'active' : ''}
+                  aria-current={section === id ? 'page' : undefined}
+                  onClick={() => { setSection(id); setNavOpen(false); }}>
+                  <Icon size={18} /><span>{label}</span>
+                </button>;
+              })}
+            </div>
           ))}
-          <a href="/kit/">Компоненты интерфейса</a>
+          <div className="admin-nav-footer">
+            <a href="/kit/"><Icons.grid size={17} /><span>Компоненты интерфейса</span></a>
+            <a href="/beta/"><Icons.download size={17} /><span>Установить бету</span></a>
+          </div>
         </nav>
         <div className="admin-content">
           {!connection.isWebSocketConnected && <p className="connection-warning" role="status">Нет соединения с сервером. Данные могут быть устаревшими; подключение восстановится автоматически.</p>}

@@ -161,8 +161,10 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
 
 ## Admin console
 
-- `admin/` is a statically exported Next.js application. Every page, including
-  `/kit`, is protected by Convex Auth and every server operation calls
+- `admin/` is a statically exported Next.js application. `/beta/` is the explicit
+  public, static installation page and must not mount Convex/Auth providers.
+  All administrative pages, including `/` and `/kit`, stay in the protected
+  route group behind Convex Auth and every server operation calls
   `requireAdmin()`; client checks are presentation only.
 - Bootstrap the first administrator only with
   `npx convex run admin:bootstrapByEmail '{"email":"..."}' --env-file .env.local`.

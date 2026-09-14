@@ -12,6 +12,7 @@ RUN npm ci && npm --prefix admin ci
 
 COPY admin ./admin
 COPY assets/icon.png ./admin/public/email-logo.png
+COPY ArtificialLabs/Resources/Fonts/StackSansNotch-VariableFont_wght.ttf ./ArtificialLabs/Resources/Fonts/StackSansNotch-VariableFont_wght.ttf
 COPY convex ./convex
 COPY lib ./lib
 COPY shared ./shared

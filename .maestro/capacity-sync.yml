@@ -1,0 +1,28 @@
+appId: ${MAESTRO_APP_ID || "com.anonymous.privateexpo"}
+---
+- runFlow: open-profile-tab.yml
+- scrollUntilVisible:
+    element:
+      text: 'Разрешения и данные'
+    direction: DOWN
+- tapOn: 'Разрешения и данные'
+- tapOn:
+    id: 'e2e-cloud-sync-toggle'
+- extendedWaitUntil:
+    visible: 'Синхронизировать сейчас'
+    timeout: 60000
+- assertNotVisible: 'Не удалось синхронизировать'
+- tapOn:
+    id: 'e2e-sync-now'
+- extendedWaitUntil:
+    visible: 'Синхронизировать сейчас'
+    timeout: 60000
+- tapOn: 'Вернуться в профиль'
+- repeat:
+    times: 3
+    commands:
+      - tapOn: 'Сегодня'
+      - tapOn: 'Анализы'
+      - tapOn: 'Сферка'
+      - runFlow: open-profile-tab.yml
+- takeScreenshot: capacity-sync-complete

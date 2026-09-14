@@ -1,18 +1,9 @@
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useAction } from 'convex/react';
 import { useEffect, useRef, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Platform, Pressable, StyleSheet, Text, TextInput } from 'react-native';
+import { AppSheet } from './AppSheet';
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { api } from '../convex/_generated/api';
 import type { Id } from '../convex/_generated/dataModel';
 import { otpAutofillProps } from '../lib/otp-autofill';
@@ -83,6 +74,8 @@ export function LoginEmailVerification({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const { signIn } = useAuthActions();
   const resend = useAction(api.emailVerification.resend);
   const [challenge, setChallenge] = useState(initial),
@@ -94,8 +87,7 @@ export function LoginEmailVerification({
       ? 'Письмо пока не отправлено. Повторите отправку после таймера.'
       : '',
   );
-  const lock = useRef(false),
-    insets = useSafeAreaInsets();
+  const lock = useRef(false);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -137,124 +129,117 @@ export function LoginEmailVerification({
   };
   const expired = now >= challenge.expiresAt;
   return (
-    <Modal transparent visible animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <AppSheet
+      title="Подтвердите почту"
+      onClose={onClose}
+      dismissDisabled={busy}
+    >
+      <Text style={styles.copy}>Введите шестизначный код из письма.</Text>
+      <TextInput
+        testID="login-email-code"
+        accessibilityLabel="Код из письма"
+        placeholder="000000"
+        placeholderTextColor={colors.text.secondary}
+        selectionColor={colors.brand.primary}
+        autoFocus
+        keyboardType="number-pad"
+        {...otpAutofillProps(Platform.OS === 'ios' ? 'ios' : 'web')}
+        value={code}
+        maxLength={6}
+        onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+        editable={!busy}
+        style={styles.input}
+      />
+      {!!error && (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {error}
+        </Text>
+      )}
+      {expired && (
+        <Text style={styles.error}>
+          Срок кода истёк. Вернитесь ко входу и начните заново.
+        </Text>
+      )}
+      <Pressable
+        testID="login-email-confirm"
+        accessibilityRole="button"
+        disabled={busy || expired || code.length !== 6}
+        onPress={() => void run(false)}
+        style={[
+          styles.primary,
+          (busy || expired || code.length !== 6) && styles.disabled,
+        ]}
       >
-        <View
+        <Text style={styles.primaryText}>
+          {busy ? 'Подождите…' : 'Подтвердить'}
+        </Text>
+      </Pressable>
+      <Pressable
+        testID="login-email-resend"
+        accessibilityRole="button"
+        disabled={busy || expired || now < challenge.retryAt}
+        onPress={() => void run(true)}
+        style={styles.action}
+      >
+        <Text
           style={[
-            styles.sheet,
-            {
-              marginTop: insets.top + 12,
-              paddingBottom: Math.max(20, insets.bottom),
-            },
+            styles.link,
+            (busy || expired || now < challenge.retryAt) && styles.muted,
           ]}
-          accessibilityViewIsModal
         >
-          <ScrollView keyboardShouldPersistTaps="handled">
-            <Text accessibilityRole="header" style={styles.title}>
-              Подтвердите email
-            </Text>
-            <Text style={styles.copy}>
-              Введите код из письма на почту аккаунта. Без подтверждения вход не
-              завершён.
-            </Text>
-            <TextInput
-              testID="login-email-code"
-              accessibilityLabel="Код из письма"
-              autoFocus
-              keyboardType="number-pad"
-              {...otpAutofillProps(Platform.OS === 'ios' ? 'ios' : 'web')}
-              value={code}
-              maxLength={6}
-              onChangeText={(value) =>
-                setCode(value.replace(/\D/g, '').slice(0, 6))
-              }
-              editable={!busy}
-              style={styles.input}
-            />
-            {!!error && (
-              <Text accessibilityRole="alert" style={styles.error}>
-                {error}
-              </Text>
-            )}
-            {expired && (
-              <Text style={styles.error}>
-                Срок кода истёк. Вернитесь ко входу и начните заново.
-              </Text>
-            )}
-            <Pressable
-              testID="login-email-confirm"
-              accessibilityRole="button"
-              disabled={busy || expired || code.length !== 6}
-              onPress={() => void run(false)}
-              style={styles.primary}
-            >
-              <Text style={styles.primaryText}>
-                {busy ? 'Подождите…' : 'Подтвердить'}
-              </Text>
-            </Pressable>
-            <Pressable
-              testID="login-email-resend"
-              accessibilityRole="button"
-              disabled={busy || expired || now < challenge.retryAt}
-              onPress={() => void run(true)}
-              style={styles.action}
-            >
-              <Text style={styles.link}>
-                {now < challenge.retryAt
-                  ? `Повторно через ${Math.ceil((challenge.retryAt - now) / 1000)} сек.`
-                  : 'Отправить код повторно'}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={onClose}
-              style={styles.action}
-            >
-              <Text style={styles.link}>Вернуться ко входу</Text>
-            </Pressable>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+          {now < challenge.retryAt
+            ? `Повторно через ${Math.ceil((challenge.retryAt - now) / 1000)} сек.`
+            : 'Отправить код повторно'}
+        </Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        disabled={busy}
+        onPress={onClose}
+        style={styles.action}
+      >
+        <Text style={styles.secondaryText}>Вернуться ко входу</Text>
+      </Pressable>
+    </AppSheet>
   );
 }
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    backgroundColor: '#0006',
-  },
-  sheet: {
-    width: '100%',
-    maxWidth: 560,
-    maxHeight: '95%',
-    backgroundColor: '#fff5f1',
-    padding: 20,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-  },
-  title: { fontSize: 24, fontWeight: '600', color: '#302b2d' },
-  copy: { fontSize: 15, color: '#736e6c', marginVertical: 16 },
-  input: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 18,
-    color: '#302b2d',
-  },
-  error: { color: '#b9233e', marginTop: 12 },
-  primary: {
-    backgroundColor: '#ea4087',
-    padding: 16,
-    borderRadius: 18,
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  primaryText: { color: 'white', fontWeight: '600', fontSize: 16 },
-  action: { paddingVertical: 16 },
-  link: { color: '#ea4087', fontSize: 16 },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    copy: { fontSize: 15, lineHeight: 21, color: colors.text.secondary },
+    input: {
+      backgroundColor: colors.surface.raised,
+      borderRadius: 18,
+      minHeight: 58,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      fontSize: 24,
+      lineHeight: 30,
+      letterSpacing: 6,
+      textAlign: 'center',
+      textAlignVertical: 'center',
+      color: colors.text.primary,
+    },
+    error: { color: colors.state.error, fontSize: 14, lineHeight: 20 },
+    primary: {
+      backgroundColor: colors.brand.primary,
+      minHeight: 52,
+      paddingHorizontal: 20,
+      borderRadius: 26,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    disabled: { opacity: 0.45 },
+    primaryText: {
+      color: colors.text.inverse,
+      fontWeight: '600',
+      fontSize: 17,
+    },
+    action: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    link: { color: colors.brand.primary, fontSize: 15, textAlign: 'center' },
+    muted: { color: colors.text.secondary },
+    secondaryText: {
+      color: colors.text.secondary,
+      fontSize: 15,
+      textAlign: 'center',
+    },
+  });

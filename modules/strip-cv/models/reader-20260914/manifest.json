@@ -1,5 +1,6 @@
 {
   "version": "strip-reader-experimental-20260914",
+  "algorithm_version": "strip-reader-experimental-20260914-r2",
   "format": "onnx",
   "opset": 17,
   "models": {
@@ -97,9 +98,14 @@
     "control_present": 0.9,
     "test_present": 0.9,
     "test_absent": 0.1,
-    "coverage_present": 0.9,
+    "coverage_present": 0.85,
     "minimum_result_length": 16,
-    "spatial_test_absence_threshold": 0.1
+    "spatial_test_absence_threshold": 0.1,
+    "coincident_peak_exception": {
+      "require_same_heatmap_cell": true,
+      "both_control_present": 0.99,
+      "both_test_absent": 0.02
+    }
   },
   "runtime_status": "native OpenCV inference, iOS/Android methods and app routing implemented; new native build and device validation required",
   "photos_included": false

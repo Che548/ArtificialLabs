@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export const TopChromeBackdrop = memo(function TopChromeBackdrop({
   headerTop,
   style,
+  strength,
 }: {
   headerTop?: number;
+  strength?: number;
   style?: StyleProp<ViewStyle>;
 }) {
   const insets = useSafeAreaInsets();
@@ -24,6 +26,7 @@ export const TopChromeBackdrop = memo(function TopChromeBackdrop({
       style={[styles.root, { height }, style]}
     >
       <GradientBlur
+        strength={strength}
         locations={[0, solidHeight / height, controlsTop / height, 1]}
       />
     </View>

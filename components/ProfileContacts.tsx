@@ -12,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ProfileSettingsGroup } from '../design-system/profile';
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { api } from '../convex/_generated/api';
 import type { Id } from '../convex/_generated/dataModel';
 import { contactMessage } from './LoginEmailVerification';
@@ -43,6 +45,8 @@ function EmailChangeForm({
   email?: string;
   onDone: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
+  const { colors } = useAppTheme();
   const request = useAction(api.emailChange.request);
   const resend = useAction(api.emailChange.resend);
   const confirm = useAction(api.emailChange.confirm);
@@ -108,6 +112,8 @@ function EmailChangeForm({
       {!challenge ? (
         <>
           <TextInput
+            placeholderTextColor={colors.text.secondary}
+            selectionColor={colors.brand.primary}
             testID="email-change-address"
             accessibilityLabel="Новая электронная почта"
             placeholder="Новая электронная почта"
@@ -121,6 +127,8 @@ function EmailChangeForm({
             style={styles.input}
           />
           <TextInput
+            placeholderTextColor={colors.text.secondary}
+            selectionColor={colors.brand.primary}
             testID="email-change-password"
             accessibilityLabel="Текущий пароль"
             placeholder="Текущий пароль"
@@ -137,6 +145,8 @@ function EmailChangeForm({
         </>
       ) : (
         <TextInput
+          placeholderTextColor={colors.text.secondary}
+          selectionColor={colors.brand.primary}
           ref={codeInput}
           testID="email-change-code"
           accessibilityLabel="Код из письма"
@@ -220,6 +230,8 @@ function PhoneChangeForm({
 }: {
   onDone: (phone: string) => Promise<void>;
 }) {
+  const styles = useThemeStyles(createStyles);
+  const { colors } = useAppTheme();
   const request = useAction(api.phoneChange.request),
     resend = useAction(api.phoneChange.resend),
     confirm = useAction(api.phoneChange.confirm);
@@ -302,6 +314,8 @@ function PhoneChangeForm({
       {!challenge ? (
         <>
           <TextInput
+            placeholderTextColor={colors.text.secondary}
+            selectionColor={colors.brand.primary}
             testID="phone-change-number"
             accessibilityLabel="Новый номер телефона"
             value={phone}
@@ -312,6 +326,8 @@ function PhoneChangeForm({
             style={styles.input}
           />
           <TextInput
+            placeholderTextColor={colors.text.secondary}
+            selectionColor={colors.brand.primary}
             testID="phone-change-password"
             accessibilityLabel="Текущий пароль"
             placeholder="Текущий пароль"
@@ -326,6 +342,8 @@ function PhoneChangeForm({
         </>
       ) : (
         <TextInput
+          placeholderTextColor={colors.text.secondary}
+          selectionColor={colors.brand.primary}
           ref={input}
           testID="phone-change-code"
           accessibilityLabel="Код из SMS"
@@ -409,55 +427,65 @@ export function ProfileContacts({
   renderPhone: (onDone: () => void) => ReactNode;
   onPhoneChanged?: (phone: string) => Promise<void>;
 }) {
+  const styles = useThemeStyles(createStyles);
   const [modal, setModal] = useState<'phone' | 'email' | null>(null);
   const [notice, setNotice] = useState('');
   const insets = useSafeAreaInsets();
   const close = () => setModal(null);
   return (
     <>
-      <Text style={styles.section}>КОНТАКТЫ</Text>
-      <View style={styles.card}>
-        <Text style={styles.help}>Электронная почта</Text>
-        <View style={styles.row}>
-          <Text style={styles.value}>{email ?? 'Не добавлена'}</Text>
-          <Pressable
-            accessibilityRole="button"
-            testID="profile-change-email"
-            disabled={disabled}
-            onPress={() => {
-              setNotice('');
-              setModal('email');
-            }}
-            style={styles.action}
-          >
-            <Text style={styles.link}>Изменить</Text>
-          </Pressable>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.value}>Телефон</Text>
-            <Text style={styles.help}>{phone ?? 'Не добавлен'}</Text>
-          </View>
-          {
+      <ProfileSettingsGroup
+        title="Контакты"
+        footer="Электронная почта используется для входа в аккаунт."
+      >
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.contactCopy}>
+              <Text style={styles.value}>Электронная почта</Text>
+              <Text selectable style={styles.contactDetail}>
+                {email ?? 'Не добавлена'}
+              </Text>
+            </View>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Изменить электронную почту"
+              testID="profile-change-email"
+              disabled={disabled}
+              onPress={() => {
+                setNotice('');
+                setModal('email');
+              }}
+              style={[styles.contactAction, disabled && styles.disabled]}
+            >
+              <Text style={styles.link}>Изменить</Text>
+            </Pressable>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <View style={styles.contactCopy}>
+              <Text style={styles.value}>Телефон</Text>
+              <Text selectable style={styles.contactDetail}>
+                {phone ?? 'Не добавлен'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                phone ? 'Изменить телефон' : 'Добавить телефон'
+              }
               testID={phone ? 'profile-change-phone' : 'profile-add-phone'}
               disabled={disabled}
               onPress={() => {
                 setNotice('');
                 setModal('phone');
               }}
-              style={styles.action}
+              style={[styles.contactAction, disabled && styles.disabled]}
             >
               <Text style={styles.link}>{phone ? 'Изменить' : 'Добавить'}</Text>
             </Pressable>
-          }
+          </View>
         </View>
-      </View>
-      <Text style={styles.help}>
-        Электронная почта используется для входа в аккаунт.
-      </Text>
+      </ProfileSettingsGroup>
       {!!notice && (
         <Text accessibilityLiveRegion="polite" style={styles.help}>
           {notice}
@@ -532,47 +560,79 @@ export function ProfileContacts({
     </>
   );
 }
-const styles = StyleSheet.create({
-  section: { color: '#827E7F', marginTop: 12, marginBottom: 12, fontSize: 14 },
-  card: { padding: 20, backgroundColor: 'white', borderRadius: 24, gap: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  value: { flexShrink: 1, color: '#262324', fontSize: 18 },
-  help: { color: '#827E7F', fontSize: 14, lineHeight: 21, marginVertical: 8 },
-  action: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
-  link: { color: '#EA4087', fontSize: 16 },
-  divider: { height: 1, backgroundColor: '#F5F3F3' },
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    backgroundColor: '#00000055',
-  },
-  sheet: {
-    backgroundColor: '#FFF5F1',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 20,
-    width: '100%',
-    maxWidth: 560,
-    maxHeight: '95%',
-  },
-  title: { flex: 1, fontSize: 22, fontWeight: '600', color: '#302B2C' },
-  form: { gap: 12 },
-  input: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 17,
-    color: '#302B2C',
-    minHeight: 52,
-  },
-  primary: {
-    backgroundColor: '#EA4087',
-    borderRadius: 20,
-    minHeight: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryText: { color: 'white', fontSize: 17, fontWeight: '600' },
-  error: { color: '#A22D46', fontSize: 14, lineHeight: 20 },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: { paddingHorizontal: 14 },
+    contactCopy: { flex: 1, minWidth: 0, gap: 4, paddingVertical: 16 },
+    contactDetail: {
+      color: colors.text.secondary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    contactAction: {
+      minHeight: 44,
+      minWidth: 82,
+      flexShrink: 0,
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+    },
+    disabled: { opacity: 0.45 },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    value: {
+      flexShrink: 1,
+      color: colors.text.primary,
+      fontSize: 17,
+      lineHeight: 22,
+    },
+    help: {
+      color: colors.text.secondary,
+      fontSize: 14,
+      lineHeight: 21,
+      marginVertical: 8,
+    },
+    action: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
+    link: { color: colors.brand.primary, fontSize: 16 },
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.surface.divider,
+    },
+    overlay: {
+      flex: 1,
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      backgroundColor: '#00000055',
+    },
+    sheet: {
+      backgroundColor: colors.surface.canvas,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      padding: 20,
+      width: '100%',
+      maxWidth: 560,
+      maxHeight: '95%',
+    },
+    title: {
+      flex: 1,
+      fontSize: 22,
+      fontWeight: '600',
+      color: colors.text.primary,
+    },
+    form: { gap: 12 },
+    input: {
+      backgroundColor: colors.surface.raised,
+      borderRadius: 16,
+      padding: 16,
+      fontSize: 17,
+      color: colors.text.primary,
+      minHeight: 52,
+    },
+    primary: {
+      backgroundColor: colors.brand.primary,
+      borderRadius: 20,
+      minHeight: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    primaryText: { color: 'white', fontSize: 17, fontWeight: '600' },
+    error: { color: colors.state.error, fontSize: 14, lineHeight: 20 },
+  });

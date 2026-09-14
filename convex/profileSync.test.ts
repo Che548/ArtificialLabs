@@ -5,6 +5,7 @@ vi.mock('./lib/access', () => ({
   requireUserId: async () => 'synthetic-user',
   getOwnedProfile: async () => null,
 }));
+vi.mock('./lib/cloudConsent', () => ({ recordCloudReceipt: async () => {}, cloudSession: async () => ({}) }));
 import { save } from './profile';
 
 const input = { displayName: 'Synthetic', goal: 'cycle', onboardingCompleted: true, updatedAt: 10, consentToCloudSyncAt: 5 };
