@@ -3,8 +3,9 @@
 Only a push of a new stable `vMAJOR.MINOR.PATCH` tag starts **iOS Public Beta**.
 The tag must resolve to main history and be greater than `v1.0.0` and all other
 stable release tags. Validation runs again immediately before upload. Main
-still deploys web/Convex independently. Android, OTA and App Store submission
-are not performed by this workflow.
+still deploys web/Convex independently. An optional, separately protected Android
+job publishes only to [Google Play internal testing](google-play-internal-ci.md).
+OTA and App Store production submission are not performed by this workflow.
 
 Public beta now stays on the **1.0.0 marketing version** (owner-approved
 2026-09-15). A new source tag such as `v1.0.2` creates `1.0.0 (10)` or the next

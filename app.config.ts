@@ -5,6 +5,11 @@ import base from './app.json';
 const baseConfig = base.expo as ExpoConfig;
 const e2eMode = process.env.EXPO_PUBLIC_E2E_MODE === '1';
 const appStoreBuild = process.env.SFERA_IOS_APP_STORE === '1';
+const playStoreBuild = process.env.SFERA_ANDROID_PLAY_STORE === '1';
+const androidBuild = process.env.SFERA_ANDROID_VERSION_CODE;
+if (playStoreBuild && (!androidBuild || !/^[1-9]\d*$(?![\s\S])/.test(androidBuild) || Number(androidBuild) > 2100000000)) {
+  throw new Error('Play builds require a valid SFERA_ANDROID_VERSION_CODE');
+}
 const releaseVersion = process.env.SFERA_RELEASE_VERSION;
 const releaseBuild = process.env.SFERA_IOS_BUILD_NUMBER;
 if (releaseVersion && !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$(?![\s\S])/.test(releaseVersion)) {
@@ -16,9 +21,10 @@ if (releaseBuild && !/^[1-9]\d*$(?![\s\S])/.test(releaseBuild)) {
 if (appStoreBuild && (!releaseVersion || !releaseBuild)) {
   throw new Error('App Store builds require explicit release version and build number');
 }
-if (appStoreBuild && e2eMode) {
+if ((appStoreBuild || playStoreBuild) && e2eMode) {
   throw new Error('App Store builds must not enable E2E mode');
 }
+if (playStoreBuild && !releaseVersion) throw new Error('Play builds require SFERA_RELEASE_VERSION');
 const updatesBaseUrl = (
   process.env.EXPO_PUBLIC_E2E_OTA_URL ??
   'https://artificiallabs-updates.bebra42.ru'
@@ -35,7 +41,7 @@ const signedUpdatesEnabled =
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   ...baseConfig,
-  ...(appStoreBuild ? { version: releaseVersion } : {}),
+  ...(appStoreBuild || playStoreBuild ? { version: releaseVersion } : {}),
   ios: {
     ...baseConfig.ios,
     ...(appStoreBuild
@@ -62,7 +68,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     ...baseConfig.android,
-    versionCode: baseConfig.android?.versionCode ?? 1,
+    ...(playStoreBuild ? { package: 'engineering.brainwaves.sfera' } : {}),
+    versionCode: playStoreBuild ? Number(androidBuild) : (baseConfig.android?.versionCode ?? 1),
   },
   runtimeVersion: { policy: 'fingerprint' },
   updates: {
