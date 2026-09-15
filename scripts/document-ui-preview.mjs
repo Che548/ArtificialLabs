@@ -40,7 +40,7 @@ const ctx = await context({
         build.onResolve(
           {
             filter:
-              /^(expo-router|react-native-safe-area-context|convex\/react)$|(?:\/design-system|\/lib\/(document-ocr-manager|health-store|local-database|theme)|\/modules\/document-ocr)$/,
+              /^(expo-router|react-native-safe-area-context|convex\/react)$|(?:\/design-system|\/lib\/(document-ocr-manager|health-store|local-database|theme|update-manager)|\/modules\/document-ocr)$/,
           },
           () => ({ path: stub }),
         );

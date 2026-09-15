@@ -2,6 +2,7 @@ import { parseOcrPage } from '../../shared/document-ocr';
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   type PropsWithChildren,
 } from 'react';
@@ -76,6 +77,16 @@ export const useSafeAreaInsets = () => ({
   right: 0,
 });
 export const useRouter = () => ({ push() {} });
+export const usePathname = () => '/profile';
+// No native update service in this isolated synthetic document UI harness.
+// Preserve registration/cleanup semantics instead of mounting an OTA provider.
+const restartPreparers = new Set<() => Promise<void>>();
+export function useBeforeUpdateRestart(prepare: () => Promise<void>) {
+  useEffect(() => {
+    restartPreparers.add(prepare);
+    return () => { restartPreparers.delete(prepare); };
+  }, [prepare]);
+}
 export const useConvexAuth = () => ({ isAuthenticated: true });
 export const useQueries = () => ({
   status: { enabled: false, accepted: false },

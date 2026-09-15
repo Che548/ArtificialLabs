@@ -1,5 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 test.use({ viewport: { width: 390, height: 844 } });
+test.beforeEach(async ({ page }) => {
+  page.on('pageerror', error => console.error(`Synthetic document fixture: ${error.message}`));
+});
+test.afterEach(async ({ page }, info) => {
+  if (info.status !== info.expectedStatus) {
+    await info.attach('synthetic-document-ui', { body: await page.screenshot(), contentType: 'image/png' });
+    await info.attach('synthetic-document-dom', { body: await page.locator('body').innerText(), contentType: 'text/plain' });
+  }
+});
 const command = (page: Page, name: string) =>
   page.evaluate((key) => (window as any).fixture[key](), name);
 const events = (page: Page, name = 'operations') =>
