@@ -1,3 +1,15 @@
+---
+title: "Chat feedback fixes and verification"
+document_id: SFERA-4796A984C4
+audience: developer
+status: archived
+updated: 2026-09-14
+baseline_commit: ea85ac93db13b81d674aefc2cbe55f67428471bf
+source_scope: working-tree
+---
+
+> Архивный материал. Описанные ниже действия и результаты относятся к исходной дате и ревизии; они не являются проверкой текущей рабочей копии. Действующие контракты и команды: [текущая документация](<README.md>).
+
 # Chat feedback fixes and verification
 
 ## Implemented

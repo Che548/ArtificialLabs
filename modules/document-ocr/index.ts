@@ -1,9 +1,13 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
-import { assertDocumentNotCancelled, type LocalDocumentEngine } from '../../lib/document-recognition';
+import {
+  assertDocumentNotCancelled,
+  type LocalDocumentEngine,
+} from '../../lib/document-recognition';
 import lock from './dependencies.lock.json';
 
 type NativeApi = {
   begin(): boolean;
+  exportPageAsync(uri: string, page: number, rotation: number): Promise<string>;
   cancel(): void;
   inspectAsync(
     uri: string,
@@ -51,4 +55,30 @@ export function createLocalDocumentEngine(
       await native.cleanupAsync();
     },
   };
+}
+
+/** Rendering only: no Tesseract invocation and no image files written for uploads. */
+export async function renderDocumentPage(
+  uri: string,
+  page: number,
+  rotation: number,
+) {
+  const native = requireOptionalNativeModule<NativeApi>('DocumentOcr');
+  if (!native?.exportPageAsync)
+    throw new Error('DOCUMENT_NATIVE_BUILD_REQUIRED');
+  if (!native.begin()) throw new Error('DOCUMENT_BUSY');
+  try {
+    const metadata = await native.inspectAsync(uri);
+    const image = await native.exportPageAsync(uri, page, rotation);
+    return { image, pages: metadata.pages };
+  } finally {
+    await native.cleanupAsync();
+  }
+}
+
+/** Inspection is stateless and does not acquire the recognition/preview lease. */
+export async function inspectLocalDocument(uri: string) {
+  const native = requireOptionalNativeModule<NativeApi>('DocumentOcr');
+  if (!native) throw new Error('DOCUMENT_NATIVE_BUILD_REQUIRED');
+  return native.inspectAsync(uri);
 }

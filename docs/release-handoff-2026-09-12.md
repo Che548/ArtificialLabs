@@ -1,3 +1,15 @@
+---
+title: "Release handoff — 12 September 2026"
+document_id: SFERA-C510B58FE3
+audience: developer
+status: archived
+updated: 2026-09-14
+baseline_commit: ea85ac93db13b81d674aefc2cbe55f67428471bf
+source_scope: working-tree
+---
+
+> Архивный материал. Описанные ниже действия и результаты относятся к исходной дате и ревизии; они не являются проверкой текущей рабочей копии. Действующие контракты и команды: [текущая документация](<README.md>).
+
 # Release handoff — 12 September 2026
 
 ## Integrated source of truth

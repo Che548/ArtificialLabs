@@ -1,63 +1,147 @@
-# iOS App Store release
+---
+title: "Конфигурация и подготовка выпуска iOS"
+document_id: SFERA-A27544EBAC
+audience: developer
+status: active
+updated: 2026-09-14
+baseline_commit: ea85ac93db13b81d674aefc2cbe55f67428471bf
+source_scope: working-tree
+---
 
-App Store Connect app: `6810893199` (сфера.).
-Organization: `BREINVEIVS INZHINIRING, OOO`.
+# Конфигурация и подготовка выпуска iOS
 
-App Store provisioning profile created September 11, 2026:
-`Sfera App Store 2026`, UUID `b790554e-d18e-4895-8a3b-87e0486ba5bf`,
-portal ID `S22CW6Q342`, expires September 10, 2027. It authorizes the
-organization bundle, production push, Associated Domains and disables
-`get-task-allow`. Installed in Xcode's user provisioning-profile directory.
-The certificate/private key stays in Keychain, outside Git.
+## Сборка развёртывание и обновления приложения
 
-Manual archive signing uses `CODE_SIGN_STYLE=Manual`,
-`DEVELOPMENT_TEAM=6HZGXYF43L`, `CODE_SIGN_IDENTITY='Apple Distribution'` and
-`PROVISIONING_PROFILE_SPECIFIER='Sfera App Store 2026'`. Upload authentication
-is separate from the browser session and local signing: Xcode must be signed
-into the organization Apple Account.
+Веб-публикация собирает статический admin/out и помещает его в nginx-образ ghcr.io/che548/artificiallabs. Runtime содержит экспорт и конфигурацию nginx, без исходников, .env, Git-метаданных и административных ключей. Публичная доступность образа требует проверять именно состав конечного слоя, а не только отсутствие секретов в клиентском коде.
 
-Set `SFERA_IOS_APP_STORE=1` for **every** production iOS configuration,
-prebuild, archive, export and runtime-fingerprint calculation. This selects
-`6HZGXYF43L.engineering.brainwaves.sfera`. Without this flag, the existing
-development bundle `com.anonymous.privateexpo` is preserved. E2E mode is
-explicitly rejected in App Store configuration.
+Workflow Build and Publish Web Image запускается при push в main либо вручную для выбранной ветки. Он устанавливает зависимости, выполняет npm run verify, развёртывает Convex, проверяет generated bindings и публикует образ. Ручная публикация также обновляет latest, поэтому выделенный Watchtower разворачивает выбранную ревизию. Серверный ключ не передаётся workflow pull request.
 
-```sh
-SFERA_IOS_APP_STORE=1 npx expo prebuild --platform ios --no-install
-cd ios
-LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install
-```
+Нативный выпуск отделён от веб-контейнера. Изменение SQLCipher-конфигурации, entitlement или нативного модуля требует новой development либо release сборки. Expo Go не подтверждает работу собственного нативного состава. Фактические идентификаторы приложения и подписи должны совпадать с привязками сервисов, Associated Domains и настройками доставки.
 
-The native health-storage plugin excludes Documents (SQLCipher including WAL,
-scan images/history, lab documents and chat attachments) from iOS backup before
-React starts. It verifies the resource flag and does not start health writes
-if protection fails. Verify the actual resource flag in the final native build;
-source/config tests alone do not prove device behavior.
+OTA использует self-hosted Expo Updates Protocol v1. Релизы разделены точным сочетанием платформы, fingerprint runtimeVersion и канала preview либо production. Клиентский канал по умолчанию — production. Контейнер службы слушает 127.0.0.1:8094; публичным входом служит выделенный FRP-туннель.
 
-The AASA source authorizes both legacy and organization identities. It still
-needs deployment and public verification before release; changing this file
-does not deploy it. No automatic production OTA should be triggered as part of
-the store release. An iOS OTA export must resolve the same App Store identity
-and fingerprint as the installed release.
+Ручной OTA workflow допускает операции только из main. publish-preview экспортирует текущий main. После проверки обеих платформ promote-production переводит уже проверенные update ID без пересборки bundle. Rollback меняет указатель канала для точного runtime. Непосредственная публикация новых байтов в production нарушает принятую последовательность.
 
-Remaining submission gates are tracked in `app-store-preflight-2026-09-10.md`.
-Never substitute development E2E results for release verification or clinical
-validation. Review credentials must be private, non-admin and tested in the
-actual release. Do not attach raw E2E logs/screenshots containing credentials.
-# System fonts on iOS (build 2)
+Публичный сертификат подписи обновлений хранится в certs/ota-certificate.pem. Закрытый RSA-ключ и секрет публикации существуют только в защищённой конфигурации службы и GitHub Actions. Защита от неработоспособного обновления остаётся включённой. Для Android перед передачей APK сравниваются assets/fingerprint и результат expo-updates runtimeversion:resolve.
 
-iOS uses `System` with explicit 400/500/600/700 weights through `lib/font-style.ts`
-and the NativeWind `font-sf*` utilities. `lib/bundled-fonts.ios.ts` includes only
-Yaro. Other platforms retain their existing SF font asset map for this scoped
-change; their separate distribution/licensing review remains outstanding.
+Откат OTA не откатывает автоматически серверную схему, локальные данные и нативный бинарник. Поэтому план выпуска должен отдельно определять совместимость каждой стороны. Новая серверная форма сначала поддерживает существующие клиенты; только затем можно выпускать клиента, который использует расширенный контракт.
 
-The `with-ios-system-fonts` config plugin removes legacy SF Pro resource entries
-from existing generated Xcode projects and UIAppFonts without deleting source
-assets. Always verify the final exported app for stale font resources; successful
-prebuild alone does not prove a previously built app bundle is clean.
+## Устройство хранилища релизов и протокола выдачи
 
-September 11 verification: `npm run verify` and `npm run test:ios-config` passed.
-The iOS Metro export under `output/builds/ios-system-font-export` lists only Yaro
-as a font; a SHA-256 comparison against all four SF Pro source files found zero
-matches in exported assets. Visual layout verification and final archive audit
-are separate remaining checks. No OTA was published by this change.
+OTA-служба хранит метаданные в updates.sqlite, а ресурсы — отдельными файлами с именем SHA-256. Таблицы releases, assets и release_assets разделяют релиз, уникальные байты и связи между ними. До записи каждый ресурс декодируется, его хеш пересчитывается и сравнивается с заявленным; требуется ровно один launch asset. Идентификатор релиза выводится из хеша platform, runtimeVersion и упорядоченного списка хешей ресурсов. Порядок этого списка участвует в идентичности и должен сохраняться при воспроизводимой публикации.
+
+Активация представлена добавлением записи в channel_history для точных channel, platform и runtime_version. Promote ссылается на существующий release ID, не создавая новые байты. Rollback выбирает предпоследнюю запись истории целевой комбинации и добавляет её как очередную активацию; при отсутствии второй записи возвращается NO_ROLLBACK_TARGET. Очистка сохраняет до десяти записей истории на комбинацию и удаляет релизы и ресурсы, на которые не осталось ссылок. Доступность отката поэтому ограничена сохранённой историей.
+
+GET /api/manifest требует expo-protocol-version=1 и читает expo-platform, expo-runtime-version и expo-channel-name. Если подходящего релиза нет либо expo-current-update-id уже совпадает, возвращается HTTP 204. Иначе сервер выдаёт application/expo+json и expo-signature с keyid=main и alg=rsa-v1_5-sha256. Подпись вычисляется над точными байтами сохранённого JSON; изменение даже пробела после подписи меняет проверяемое сообщение. Ресурсы выдаются как immutable с ETag, равным хешу.
+
+Внутренние POST-запросы аутентифицируются HMAC-SHA-256 над строкой timestamp.requestId.sha256(body). Допустимое расхождение времени — пять минут; сравнение подписи выполняется timingSafeEqual после проверки длины. requestId записывается в request_replays с уникальным ключом, поэтому повтор возвращает OTA_REPLAY. Этот протокол защищает управляющую публикацию и отличается от RSA-подписи, которой клиент проверяет сам манифест. Публичный сертификат не позволяет сформировать ни управляющий HMAC, ни подпись нового релиза.
+
+## Последовательность выпуска и частично обновлённое окружение
+
+Веб-образ собирается в два этапа: Node 22.13.1 Alpine устанавливает корневые и административные зависимости по отдельным lock-файлам и формирует admin/out; nginx 1.28 Alpine получает только статический экспорт и конфигурацию раздачи. NEXT_PUBLIC_CONVEX_URL передаётся как build argument и встраивается в клиентский JavaScript. Изменение переменной у уже запущенного nginx не перенастроит этот адрес: для смены backend нужен новый экспорт. .dockerignore исключает .env, Git, node_modules, output и локальные артефакты ещё из контекста сборки.
+
+Workflow использует общую группу web-deploy с cancel-in-progress=false, поэтому параллельные запросы выпуска сериализуются без прерывания уже работающего задания. После проверки проекта выполняется развёртывание Convex и git diff --exit-code для generated bindings; только затем собирается и публикуется linux/amd64-образ. Если сборка контейнера завершается ошибкой после успешного обновления Convex, backend уже изменён, а прежний веб-клиент продолжает работать. Серверная совместимость обязательна именно для такого промежуточного состояния; workflow не создаёт общей транзакции между Convex и GHCR.
+
+Watchtower опрашивает образ каждые 300 секунд и ограничен контейнером artificiallabs_web с разрешающей меткой. Его доступ к Docker socket относится к эксплуатационным полномочиям на узле. Тег latest удобен для обнаружения обновления, однако точную установленную версию следует определять по digest образа и метаданным commit. Возврат веб-образа не отменяет выполненное ранее развёртывание серверных функций.
+
+OTA workflow выполняется на macos-15, поскольку iOS fingerprint должен вычисляться в Darwin-окружении. Скрипт дополнительно требует чистую рабочую копию main, экспортирует каждую платформу во временный каталог и включает commit в публичную конфигурацию. Публикация, продвижение и откат выполняют отдельные запросы для iOS и Android последовательно. Ошибка второй платформы может оставить первую уже обновлённой; перед повтором необходимо проверить оба фактических update ID и состояния каналов, сохранив успешно выполненную часть как отдельный результат выпуска.
+
+## Подготовка входных файлов для воспроизводимого Android runtime
+
+Совпадение lock-файла ещё не гарантирует совпадение входов fingerprint до и после нативной сборки. Зависимость masked-view версии 0.3.2 при использовании AGP 7 и выше удаляет атрибут package из собственного AndroidManifest.xml. Этот шаг изменяет файл в node_modules до вычисления fingerprint нативной сборки; чистый экспорт OTA без такой подготовки получил бы другой набор входных байтов.
+
+prepareAndroidOtaInputs воспроизводит ровно это преобразование. Скрипт сначала проверяет точную версию пакета, затем SHA-256 исходного manifest. Уже подготовленный файл распознаётся по отдельному ожидаемому хешу, поэтому повторный запуск ничего не меняет. Для неизвестной версии, неожиданного содержимого или несовпадения результата предусмотрены разные ошибки, требующие пересмотра подготовки. Механизм не является универсальным патчем зависимостей: после их обновления необходимо заново подтвердить преобразование и сопоставить fingerprint установленного бинарного файла с runtime экспортируемого обновления.
+
+## Конфигурация по месту и моменту применения
+
+Публичные параметры встраиваются в JavaScript при сборке. Серверные секреты задаются в окружении Convex; контейнерные параметры читаются при запуске службы. Изменение переменной в запущенном nginx не меняет URL, уже встроенный в статический экспорт.
+
+| Параметр | Область | Назначение |
+| --- | --- | --- |
+| `EXPO_PUBLIC_CONVEX_URL` | Сборка Expo | Клиентский backend |
+| `EXPO_PUBLIC_CONVEX_SITE_URL` | Сборка Expo | HTTPS HTTP actions, включая документы |
+| `NEXT_PUBLIC_CONVEX_URL` | Сборка admin | Backend статического клиента |
+| `CONVEX_SELF_HOSTED_URL` | CLI и защищённый CI | Целевое развёртывание |
+| `CONVEX_SELF_HOSTED_ADMIN_KEY` | Секрет CLI или CI | Привилегированное развёртывание |
+| `JWT_PRIVATE_KEY`, `JWKS` | Convex Auth | Закрытый ключ подписи и конфигурация проверки токенов |
+| `YANDEX_AI_API_KEY`, `YANDEX_AI_FOLDER_ID`, `YANDEX_AI_MODEL` | Convex | Реквизит и параметры поставщика |
+| `RESEND_API_KEY`, `RESEND_FROM`, `PASSWORD_RECOVERY_HASH_SECRET` | Convex | Почта и защита восстановления |
+| `SMS_GATEWAY_SHARED_SECRET`, `SMS_RATE_LIMIT_HASH_SECRET` | Приватный шлюз и Convex | Аутентификация доставки и HMAC-лимиты |
+| `ANALYTICS_HASH_SECRET` | Convex | Псевдонимизация дневной активности |
+| `OTA_PUBLISH_SECRET`, `OTA_SIGNING_PRIVATE_KEY_PATH` | Служба OTA | Управляющая аутентификация и путь к ключу подписи |
+
+`JWT_PRIVATE_KEY` является закрытым ключом. `JWKS` описывает ключи проверки подписи; его конфигурация не должна содержать приватный материал. Правила проекта предписывают хранить обе настройки в серверном окружении, а не в клиентской конфигурации. Значения секретов не приводятся ни в документации, ни в журналах команд.
+
+| Флаг | Значение включения | Дополнительное условие |
+| --- | --- | --- |
+| `AI_AGENT_ENABLED` | `true` | Настроенный поставщик и согласие |
+| `AI_AGENT_AUTOMATION_ENABLED` | `true` | Основной флаг агента и разрешение автоматизации |
+| `AI_DOCUMENT_OCR_ENABLED` | `1` | Облачный режим и отдельное согласие |
+| `AI_DOCUMENT_INTERPRETATION_ENABLED` | `1` | Выбор текста и отдельное согласие |
+| `SMS_AUTH_ENABLED` | `1` | Доступный приватный шлюз |
+| `SMS_LOGIN_ENABLED` | `1` | Временный режим входа только по коду |
+| `EMAIL_VERIFICATION_REQUIRED` | `1` | Совместимые клиенты и проверенные review-аккаунты |
+| `EXPO_PUBLIC_E2E_MODE` | `1` | Только контролируемая проверочная сборка |
+
+Шаблон `.env.example` копируется в игнорируемый `.env.local`. Реальные значения не включаются в Git. Порты и origins Convex задаются в `infra/convex`, веб-образ — через `WEB_IMAGE`, параметры OTA — в приватном окружении `infra/updates`. Фактическое включение флага на рабочем сервере не выводится из значения в примере. При изменении Android package или подписи пересчитывается SMS Retriever hash. Эффективную конфигурацию определяет `app.config.ts`, который переопределяет `app.json`: базовый iOS bundle — `com.anonymous.privateexpo`, а при `SFERA_IOS_APP_STORE=1` используются `engineering.brainwaves.sfera`, Team ID `6HZGXYF43L` и явные `SFERA_RELEASE_VERSION` / `SFERA_IOS_BUILD_NUMBER` вместо фиксированного номера сборки. Совмещение этого флага с E2E-режимом отклоняется. Android package — `engineering.brainwaves.sfera`, versionCode — `6`. Для выбранного профиля выпуска проверяются сертификат подписи, entitlement Associated Domains, AASA и SMS-формат; значения базового профиля нельзя механически переносить в магазинную сборку.
+
+Публичная iOS-бета выпускается отдельным workflow по защищённому SemVer-тегу. Проверки, резервирование номера по App Store Connect, подпись и внешний TestFlight описаны в [iOS public beta CI](ios-public-beta-ci.md). Этот workflow не выпускает Android, OTA или App Store production.
+
+Политика OTA задаёт `checkAutomatically: ON_ERROR_RECOVERY` и `fallbackToCacheTimeout: 0`. Это не обещание автоматического получения нового пакета при каждом холодном запуске. Канал по умолчанию — production; runtime вычисляется по fingerprint. Исключения E2E для локального URL и сертификата не описывают штатную конфигурацию выпуска.
+
+## Нативный запуск и жизненный цикл окна
+
+Плагин `with-ios-scene-lifecycle` регистрирует одну конфигурацию `UIWindowScene`, отключает несколько сцен и добавляет `SceneDelegate` в Swift AppDelegate. Его место в `app.json` следует за плагином защиты локального хранилища. Это позволяет сохранить уже созданный экран отказа защиты данных и не запустить React поверх него.
+
+В Debug окно и development launcher создаются в `didFinishLaunching`; подключившаяся сцена присоединяет то же окно. В Release React запускается после подключения сцены, если у окна ещё нет `rootViewController`. Начальные URL и universal links переносятся в launch options, последующие события передаются подписчикам Expo. Переходы foreground/background также пробрасываются в существующий AppDelegate.
+
+Преобразование распознаёт собственный маркер и не добавляет второй SceneDelegate при повторном prebuild. Неожиданная форма исходного AppDelegate либо язык, отличный от Swift, приводят к явной ошибке. Нативный класс и manifest сцены требуют новой сборки и установки; пакет JavaScript не может добавить их в уже установленный runtime. Проверяются холодный запуск, возврат из фона, вход по ссылке и сохранение экрана ошибки защищённого хранилища.
+
+## Последовательность выпуска и возврата версии
+
+Паспорт выпуска фиксирует полный commit, незакоммиченные изменения, версии инструментов, результаты проверок, публичные адреса, идентификаторы нативных сборок и runtime, digest веб-образа и отдельные update ID iOS/Android. Значения секретов остаются в защищённой системе хранения.
+
+1. Проверить типы, предметные контракты и нужные нативные сценарии. Подготовить совместимость старого клиента с новым сервером.
+
+2. Развернуть Convex штатным защищённым workflow и проверить, что generated bindings не расходятся с сохранённой версией.
+
+3. Собрать и опубликовать статический `admin/out` в nginx-образе. Проверить digest и доступность защищённых маршрутов после обновления контейнера.
+
+4. Для изменения нативного состава собрать и установить новый бинарный файл. Для совместимого JavaScript опубликовать preview из чистого `main`.
+
+5. Проверить preview отдельно на iOS и Android. Продвинуть ровно проверенные update ID в production без новой сборки байтов.
+
+6. Зафиксировать результат каждой платформы и доступный путь возврата.
+
+Веб-workflow на `main` автоматический; ручной запуск другой ветки также обновляет `latest`. Watchtower применяет выбранный образ к `artificiallabs_web`. Защищённый workflow не имеет trigger `pull_request`; CI для PR не получает административный ключ Convex.
+
+При неудаче веб-сборки после развёртывания функций сервер уже изменён. При неудаче второй платформы OTA первая может быть продвинута. Возврат образа и переключение OTA-канала не возвращают серверную схему, локальную базу или нативный runtime. Перед повтором читается фактическое состояние каждой части; процедура не обещает общей транзакции распределённого выпуска.
+
+## Первичные источники
+
+- [Dockerfile](<../Dockerfile>)
+- [.github/workflows/ghcr-publish.yml](<../.github/workflows/ghcr-publish.yml>)
+- [.github/workflows/ota.yml](<../.github/workflows/ota.yml>)
+- [infra/web/](<../infra/web>)
+- [infra/updates/](<../infra/updates>)
+- [scripts/ota-release.mjs](<../scripts/ota-release.mjs>)
+- [AGENTS.md](<../AGENTS.md>)
+- [infra/updates/src/core.mjs](<../infra/updates/src/core.mjs>)
+- [infra/updates/src/server.mjs](<../infra/updates/src/server.mjs>)
+- [.dockerignore](<../.dockerignore>)
+- [infra/web/docker-compose.yml](<../infra/web/docker-compose.yml>)
+- [scripts/android-ota-inputs.mjs](<../scripts/android-ota-inputs.mjs>)
+- [.env.example](<../.env.example>)
+- [app.json](<../app.json>)
+- [app.config.ts](<../app.config.ts>)
+- [lib/convex.ts](<../lib/convex.ts>)
+- [convex/aiAgentConfig.ts](<../convex/aiAgentConfig.ts>)
+- [infra/convex/docker-compose.yml](<../infra/convex/docker-compose.yml>)
+- [infra/updates/compose.yml](<../infra/updates/compose.yml>)
+- [plugins/with-ios-scene-lifecycle.js](<../plugins/with-ios-scene-lifecycle.js>)
+- [plugins/with-ios-scene-lifecycle.test.js](<../plugins/with-ios-scene-lifecycle.test.js>)
+
+## Связанные материалы
+
+- [Сборка развёртывание и обновления приложения](<technical/19-deployment.md>)
+- [Единый индекс](<README.md>)

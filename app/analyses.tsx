@@ -1,7 +1,15 @@
-import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import {
+  ThemeStatusBar,
+  useAppTheme,
+  useThemeStyles,
+  type ThemeColors,
+} from '../lib/theme';
 import { colors as defaultThemeColors } from '../design-system/tokens';
 import { AppSheet, sheetStyles } from '../components/AppSheet';
 import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
+import { DocumentReview } from '../components/DocumentReview';
+import { useDocumentOcr } from '../lib/document-ocr-manager';
+import { importAnalysisDocument } from '../lib/analysis-document-import';
 import { AnalysisAttachmentThumbnail } from '../components/AnalysisAttachmentThumbnail';
 import { analysisCountdown } from '../lib/analysis-countdown';
 import { useProfileReducedMotion } from '../components/ProfileMotion';
@@ -221,6 +229,13 @@ export default function AnalysesScreen() {
     preferences,
     readOnly,
   } = useHealthStore();
+  const documentOcr = useDocumentOcr();
+  const attachmentSaveLock = useRef(false);
+  const pendingReviewId = useRef<string | undefined>(undefined);
+  const [reviewDocumentId, setReviewDocumentId] = useState<string>();
+  const reviewDocument = documents.find(
+    (document) => document.localId === reviewDocumentId && !document.deletedAt,
+  );
   const [activeTab, setActiveTab] = useState<AnalysisTabKey>('current');
   const [selectedAnalysis, setSelectedAnalysis] = useState<PlannedAnalysis>();
   const [pendingAttachment, setPendingAttachment] =
@@ -625,34 +640,41 @@ export default function AnalysesScreen() {
   };
 
   const saveAnalysisAttachment = async () => {
-    if (!selectedAnalysis || !pendingAttachment || readOnly) return;
+    if (
+      !selectedAnalysis ||
+      !pendingAttachment ||
+      readOnly ||
+      attachmentSaveLock.current
+    )
+      return;
 
+    attachmentSaveLock.current = true;
     setSaving(true);
     setAttachmentError(undefined);
-    let persistedDocumentUri: string | undefined;
-    let stored = false;
     try {
-      persistedDocumentUri = await persistLabDocument(pendingAttachment.uri);
-      await addLabResult({
-        catalogKey: selectedAnalysis.carePlan.catalogKey,
-        title: selectedAnalysis.title,
-        collectedAt: Date.now(),
-        status: 'unreviewed',
-        analytes: [
-          {
-            name: 'Результат',
-            value: 'Прикреплён',
-          },
-        ],
-        hasLocalSourceDocument: true,
-        localDocumentUri: persistedDocumentUri,
-      });
-      stored = true;
+      const { documentId, ocrFailed } = await importAnalysisDocument(
+        {
+          uri: pendingAttachment.uri,
+          catalogKey: selectedAnalysis.carePlan.catalogKey,
+          title: selectedAnalysis.title,
+        },
+        {
+          persist: persistLabDocument,
+          discardUnreferenced: discardUnreferencedLabDocument,
+          save: addLabResult,
+          imported: documentOcr.imported,
+        },
+      );
       setSelectedAnalysis(undefined);
       setPendingAttachment(undefined);
+      setActiveTab('completed');
+      pendingReviewId.current = documentId;
+      if (ocrFailed)
+        feedback.show(
+          'Файл сохранён',
+          'Не удалось начать распознавание. Откройте результат и повторите попытку.',
+        );
     } catch (cause) {
-      if (persistedDocumentUri && !stored)
-        await discardUnreferencedLabDocument(persistedDocumentUri);
       const message = cause instanceof Error ? cause.message : '';
       setAttachmentError(
         message.includes('DOCUMENT_')
@@ -660,6 +682,7 @@ export default function AnalysesScreen() {
           : 'Не удалось сохранить результат.',
       );
     } finally {
+      attachmentSaveLock.current = false;
       setSaving(false);
     }
   };
@@ -722,7 +745,6 @@ export default function AnalysesScreen() {
           onUpcoming={() => setActiveTab('upcoming')}
           style={styles.summaryWrap}
         />
-
 
         <View style={styles.tabsWrap}>
           <AnalysisTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -812,13 +834,28 @@ export default function AnalysesScreen() {
             {savedResults.map((result) => {
               const firstAnalyte = result.analytes[0];
               const catalog = analysisCatalogByKey.get(result.catalogKey);
+              const sourceDocument = documents.find(
+                (document) =>
+                  !document.deletedAt &&
+                  document.hasLocalFile &&
+                  document.localFileUri &&
+                  (document.localId === result.sourceDocumentLocalId ||
+                    document.linkedLabResultLocalId === result.localId),
+              );
+              const ocrState =
+                sourceDocument &&
+                documentOcr.drafts[sourceDocument.localId]?.state;
               return (
                 <AnalysisReferencePlanCard
                   key={result.localId}
                   title={result.title}
                   isCompleted
                   purpose={catalog?.purpose}
-                  dueLabel="Дата сдачи"
+                  dueLabel={
+                    result.status === 'unreviewed' && !result.confirmedAt
+                      ? 'Дата добавления'
+                      : 'Дата сдачи'
+                  }
                   dueValue={new Date(result.collectedAt).toLocaleDateString(
                     'ru-RU',
                   )}
@@ -830,27 +867,39 @@ export default function AnalysesScreen() {
                   }
                   image={analysisCategoryImage(catalog?.category)}
                   statusLabel={
-                    result.status === 'unreviewed'
-                      ? 'Файл сохранён · содержимое не прочитано'
-                      : result.status === 'attention'
-                        ? 'Требует внимания'
-                        : 'Подтверждено'
+                    result.confirmedAt
+                      ? 'Данные проверены вами'
+                      : ocrState === 'queued'
+                        ? 'Ожидает распознавания'
+                        : ocrState === 'recognizing'
+                          ? 'Распознаётся'
+                          : ocrState === 'review'
+                            ? 'Распознано · требуется проверка'
+                            : ocrState === 'error' || ocrState === 'cancelled'
+                              ? 'Распознавание остановлено · откройте для повтора'
+                              : result.status === 'unreviewed'
+                                ? 'Файл сохранён · требуется проверка'
+                                : result.status === 'attention'
+                                  ? 'Требует внимания'
+                                  : 'Подтверждено'
                   }
                   onView={() =>
-                    feedback.show(
-                      result.title,
-                      [
-                        `Дата сдачи: ${new Date(result.collectedAt).toLocaleDateString('ru-RU')}`,
-                        result.analytes.length
-                          ? result.analytes
-                              .map(
-                                (analyte) =>
-                                  `${analyte.name}: ${analyte.value}${analyte.unit ? ` ${analyte.unit}` : ''}`,
-                              )
-                              .join('\n')
-                          : 'Структурированные показатели не добавлены.',
-                      ].join('\n\n'),
-                    )
+                    sourceDocument && !readOnly
+                      ? setReviewDocumentId(sourceDocument.localId)
+                      : feedback.show(
+                          result.title,
+                          [
+                            `Дата сдачи: ${new Date(result.collectedAt).toLocaleDateString('ru-RU')}`,
+                            result.analytes.length
+                              ? result.analytes
+                                  .map(
+                                    (analyte) =>
+                                      `${analyte.section ? `${analyte.section} · ` : ''}${analyte.name}: ${analyte.value}${analyte.unit ? ` ${analyte.unit}` : ''}`,
+                                  )
+                                  .join('\n')
+                              : 'Структурированные показатели не добавлены.',
+                          ].join('\n\n'),
+                        )
                   }
                 />
               );
@@ -962,6 +1011,12 @@ export default function AnalysesScreen() {
         visible={Boolean(selectedAnalysis)}
         title="Анализ"
         onClose={closeAnalysis}
+        onClosed={() => {
+          if (pendingReviewId.current) {
+            setReviewDocumentId(pendingReviewId.current);
+            pendingReviewId.current = undefined;
+          }
+        }}
         dismissDisabled={saving || attachmentPicking}
         scroll={false}
       >
@@ -1111,6 +1166,44 @@ export default function AnalysesScreen() {
                       </View>
                     ) : null}
 
+                    {selectedSavedDocument && !pendingAttachment ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => {
+                          setSelectedAnalysis(undefined);
+                          pendingReviewId.current = selectedSavedDocument.localId;
+                        }}
+                        disabled={readOnly || saving}
+                        style={styles.analysisModalAttachmentButton}
+                      >
+                        <AppText color={colors.brand.primary}>
+                          Открыть и проверить результат
+                        </AppText>
+                      </Pressable>
+                    ) : null}
+                    <AppText role="caption" color={colors.text.secondary}>
+                      {documentOcr.accepted && documentOcr.enabled
+                        ? 'После сохранения начнётся распознавание. Показатели и дату нужно проверить и подтвердить.'
+                        : 'Файл сохранится на устройстве. Для автоматического распознавания включите облачную синхронизацию и дайте согласие в разделе «Разрешения и данные».'}
+                    </AppText>
+                    {!documentOcr.accepted || !documentOcr.enabled ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => {
+                          closeAnalysis();
+                          router.push({
+                            pathname: '/profile',
+                            params: { panel: 'permissions' },
+                          });
+                        }}
+                        disabled={saving || attachmentPicking}
+                      >
+                        <AppText color={colors.brand.primary}>
+                          Настроить распознавание
+                        </AppText>
+                      </Pressable>
+                    ) : null}
+
                     <View style={styles.analysisModalAttachmentActions}>
                       {(['file', 'photo'] as const).map((kind) => (
                         <Pressable
@@ -1254,7 +1347,11 @@ export default function AnalysesScreen() {
                           value={scheduleDate}
                           mode="date"
                           display="spinner"
-                          themeVariant={colors.surface.canvas === "#161417" ? "dark" : "light"}
+                          themeVariant={
+                            colors.surface.canvas === '#161417'
+                              ? 'dark'
+                              : 'light'
+                          }
                           style={{ width: '100%', height: 216 }}
                           locale="ru-RU"
                           minimumDate={normalizePlanDate(new Date())}
@@ -1371,6 +1468,14 @@ export default function AnalysesScreen() {
         ) : null}
         <ScreenFeedback feedback={feedback} />
       </AppSheet>
+
+      {reviewDocument && !readOnly ? (
+        <DocumentReview
+          key={reviewDocument.localId}
+          document={reviewDocument}
+          onClose={() => setReviewDocumentId(undefined)}
+        />
+      ) : null}
 
       <HealthInsightsPage
         visible={chartsVisible}
@@ -1613,6 +1718,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  analysisModalAttachmentHint: { paddingHorizontal: 2, fontSize: 14, lineHeight: 18 },
   analysisModalAttachmentActions: {
     flexDirection: 'row',
     gap: 10,

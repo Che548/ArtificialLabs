@@ -3,10 +3,10 @@
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1 --port 3040",
     "build": "next build", "start": "next start --hostname 0.0.0.0 --port 3040",
-    "build:cv": "node ../scripts/build-strip-cv.mjs",
+    "build:cv": "node ../scripts/verify-strip-reader-package.mjs && node ../scripts/build-strip-cv.mjs --cli-only",
     "typecheck": "tsc --noEmit", "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test", "verify": "npm run typecheck && npm run test && npm run build"
   },
-  "dependencies": { "next": "16.3.2", "react": "19.1.0", "react-dom": "19.1.0", "sharp": "^0.34.5", "jsqr": "^1.4.0", "lucide-react": "^0.468.0" },
+  "dependencies": { "next": "16.3.5", "react": "19.1.0", "react-dom": "19.1.0", "sharp": "0.35.4", "jsqr": "^1.4.0", "lucide-react": "^0.468.0" },
   "devDependencies": { "typescript": "^5.7.2", "@types/node": "^22.10.0", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "tsx": "^4.20.0", "@playwright/test": "^1.55.0" }
 }

@@ -1,0 +1,7 @@
+**/*.onnx
+!reader-20260914/points.onnx
+!reader-20260914/presence.onnx
+!reader-20260914/coverage.onnx
+!reader-20260914/auxiliary.onnx
+!reader-20260914/detector.onnx
+!reader-20260914/local_bands.onnx

@@ -1,4 +1,5 @@
 #include "stripcv/analyzer.hpp"
+#include "stripcv/precise_warp.hpp"
 
 #include "recognition_policy.hpp"
 
@@ -21,7 +22,7 @@ namespace stripcv {
 namespace {
 
 #ifndef STRIPCV_VERSION
-#define STRIPCV_VERSION "0.4.1"
+#define STRIPCV_VERSION "0.4.2"
 #endif
 
 using Clock = std::chrono::steady_clock;
@@ -2911,9 +2912,8 @@ AnalysisResult Analyzer::analyze(const cv::Mat& rgb, const AssayProfile& assay,
       ? cv::getPerspectiveTransform(localization.corners.data(),
                                     destination.data())
       : localization.homography.clone();
-  cv::warpPerspective(rgb, strip_rgb, result.geometry.homography,
-                      cv::Size(assay.canonical_width, assay.canonical_height),
-                      cv::INTER_LINEAR, cv::BORDER_REPLICATE);
+  preciseWarpPerspective(rgb, strip_rgb, result.geometry.homography,
+                         cv::Size(assay.canonical_width, assay.canonical_height), true);
   source_strip_height =
       0.5 * (cv::norm(localization.corners[3] - localization.corners[0]) +
              cv::norm(localization.corners[2] - localization.corners[1]));

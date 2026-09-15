@@ -85,6 +85,12 @@ const agentRuleCondition = v.object({
 });
 
 export default defineSchema({
+  phoneRegistrationChallenges: defineTable({
+    phone: v.string(), tokenHash: v.string(), codeHash: v.string(), generation: v.string(),
+    expiresAt: v.number(), retryAt: v.number(), failedAttempts: v.number(),
+    status: v.union(v.literal('sending'), v.literal('pending'), v.literal('failed'), v.literal('verified'), v.literal('consumed')),
+    userId: v.optional(v.id('users')), purgeAt: v.number(),
+  }).index('by_expiry', ['purgeAt']),
   contactVerificationChallenges: defineTable({
     kind: v.union(v.literal('login-email'), v.literal('phone-change')),
     userId: v.id('users'), accountId: v.id('authAccounts'),
@@ -104,7 +110,7 @@ export default defineSchema({
   ...authTables,
   emailChangeChallenges: defineTable({
     userId: v.id('users'), sessionId: v.id('authSessions'), accountId: v.id('authAccounts'),
-    oldEmail: v.string(), newEmail: v.string(), credentialHash: v.string(),
+    oldEmail: v.optional(v.string()), newEmail: v.string(), credentialHash: v.string(),
     codeHash: v.string(), generation: v.string(), expiresAt: v.number(), retryAt: v.number(),
     failedAttempts: v.number(), status: v.union(v.literal('sending'), v.literal('pending'), v.literal('failed'), v.literal('consumed')),
     createdAt: v.number(), purgeAt: v.number(),
@@ -388,6 +394,7 @@ export default defineSchema({
         value: v.string(),
         unit: v.optional(v.string()),
         reference: v.optional(v.string()),
+        section: v.optional(v.string()),
       }),
     ),
     hasLocalSourceDocument: v.boolean(),
@@ -814,6 +821,10 @@ export default defineSchema({
   })
     .index('by_calibration_time', ['calibrationId', 'createdAt'])
     .index('by_time', ['createdAt']),
+  contentCollections: defineTable({
+    key: v.string(),
+    createdAt: v.number(),
+  }).index('by_key', ['key']),
   contentItems: defineTable({
     key: v.string(),
     category: v.union(
@@ -825,14 +836,20 @@ export default defineSchema({
     ),
     placement: v.string(),
     currentPublishedVersionId: v.optional(v.id('contentVersions')),
+    deletedAt: v.optional(v.number()),
     createdBy: v.id('users'),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_key', ['key'])
-    .index('by_category_updated', ['category', 'updatedAt']),
+    .index('by_category_updated', ['category', 'updatedAt'])
+    .index('by_placement_deleted', ['placement', 'deletedAt']),
   contentVersions: defineTable({
     contentItemId: v.id('contentItems'),
+    cardTitle: v.optional(v.string()),
+    cardKind: v.optional(v.union(v.literal('article'), v.literal('care-plan'))),
+    coverPreset: v.optional(v.union(v.literal('nutrition'), v.literal('care-plan'))),
+    sortOrder: v.optional(v.number()),
     version: v.number(),
     title: v.string(),
     markdown: v.string(),

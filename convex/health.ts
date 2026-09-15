@@ -124,6 +124,7 @@ const lab = v.object({
       value: v.string(),
       unit: v.optional(v.string()),
       reference: v.optional(v.string()),
+        section: v.optional(v.string()),
     }),
   ),
   hasLocalSourceDocument: v.boolean(),

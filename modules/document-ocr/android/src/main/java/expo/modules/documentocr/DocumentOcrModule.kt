@@ -36,6 +36,23 @@ class DocumentOcrModule : Module() {
         mapOf("text" to result.getString("text"), "confidence" to result.getDouble("confidence"))
       } finally { bitmap.recycle() }
     }
+    AsyncFunction("exportPageAsync") { uri: String, page: Int, rotation: Int ->
+      val source = orient(render(localFile(uri), page), rotation)
+      try {
+        val image = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        try {
+          val canvas = android.graphics.Canvas(image)
+          canvas.drawColor(Color.WHITE)
+          canvas.drawBitmap(source, 0f, 0f, null)
+          val bytes = java.io.ByteArrayOutputStream().use { stream ->
+            require(image.compress(Bitmap.CompressFormat.JPEG, 95, stream)) { "DOCUMENT_CORRUPT" }
+            stream.toByteArray()
+          }
+          require(bytes.size <= 6 * 1024 * 1024) { "OCR_IMAGE_SIZE" }
+          android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        } finally { image.recycle() }
+      } finally { source.recycle() }
+    }
     AsyncFunction("previewPageAsync") { uri: String, page: Int, rotation: Int ->
       val context = requireNotNull(appContext.reactContext)
       val bitmap = orient(render(localFile(uri), page), rotation)

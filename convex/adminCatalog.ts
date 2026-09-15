@@ -762,13 +762,15 @@ export const saveContent = mutation({
   },
   handler: async (ctx, args) => {
     const { userId } = await requireAdmin(ctx);
+    if (args.placement.trim() === 'today') throw new Error('USE_TODAY_EDITOR');
     if (args.markdown.length > 100_000) throw new Error('CONTENT_TOO_LARGE');
     const now = Date.now();
     let itemId = args.contentItemId;
     let version = 1;
     if (itemId) {
       const item = await ctx.db.get(itemId);
-      if (!item) throw new Error('CONTENT_NOT_FOUND');
+      if (!item || item.deletedAt !== undefined) throw new Error('CONTENT_NOT_FOUND');
+      if (item.placement === 'today') throw new Error('USE_TODAY_EDITOR');
       const latest = await ctx.db
         .query('contentVersions')
         .withIndex('by_item_version', (q) => q.eq('contentItemId', itemId!))
@@ -829,6 +831,9 @@ export const reviewContent = mutation({
     const { userId } = await requireAdmin(ctx);
     const version = await ctx.db.get(args.versionId);
     if (!version) throw new Error('CONTENT_VERSION_NOT_FOUND');
+    const parent = await ctx.db.get(version.contentItemId);
+    if (!parent || parent.deletedAt !== undefined) throw new Error('CONTENT_NOT_FOUND');
+    if (parent.placement === 'today') throw new Error('USE_TODAY_EDITOR');
     if (version.status !== 'draft') throw new Error('CONTENT_NOT_DRAFT');
     const now = Date.now();
     await ctx.db.patch(version._id, {
@@ -855,6 +860,9 @@ export const publishContent = mutation({
     const { userId } = await requireAdmin(ctx);
     const version = await ctx.db.get(args.versionId);
     if (!version) throw new Error('CONTENT_VERSION_NOT_FOUND');
+    const parent = await ctx.db.get(version.contentItemId);
+    if (!parent || parent.deletedAt !== undefined) throw new Error('CONTENT_NOT_FOUND');
+    if (parent.placement === 'today') throw new Error('USE_TODAY_EDITOR');
     if (version.status !== 'review') throw new Error('CONTENT_NOT_REVIEWED');
     const item = await ctx.db.get(version.contentItemId);
     if (!item) throw new Error('CONTENT_NOT_FOUND');
@@ -898,6 +906,7 @@ export const listContent = query({
     const page = await ctx.db
       .query('contentItems')
       .withIndex('by_category_updated')
+      .filter(q => q.and(q.neq(q.field('placement'), 'today'), q.eq(q.field('deletedAt'), undefined)))
       .order('desc')
       .paginate(pageOptions(paginationOpts));
     return {

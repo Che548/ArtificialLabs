@@ -6,6 +6,7 @@
 #include <opencv2/core.hpp>
 
 #include "stripcv/analyzer.hpp"
+#include "../src/recognition_policy.hpp"
 
 namespace {
 
@@ -52,6 +53,31 @@ int main() {
   const stripcv::AssayProfile assay = testAssay();
   stripcv::Analyzer analyzer;
   const cv::Mat blank(256, 512, CV_8UC3, cv::Scalar(255, 255, 255));
+
+  // Freeze the exact quiet-profile paper ripple exposed by the corrected
+  // compact-locator recognition stress set. It is line-shaped in 1-D but has
+  // only 0.20% of C area. Neighboring real faint-line metrics remain eligible
+  // because they are physically wider or independently stronger.
+  stripcv::PeakMetrics strong_control;
+  strong_control.detected = true;
+  strong_control.area = 0.03165542696193015;
+  stripcv::PeakMetrics paper_ripple;
+  paper_ripple.detected = true;
+  paper_ripple.area = 0.00006482415244443854;
+  paper_ripple.fwhm = 0.016556291390728478;
+  paper_ripple.snr = 3.889910207720217;
+  stripcv::PeakMetrics real_faint_line;
+  real_faint_line.detected = true;
+  real_faint_line.area = 0.0000132478;
+  real_faint_line.fwhm = 0.031457;
+  real_faint_line.snr = 7.25156;
+  if (!stripcv::internal::unsupportedTinyRelativeTestSignal(
+          strong_control, paper_ripple, 0.035, 3.0) ||
+      stripcv::internal::unsupportedTinyRelativeTestSignal(
+          strong_control, real_faint_line, 0.035, 3.0)) {
+    std::cerr << "tiny control-relative test-signal policy lost selectivity\n";
+    return EXIT_FAILURE;
+  }
 
   stripcv::AnalysisOptions enforced_options;
   enforced_options.corner_override = fullFrameCorners();

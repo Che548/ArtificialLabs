@@ -10,6 +10,7 @@ import sferaLogo from '../../assets/sfera-logo.png';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { Users, AccountMetrics } from '../../components/users';
 import { DataBoundary, LoadingState, useUrlValue } from '../../components/data-state';
+import { TodayContentManager } from '../../components/today-content';
 
 type Section =
   | 'users'
@@ -58,6 +59,7 @@ function adminError(error: unknown) {
     INVALID_STATUS_TRANSITION: 'Этот переход статуса сейчас недоступен.',
     CALIBRATION_NOT_APPROVED: 'Сначала одобрите калибровку.',
     CONTENT_NOT_REVIEWED: 'Сначала отправьте материал на проверку.',
+    USE_TODAY_EDITOR: 'Для экрана «Сегодня» используйте редактор статей выше.',
   };
   return Object.entries(messages).find(([code]) => text.includes(code))?.[1]
     ?? 'Операция не выполнена. Проверьте обязательные поля и подключение, затем повторите.';
@@ -798,6 +800,10 @@ function Validation() {
 }
 
 function Content() {
+  return <><PageTitle title="Материалы" subtitle="Управление статьями и карточками приложения." /><TodayContentManager /><details className="panel"><summary>Другие материалы</summary><OtherContent /></details></>;
+}
+
+function OtherContent() {
   const list = usePaginatedQuery(
     api.adminCatalog.listContent,
     {},

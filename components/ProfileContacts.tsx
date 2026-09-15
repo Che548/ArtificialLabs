@@ -104,7 +104,8 @@ function EmailChangeForm({
       <Text style={styles.help}>
         {challenge
           ? `Код отправлен на ${newEmail.trim().toLowerCase()}`
-          : `Текущая почта: ${email ?? '—'}. Подтвердите смену паролем и кодом на новый адрес.`}
+          : email ? `Текущая почта: ${email}. Подтвердите смену паролем и кодом на новый адрес.`
+            : 'Почта не обязательна. Чтобы добавить её, введите текущий пароль и подтвердите код на новый адрес.'}
       </Text>
       {!challenge ? (
         <>
@@ -444,7 +445,7 @@ export function ProfileContacts({
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Изменить электронную почту"
+              accessibilityLabel={email ? 'Изменить электронную почту' : 'Добавить электронную почту'}
               testID="profile-change-email"
               disabled={disabled}
               onPress={() => {
@@ -453,7 +454,7 @@ export function ProfileContacts({
               }}
               style={[styles.contactAction, disabled && styles.disabled]}
             >
-              <Text style={styles.link}>Изменить</Text>
+              <Text style={styles.link}>{email ? 'Изменить' : 'Добавить'}</Text>
             </Pressable>
           </View>
           <View style={styles.divider} />

@@ -80,7 +80,7 @@ export const credentials = internalQuery({
         q.eq('userId', identity.userId).eq('provider', 'password'),
       )
       .take(2);
-    if (!user?.email || accounts.length !== 1 || !accounts[0].secret)
+    if (!user || accounts.length !== 1 || !accounts[0].secret)
       return fail('UNAVAILABLE');
     return { ...identity, email: user.email, account: accounts[0] };
   },
@@ -143,14 +143,14 @@ export const reserve = internalMutation({
       .take(2);
     const account = accounts[0];
     if (
-      !user?.email ||
+      !user ||
       accounts.length !== 1 ||
       !account.secret ||
       (await hash(`credential:${account.secret}`)) !== args.credentialHash
     )
       return fail('REAUTHENTICATE');
     const newEmail = normalizeEmail(args.newEmail);
-    if (newEmail === user.email.toLowerCase()) return fail('SAME_EMAIL');
+    if (newEmail === user.email?.toLowerCase()) return fail('SAME_EMAIL');
     await available(ctx, newEmail, userId);
     const now = Date.now();
     const previous = args.challengeId
@@ -493,10 +493,11 @@ export const afterCommit = internalAction({
   args: {
     userId: v.id('users'),
     sessionId: v.id('authSessions'),
-    oldEmail: v.string(),
+    oldEmail: v.optional(v.string()),
     challengeId: v.id('emailChangeChallenges'),
   },
   handler: async (ctx, args) => {
+    if (!args.oldEmail) return;
     try {
       await sendEmail(
         ctx,

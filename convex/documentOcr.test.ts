@@ -198,3 +198,17 @@ test('exact requested model required and account purge removes OCR metadata', as
     await t.run((ctx) => ctx.db.query('documentOcrJobs').collect()),
   ).toHaveLength(0);
 });
+
+test('HTTP v2 negotiation is transient and does not enter reservation records', async () => {
+  const {t,user}=await setup();
+  await user.mutation(api.documentOcr.setConsent,{accepted:true,policyVersion});
+  vi.stubEnv('YANDEX_AI_API_KEY','synthetic');vi.stubEnv('YANDEX_AI_FOLDER_ID','synthetic');
+  const page={version:2,text:'',rows:[],dates:[],issues:[],structure:{version:1,title:'',pageRole:'blank',dates:[],blocks:[]}};
+  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(page)}}]})));
+  try{
+    const response=await user.fetch('/document-ocr/page',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...args,formatVersion:2,image:'/9j/AAAA'})});
+    expect(response.status).toBe(200);expect((await response.json()).result.version).toBe(2);
+    const records=await t.run(ctx=>ctx.db.query('documentOcrJobs').collect());
+    expect(JSON.stringify(records)).not.toMatch(/structure|image|formatVersion|blocks/);
+  }finally{vi.unstubAllGlobals();}
+});

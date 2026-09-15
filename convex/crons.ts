@@ -83,4 +83,6 @@ crons.interval(
   {},
 );
 
+crons.hourly('purge phone registration challenges', { minuteUTC: 49 }, internal.phoneRegistration.cleanup, {});
+
 export default crons;

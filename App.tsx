@@ -6,7 +6,9 @@ import { AndroidMaterialBackdrop } from './design-system/android-material';
 import { AppThemeScope, ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from './lib/theme';
 import { colors as defaultThemeColors } from './design-system/tokens';
 import { TodayArticleSheet } from './components/TodayArticleSheet';
-import { todayArticles, type TodayArticle } from './lib/today-articles';
+import type { TodayArticle } from './lib/today-articles';
+import { useTodayArticles } from './lib/use-today-articles';
+import { todayCardTitle } from './shared/today-content';
 import { AppSheet, sheetStyles } from './components/AppSheet';
 import { GradientBlur } from './components/GradientBlur';
 import { useProfileReducedMotion } from './components/ProfileMotion';
@@ -415,17 +417,20 @@ function ProjectText({
 type FeatureCardProps = {
   title: string;
   background: TodayArticle['background'];
+  fallbackBackground: TodayArticle['background'];
   onPress?: () => void;
 };
 
-function FeatureCard({ title, background, onPress }: FeatureCardProps) {
+function FeatureCard({ title, background, fallbackBackground, onPress }: FeatureCardProps) {
+  const [failedSource, setFailedSource] = useState<FeatureCardProps['background']>();
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.featureCard, styles.featureCardSoft]}>
       <Image
         accessible={false}
-        source={background}
+        source={failedSource === background ? fallbackBackground : background}
+        onError={() => setFailedSource(background)}
         resizeMode="cover"
         style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
       />
@@ -517,6 +522,7 @@ function TodayArticleCards({
   checkupCount: number;
 }) {
   const [article, setArticle] = useState<TodayArticle | null>(null);
+  const articles = useTodayArticles();
   return (
     <>
       <ScrollView
@@ -525,17 +531,12 @@ function TodayArticleCards({
         contentContainerStyle={{ gap: 10, paddingRight: 2 }}
       >
         <ImportantMascotCard onPress={onImportantPress} />
-        {todayArticles.map((item) => (
+        {articles.map((item) => (
           <FeatureCard
             key={item.id}
             background={item.background}
-            title={
-              item.id === 'care-plan'
-                ? checkupCount
-                  ? `План наблюдения\nПунктов: ${checkupCount}`
-                  : 'План наблюдения\nпока пуст'
-                : item.cardTitle
-            }
+            fallbackBackground={item.fallbackBackground}
+            title={todayCardTitle(item, checkupCount)}
             onPress={() => setArticle(item)}
           />
         ))}
@@ -2102,14 +2103,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#FCE7DC',
     borderRadius: Platform.OS === 'android' ? 0 : 40,
-  },
-  heroTopExtension: { position: 'absolute', top: 0, left: 0, width: DESIGN_WIDTH, height: 24, overflow: 'hidden' },
-  heroImage: {
-    position: 'absolute',
-    left: 0,
-    top: 24,
-    width: DESIGN_WIDTH,
-    height: 762,
   },
   topBar: {
     position: 'absolute',

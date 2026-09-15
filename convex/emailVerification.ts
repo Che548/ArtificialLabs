@@ -16,7 +16,7 @@ export const loginState = internalQuery({
   args: { userId: v.id('users') },
   handler: async (ctx, { userId }) => {
     const user = await ctx.db.get(userId);
-    if (!user?.email) return contactError('EMAIL_REQUIRED');
+    if (!user?.email && !user?.phoneVerificationTime) return contactError('EMAIL_REQUIRED');
     const accounts = await ctx.db
       .query('authAccounts')
       .withIndex('userIdAndProvider', (q) =>
@@ -31,9 +31,10 @@ export const loginState = internalQuery({
       account,
       required:
         process.env.EMAIL_VERIFICATION_REQUIRED === '1' &&
+        Boolean(user?.email) &&
         !user.emailVerificationTime &&
-        !(await hasReviewLoginException(ctx, userId, user.email)) &&
-        !(await hasDemoAdminLoginException(ctx, userId, user.email)),
+        !(await hasReviewLoginException(ctx, userId, user.email!)) &&
+        !(await hasDemoAdminLoginException(ctx, userId, user.email!)),
     };
   },
 });

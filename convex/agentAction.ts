@@ -421,20 +421,23 @@ function validToolItem(
           'collectedAt',
           'status',
           'values',
+          'omittedValueCount',
         ]) &&
         optionalSafeToolString(item.title, 160) &&
         finiteToolNumber(item.collectedAt) &&
         safeToolString(item.status, 40) &&
+        (item.omittedValueCount === undefined || (Number.isSafeInteger(item.omittedValueCount) && (item.omittedValueCount as number) >= 0 && (item.omittedValueCount as number) <= 2000)) &&
         Array.isArray(item.values) &&
         item.values.length <= 20 &&
         item.values.every(
           (value) =>
             isToolRecord(value) &&
-            hasOnlyToolKeys(value, ['name', 'value', 'unit', 'reference']) &&
+            hasOnlyToolKeys(value, ['name', 'value', 'unit', 'reference', 'section']) &&
             optionalSafeToolString(value.name, 100) &&
             optionalSafeToolString(value.value, 100) &&
             optionalSafeToolString(value.unit, 40) &&
-            optionalSafeToolString(value.reference, 100),
+            optionalSafeToolString(value.reference, 100) &&
+            optionalSafeToolString(value.section, 100),
         )
       );
     }

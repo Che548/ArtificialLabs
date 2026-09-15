@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { internalMutation, mutation, query } from './_generated/server';
+import { internalMutation, internalQuery, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
@@ -198,4 +198,10 @@ export const purgeForUser = internalMutation({
         userId,
       });
   },
+});
+
+/** Re-check the caller before the next transient provider stage. No content is an argument. */
+export const assertAccess = internalQuery({
+  args: {userId:v.id('users')},
+  handler: async (ctx,{userId}) => {await access(ctx,userId);return null;},
 });

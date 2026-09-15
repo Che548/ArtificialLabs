@@ -28,6 +28,15 @@ public final class DocumentOcrModule: Module {
         return try DocumentOcrBridge.recognize(image, models: models.path) as? [String: Any] ?? [:]
       }
     }.runOnQueue(worker)
+    AsyncFunction("exportPageAsync") { (uri: String, page: Int, rotation: Int) throws -> String in
+      try autoreleasepool {
+        let image = try self.orient(self.render(self.localURL(uri), page: page), rotation: rotation)
+        guard let bytes = image.jpegData(compressionQuality: 0.95), bytes.count <= 6 * 1024 * 1024 else {
+          throw DocumentOcrException("OCR_IMAGE_SIZE")
+        }
+        return bytes.base64EncodedString()
+      }
+    }.runOnQueue(worker)
     AsyncFunction("previewPageAsync") { (uri: String, page: Int, rotation: Int) throws -> String in
       try autoreleasepool {
         let image = try self.orient(self.render(self.localURL(uri), page: page), rotation: rotation)

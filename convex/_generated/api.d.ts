@@ -49,6 +49,7 @@ import type * as monitoringData from "../monitoringData.js";
 import type * as notifications from "../notifications.js";
 import type * as passwordRecovery from "../passwordRecovery.js";
 import type * as phoneChange from "../phoneChange.js";
+import type * as phoneRegistration from "../phoneRegistration.js";
 import type * as profile from "../profile.js";
 import type * as publicCatalog from "../publicCatalog.js";
 import type * as registrationConsent from "../registrationConsent.js";
@@ -57,6 +58,7 @@ import type * as seed from "../seed.js";
 import type * as smsAuth from "../smsAuth.js";
 import type * as telemetry from "../telemetry.js";
 import type * as testing from "../testing.js";
+import type * as todayContent from "../todayContent.js";
 
 import type {
   ApiFromModules,
@@ -106,6 +108,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   passwordRecovery: typeof passwordRecovery;
   phoneChange: typeof phoneChange;
+  phoneRegistration: typeof phoneRegistration;
   profile: typeof profile;
   publicCatalog: typeof publicCatalog;
   registrationConsent: typeof registrationConsent;
@@ -114,6 +117,7 @@ declare const fullApi: ApiFromModules<{
   smsAuth: typeof smsAuth;
   telemetry: typeof telemetry;
   testing: typeof testing;
+  todayContent: typeof todayContent;
 }>;
 
 /**

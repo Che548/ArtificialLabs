@@ -1,38 +1,67 @@
-# Agent trigger replica reconciliation
+---
+title: "Согласование реплик правил агента"
+document_id: SFERA-470746AA64
+audience: developer
+status: active
+updated: 2026-09-14
+baseline_commit: ea85ac93db13b81d674aefc2cbe55f67428471bf
+source_scope: working-tree
+---
 
-Local edits still use `isAllowedAgentTriggerMutation`. Cloud replica merges use
-`mergeAgentTriggerReplicas`; this is not permission to edit a rule or reactivate
-a stopped trigger. Policy fields, targets, evidence, expiry and run limits must
-match. Unresolvable policy/run-metadata conflicts remain explicit errors.
+# Согласование реплик правил агента
 
-Compatible lifecycle states converge monotonically:
-`active < suspended < expired < completed`. This orders service scheduling
-states, not medical results. A higher existing run counter and its legal run
-metadata are preserved; timestamps cannot roll them back. Equal counters must
-have identical schedule/cooldown metadata. For a recorded run, two valid
-`lastRunAt` timestamps converge to the later one without increasing the counter.
-Missing or future timestamps remain errors. Reconciliation never creates a new run.
+## Синхронизация и разрешение конкурирующих изменений
 
-The server and SQLCipher merge use the same resolver, including delayed cloud
-snapshots. Local writes retain the original transition guard. Snapshot merge
-failures are displayed as sync errors instead of unhandled promise rejections.
+Разрешение на медицинскую синхронизацию задаётся сочетанием аутентификации, локального opt-in и отсутствия состояния ожидания удаления. Вход сам по себе не запускает чтение медицинского снимка и отправку outbox. Привязка согласия к устройству позволяет использовать разные режимы на нескольких устройствах одной учётной записи.
 
-The client sends ordinary records before the separate agent batch (plan items,
-triggers and recommendation events). A rejected agent batch leaves its outbox
-rows pending without rolling back acknowledged ordinary records. Native ACKs
-match the exact sent payload and timestamp as well as ID, preserving edits
-made while a request was in flight. Nothing clears the queue wholesale.
+synchronizeMedicalCloud сначала сохраняет профиль с отметкой согласия, затем читает ожидающие элементы. Нативное чтение ограничено 100 строками за порцию. Перед отправкой sanitizeCloudRecord удаляет локальные пути и поля черновиков; для документов применяется разрешающий список. Каждая успешно принятая группа подтверждается отдельно.
 
-Regression coverage: `convex/health.test.ts`,
-`lib/local-database-merge.test.ts`, and `lib/cloud-sync.test.ts` cover terminal
-state combinations, replay, reverse delivery order, run preservation, policy
-rejection, ownership, partial progress and guarded acknowledgement.
+Обычные записи отправляются раньше элементов плана, правил и событий рекомендаций. Если сервер отклоняет вторую группу, уже подтверждённые обычные данные не откатываются, а строки отклонённой группы остаются в очереди. Таким образом, конфликт предметного правила не блокирует сохранение несвязанных пользовательских данных.
 
-Server changes alone cannot repair an old client's local merge implementation.
-The client reconciliation and split-batch behavior require a compatible app
-update. Never clear user data or reinstall to work around the conflict.
+Подтверждение проверяет точную отправленную версию. Нативный ACK сопоставляет идентификатор строки, время обновления и сериализованную полезную нагрузку. Если пользователь изменил запись, пока запрос находился в сети, подтверждение прежнего запроса не удаляет новую версию. Очистка всей очереди после одного успешного ответа противоречила бы этому инварианту.
 
-Android OTA preparation reproduces the manifest transformation performed by
-masked-view 0.3.2's upstream Gradle script on AGP >= 7. This runs before the
-normal fingerprint resolver, with pinned input/output checksums; no runtime
-override is used. The regression test is part of the OTA workflow.
+Сервер использует идентичность profileId плюс localId и защищает более новое состояние от устаревшего обновления. Для правил помощника общего сравнения времён недостаточно: политика, целевые записи, источники, срок действия и предел запусков должны быть совместимы. Разрешённые состояния сходятся монотонно в порядке active, suspended, expired, completed. Слияние не создаёт новый запуск и не уменьшает уже записанный счётчик.
+
+createSingleFlightRunner не допускает параллельных экземпляров одной синхронизации. Транспортные сбои повторяются с ограниченной задержкой; восстановление связи инициирует немедленную единственную попытку. Ошибки входа, полномочий, валидации и несовместимых правил не должны бесконечно повторяться как временная потеря сети.
+
+Серверный снимок является ограниченным представлением, а не обещанием неограниченного чтения всей истории. Его объединение сохраняет локальную доступность файлов и защищает актуальные локальные версии. При ошибке объединения приложение показывает состояние синхронизации; очистка данных или переустановка не являются штатным способом разрешения конфликта.
+
+## Подтверждение версии и восстановление после обрыва связи
+
+Точный предикат подтверждения имеет вид DELETE FROM outbox WHERE id = ? AND updated_at = ? AND payload = ?. Рассмотрим отправку версии A: пока сервер обрабатывает её, пользователь сохраняет версию B с тем же localId. UPSERT обновляет ожидающую строку. Ответ на A удаляет её лишь при совпадении отправленного времени и JSON, поэтому B остаётся для следующей порции. После потери ответа повторная передача A опирается на серверную идентичность записи, а не на предположение, что запрос не был обработан.
+
+Сериализация, сравниваемая при подтверждении, относится к сохранённой исходящей версии. Отправляемая облачная проекция может быть уже исходного объекта: из неё исключены локальные пути, а строки лабораторных показателей ограничены полями name, value, unit, reference и section. ACK связывает успешный ответ с исходной строкой очереди, не пытаясь восстановить её из очищенного серверного объекта. Это различие существенно при добавлении новых локальных метаданных.
+
+retryDelayMs задаёт последовательность задержек 5, 15, 30, 60 и 120 секунд; последующие транспортные ошибки сохраняют верхний предел 120 секунд. При явном offline таймер повторов не устанавливается, а переход обратно к доступной сети вызывает syncNow. Успешная синхронизация сбрасывает счётчик и сохраняет время последнего успеха. Ошибка Auth имеет retryable=false; неизвестная ошибка также не повторяется автоматически. Классификатор распознаёт транспорт по признакам сообщения, поэтому новые формы ошибок должны проверяться отдельно.
+
+Single-flight реализован общей ссылкой на Promise: конкурентный вызов получает уже выполняющийся результат, а finally освобождает ссылку. Это ограничение действует внутри текущего экземпляра клиента. Оно не является распределённой блокировкой между устройствами; одновременные изменения разных клиентов по-прежнему разрешаются серверными правилами версий и предметной совместимости.
+
+## Разделение пакетов и частичное подтверждение синхронизации
+
+synchronizeMedicalCloud сначала сохраняет профиль, затем последовательно читает ожидающие записи outbox. Выбранный набор разделяется на обычные сущности и группу carePlanItems, agentTriggers, recommendationEvents. Элементы плана и связанные события передаются вместе, однако их серверная проверка не включена в один пакет с ранее отправляемыми обычными записями. Это ограничивает последствия отклонённого правила агента.
+
+Для каждой группы pushBatch предшествует acknowledge; счётчик pushed увеличивается только после подтверждения. Если обычная группа принята, а следующая отклонена, первая уже подтверждена локально, вторая остаётся ожидающей. Следующая итерация заново читает очередь. Следовательно, единичный вызов синхронизации может завершиться ошибкой после полезной частичной работы, и статус последнего вызова нельзя интерпретировать как отмену всех принятых изменений. Условие точного подтверждения версии outbox продолжает действовать для каждой группы независимо.
+
+## Пределы серверного снимка и полнота истории
+
+`health.snapshot` возвращает связанные с текущим профилем коллекции параллельными запросами. Для дневника выбираются последние 200 записей, для лабораторных результатов и напоминаний — по 100, для сообщений чата и событий рекомендаций — по 500. Эти пределы относятся к отдельным коллекциям и не являются курсорной выгрузкой всей истории.
+
+Программы, состояния здоровья, препараты, аллергии, документы, беседы, элементы плана, правила агента и настройки читаются через `collect`. Таким образом, у ответа нет единой верхней границы байтов, гарантированной только перечисленными `take`. Профиль с большой историей следует проверять отдельно; сумма нескольких ограниченных выборок и неограниченных коллекций не образует автоматически ограниченный контракт ответа.
+
+Отсутствие записи в усечённой серверной выдаче не доказывает её удаление. Локальное объединение должно опираться на идентичность, версии и отметки удаления. Снимок не заменяет структурированный экспорт и не переносит локальные оригиналы документов. При изменении лимитов оцениваются объём доставки подписок, память клиента, время слияния и поведение старых версий приложения.
+
+## Первичные источники
+
+- [lib/sync-policy.ts](<../lib/sync-policy.ts>)
+- [lib/cloud-sync.ts](<../lib/cloud-sync.ts>)
+- [lib/local-database.native.ts](<../lib/local-database.native.ts>)
+- [lib/health-store.tsx](<../lib/health-store.tsx>)
+- [convex/health.ts](<../convex/health.ts>)
+- [lib/agent-trigger-sync.ts](<../lib/agent-trigger-sync.ts>)
+- [docs/agent-trigger-sync.md](<agent-trigger-sync.md>)
+- [lib/service-errors.ts](<../lib/service-errors.ts>)
+
+## Связанные материалы
+
+- [Синхронизация и разрешение конкурирующих изменений](<technical/07-synchronization.md>)
+- [Единый индекс](<README.md>)

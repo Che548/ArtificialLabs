@@ -9,6 +9,8 @@ const ctx = await context({
   bundle: true,
   outfile: `${out}/bundle.js`,
   jsx: 'automatic',
+  resolveExtensions: ['.web.tsx', '.tsx', '.web.ts', '.ts', '.web.jsx', '.jsx', '.web.js', '.js', '.json'],
+  loader: { '.png': 'file', '.jpg': 'file', '.js': 'jsx' },
   alias: {
     '@convex-dev/auth/react': path.resolve('tests/contact-ui/auth.ts'),
     'convex/react': path.resolve('tests/contact-ui/client.ts'),
@@ -21,11 +23,17 @@ const ctx = await context({
     {
       name: 'fixture-native-sms',
       setup(build) {
-        build.onResolve({ filter: /^(expo-symbols)$|(?:design-system\/(components|profile))$/ }, () => ({
-          path: path.resolve('tests/contact-ui/presentation.tsx'),
+        build.onResolve({ filter: /(^|\/)(connectivity|update-manager)$|^(expo-crypto|expo-status-bar)$/ }, () => ({
+          path: path.resolve('tests/contact-ui/isolated-auth.ts'),
         }));
-        build.onResolve({ filter: /^expo-sqlite\/kv-store$/ }, () => ({
-          path: path.resolve('tests/legal-ui/stubs.tsx'),
+        build.onResolve({ filter: /(^|\/)theme$/ }, () => ({
+          path: path.resolve('tests/contact-ui/theme.ts'),
+        }));
+        build.onResolve({ filter: /^react-native-svg$/ }, () => ({
+          path: path.resolve('node_modules/react-native-svg/lib/module/ReactNativeSVG.web.js'),
+        }));
+        build.onResolve({ filter: /^(expo-symbols|expo-blur|expo-linear-gradient|expo-glass-effect|@react-native-community\/datetimepicker)$/ }, () => ({
+          path: path.resolve('tests/document-ui/native-effects.tsx'),
         }));
         build.onResolve({ filter: /\/sms-otp-retriever$/ }, () => ({
           path: path.resolve('tests/contact-ui/sms.ts'),
@@ -33,7 +41,7 @@ const ctx = await context({
       },
     },
   ],
-  define: { global: 'globalThis', 'process.env.NODE_ENV': '"development"' },
+  define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}', __DEV__: 'false' },
 });
 await ctx.serve({ host: '127.0.0.1', port: 4321, servedir: out });
 console.log(

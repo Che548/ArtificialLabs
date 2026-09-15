@@ -10,15 +10,16 @@ import { AI_AGENT_CONSENT_PROVIDER, AI_AGENT_CONSENT_POLICY_VERSION, AI_AGENT_SC
  * invokes the provider, and cannot migrate old accounts or undo a revocation.
  */
 export const accept = mutation({
-  args: { email: v.string(), acceptedAt: v.number(), version: v.string() },
+  args: { email: v.optional(v.string()), phone: v.optional(v.string()), acceptedAt: v.number(), version: v.string() },
   handler: async (ctx, args) => {
     const userId = await requireActiveAccount(ctx);
     const user = await ctx.db.get(userId);
     const now = Date.now();
-    if (!user || args.email.length > 254 || !matchesNewRegistration(args, user, now)) return { accepted: false, automation: false };
+    if (!user || (args.email?.length ?? 0) > 254 || !matchesNewRegistration(args, user, now)) return { accepted: false, automation: false };
     // A legacy-compatible session is not itself proof of email verification.
     // Fail before any grant so onboarding retains its pending device receipt.
-    if (!user.emailVerificationTime) throw new Error('REGISTRATION_EMAIL_VERIFICATION_REQUIRED');
+    if (args.phone ? !user.phoneVerificationTime : !user.emailVerificationTime)
+      throw new Error(args.phone ? 'REGISTRATION_PHONE_VERIFICATION_REQUIRED' : 'REGISTRATION_EMAIL_VERIFICATION_REQUIRED');
     const chat = await ctx.db.query('aiChatConsents').withIndex('by_user', q => q.eq('userId', userId)).unique();
     const agent = await ctx.db.query('aiAgentConsents').withIndex('by_user', q => q.eq('userId', userId)).unique();
     if (chat?.revokedAt || agent?.revokedAt || chat?.userEnabled === false) return { accepted: false, automation: false };

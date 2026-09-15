@@ -3,10 +3,13 @@
 
 #include <stdexcept>
 #include <string>
+#include <memory>
+#include <mutex>
 
 #include <opencv2/imgproc.hpp>
 
 #include "stripcv/c_api.h"
+#include "stripcv/learned_reader.hpp"
 
 namespace {
 
@@ -52,6 +55,31 @@ class LockedBitmap {
 };
 
 }  // namespace
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_expo_modules_stripcv_StripCvNative_analyzeLearned(
+    JNIEnv* env, jobject, jobject bitmap, jstring model_directory, jboolean detection_only) {
+  try {
+    const std::string directory = fromJavaString(env, model_directory);
+    static std::once_flag load_once;
+    static std::unique_ptr<stripcv::LearnedReader> reader;
+    std::call_once(load_once, [&] { reader = std::make_unique<stripcv::LearnedReader>(directory); });
+    LockedBitmap locked(env, bitmap);
+    if (locked.info().width < 2 || locked.info().height < 2 ||
+        static_cast<uint64_t>(locked.info().width) * locked.info().height > 100000000)
+      throw std::invalid_argument("reader_image_dimensions_invalid");
+    cv::Mat rgba(static_cast<int>(locked.info().height), static_cast<int>(locked.info().width),
+                 CV_8UC4, locked.pixels(), locked.info().stride);
+    cv::Mat rgb;
+    cv::cvtColor(rgba, rgb, cv::COLOR_RGBA2RGB);
+    const std::string result = (detection_only ? reader->detect_rgb(rgb) : reader->analyze_rgb(rgb)).dump();
+    return env->NewStringUTF(result.c_str());
+  } catch (const std::exception&) {
+    jclass error_class = env->FindClass("java/lang/IllegalStateException");
+    env->ThrowNew(error_class, "The local strip reader could not analyze this image.");
+    return nullptr;
+  }
+}
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_expo_modules_stripcv_StripCvNative_analyze(

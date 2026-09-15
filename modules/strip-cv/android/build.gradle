@@ -1,7 +1,7 @@
 apply plugin: 'com.android.library'
 
 group = 'expo.modules.stripcv'
-version = '0.4.1'
+version = '0.4.2'
 
 def expoModulesCorePlugin = new File(project(':expo-modules-core').projectDir.absolutePath, 'ExpoModulesCorePlugin.gradle')
 apply from: expoModulesCorePlugin
@@ -13,10 +13,11 @@ useDefaultAndroidSdkVersions()
 android {
   ndkVersion rootProject.ext.ndkVersion
   namespace 'expo.modules.stripcv'
+  sourceSets.main.assets.srcDirs += ['../models']
 
   defaultConfig {
     versionCode 1
-    versionName '0.4.1'
+    versionName '0.4.2'
 
     externalNativeBuild {
       cmake {

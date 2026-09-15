@@ -1,0 +1,143 @@
+name: iOS Public Beta
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sfera-ios-public-beta
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      sha: ${{ steps.tag.outputs.sha }}
+    env:
+      CI: 'true'
+      EXPO_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
+      NEXT_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Validate immutable release candidate
+        id: tag
+        run: node scripts/ios-release-tag.mjs
+      - run: npm ci && npm --prefix admin ci
+      - run: node --test scripts/ios-release-tag.test.mjs
+      - run: node --test scripts/ci-affected.test.mjs
+      - run: npm test
+      - name: Native StripCV tests (no skips or relaxed thresholds)
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y cmake libopencv-dev
+          npm run test:strip-cv
+      - name: Verify app and admin
+        run: npm run verify
+      - name: Install isolated browser test runtimes
+        run: npx playwright install --with-deps chromium webkit chrome
+      - name: Browser regression suites (synthetic data only)
+        run: |
+          npm run test:admin-ui
+          npm run test:contacts:ui
+          npm run test:document-ui
+          npm run test:chat-feedback:web
+      - name: CV demo tests with deployment OpenCV
+        run: docker build --target browser-test -f CV_Demo_WebAPP/Dockerfile .
+
+  testflight:
+    needs: validate
+    runs-on: macos-15
+    timeout-minutes: 120
+    environment: ios-public-beta
+    permissions:
+      contents: write # Private draft release records the tag/SHA/build receipt.
+    env:
+      CI: 'true'
+      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+      SFERA_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+      EXPO_PUBLIC_GIT_COMMIT: ${{ needs.validate.outputs.sha }}
+      EXPO_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
+      EXPO_PUBLIC_CONVEX_SITE_URL: https://artificiallabs-convex-site.bebra42.ru
+      GH_TOKEN: ${{ github.token }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      TESTFLIGHT_PUBLIC_GROUP_ID: ${{ vars.TESTFLIGHT_PUBLIC_GROUP_ID }}
+      IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+      IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+      IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+      FASTLANE_SKIP_UPDATE_CHECK: 'true'
+      FASTLANE_HIDE_CHANGELOG: 'true'
+      FASTLANE_OPT_OUT_USAGE: 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Require explicit release configuration
+        env:
+          IOS_BETA_ENABLED: ${{ vars.IOS_BETA_ENABLED }}
+        run: |
+          test "$IOS_BETA_ENABLED" = '1' || { echo 'Configure protected tags and ios-public-beta environment first'; exit 1; }
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 TESTFLIGHT_PUBLIC_GROUP_ID IOS_DISTRIBUTION_P12_BASE64 IOS_DISTRIBUTION_P12_PASSWORD IOS_PROFILE_BASE64; do
+            test -n "${!name}" || { echo "Missing $name"; exit 1; }
+          done
+        shell: bash
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - name: Select supported Xcode explicitly
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+      - run: npm ci
+      - name: Refresh tag validation before reserving build
+        run: node scripts/ios-release-tag.mjs
+      - name: Reserve build and verify public TestFlight group
+        run: bundle exec fastlane ios prepare_beta
+      - name: Build pinned OCR native dependencies
+        if: env.IOS_BUILD_EXISTS != 'true'
+        run: |
+          command -v cmake >/dev/null || brew install cmake
+          node scripts/prepare-document-ocr.mjs
+          node scripts/package-document-ocr-ios.mjs
+      - name: Generate native App Store project
+        if: env.IOS_BUILD_EXISTS != 'true'
+        env:
+          SFERA_IOS_APP_STORE: '1'
+        run: |
+          npx expo prebuild --platform ios --no-install --skip-dependency-update react,react-native
+          bundle exec pod install --project-directory=ios
+      - name: Build and verify signed archive
+        if: env.IOS_BUILD_EXISTS != 'true'
+        env:
+          SFERA_IOS_APP_STORE: '1'
+        run: bundle exec fastlane ios build_beta
+      - name: Reject moved or superseded tag before upload
+        run: node scripts/ios-release-tag.mjs
+      - name: Upload and request external beta distribution
+        run: bundle exec fastlane ios deliver_beta
+      - name: Remove signing material after failure or cancellation
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/sfera-beta.keychain-db" 2>/dev/null || true
+          # Fastlane normally removes its exact imported profile and temp directory.
+          # Hosted runners are ephemeral; never upload signing files or raw logs.
+          echo 'No signing material or application payload is uploaded as a GitHub artifact.'

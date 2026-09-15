@@ -1,3 +1,4 @@
+import { useDocumentOcr } from '../lib/document-ocr-manager';
 import { Image } from 'react-native';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
@@ -49,6 +50,7 @@ export function ProfileDocumentsSection({
   onDelete: (document: HealthDocument) => Promise<void>;
 }) {
   const { colors } = useAppTheme();
+  const ocr = useDocumentOcr();
   const [selected, setSelected] = useState<HealthDocument>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -87,7 +89,10 @@ export function ProfileDocumentsSection({
         {
           text: 'Удалить',
           style: 'destructive',
-          onPress: () => void perform(() => onDelete(document)),
+          onPress: () => void perform(async () => {
+            await ocr.cancel(document.localId);
+            await onDelete(document);
+          }),
         },
       ],
     );

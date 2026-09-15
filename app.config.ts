@@ -5,6 +5,17 @@ import base from './app.json';
 const baseConfig = base.expo as ExpoConfig;
 const e2eMode = process.env.EXPO_PUBLIC_E2E_MODE === '1';
 const appStoreBuild = process.env.SFERA_IOS_APP_STORE === '1';
+const releaseVersion = process.env.SFERA_RELEASE_VERSION;
+const releaseBuild = process.env.SFERA_IOS_BUILD_NUMBER;
+if (releaseVersion && !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$(?![\s\S])/.test(releaseVersion)) {
+  throw new Error('Invalid SFERA_RELEASE_VERSION');
+}
+if (releaseBuild && !/^[1-9]\d*$(?![\s\S])/.test(releaseBuild)) {
+  throw new Error('Invalid SFERA_IOS_BUILD_NUMBER');
+}
+if (appStoreBuild && (!releaseVersion || !releaseBuild)) {
+  throw new Error('App Store builds require explicit release version and build number');
+}
 if (appStoreBuild && e2eMode) {
   throw new Error('App Store builds must not enable E2E mode');
 }
@@ -24,6 +35,7 @@ const signedUpdatesEnabled =
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   ...baseConfig,
+  ...(appStoreBuild ? { version: releaseVersion } : {}),
   ios: {
     ...baseConfig.ios,
     ...(appStoreBuild
@@ -32,9 +44,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           appleTeamId: '6HZGXYF43L',
         }
       : {}),
-    buildNumber: appStoreBuild ? '7' : (baseConfig.ios?.buildNumber ?? '1'),
+    buildNumber: appStoreBuild ? releaseBuild : (baseConfig.ios?.buildNumber ?? '1'),
     infoPlist: {
       ...(baseConfig.ios?.infoPlist ?? {}),
+      // Owner-approved 2026-09-15: standard third-party crypto, no France.
+      // No Apple encryption documentation for this questionnaire branch.
+      // Reassess with any cryptography or distribution-territory change.
+      ITSAppUsesNonExemptEncryption: false,
       ...(localOtaE2E
         ? {
             NSAppTransportSecurity: {

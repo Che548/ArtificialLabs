@@ -13,7 +13,7 @@
 #include "stripcv/analyzer.hpp"
 
 #ifndef STRIPCV_VERSION
-#define STRIPCV_VERSION "0.4.1"
+#define STRIPCV_VERSION "0.4.2"
 #endif
 
 namespace {

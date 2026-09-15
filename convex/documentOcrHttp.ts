@@ -40,13 +40,16 @@ export const recognize = httpAction(async (ctx, request) => {
       raw += decoder.decode(part.value, { stream: true });
     }
     raw += decoder.decode();
-    const { image, ...args } = validateOcrRequest(JSON.parse(raw));
+    const { image, formatVersion, ...args } = validateOcrRequest(JSON.parse(raw));
     const id = await ctx.runMutation(internal.documentOcr.reserve, {
       ...args,
       userId,
     });
     try {
-      const result = await recognizeWithQwen(image);
+      const result = await recognizeWithQwen(image, formatVersion ?? 1, async () => {
+        if (request.signal.aborted) throw new Error('OCR_ACCOUNT_UNAVAILABLE');
+        await ctx.runQuery(internal.documentOcr.assertAccess, {userId});
+      });
       await ctx.runMutation(internal.documentOcr.finish, {
         id,
         userId,

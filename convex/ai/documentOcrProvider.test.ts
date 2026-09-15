@@ -129,3 +129,47 @@ test('never retries or exposes raw provider error, credentials or content', asyn
   );
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+test('v2 preserves the fixed transcription and reuses only the same page for layout extraction', async () => {
+  const source='Conclusion: sample processed.';
+  const structured={rows:[],issues:[],structure:{version:1,title:'',pageRole:'content',dates:[],blocks:[{kind:'conclusion',text:source,section:''}]}};
+  const requests:Record<string,any>[]=[];
+  vi.stubGlobal('fetch',async (_url:string,init:RequestInit)=>{
+    const body=JSON.parse(init.body as string);requests.push(body);
+    const content=requests.length===1?{text:source,issues:['source_unclear']}:structured;
+    return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(content)}}]});
+  });
+  const output=(await recognizeWithQwen('/9j/AAAA',2)).result;
+  expect(requests).toHaveLength(2);expect(requests[0].messages[1].content[1].type).toBe('image_url');
+  expect(requests[1].messages[1].content).toEqual([
+    {type: 'text', text: JSON.stringify({transcription: source})},
+    {type: 'image_url', image_url: {url: 'data:image/jpeg;base64,/9j/AAAA'}},
+  ]);
+  expect(requests.every(r => r.tools === undefined)).toBe(true);
+  expect(requests.every(r=>r.store===false && r.model===`gpt://synthetic-folder/${OCR_MODEL}`)).toBe(true);
+  expect(output.text).toBe(source);expect(output.issues).toContain('source_unclear');expect(output.structure?.blocks[0].kind).toBe('conclusion');
+});
+
+test('failed or fabricated second-stage extraction is not retried or accepted', async () => {
+  const fetcher=vi.fn().mockResolvedValueOnce(Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({text:'Source',issues:[]})}}]})).mockResolvedValueOnce(Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({rows:[],issues:[],structure:{version:1,title:'',pageRole:'content',dates:[],blocks:[{kind:'conclusion',text:'Invented',section:''}]}})}}]}));
+  vi.stubGlobal('fetch',fetcher);await expect(recognizeWithQwen('/9j/AAAA',2)).rejects.toThrow('OCR_INVALID_OUTPUT');expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+test('both v2 stages share the original page deadline', async () => {
+  vi.useFakeTimers();const signals:AbortSignal[]=[];
+  vi.stubGlobal('fetch',async (_url:string,init:RequestInit)=>{
+    signals.push(init.signal as AbortSignal);
+    if(signals.length===1){await new Promise(resolve=>setTimeout(resolve,30000));return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({text:'Source',issues:[]})}}]});}
+    return new Promise<Response>((_,reject)=>init.signal!.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true}));
+  });
+  const failure=expect(recognizeWithQwen('/9j/AAAA',2)).rejects.toThrow('OCR_PROVIDER_UNAVAILABLE');
+  await vi.advanceTimersByTimeAsync(OCR_LIMITS.timeoutMs);await failure;
+  expect(signals).toHaveLength(2);expect(signals[0]).toBe(signals[1]);expect(signals[1].aborted).toBe(true);expect(vi.getTimerCount()).toBe(0);
+});
+
+test('consent revocation between stages prevents further provider transmission', async () => {
+  const fetcher=vi.fn(async()=>Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({text:'Source',issues:[]})}}]}));
+  vi.stubGlobal('fetch',fetcher);
+  await expect(recognizeWithQwen('/9j/AAAA',2,async()=>{throw new Error('OCR_CONSENT_REQUIRED');})).rejects.toThrow('OCR_CONSENT_REQUIRED');
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});

@@ -2,8 +2,33 @@ import ExpoModulesCore
 import Foundation
 
 public final class StripCvModule: Module {
+  // Keep expensive CV off Expo's shared native-call queue and below interactive camera work.
+  private let inferenceQueue = DispatchQueue(label: "sfera.strip-cv.inference", qos: .utility)
+
   public func definition() -> ModuleDefinition {
     Name("StripCv")
+
+    AsyncFunction("detectStripJsonAsync") { (requestJson: String) throws -> String in
+      guard let data = requestJson.data(using: .utf8),
+            let request = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = request["imageUri"] as? String,
+            let url = URL(string: uri), url.isFileURL else {
+        throw InvalidRequestException()
+      }
+      return try StripCvBridge.detectStripImage(at: url, error: ())
+    }
+    .runOnQueue(inferenceQueue)
+
+    AsyncFunction("analyzeLearnedStripJsonAsync") { (requestJson: String) throws -> String in
+      guard let data = requestJson.data(using: .utf8),
+            let request = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = request["imageUri"] as? String,
+            let url = URL(string: uri), url.isFileURL else {
+        throw InvalidRequestException()
+      }
+      return try StripCvBridge.analyzeLearnedImage(at: url, error: ())
+    }
+    .runOnQueue(inferenceQueue)
 
     AsyncFunction("analyzeStripJsonAsync") { (requestJson: String) throws -> String in
       guard let requestData = requestJson.data(using: .utf8),
@@ -29,6 +54,7 @@ public final class StripCvModule: Module {
       )
       return result
     }
+    .runOnQueue(inferenceQueue)
   }
 
   private static func encodeJson(_ value: Any) throws -> String {

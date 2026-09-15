@@ -1,6 +1,15 @@
 import { AppThemeScope, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { colors as defaultThemeColors } from '../design-system/tokens';
 import { AppSheet, sheetStyles } from '../components/AppSheet';
+import { StripTrackingCorners } from '../components/StripTrackingCorners';
+import { TemporaryScanCaptureExportButton, useTemporaryScanCaptureExport } from '../components/TemporaryScanCaptureExport';
+import type { TemporaryCapture } from '../services/scanning/temporary-capture-export';
+import { getStripCaptureAdvice, mapStripTrackingBox } from '../services/scanning/strip-tracking';
+import { CaptureBuffer, CaptureReadiness, CaptureTracking, getCaptureSampleDelay, shouldRefreshCaptureDetection, shouldRefreshCaptureAnalysis, shouldStartCaptureBuffer, analyzeCaptureBurst, appendShutterFrame, type CaptureFrame } from '../services/scanning/capture-burst';
+import { INITIAL_CAPTURE_HINT, LiveCaptureFeedback, type LiveCaptureHint } from '../services/scanning/live-capture-feedback';
+import { CAPTURE_LIGHT_SETTLE_MS, didPhotoFlashFire, getCaptureLighting } from '../services/scanning/capture-lighting';
+import { DetectionAutofocus } from '../services/scanning/detection-autofocus';
+import { captureMeteredPhoto, captureLiveFrame } from '../services/scanning/capture-metering';
 import { StatusBar } from 'expo-status-bar';
 import { loadLocalSetting, saveLocalSetting } from '../lib/local-database';
 import { fontStyle } from '../lib/font-style';
@@ -8,6 +17,8 @@ import {
   CameraView,
   useCameraPermissions,
   type BarcodeScanningResult,
+  type CameraCapturedPicture,
+  type FlashMode,
 } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { deleteAsync } from 'expo-file-system/legacy';
@@ -25,6 +36,7 @@ import {
 } from 'react';
 import {
   AccessibilityInfo,
+  AppState,
   ActivityIndicator,
   Alert,
   Animated,
@@ -53,7 +65,6 @@ import {
   LiquidGlassSurface,
   PrimaryButton,
   ScanTooltip,
-  type ScanTooltipKind,
 } from './components';
 import {
   androidShadows,
@@ -64,7 +75,7 @@ import {
   spacing,
 } from './tokens';
 import ScanFlowFrame from '../assets/figma/scan-screen/scan-flow-frame.svg';
-import type { AnalysisResult } from '../modules/strip-cv';
+import { detectStripAsync, isStripDetectorAvailable, type AnalysisResult, type StripDetection } from '../modules/strip-cv';
 import {
   deriveDetectedInterpretation,
   getAnalysisDecision,
@@ -107,6 +118,8 @@ const briefingDarkIllustrations = [
 ];
 
 type NativeCameraControls = {
+  capturePreviewFrame?: () => Promise<CameraCapturedPicture | null>;
+  waitForMetering?: () => Promise<boolean>;
   focusAt?: (point: { x: number; y: number }) => Promise<void>;
   setExposureCompensation?: (value: number) => Promise<void>;
 };
@@ -151,6 +164,8 @@ type FlowIconName =
   | 'qr'
   | 'test'
   | 'light'
+  | 'flash'
+  | 'flashOff'
   | 'surface'
   | 'steady'
   | 'check'
@@ -261,6 +276,18 @@ function FlowIcon({
     );
   }
 
+  if (name === 'flash' || name === 'flashOff') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path d="m13.5 2-9 12h6l-1 8 10-13h-6l0-7Z"
+          fill="none" stroke={color} strokeWidth={1.7} strokeLinejoin="round" />
+        {name === 'flashOff' ? (
+          <Path d="m3 3 18 18" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+        ) : null}
+      </Svg>
+    );
+  }
+
   if (name === 'light') {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -351,12 +378,14 @@ function FlowIcon({
 function RoundGlassButton({
   accessibilityLabel,
   darkContent = false,
+  disabled = false,
   icon,
   iconColor,
   onPress,
 }: {
   accessibilityLabel: string;
   darkContent?: boolean;
+  disabled?: boolean;
   icon: FlowIconName;
   iconColor?: string;
   onPress: () => void;
@@ -382,6 +411,8 @@ function RoundGlassButton({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
+          accessibilityState={{ disabled }}
+          disabled={disabled}
           onPress={onPress}
           style={styles.flowGlassPressTarget}
         >
@@ -396,6 +427,8 @@ function RoundGlassButton({
       cssInterop={false}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.roundButton,
@@ -546,6 +579,9 @@ function CameraBackdrop({
   onBarcodeScanned,
   onCameraReady,
   autofocus = 'off',
+  fullPhoto = false,
+  flash = 'off',
+  enableTorch = false,
   onCameraLayout,
   onFocusTap,
 }: {
@@ -553,6 +589,9 @@ function CameraBackdrop({
   onBarcodeScanned?: (result: BarcodeScanningResult) => void;
   onCameraReady?: () => void;
   autofocus?: 'on' | 'off';
+  fullPhoto?: boolean;
+  flash?: FlashMode;
+  enableTorch?: boolean;
   onCameraLayout?: (layout: { width: number; height: number }) => void;
   onFocusTap?: (event: GestureResponderEvent) => void;
 }) {
@@ -602,8 +641,14 @@ function CameraBackdrop({
               onBarcodeScanned ? { barcodeTypes: ['qr'] } : undefined
             }
             facing="back"
+            selectedLens="builtInWideAngleCamera"
+            zoom={0}
             mode="picture"
+            pictureSize={Platform.OS === 'ios' && fullPhoto ? 'Photo' : undefined}
             autofocus={autofocus}
+            flash={flash}
+            enableTorch={enableTorch}
+            animateShutter={false}
             onBarcodeScanned={onBarcodeScanned}
             onCameraReady={onCameraReady}
             onTouchEnd={onFocusTap}
@@ -1267,19 +1312,36 @@ function QrScannerScreen({
   );
 }
 
-type CvLiveHint = {
-  kind: ScanTooltipKind;
-  text: string;
-  tone: 'neutral' | 'warning' | 'success';
-};
-
-const initialCvHint: CvLiveHint = {
-  kind: 'test',
-  text: 'Наведите камеру на тест',
-  tone: 'neutral',
-};
+type CvLiveHint = LiveCaptureHint;
 
 const cvReasonHints: Record<string, CvLiveHint> = {
+  burst_disagreement: {
+    kind: 'test', text: 'На снимках разные линии — проверьте результат или переснимите', tone: 'warning',
+  },
+  burst_insufficient_evidence: {
+    kind: 'test', text: 'Мало чётких снимков — удерживайте камеру над тестом дольше', tone: 'warning',
+  },
+  window_coverage_uncertain: {
+    kind: 'test', text: 'Покажите всю зону результата и снимайте сверху', tone: 'warning',
+  },
+  result_region_degenerate: {
+    kind: 'test', text: 'Приблизьте камеру и покажите тест целиком', tone: 'warning',
+  },
+  control_uncertain: {
+    kind: 'lowLight', text: 'Сделайте свет равномерным и наведите резкость', tone: 'warning',
+  },
+  control_absent: {
+    kind: 'test', text: 'Контрольная линия не видна — проверьте кадр', tone: 'warning',
+  },
+  test_uncertain: {
+    kind: 'lowLight', text: 'Уберите блики и держите камеру неподвижно', tone: 'warning',
+  },
+  readers_do_not_confidently_agree: {
+    kind: 'test', text: 'Линии пока неразличимы — приблизьте камеру', tone: 'warning',
+  },
+  spatial_test_absence_not_confirmed: {
+    kind: 'test', text: 'Наведите резкость на зону линий', tone: 'warning',
+  },
   unsupported_or_too_small_image: {
     kind: 'test',
     text: 'Разместите весь тест внутри рамки',
@@ -1394,12 +1456,12 @@ const cvReasonHints: Record<string, CvLiveHint> = {
 
 function getCvLiveHint(
   result: AnalysisResult,
-  validStreak: number,
+  ready: boolean,
 ): CvLiveHint {
-  if (getAnalysisDecision(result) === 'reportable' && validStreak >= 2) {
+  if (getAnalysisDecision(result) === 'reportable' && ready) {
     return {
       kind: 'locked',
-      text: 'Условия подходят — не двигайте камеру',
+      text: 'Готово к съёмке — не двигайте камеру',
       tone: 'success',
     };
   }
@@ -1487,7 +1549,7 @@ function TestScannerScreen({
   configuration: ActiveCvConfiguration;
   headerTop: number;
   useLegacyPipeline: boolean;
-  onCapture: (imageUri: string) => void;
+  onCapture: (frames: CaptureFrame[]) => void;
   onClose: () => void;
   onHelp: () => void;
 }) {
@@ -1495,16 +1557,29 @@ function TestScannerScreen({
   const styles = useThemeStyles(createStyles);
 
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const [currentHint, setCurrentHint] = useState<CvLiveHint>(initialCvHint);
+  const [currentHint, setCurrentHint] = useState<CvLiveHint>(INITIAL_CAPTURE_HINT);
+  const feedbackRef = useRef(new LiveCaptureFeedback());
   const [cameraReady, setCameraReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
-  const [focusMode, setFocusMode] = useState<'on' | 'off'>('off');
+  const [flashMode, setFlashMode] = useState<FlashMode>('off');
+  const [autoFlashFired, setAutoFlashFired] = useState<boolean | null>(null);
+  const lightSettlingUntil = useRef(0);
+  const [changingFlash, setChangingFlash] = useState(false);
+  const flashChanging = useRef(false);
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   const [focusPoint, setFocusPoint] = useState<CameraPoint | null>(null);
   const [cameraLayout, setCameraLayout] = useState({ width: 0, height: 0 });
+  const cameraLayoutRef = useRef(cameraLayout);
+  cameraLayoutRef.current = cameraLayout;
+  const detectionAutofocus = useRef(new DetectionAutofocus());
+  const meteringRevision = useRef(0);
+  const [trackedStrip, setTrackedStrip] = useState<StripDetection | null>(null);
   const [exposureCompensation, setExposureCompensation] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const previewBusy = useRef(false);
-  const validStreak = useRef(0);
+  const previewInFlight = useRef<Promise<void> | null>(null);
+  const captureRequested = useRef(false);
+  const mounted = useRef(true);
   const focusResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exposureControlHeight = 204;
   const exposureRailHeight = 120;
@@ -1513,18 +1588,54 @@ function TestScannerScreen({
   const exposureThumbSize = 22;
   const exposureTrackTravel = exposureTrackHeight - exposureThumbSize;
   const exposureValue = useRef(0);
+  const bufferRef = useRef(new CaptureBuffer((uri) => {
+    void deleteAsync(uri, { idempotent: true }).catch(() => undefined);
+  }));
+  const cameraActive = useRef(appActive);
+  const lighting = getCaptureLighting(flashMode, autoFlashFired, appActive && cameraReady);
 
-  useEffect(
-    () => () => {
+  const changeFlashMode = async () => {
+    if (!cameraReady || capturing || captureRequested.current || flashChanging.current) return;
+    flashChanging.current = true;
+    setChangingFlash(true);
+    try {
+      // Let the current photo/CV finish before changing native photo settings.
+      // Start a fresh buffer and two-check readiness session for the new light.
+      await previewInFlight.current;
+      if (!mounted.current || !cameraActive.current || captureRequested.current) return;
+      bufferRef.current.clear();
+      meteringRevision.current++;
+      lightSettlingUntil.current = Date.now() + CAPTURE_LIGHT_SETTLE_MS;
+      setAutoFlashFired(null);
+      setFlashMode(current => current === 'off' ? 'on' : current === 'on' ? 'auto' : 'off');
+    } finally {
+      flashChanging.current = false;
+      if (mounted.current) setChangingFlash(false);
+    }
+  };
+
+  useEffect(() => {
+    mounted.current = true;
+    const subscription = AppState.addEventListener('change', (state) => {
+      cameraActive.current = state === 'active';
+      if (!cameraActive.current) bufferRef.current.clear();
+      setAppActive(cameraActive.current);
+    });
+    return () => {
+      mounted.current = false;
+      subscription.remove();
+      bufferRef.current.clear();
       if (focusResetTimer.current) {
         clearTimeout(focusResetTimer.current);
       }
-    },
-    [],
-  );
+    };
+  }, []);
 
   const focusAt = (locationX: number, locationY: number) => {
+    if (!cameraReady || !cameraActive.current || captureRequested.current || flashChanging.current) return;
     setFocusPoint({ x: locationX, y: locationY });
+    detectionAutofocus.current.manualFocus(Date.now());
+    meteringRevision.current++;
 
     const cameraWidth = cameraLayout.width || Math.max(1, windowWidth);
     const cameraHeight = cameraLayout.height || Math.max(1, windowHeight);
@@ -1535,16 +1646,10 @@ function TestScannerScreen({
     });
     void focusPromise?.catch(() => undefined);
 
-    // Keep the stock autofocus prop as a fallback for devices that do not
-    // support focus-point metering.
-    setFocusMode('off');
-    requestAnimationFrame(() => setFocusMode('on'));
-
     if (focusResetTimer.current) {
       clearTimeout(focusResetTimer.current);
     }
     focusResetTimer.current = setTimeout(() => {
-      setFocusMode('off');
       setFocusPoint(null);
       focusResetTimer.current = null;
     }, 900);
@@ -1562,7 +1667,10 @@ function TestScannerScreen({
   };
 
   const setExposureValue = (value: number) => {
+    if (captureRequested.current || !cameraActive.current) return;
     const nextValue = Math.max(-1, Math.min(1, value));
+    if (nextValue === exposureValue.current) return;
+    meteringRevision.current++;
     exposureValue.current = nextValue;
     setExposureCompensation(nextValue);
     const exposurePromise = getNativeCameraControls(
@@ -1595,40 +1703,152 @@ function TestScannerScreen({
   ).current;
 
   useEffect(() => {
-    if (!cameraReady || capturing) {
+    if (!cameraReady || capturing || !appActive) {
       return;
     }
 
     let active = true;
+    lightSettlingUntil.current = Date.now() + CAPTURE_LIGHT_SETTLE_MS;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const trackingAvailable = !useLegacyPipeline && isStripDetectorAvailable;
+    let previousDetection: StripDetection | null = null;
+    let stableFrames = 0;
+    let detectionCheckedAt = 0;
+    let captureArmed = false;
+    let analysisCheckedAt: number | null = null;
+    const readiness = new CaptureReadiness();
+    const tracking = new CaptureTracking();
+    const feedback = feedbackRef.current;
+    detectionAutofocus.current.reset();
+    setCurrentHint(feedback.trackingLost());
 
-    const scheduleNextCheck = (delay = 900) => {
+    const handleMissingDetection = () => {
+      if (tracking.observe(false, Date.now()) === 'recovering') return;
+      bufferRef.current.clear();
+      captureArmed = false;
+      previousDetection = null; stableFrames = 0;
+      readiness.reset();
+      detectionAutofocus.current.reset();
+      setTrackedStrip(null);
+      setCurrentHint(feedback.trackingLost());
+    };
+
+    const scheduleNextCheck = (delay = getCaptureSampleDelay(trackingAvailable,
+      Boolean(getNativeCameraControls(cameraRef.current)?.capturePreviewFrame))) => {
       if (active) {
         timer = setTimeout(() => {
-          void inspectCurrentFrame();
+          previewInFlight.current = inspectCurrentFrame();
         }, delay);
       }
     };
 
     const inspectCurrentFrame = async () => {
-      if (!active || previewBusy.current) {
+      if (!active || !cameraActive.current || captureRequested.current || flashChanging.current || previewBusy.current) {
         scheduleNextCheck();
+        return;
+      }
+
+      const controls = getNativeCameraControls(cameraRef.current);
+      const settleDelay = controls?.waitForMetering ? 0 : lightSettlingUntil.current - Date.now();
+      if (settleDelay > 0) {
+        scheduleNextCheck(settleDelay);
         return;
       }
 
       previewBusy.current = true;
       let previewUri: string | null = null;
+      const frameMeteringRevision = meteringRevision.current;
 
       try {
-        const photo = await cameraRef.current?.takePictureAsync({
-          quality: 0.3,
-          skipProcessing: true,
-          base64: false,
-          exif: false,
-          shutterSound: false,
+        const photo = await captureMeteredPhoto({
+          waitForMetering: controls?.waitForMetering ? () => controls.waitForMetering!() : undefined,
+          cancelled: () => !active || !cameraActive.current || captureRequested.current ||
+            flashChanging.current || frameMeteringRevision !== meteringRevision.current,
+          capture: () => captureLiveFrame({
+            takePreview: controls?.capturePreviewFrame ? () => controls.capturePreviewFrame!() : undefined,
+            flashProbe: flashMode === 'auto' && autoFlashFired === null,
+            takePhoto: async () => cameraRef.current?.takePictureAsync({
+              quality: 1,
+              skipProcessing: false,
+              base64: false,
+              exif: true,
+              shutterSound: false,
+            }),
+          }),
         });
         previewUri = photo?.uri ?? null;
-        if (!previewUri || !active) {
+        if (!previewUri || !active || captureRequested.current || !cameraActive.current) {
+          return;
+        }
+        // Discard a frame exposed across a manual focus/exposure change.
+        if (frameMeteringRevision !== meteringRevision.current) return;
+
+        if (flashMode === 'auto' && autoFlashFired === null) {
+          // Discard this metering photo: subsequent CV and buffer frames must
+          // all use the same continuous illumination, including at shutter tap.
+          lightSettlingUntil.current = Date.now() + CAPTURE_LIGHT_SETTLE_MS;
+          meteringRevision.current++;
+          setAutoFlashFired(didPhotoFlashFire(photo?.exif));
+          active = false;
+          return;
+        }
+
+        if (trackingAvailable) {
+          const capturedAt = Date.now();
+          if (shouldRefreshCaptureDetection(captureArmed && !tracking.recovering, detectionCheckedAt, capturedAt)) {
+            const detection = await detectStripAsync(previewUri);
+            if (!active || captureRequested.current || !cameraActive.current) return;
+            detectionCheckedAt = Date.now();
+            if (!detection) {
+              // Retry on each captured frame, but preserve the hint, readiness
+              // and completed photos across a brief miss. This unknown frame
+              // is discarded and never added to the result buffer.
+              handleMissingDetection();
+              return;
+            }
+            tracking.observe(true, detectionCheckedAt);
+            setTrackedStrip(detection);
+            const framingAdvice = getStripCaptureAdvice(detection, previousDetection, captureArmed);
+            previousDetection = detection;
+            stableFrames = framingAdvice ? 0 : stableFrames + 1;
+            captureArmed = captureArmed || bufferRef.current.size > 0 || shouldStartCaptureBuffer(detection.confidence, stableFrames);
+            setCurrentHint(feedback.observeTracking(framingAdvice));
+            const controls = getNativeCameraControls(cameraRef.current);
+            if (controls?.focusAt) {
+              const target = detectionAutofocus.current.next(detection, cameraLayoutRef.current,
+                detectionCheckedAt, stableFrames >= 2);
+              if (target) {
+                meteringRevision.current++;
+                void controls.focusAt(target).catch(() => undefined);
+                // Read the next settled photo, not the frame from before refocusing.
+                return;
+              }
+            }
+          }
+          if (captureArmed && shouldRefreshCaptureAnalysis(analysisCheckedAt, Date.now())) {
+            // Keep ownership of this file until CV finishes. Capture freezes the
+            // already completed buffer and waits for this single in-flight call.
+            try {
+              const result = await scanningService.analyze(previewUri, {
+                useLegacyPipeline: false,
+                includeRectifiedImage: false,
+              });
+              if (!active || captureRequested.current || !cameraActive.current) return;
+              setCurrentHint(feedback.observeAnalysis(getCvLiveHint(result, readiness.observe(result))));
+            } catch {
+              if (!active || captureRequested.current || !cameraActive.current) return;
+              readiness.reset();
+              setCurrentHint(feedback.analysisFailed());
+            } finally {
+              analysisCheckedAt = Date.now();
+            }
+          }
+          if (captureArmed) {
+            bufferRef.current.add({ uri: previewUri, capturedAt, source: controls?.capturePreviewFrame ? 'preview' : undefined });
+            previewUri = null;
+          } else {
+            bufferRef.current.clear();
+          }
           return;
         }
 
@@ -1640,16 +1860,21 @@ function TestScannerScreen({
           return;
         }
 
-        validStreak.current =
-          getAnalysisDecision(result) === 'reportable'
-            ? validStreak.current + 1
-            : 0;
-        const nextHint = getCvLiveHint(result, validStreak.current);
-        setCurrentHint(nextHint);
+        if (!captureRequested.current && cameraActive.current && getAnalysisDecision(result) === 'reportable') {
+          bufferRef.current.add({ uri: previewUri, capturedAt: Date.now() });
+          previewUri = null;
+        }
+        const nextHint = getCvLiveHint(result, readiness.observe(result));
+        setCurrentHint(feedback.observeAnalysis(nextHint));
       } catch {
-        if (active) {
-          validStreak.current = 0;
-          setCurrentHint(initialCvHint);
+        if (active && !captureRequested.current && cameraActive.current && trackingAvailable) {
+          handleMissingDetection();
+        } else if (active) {
+          bufferRef.current.clear();
+          captureArmed = false;
+          setTrackedStrip(null);
+          readiness.reset();
+          setCurrentHint(feedback.analysisFailed());
         }
       } finally {
         if (previewUri) {
@@ -1662,52 +1887,87 @@ function TestScannerScreen({
       }
     };
 
-    scheduleNextCheck(500);
+    scheduleNextCheck(getNativeCameraControls(cameraRef.current)?.waitForMetering ? 0 : CAPTURE_LIGHT_SETTLE_MS);
     return () => {
       active = false;
       if (timer) {
         clearTimeout(timer);
       }
     };
-  }, [cameraReady, capturing, configuration, useLegacyPipeline]);
+  }, [cameraReady, capturing, configuration, useLegacyPipeline, appActive, flashMode, autoFlashFired]);
 
   const handleCapture = async () => {
-    if (!cameraReady || capturing || previewBusy.current) {
+    if (!cameraReady || !cameraActive.current || capturing || captureRequested.current || flashChanging.current || lighting.probe) {
       return;
     }
 
+    captureRequested.current = true;
+    // With buffering disabled this is empty: only the shutter photo is analyzed.
+    // Freeze first so an outstanding preview call cannot contribute a late frame.
+    const frames = bufferRef.current.freeze();
     setCapturing(true);
 
     try {
-      const photo = await cameraRef.current?.takePictureAsync({
-        quality: 1,
-        skipProcessing: false,
-        base64: false,
-        exif: true,
-        shutterSound: false,
-      });
-      if (!photo?.uri) {
-        throw new Error('Camera returned no local image URI.');
+      await previewInFlight.current;
+      if (!mounted.current || !cameraActive.current) throw new Error('Capture cancelled.');
+      // Take one full-quality still. When buffering is enabled again, a failed
+      // optional still can fall back to that completed ring.
+      try {
+        const controls = getNativeCameraControls(cameraRef.current);
+        const settleDelay = controls?.waitForMetering ? 0 : lightSettlingUntil.current - Date.now();
+        if (settleDelay > 0) await new Promise(resolve => setTimeout(resolve, settleDelay));
+        const photo = await captureMeteredPhoto({
+          waitForMetering: controls?.waitForMetering ? () => controls.waitForMetering!() : undefined,
+          cancelled: () => !mounted.current || !cameraActive.current,
+          capture: async () => cameraRef.current?.takePictureAsync({
+            quality: 1,
+            skipProcessing: false,
+            base64: false,
+            exif: true,
+            shutterSound: false,
+          }),
+        });
+        if (!photo?.uri) throw new Error('Camera returned no local image URI.');
+        appendShutterFrame(frames, { uri: photo.uri, capturedAt: Date.now() },
+          uri => { void deleteAsync(uri, { idempotent: true }).catch(() => undefined); });
+      } catch (error) {
+        if (!frames.length) throw error;
       }
-      onCapture(photo.uri);
+      if (!mounted.current || !cameraActive.current) throw new Error('Capture cancelled.');
+      onCapture(frames);
     } catch {
+      for (const frame of frames) void deleteAsync(frame.uri, { idempotent: true }).catch(() => undefined);
+      bufferRef.current = new CaptureBuffer((uri) => {
+        void deleteAsync(uri, { idempotent: true }).catch(() => undefined);
+      });
+      if (!mounted.current) return;
       Alert.alert(
         'Не удалось сделать снимок',
         'Проверьте доступ к камере и попробуйте ещё раз.',
       );
       setCapturing(false);
+      captureRequested.current = false;
     }
   };
 
   return (
     <View style={styles.cameraScreen}>
       <CameraBackdrop
-        autofocus={focusMode}
+        fullPhoto
+        autofocus="off"
+        flash={lighting.flash}
+        enableTorch={lighting.enableTorch}
         cameraRef={cameraRef}
         onCameraReady={() => setCameraReady(true)}
         onCameraLayout={setCameraLayout}
         onFocusTap={handleFocusTap}
       />
+      <View pointerEvents="none" style={styles.cameraTrackingViewport}>
+        <StripTrackingCorners rect={
+          (trackedStrip && mapStripTrackingBox(trackedStrip, cameraLayout)) ||
+          { x: 36, y: headerTop + 202, width: Math.max(28, (cameraLayout.width || windowWidth) - 128), height: 280 }
+        } />
+      </View>
       <FlowHeader
         currentStep="Шаг 2 из 2"
         onClose={onClose}
@@ -1715,14 +1975,6 @@ function TestScannerScreen({
         top={headerTop}
       />
       <BatchChip configuration={configuration} top={headerTop + 64} />
-
-      <View style={[styles.testTarget, { top: headerTop + 182 }]}>
-        <ScanFlowFrame
-          width="100%"
-          height="100%"
-          style={styles.scanFlowFrame}
-        />
-      </View>
       <Pressable
         accessibilityLabel="Фокус камеры"
         accessibilityRole="button"
@@ -1738,11 +1990,33 @@ function TestScannerScreen({
           ]}
         />
       ) : null}
+      <View style={[styles.flashControl, { top: headerTop + 136 }]}>
+        <RoundGlassButton
+          accessibilityLabel={`Вспышка: ${flashMode === 'on' ? 'включена' : flashMode === 'auto' ? 'автоматически' : 'выключена'}. Переключить режим`}
+          disabled={!cameraReady || capturing || changingFlash}
+          icon={flashMode === 'off' ? 'flashOff' : 'flash'}
+          iconColor={flashMode === 'on' ? '#FFD46A' : '#FFFFFF'}
+          onPress={() => { void changeFlashMode(); }}
+        />
+        <AppText role="caption" color="#FFFFFF" weight="medium">
+          {flashMode === 'on' ? 'Вкл.' : flashMode === 'auto' ? 'Авто' : 'Выкл.'}
+        </AppText>
+      </View>
       <View
         accessibilityLabel="Экспозиция камеры"
         accessibilityRole="adjustable"
-        style={[styles.exposureControl, { top: headerTop + 238 }]}
+        style={[styles.exposureControl, shadows.control, { top: headerTop + 238 }]}
       >
+        <LiquidGlassSurface
+          variant="clear"
+          colorScheme={mode}
+          fallbackTint="default"
+          washColor="transparent"
+          intensity={72}
+          radius={24}
+          showFallbackDecoration={false}
+          androidTone="dark"
+        />
         <Pressable
           accessibilityLabel="Увеличить экспозицию"
           accessibilityRole="button"
@@ -1805,9 +2079,9 @@ function TestScannerScreen({
                   ? 'Подготавливаем камеру'
                   : useLegacyPipeline
                     ? 'Сканировать legacy-профиль'
-                    : 'Сканировать тест'
+                    : 'Сканировать тест · 1×'
             }
-            disabled={!cameraReady || capturing}
+            disabled={!cameraReady || capturing || changingFlash || lighting.probe}
             onPress={() => {
               void handleCapture();
             }}
@@ -1841,7 +2115,7 @@ function ProcessingScreen() {
           color={colors.text.secondary}
           style={styles.processingDescription}
         >
-          Проверяем качество снимка и определяем контрольную и тестовую линии.
+          Проверяем качество снимков и определяем контрольную и тестовую линии.
         </AppText>
         <View style={styles.processingSteps}>
           <View style={styles.processingStepDone}>
@@ -2124,6 +2398,7 @@ export function ScanResultScreen({
   isCompleting = false,
   hideReadyHeading = false,
   resultData,
+  temporaryCapture,
 }: {
   fromHistory?: boolean;
   configuration?: ActiveCvConfiguration;
@@ -2140,6 +2415,7 @@ export function ScanResultScreen({
   isCompleting?: boolean;
   hideReadyHeading?: boolean;
   resultData?: ScanResultData;
+  temporaryCapture?: TemporaryCapture | null;
 }) {
   const { colors, mode } = useAppTheme();
   const styles = useThemeStyles(createStyles);
@@ -2342,6 +2618,7 @@ export function ScanResultScreen({
         </View>
       )}
 
+      {!usesSavedResult && <TemporaryScanCaptureExportButton capture={temporaryCapture} />}
       <View style={styles.resultActions}>
         <PrimaryButton
           disabled={isCompleting}
@@ -2542,6 +2819,7 @@ export function ScanFlowOverlay({
   );
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
+  const temporaryCaptureExport = useTemporaryScanCaptureExport(visible);
   const [useLegacyPipeline, setUseLegacyPipeline] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -2580,6 +2858,7 @@ export function ScanFlowOverlay({
   useEffect(
     () => () => {
       mountedRef.current = false;
+      analysisRequestId.current += 1;
       const uri = capturedImageUriRef.current;
       const owned = capturedImageOwnedRef.current;
       if (uri && owned) {
@@ -2615,14 +2894,13 @@ export function ScanFlowOverlay({
 
     const requestId = ++analysisRequestId.current;
     updateCapturedImageUri(initialImageUri, false);
-    setUseLegacyPipeline(true);
+    setUseLegacyPipeline(false);
     setAnalysisResult(null);
     setAnalysisError(null);
     analysisStartedAt.current = Date.now();
     navigateToStage('processing', 'fade');
     void scanningService
       .analyze(initialImageUri, {
-        useLegacyPipeline: true,
         includeRectifiedImage: true,
       })
       .then((result) => {
@@ -2858,37 +3136,37 @@ export function ScanFlowOverlay({
         headerTop={headerTop}
         onClose={requestClose}
         onHelp={() => openBriefing('test')}
-        onCapture={(imageUri) => {
+        onCapture={(frames) => {
           const requestId = ++analysisRequestId.current;
-          updateCapturedImageUri(imageUri);
           setAnalysisResult(null);
           setAnalysisError(null);
           analysisStartedAt.current = Date.now();
           navigateToStage('processing', 'fade');
-          void scanningService
-            .analyze(imageUri, {
+          const cancelled = () => !mountedRef.current || analysisRequestId.current !== requestId;
+          void temporaryCaptureExport.preserve(frames, cancelled).then(() => analyzeCaptureBurst(frames, {
+            analyze: (uri) => scanningService.analyze(uri, {
               useLegacyPipeline,
-              includeRectifiedImage: true,
-            })
-            .then((result) => {
-              if (analysisRequestId.current !== requestId) {
+              includeRectifiedImage: false,
+            }),
+            discard: (uri) => deleteAsync(uri, { idempotent: true }),
+            cancelled,
+          }))
+            .then((selected) => {
+              if (!selected) return;
+              if (!mountedRef.current || analysisRequestId.current !== requestId) {
+                void deleteAsync(selected.uri, { idempotent: true }).catch(() => undefined);
                 return;
               }
-              setAnalysisResult(result);
+              updateCapturedImageUri(selected.uri);
+              setAnalysisResult(selected.result);
               analysisDurationMs.current = analysisStartedAt.current
                 ? Date.now() - analysisStartedAt.current
                 : undefined;
               navigateToStage('result', 'result');
             })
-            .catch((error: unknown) => {
-              if (analysisRequestId.current !== requestId) {
-                return;
-              }
-              setAnalysisError(
-                error instanceof Error
-                  ? error.message
-                  : 'Неизвестная ошибка анализа.',
-              );
+            .catch(() => {
+              if (!mountedRef.current || analysisRequestId.current !== requestId) return;
+              setAnalysisError('Не удалось обработать снимки. Попробуйте ещё раз.');
               analysisDurationMs.current = analysisStartedAt.current
                 ? Date.now() - analysisStartedAt.current
                 : undefined;
@@ -2910,6 +3188,7 @@ export function ScanFlowOverlay({
       />
     ) : (
       <ScanResultScreen
+        temporaryCapture={temporaryCaptureExport.capture}
         useLegacyPipeline={useLegacyPipeline}
         configuration={configuration}
         error={analysisError}
@@ -3197,15 +3476,23 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     bottom: 180,
     zIndex: 5,
   },
+  cameraTrackingViewport: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  flashControl: {
+    position: 'absolute',
+    right: 2,
+    width: 68,
+    alignItems: 'center',
+    gap: 4,
+    zIndex: 8,
+  },
   exposureControl: {
     position: 'absolute',
     right: 12,
     width: 48,
     height: 204,
     borderRadius: 24,
-    backgroundColor: 'rgba(17, 10, 13, 0.46)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.24)',
     alignItems: 'center',
     zIndex: 8,
   },

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -41,7 +42,8 @@ const result = runCli({
 assert.equal(result.status, 0, result.stderr);
 const analysis = JSON.parse(result.stdout);
 assert.equal(analysis.schema_version, '1.0');
-assert.equal(analysis.algorithm_version, '0.4.1');
+const moduleVersion = JSON.parse(readFileSync(path.join(root, 'modules/strip-cv/package.json'), 'utf8')).version;
+assert.equal(analysis.algorithm_version, moduleVersion);
 assert.equal(analysis.status, 'invalid');
 
 const oversized = runCli({

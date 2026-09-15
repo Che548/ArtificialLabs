@@ -86,3 +86,17 @@ build/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.moved-aside
+
+# Local builds, private CV datasets, and source-image experiments
+/output/
+/cv-pipeline/
+/yolo*.pt
+/transparent-*.zip
+/generated-transparent-images.zip
+/transparent-images/
+/transparent-images-4x/
+/transparent-images-super-resolution/
+/generated-transparent-images/
+/transparent-enlarged-4x/*
+!/transparent-enlarged-4x/*.png
+/ArtificialLabs_TechLab2026_Moscow_Documentation.docx

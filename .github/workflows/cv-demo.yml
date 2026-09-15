@@ -1,0 +1,77 @@
+name: CV Demo Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'CV_Demo_WebAPP/**'
+      - 'modules/strip-cv/native/**'
+      - 'modules/strip-cv/src/**'
+      - 'modules/strip-cv/models/reader-20260914/**'
+      - 'services/scanning/**'
+      - 'scripts/build-strip-cv.mjs'
+      - 'scripts/verify-strip-reader-package.mjs'
+      - '.github/workflows/cv-demo.yml'
+  pull_request:
+    paths:
+      - 'CV_Demo_WebAPP/**'
+      - 'modules/strip-cv/native/**'
+      - 'modules/strip-cv/src/**'
+      - 'modules/strip-cv/models/reader-20260914/**'
+      - 'services/scanning/**'
+      - 'scripts/build-strip-cv.mjs'
+      - 'scripts/verify-strip-reader-package.mjs'
+      - '.github/workflows/cv-demo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cv-demo-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Verify the actual Linux runtime and isolated browser scenarios
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: CV_Demo_WebAPP/Dockerfile
+          target: browser-test
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=cv-demo
+          cache-to: type=gha,scope=cv-demo,mode=max
+  publish:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: CV_Demo_WebAPP/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/che548/artificiallabs:cv-latest
+            ghcr.io/che548/artificiallabs:cv-${{ github.sha }}
+          cache-from: type=gha,scope=cv-demo
+          cache-to: type=gha,scope=cv-demo,mode=max
