@@ -123,7 +123,7 @@
     "test:admin": "vitest run convex/adminUsers.test.ts convex/admin.test.ts convex/telemetry.test.ts convex/todayContent.test.ts",
     "test:admin-ui": "playwright test --config playwright.admin.config.ts",
     "preview:admin-ui": "node scripts/admin-ui-preview.mjs",
-    "test:android-config": "node --test plugins/with-android-config-changes.test.js",
+    "test:android-config": "node --test plugins/with-android-config-changes.test.js scripts/android-sphere-assets.test.mjs scripts/android-base-size.test.mjs",
     "test:ios-config": "node --test plugins/with-camera-controls.test.js plugins/with-ios-health-backup-exclusion.test.js plugins/with-ios-scene-lifecycle.test.js scripts/ios-release-tag.test.mjs scripts/ios-release-workflow.test.mjs scripts/ios-archive-policy.test.mjs && tsx --test tests/unit/ios-release-config.test.ts",
     "verify": "npm run test:strip-reader && npm run test:today-content && npm run test:android-registration && npm run test:document-policy && npm run test:chat-feedback && npm run test:contacts && npm run test:ios-config && npm run test:android-config && npm run ota:test && npm run check:expo && npm run typecheck && npm run typecheck:convex && npm run doctor && npm run build:expo-web && npm --prefix admin run verify",
     "test:today-content": "tsx --test shared/article-markdown.test.ts && vitest run convex/todayContent.test.ts",
