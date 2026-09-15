@@ -72,16 +72,34 @@ test('iOS asset configuration excludes SF Pro while Android retains its fonts', 
 test('App Store identity is explicit and legacy development remains separate', () => {
   const original = process.env.SFERA_IOS_APP_STORE;
   const originalE2E = process.env.EXPO_PUBLIC_E2E_MODE;
+  const originalVersion = process.env.SFERA_RELEASE_VERSION;
+  const originalBuild = process.env.SFERA_IOS_BUILD_NUMBER;
   try {
     delete process.env.SFERA_IOS_APP_STORE;
     delete process.env.EXPO_PUBLIC_E2E_MODE;
     assert.equal(getConfig(process.cwd()).exp.ios?.bundleIdentifier, 'com.anonymous.privateexpo');
     process.env.SFERA_IOS_APP_STORE = '1';
+    delete process.env.SFERA_RELEASE_VERSION;
+    delete process.env.SFERA_IOS_BUILD_NUMBER;
+    assert.throws(() => getConfig(process.cwd()), /require explicit release/);
+    process.env.SFERA_RELEASE_VERSION = '1.2.3';
+    process.env.SFERA_IOS_BUILD_NUMBER = '42';
     const release = getConfig(process.cwd()).exp;
     assert.equal(release.ios?.bundleIdentifier, 'engineering.brainwaves.sfera');
     assert.equal(release.ios?.appleTeamId, '6HZGXYF43L');
-    assert.equal(release.ios?.buildNumber, '7');
+    assert.equal(release.ios?.buildNumber, '42');
+    assert.equal(release.version, '1.2.3');
     assert.equal(release.android?.package, 'engineering.brainwaves.sfera');
+    for (const version of ['1.2.3\n', '01.2.3', '1.2.3-beta']) {
+      process.env.SFERA_RELEASE_VERSION = version;
+      assert.throws(() => getConfig(process.cwd()), /Invalid SFERA_RELEASE_VERSION/);
+    }
+    process.env.SFERA_RELEASE_VERSION = '1.2.3';
+    for (const build of ['42\n', '0', '01', '-1']) {
+      process.env.SFERA_IOS_BUILD_NUMBER = build;
+      assert.throws(() => getConfig(process.cwd()), /Invalid SFERA_IOS_BUILD_NUMBER/);
+    }
+    process.env.SFERA_IOS_BUILD_NUMBER = '42';
     process.env.EXPO_PUBLIC_E2E_MODE = '1';
     assert.throws(() => getConfig(process.cwd()), /must not enable E2E/);
   } finally {
@@ -89,5 +107,9 @@ test('App Store identity is explicit and legacy development remains separate', (
     else process.env.SFERA_IOS_APP_STORE = original;
     if (originalE2E === undefined) delete process.env.EXPO_PUBLIC_E2E_MODE;
     else process.env.EXPO_PUBLIC_E2E_MODE = originalE2E;
+    if (originalVersion === undefined) delete process.env.SFERA_RELEASE_VERSION;
+    else process.env.SFERA_RELEASE_VERSION = originalVersion;
+    if (originalBuild === undefined) delete process.env.SFERA_IOS_BUILD_NUMBER;
+    else process.env.SFERA_IOS_BUILD_NUMBER = originalBuild;
   }
 });

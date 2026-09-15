@@ -1,0 +1,208 @@
+require 'json'
+require 'open3'
+require 'fileutils'
+require 'securerandom'
+
+opt_out_usage
+default_platform(:ios)
+BUNDLE_ID = 'engineering.brainwaves.sfera'
+TEAM_ID = '6HZGXYF43L'
+ROOT = ENV.fetch('GITHUB_WORKSPACE', File.expand_path('..', __dir__))
+
+def required(name)
+  value = ENV[name]
+  UI.user_error!("Missing #{name}") if value.to_s.empty?
+  value
+end
+
+def gh_json(*args, input: nil)
+  stdout, _stderr, status = Open3.capture3('gh', 'api', *args, stdin_data: input.to_s)
+  UI.user_error!('GitHub release ledger request failed') unless status.success?
+  JSON.parse(stdout)
+end
+
+def ledger_path
+  "repos/#{required('GITHUB_REPOSITORY')}/releases"
+end
+
+def release_receipt
+  # List includes private drafts for the workflow token. Never mistake auth or
+  # transport errors for an absent ledger, and follow pagination explicitly.
+  page = 1
+  loop do
+    releases = gh_json("#{ledger_path}?per_page=100&page=#{page}")
+    found = releases.find { |r| r['tag_name'] == required('RELEASE_TAG') }
+    if found
+      data = JSON.parse(found.fetch('body'))
+      UI.user_error!('Release ledger/tag identity mismatch') unless
+        data['schema'] == 1 && data['sha'] == required('RELEASE_SHA') &&
+        data['tag'] == required('RELEASE_TAG') && data['build'].to_s.match?(/\A[1-9]\d*\z/)
+      return [found, data]
+    end
+    return nil if releases.length < 100
+    page += 1
+  end
+end
+
+def save_receipt(release, data)
+  gh_json("#{ledger_path}/#{release.fetch('id')}", '--method', 'PATCH', '--input', '-',
+          input: JSON.generate({ body: JSON.generate(data) }))
+end
+
+def apple_session
+  key = app_store_connect_api_key(key_id: required('ASC_KEY_ID'), issuer_id: required('ASC_ISSUER_ID'),
+    key_content: required('ASC_KEY_P8_BASE64'), is_key_content_base64: true, duration: 1200)
+  app = Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+  UI.user_error!('App Store app not found') unless app
+  group = app.get_beta_groups.find { |g| g.id == required('TESTFLIGHT_PUBLIC_GROUP_ID') }
+  UI.user_error!('Configured group must already be external with public link enabled') unless
+    group && !group.is_internal_group && group.public_link_enabled
+  [key, app, group]
+end
+
+def exact_build(app, number)
+  builds = Spaceship::ConnectAPI::Build.all(app_id: app.id,
+    version: required('SFERA_RELEASE_VERSION'), build_number: number.to_s, platform: 'IOS')
+  UI.user_error!('Ambiguous App Store build') if builds.length > 1
+  builds.first
+end
+
+platform :ios do
+  desc 'Reserve one immutable tag/SHA/build identity before native compilation'
+  lane :prepare_beta do
+    _key, app, _group = apple_session
+    receipt = release_receipt
+    unless receipt
+      builds = Spaceship::ConnectAPI::Build.all(app_id: app.id, platform: 'IOS')
+      UI.user_error!('Non-integer historical build number requires explicit migration') if
+        builds.any? { |b| !b.version.match?(/\A[1-9]\d*\z/) }
+      number = ([7, Integer(required('GITHUB_RUN_NUMBER'))] + builds.map { |b| b.version.to_i }).max + 1
+      data = { schema: 1, tag: required('RELEASE_TAG'), sha: required('RELEASE_SHA'),
+               build: number, state: 'reserved' }
+      release = gh_json(ledger_path, '--method', 'POST', '--input', '-', input: JSON.generate({
+        tag_name: data[:tag], target_commitish: data[:sha], name: "iOS beta #{data[:tag]}",
+        draft: true, prerelease: true, body: JSON.generate(data)
+      }))
+      receipt = [release, JSON.parse(JSON.generate(data))]
+    end
+    _release, data = receipt
+    build = exact_build(app, data.fetch('build'))
+    # Once upload was attempted, absence can mean eventual consistency, not a
+    # failed upload. Do not blindly upload a second binary on a rerun.
+    if data['state'] != 'reserved' && !build
+      UI.user_error!('Upload receipt exists but Apple has not exposed the build; retry later, do not re-upload')
+    end
+    File.open(required('GITHUB_ENV'), 'a') do |f|
+      f.puts "SFERA_IOS_BUILD_NUMBER=#{data.fetch('build')}"
+      f.puts "IOS_BUILD_EXISTS=#{build ? 'true' : 'false'}"
+    end
+  end
+
+  desc 'Archive/export only; no upload in this lane'
+  lane :build_beta do
+    keychain = File.join(required('RUNNER_TEMP'), 'sfera-beta.keychain-db')
+    signing_dir = File.join(required('RUNNER_TEMP'), 'sfera-beta-signing')
+    FileUtils.mkdir_p(signing_dir, mode: 0700)
+    installed_profile = nil
+    begin
+      require 'base64'
+      p12 = File.join(signing_dir, 'distribution.p12')
+      profile = File.join(signing_dir, 'profile.mobileprovision')
+      File.write(p12, Base64.strict_decode64(required('IOS_DISTRIBUTION_P12_BASE64')), mode: 'wb', perm: 0600)
+      File.write(profile, Base64.strict_decode64(required('IOS_PROFILE_BASE64')), mode: 'wb', perm: 0600)
+      profile_xml, status = Open3.capture2('security', 'cms', '-D', '-i', profile)
+      UI.user_error!('Cannot decode provisioning profile') unless status.success?
+      require 'plist'
+      provision = Plist.parse_xml(profile_xml)
+      entitlements = provision.fetch('Entitlements')
+      UI.user_error!('Wrong, expired or non-App-Store provisioning profile') unless
+        provision.fetch('TeamIdentifier').include?(TEAM_ID) &&
+        entitlements['application-identifier'] == "#{TEAM_ID}.#{BUNDLE_ID}" &&
+        entitlements['get-task-allow'] == false && !provision.key?('ProvisionedDevices') &&
+        !provision['ProvisionsAllDevices'] && provision.fetch('ExpirationDate').to_time > Time.now
+      profile_destination = File.expand_path("~/Library/MobileDevice/Provisioning Profiles/#{provision.fetch('UUID')}.mobileprovision")
+      if File.exist?(profile_destination)
+        UI.user_error!('Refusing to overwrite a different pre-existing profile') unless
+          File.binread(profile_destination) == File.binread(profile)
+      else
+        FileUtils.mkdir_p(File.dirname(profile_destination))
+        FileUtils.cp(profile, profile_destination)
+        # Only remove a profile this invocation actually installed.
+        installed_profile = profile_destination
+      end
+      password = SecureRandom.hex(32)
+      create_keychain(path: keychain, password: password, default_keychain: false,
+        unlock: true, timeout: 7200, lock_when_sleeps: true)
+      import_certificate(certificate_path: p12, certificate_password: required('IOS_DISTRIBUTION_P12_PASSWORD'),
+        keychain_path: keychain, keychain_password: password, log_output: false)
+      update_code_signing_settings(path: File.join(ROOT, 'ios/sfera.xcodeproj'),
+        targets: ['sfera'], build_configurations: ['Release'], use_automatic_signing: false,
+        team_id: TEAM_ID, code_sign_identity: 'Apple Distribution',
+        profile_uuid: provision.fetch('UUID'))
+      build_app(workspace: File.join(ROOT, 'ios/sfera.xcworkspace'), scheme: 'sfera', configuration: 'Release',
+        clean: true, export_method: 'app-store', output_directory: File.join(ROOT, 'output/ios-beta'),
+        output_name: 'sfera.ipa', buildlog_path: File.join(signing_dir, 'logs'),
+        suppress_xcode_output: true,
+        export_options: { signingStyle: 'manual', teamID: TEAM_ID,
+          provisioningProfiles: { BUNDLE_ID => provision.fetch('UUID') }, manageAppVersionAndBuildNumber: false })
+      sh('node', File.join(ROOT, 'scripts/verify-ios-beta-archive.mjs'))
+    ensure
+      begin
+        delete_keychain(keychain_path: keychain) if File.exist?(keychain)
+      ensure
+        FileUtils.rm_f(installed_profile) if installed_profile
+        FileUtils.remove_entry_secure(signing_dir) if File.directory?(signing_dir)
+      end
+    end
+  end
+
+  desc 'Upload once and distribute only to the configured external beta group'
+  lane :deliver_beta do
+    key, app, group = apple_session
+    release, data = release_receipt || UI.user_error!('Missing release reservation')
+    build = exact_build(app, data.fetch('build'))
+    unless build
+      UI.user_error!('Previous upload is unresolved; refusing another upload') unless data['state'] == 'reserved'
+      sh('node', File.join(ROOT, 'scripts/verify-ios-beta-archive.mjs'))
+      data['runtime'] = File.read(File.join(ROOT, 'output/ios-beta/runtime.txt')).strip
+      data['state'] = 'upload_attempted'
+      save_receipt(release, data) # Persist BEFORE the external side effect.
+      upload_to_testflight(api_key: key, ipa: File.join(ROOT, 'output/ios-beta/sfera.ipa'),
+        skip_waiting_for_build_processing: true, skip_submission: true)
+      data['state'] = 'uploaded'
+      save_receipt(release, data)
+    end
+    # A bounded wait; Apple review is asynchronous and is NOT reported as approval.
+    deadline = Time.now + 1800
+    loop do
+      build = exact_build(app, data.fetch('build'))
+      break if build && build.processed?
+      UI.user_error!('Build uploaded; Apple processing still pending. Rerun later.') if Time.now >= deadline
+      sleep 30
+    end
+    UI.user_error!('Apple rejected processing this binary') unless build.processing_state == 'VALID'
+    state = build.build_beta_detail&.external_build_state
+    unless group.fetch_builds.any? { |b| b.id == build.id }
+      build.add_beta_groups(beta_groups: [group])
+    end
+    unless %w[WAITING_FOR_BETA_REVIEW IN_BETA_REVIEW IN_BETA_TESTING].include?(state)
+      UI.user_error!('Apple beta rejected or requires export-compliance action') if
+        %w[BETA_REJECTED MISSING_EXPORT_COMPLIANCE IN_EXPORT_COMPLIANCE_REVIEW EXPIRED].include?(state)
+      upload_to_testflight(api_key: key, distribute_only: true,
+        app_identifier: BUNDLE_ID, app_version: required('SFERA_RELEASE_VERSION'),
+        build_number: data.fetch('build').to_s, distribute_external: true,
+        groups: [group.name], notify_external_testers: true,
+        changelog: "#{required('RELEASE_TAG')} (#{required('RELEASE_SHA')})",
+        wait_processing_timeout_duration: 1800)
+    end
+    build = exact_build(app, data.fetch('build'))
+    data['state'] = build.build_beta_detail&.external_build_state || 'processing'
+    data['assigned_to_public_group'] = group.fetch_builds.any? { |b| b.id == build.id }
+    save_receipt(release, data)
+    File.open(required('GITHUB_STEP_SUMMARY'), 'a') do |f|
+      f.puts "## iOS beta\nTag: #{data['tag']}\n\nSHA: #{data['sha']}\n\nBuild: #{data['build']}\n\nRuntime: #{data['runtime']}\n\nApple status: #{data['state']}"
+      f.puts "\nAssigned to public group: #{data['assigned_to_public_group']}"
+      f.puts "\nPublic availability requires IN_BETA_TESTING and membership in the configured group."
+    end
+  end
+end
