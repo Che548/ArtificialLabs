@@ -2,6 +2,9 @@ import ExpoModulesCore
 import Foundation
 
 public final class StripCvModule: Module {
+  // Keep expensive CV off Expo's shared native-call queue and below interactive camera work.
+  private let inferenceQueue = DispatchQueue(label: "sfera.strip-cv.inference", qos: .utility)
+
   public func definition() -> ModuleDefinition {
     Name("StripCv")
 
@@ -14,6 +17,7 @@ public final class StripCvModule: Module {
       }
       return try StripCvBridge.detectStripImage(at: url, error: ())
     }
+    .runOnQueue(inferenceQueue)
 
     AsyncFunction("analyzeLearnedStripJsonAsync") { (requestJson: String) throws -> String in
       guard let data = requestJson.data(using: .utf8),
@@ -24,6 +28,7 @@ public final class StripCvModule: Module {
       }
       return try StripCvBridge.analyzeLearnedImage(at: url, error: ())
     }
+    .runOnQueue(inferenceQueue)
 
     AsyncFunction("analyzeStripJsonAsync") { (requestJson: String) throws -> String in
       guard let requestData = requestJson.data(using: .utf8),
@@ -49,6 +54,7 @@ public final class StripCvModule: Module {
       )
       return result
     }
+    .runOnQueue(inferenceQueue)
   }
 
   private static func encodeJson(_ value: Any) throws -> String {

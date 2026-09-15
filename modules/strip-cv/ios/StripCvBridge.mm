@@ -7,11 +7,23 @@
 #include <mutex>
 
 #include <opencv2/imgproc.hpp>
+#include <opencv2/core/utility.hpp>
 
 #include "stripcv/c_api.h"
 #include "stripcv/learned_reader.hpp"
 
 namespace {
+
+void configureCvExecution() {
+  static std::once_flag once;
+  std::call_once(once, [] {
+    // iOS OpenCV uses GCD's default-priority global queue for parallel regions,
+    // escaping our serial utility queue. Zero disables that fan-out (GCD does
+    // not support a positive worker limit), leaving CPU time for live preview.
+    // Configure before any CV work, never while a parallel region is running.
+    cv::setNumThreads(0);
+  });
+}
 
 NSError *makeError(NSString *message) {
   return [NSError errorWithDomain:@"expo.modules.stripcv"
@@ -54,6 +66,7 @@ UIImage *normalizeImage(UIImage *image) {
                                     error:(NSError * _Nullable * _Nullable)error {
   @autoreleasepool {
     try {
+      configureCvExecution();
       if (!imageURL.isFileURL) throw std::invalid_argument("reader_requires_local_image");
       UIImage *source = [UIImage imageWithContentsOfFile:imageURL.path];
       UIImage *image = source == nil ? nil : normalizeImage(source);
@@ -101,6 +114,7 @@ UIImage *normalizeImage(UIImage *image) {
                              optionsJson:(NSString *)optionsJson
                                    error:(NSError * _Nullable * _Nullable)error {
   @autoreleasepool {
+    configureCvExecution();
     UIImage *source = [UIImage imageWithContentsOfFile:imageURL.path];
     UIImage *image = source == nil ? nil : normalizeImage(source);
     CGImageRef cgImage = image.CGImage;

@@ -9,7 +9,7 @@ import {getAnalysisDecision} from '../lib/contracts';
 test('batch validation and locked QR profile',()=>{assert.equal(resolveProduct('ABC-25','').batch,'ABC-25');assert.throws(()=>resolveProduct('<script>',''));assert.throws(()=>resolveProduct('','{"cutoff":0}'));});
 test('real native pipeline rejects blank image as reportable',async()=>{const photo=await sharp({create:{width:800,height:400,channels:3,background:'#dddddd'}}).png().toBuffer();const result=await analyzeImage(photo,{batch:'SYNTHETIC',qr:''});assert.equal(result.width,800);assert.equal(result.analysis.schema_version,'1.0');assert.notEqual(getAnalysisDecision(result.analysis),'reportable');assert.equal(result.analysis.signal.classification,null);});
 test('invalid images and invalid corner coordinates are rejected',async()=>{await assert.rejects(analyzeImage(Buffer.from('not an image'),{batch:'',qr:''}));const photo=await sharp({create:{width:800,height:400,channels:3,background:'#dddddd'}}).png().toBuffer();await assert.rejects(analyzeImage(photo,{batch:'',qr:'',corners:[[0,0],[799,0],[799,500],[0,399]]}),/границы|Границы/);});
-test('web results use exactly the mobile R2 reader and result adapter',async()=>{
+test('web results use exactly the mobile R6 reader and result adapter',async()=>{
   const photo=await sharp({create:{width:800,height:400,channels:3,background:'#dddddd'}}).png().toBuffer();
   const web=await analyzeImage(photo,{batch:'',qr:''});
   const rgb=await sharp(photo).removeAlpha().toColourspace('srgb').raw().toBuffer();
@@ -18,7 +18,7 @@ test('web results use exactly the mobile R2 reader and result adapter',async()=>
     encoding:'utf8',timeout:30_000,maxBuffer:8*1024*1024,
   });
   const native=adaptLearnedStripResult(raw,DEFAULT_ASSAY_PROFILE);
-  assert.equal(web.analysis.algorithm_version,'strip-reader-experimental-20260914-r2');
+  assert.equal(web.analysis.algorithm_version,'strip-reader-experimental-20260914-r6');
   assert.ok(web.analysis.reason_codes.includes('learned_count_only'));
   assert.deepEqual({...web.analysis,timings_ms:{}},{...native,timings_ms:{}});
   assert.equal(web.analysis.signal.value,null);

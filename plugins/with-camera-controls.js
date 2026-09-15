@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { withDangerousMod } = require('@expo/config-plugins');
+const { applyCameraQuality } = require('./camera-quality');
+const { applyCameraPreview } = require('./camera-preview');
 
 function patchFile(filePath, marker, insertBefore, addition) {
   const source = fs.readFileSync(filePath, 'utf8');
@@ -28,6 +30,18 @@ function appendFile(filePath, marker, addition) {
   fs.writeFileSync(filePath, `${source}${addition}`);
 }
 
+function patchLensSelection(source) {
+  const marker = '// Honor the documented physical 1x lens independently of localization.';
+  if (source.includes(marker)) return source;
+  const previous = '      $0.localizedName == delegate.selectedLens';
+  if (!source.includes(previous)) throw new Error('Could not patch expo-camera physical lens selection.');
+  return source.replace(previous, `      ${marker}
+      if delegate.selectedLens == "builtInWideAngleCamera" {
+        return $0.deviceType == .builtInWideAngleCamera
+      }
+      return $0.localizedName == delegate.selectedLens`);
+}
+
 function withCameraControls(config) {
   return withDangerousMod(config, [
     'ios',
@@ -37,6 +51,8 @@ function withCameraControls(config) {
         'node_modules',
         'expo-camera',
       );
+      const sessionManager = path.join(cameraRoot, 'ios/Current/CameraSessionManager.swift');
+      fs.writeFileSync(sessionManager, patchLensSelection(fs.readFileSync(sessionManager, 'utf8')));
 
       appendFile(
         path.join(cameraRoot, 'ios/Current/CameraEnums.swift'),
@@ -182,9 +198,12 @@ struct FocusPoint: Record {
 `,
       );
 
+      applyCameraQuality(cameraRoot);
+      applyCameraPreview(cameraRoot);
       return iosConfig;
     },
   ]);
 }
 
 module.exports = withCameraControls;
+module.exports.patchLensSelection = patchLensSelection;

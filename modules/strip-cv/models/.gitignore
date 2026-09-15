@@ -4,3 +4,4 @@
 !reader-20260914/coverage.onnx
 !reader-20260914/auxiliary.onnx
 !reader-20260914/detector.onnx
+!reader-20260914/local_bands.onnx

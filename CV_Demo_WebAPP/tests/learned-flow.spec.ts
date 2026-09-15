@@ -7,7 +7,7 @@ test.use({
 });
 
 for (const source of ['file', 'camera'] as const) {
-  test(`${source} runs the real mobile R2 pipeline through the unchanged UI`, async ({ page, context }) => {
+  test(`${source} runs the real mobile R6 pipeline through the unchanged UI`, async ({ page, context }) => {
     const { token } = createSession('admin');
     await context.addCookies([{ name: 'cv_demo_session', value: token, url: 'http://127.0.0.1:3040', httpOnly: true, sameSite: 'Lax' }]);
     await page.addInitScript(() => localStorage.setItem('sfera-scan-skip', 'true'));
@@ -24,8 +24,8 @@ for (const source of ['file', 'camera'] as const) {
     await page.getByRole('button', { name: 'Распознать', exact: true }).click();
     const result = await response;
     expect(result.status()).toBe(200);
-    expect((await result.json()).analysis.algorithm_version).toBe('strip-reader-experimental-20260914-r2');
+    expect((await result.json()).analysis.algorithm_version).toBe('strip-reader-experimental-20260914-r6');
     await page.getByText('Детали распознавания', { exact: true }).click();
-    await expect(page.getByText('strip-reader-experimental-20260914-r2', { exact: true })).toBeVisible();
+    await expect(page.getByText('strip-reader-experimental-20260914-r6', { exact: true })).toBeVisible();
   });
 }

@@ -1,6 +1,6 @@
 {
   "version": "strip-reader-experimental-20260914",
-  "algorithm_version": "strip-reader-experimental-20260914-r2",
+  "algorithm_version": "strip-reader-experimental-20260914-r6",
   "format": "onnx",
   "opset": 17,
   "models": {
@@ -87,10 +87,28 @@
       "source_checkpoint_sha256": "b83492c1e3c4dd2f1f7cf95f8324bcb71eeb11ab27a59d029661b85b9a70212f",
       "numerical_parity": "pending",
       "postprocessing": "external NMS; confidence .05, IoU .7; select highest confidence proposal"
+    },
+    "local_bands": {
+      "path": "local_bands.onnx",
+      "sha256": "b1bb1cd8a406508fe6f51e9f8dcca97da8650a5ddc7737bbb00a405a77c1c6ef",
+      "bytes": 641308,
+      "source_checkpoint_sha256": "522026a899573ae4bef0cfcd1549062efe437a12cef77416fbfedb6db19c900e",
+      "input_shape": [
+        1,
+        3,
+        128,
+        384
+      ],
+      "output_shape": [
+        1,
+        96
+      ],
+      "max_abs_error": 2.6226043701171875e-06,
+      "conversion_error": 0.0
     }
   },
   "policy": {
-    "route": "absence_checked",
+    "route": "absence_checked_with_band_topology",
     "detector_confidence": 0.05,
     "detector_imgsz": 640,
     "detector_nms_iou": 0.7,
@@ -105,6 +123,54 @@
       "require_same_heatmap_cell": true,
       "both_control_present": 0.99,
       "both_test_absent": 0.02
+    },
+    "band_topology_resolver": {
+      "applies_to": "review_only",
+      "coverage_present": 0.9,
+      "control_present": 0.9,
+      "profile_rows": [
+        32,
+        64
+      ],
+      "dye_signal": "log((R+B)/2+0.02)-log(G+0.02)",
+      "smooth_sigma": 1.1,
+      "baseline_sigma": 16,
+      "minimum_snr": 8,
+      "component_width_range": [
+        3,
+        40
+      ],
+      "component_point_margin": 3,
+      "maximum_profile_peak_shift": 8,
+      "focused_presence_rows": [
+        96,
+        64
+      ],
+      "focused_control_present": 0.9,
+      "focused_test_absent": 0.1,
+      "focused_coverage_fallback": {
+        "both_windows_present": 0.9,
+        "when_full_coverage_below": 0.9
+      },
+      "preserve_existing_counts": true
+    },
+    "independent_window_recovery": {
+      "applies_to": "unreportable original window with coverage below0.85",
+      "geometry": "Detector-bounded complete white region; independently fitted paper axis and observed boundaries",
+      "local_model": "local_bands.onnx; fixed43px horizontal field",
+      "control_range": [
+        0.14139491777485635,
+        0.47554585152838436
+      ],
+      "test_range": [
+        0.403185,
+        0.7681466474125482
+      ],
+      "control_present": 0.9,
+      "test_present": 0.9,
+      "test_absent": 0.1,
+      "extra_band_reject": 0.9,
+      "preserve_existing_counts": true
     }
   },
   "runtime_status": "native OpenCV inference, iOS/Android methods and app routing implemented; new native build and device validation required",

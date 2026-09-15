@@ -23,7 +23,7 @@ constexpr int kStride = 4;
 constexpr double kPresent = .9;
 constexpr double kAbsent = .1;
 constexpr double kCoverage = .85;
-constexpr const char* kVersion = "strip-reader-experimental-20260914-r2";
+constexpr const char* kVersion = "strip-reader-experimental-20260914-r6";
 
 Json decision(const char* label, const char* reason) {
   const std::string value(label);
@@ -173,10 +173,105 @@ Json read_count(float c, float t, float q, bool length_ok) {
   if (t <= kAbsent) return decision("one_line", "control_only");
   return decision("review", "test_uncertain");
 }
+
+float median(std::vector<float> values) {
+  std::sort(values.begin(), values.end());
+  const size_t n = values.size();
+  return n % 2 ? values[n / 2] : (values[n / 2 - 1] + values[n / 2]) * .5f;
+}
+
+struct BandProfile {
+  int peak = 0, left = 0, right = 0;
+  double snr = 0;
+  bool control_inside = false, test_inside = false;
+  bool shared_band() const {
+    const int width = right - left + 1;
+    return control_inside && test_inside && snr >= 8 && width >= 3 && width <= 40;
+  }
+  Json json() const {
+    return {{"peak", peak}, {"left", left}, {"right", right}, {"snr", snr},
+            {"controlInside", control_inside}, {"testInside", test_inside}};
+  }
+};
+
+// Associate point-model responses with a physical dye band. Two central
+// profiles suppress background texture without changing the original pixels.
+BandProfile measure_band(const cv::Mat& window, int rows, double cx, double tx) {
+  BandProfile band;
+  if (!std::isfinite(cx) || !std::isfinite(tx)) return band;
+  const int lo = std::max(25, static_cast<int>(cx - 40));
+  const int hi = std::min(358, static_cast<int>(cx + 41));
+  if (hi <= lo) return band;
+  cv::Mat raw(1, 384, CV_32F);
+  const int y0 = (128 - rows) / 2;
+  for (int x = 0; x < 384; ++x) {
+    std::vector<float> column;
+    column.reserve(rows);
+    for (int y = y0; y < y0 + rows; ++y) {
+      const auto pixel = window.at<cv::Vec3f>(y, x);
+      column.push_back(std::log((pixel[0] + pixel[2]) * .5f + .02f) - std::log(pixel[1] + .02f));
+    }
+    raw.at<float>(0, x) = median(std::move(column));
+  }
+  cv::Mat smooth, baseline;
+  cv::GaussianBlur(raw, smooth, cv::Size(), 1.1);
+  cv::GaussianBlur(raw, baseline, cv::Size(), 16);
+  const cv::Mat signal = smooth - baseline;
+  std::vector<float> differences;
+  for (int x = 32; x < 351; ++x)
+    differences.push_back(std::abs(smooth.at<float>(0, x + 1) - smooth.at<float>(0, x)));
+  const double noise = std::max(.0005, median(std::move(differences)) / .6745 / std::sqrt(2.));
+  band.peak = lo;
+  for (int x = lo + 1; x < hi; ++x)
+    if (signal.at<float>(0, x) > signal.at<float>(0, band.peak)) band.peak = x;
+  const double amplitude = signal.at<float>(0, band.peak);
+  const double level = std::max(2 * noise, .15 * amplitude);
+  band.left = band.right = band.peak;
+  while (band.left > 24 && signal.at<float>(0, band.left - 1) > level) --band.left;
+  while (band.right < 358 && signal.at<float>(0, band.right + 1) > level) ++band.right;
+  band.snr = amplitude / noise;
+  band.control_inside = cx >= band.left - 3 && cx <= band.right + 3;
+  band.test_inside = tx >= band.left - 3 && tx <= band.right + 3;
+  return band;
+}
+
+struct BandResolution {
+  Json evidence = nullptr;
+  bool control_only = false;
+};
+
+BandResolution resolve_band(const cv::Mat& window, double cx, double tx, cv::dnn::Net& presence,
+                            cv::dnn::Net& coverage, double full_coverage) {
+  const auto narrow = measure_band(window, 32, cx, tx);
+  const auto wide = measure_band(window, 64, cx, tx);
+  if (!narrow.shared_band() || !wide.shared_band() || std::abs(narrow.peak - wide.peak) > 8) return {};
+  Json focused = Json::array();
+  Json focused_coverage = Json::array();
+  bool control_only = true;
+  for (const int rows : {96, 64}) {
+    cv::Mat view;
+    cv::resize(window.rowRange((128 - rows) / 2, (128 + rows) / 2), view,
+               cv::Size(384, 128), 0, 0, cv::INTER_LINEAR);
+    const auto logits = forward(presence, input_blob(view, true), {1, 2});
+    const float fc = sigmoid(logits.ptr<float>()[0]), ft = sigmoid(logits.ptr<float>()[1]);
+    focused.push_back({fc, ft});
+    control_only = control_only && fc >= kPresent && ft <= kAbsent;
+    if (full_coverage < .9) {
+      const auto quality = forward(coverage, input_blob(view, true), {1, 3});
+      const float fq = sigmoid(quality.ptr<float>()[2]);
+      focused_coverage.push_back(fq);
+      control_only = control_only && fq >= .9;
+    }
+  }
+  Json evidence = {{"profiles", {narrow.json(), wide.json()}}, {"focusedPresence", focused}};
+  if (!focused_coverage.empty()) evidence["focusedCoverage"] = focused_coverage;
+  return {evidence, control_only};
+}
+#include "independent_window.hpp"
 }  // namespace
 
 struct LearnedReader::Impl {
-  cv::dnn::Net detector, points, presence, coverage, auxiliary;
+  cv::dnn::Net detector, points, presence, coverage, auxiliary, local_bands;
   std::mutex mutex;
   std::string directory;
   cv::dnn::Net load(const char* filename) {
@@ -301,6 +396,41 @@ struct LearnedReader::Impl {
           output["evidence"] = {{"detectorFound", true}, {"resultLength", input_length},
                                 {"coverage", q}, {"primary", {c, t}}, {"auxiliary", {ac, at}},
                                 {"spatialTest", test.score}, {"spatialPeaksCoincide", coincident_peaks}};
+          // Keep established counts. Resolve only ambiguous windows with strong
+          // control/coverage and measured evidence that C/T name the same band.
+          if (result["observed_label"] == "review" && c >= .9 && input_length >= 16) {
+            const auto project_x = [&](const cv::Point2d& p) {
+              return affine(0, 0) * p.x + affine(0, 1) * p.y + affine(0, 2);
+            };
+            const double cx = project_x(control.source), tx = project_x(test.source);
+            const auto resolved = resolve_band(window, cx, tx, presence, coverage, q);
+            if (!resolved.evidence.is_null()) output["evidence"]["bandTopology"] = resolved.evidence;
+            if (resolved.control_only) result = decision("one_line", "band_topology_confirms_single_line");
+          }
+          if (!result["reportable"].get<bool>() && q < kCoverage) {
+            if (local_bands.empty()) local_bands = load("local_bands.onnx");
+            const auto recovered = independent_window(rgb, boxes.front().xyxy, local_bands);
+            if (!recovered.evidence.is_null()) output["evidence"]["independentWindow"] = recovered.evidence;
+            if (recovered.count) result = decision(recovered.count == 1 ? "one_line" : "two_line",
+                                                   "independent_window_local_bands");
+          }
+          // Coordinate proposals do not establish dye presence. Resolve their veto
+          // only when both existing readers and the local pixel reader agree.
+          const bool window_readers_absent = c >= kPresent && ac >= kPresent && t <= kAbsent && at <= kAbsent;
+          const bool auxiliary_uncertain = c >= .99 && t <= .02 && ac >= kPresent &&
+                                           at > kAbsent && at < kPresent;
+          if (!result["reportable"].get<bool>() && input_length >= 16 && q >= kCoverage &&
+              (window_readers_absent || auxiliary_uncertain)) {
+            if (local_bands.empty()) local_bands = load("local_bands.onnx");
+            const auto local = read_local_bands(window, local_bands);
+            output["evidence"]["localBands"] = local;
+            if (auxiliary_uncertain) output["evidence"]["uncertainAuxiliary"] = true;
+            const float lc = local["bandScores"][0], lt = local["bandScores"][1], extra = local["extraBandScore"];
+            if (window_readers_absent && lc >= kPresent && lt <= kAbsent && extra < kPresent)
+              result = decision("one_line", "local_bands_confirm_single_line");
+            else if (auxiliary_uncertain && lc >= .99 && lt <= .02 && extra < kPresent)
+              result = decision("one_line", "local_bands_resolve_auxiliary_uncertainty");
+          }
           output["window_source_to_input"] = {{affine(0, 0), affine(0, 1), affine(0, 2)},
                                               {affine(1, 0), affine(1, 1), affine(1, 2)}};
         }

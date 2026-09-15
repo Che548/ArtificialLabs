@@ -93,7 +93,7 @@ class StripCvModule : Module() {
       require(manifest.getString("version") == "strip-reader-experimental-20260914")
       val directory = File(context.noBackupFilesDir, "stripcv/$assetRoot")
       check(directory.isDirectory || directory.mkdirs())
-      for (name in listOf("detector", "points", "presence", "coverage", "auxiliary")) {
+      for (name in listOf("detector", "points", "presence", "coverage", "auxiliary", "local_bands")) {
         val descriptor = manifest.getJSONObject("models").getJSONObject(name)
         val filename = "$name.onnx"
         require(descriptor.getString("path") == filename)

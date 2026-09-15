@@ -42,6 +42,22 @@ double uniform(std::mt19937_64& random, double lower, double upper) {
   return std::uniform_real_distribution<double>(lower, upper)(random);
 }
 
+// std::uniform_int_distribution uses different sampling algorithms in libc++
+// and libstdc++, consuming different numbers of engine values. That changed
+// every later capture despite the fixed seed. Keep the already qualified
+// libc++ inventory with an explicit, unbiased bit-mask rejection sampler.
+int uniformInteger(std::mt19937_64& random, int lower, int upper) {
+  const uint64_t span = static_cast<uint64_t>(upper - lower) + 1;
+  if (span == 1) return lower;
+  uint64_t mask = 1;
+  while (mask < span - 1) mask = (mask << 1) | 1;
+  uint64_t value;
+  do {
+    value = random() & mask;
+  } while (value >= span);
+  return lower + static_cast<int>(value);
+}
+
 void countReasons(const stripcv::AnalysisResult& result,
                   std::map<std::string, size_t>& counts) {
   for (const std::string& reason : result.reason_codes) {
@@ -388,6 +404,14 @@ std::string describeQuad(const stripcv::Quad& corners) {
 }  // namespace
 
 int main() {
+  cv::setNumThreads(1);
+  std::mt19937_64 golden_random(kSeed);
+  for (int expected : {65, 71, 94, 72, 50, 97, 82, 86, 75, 36, 42, 60}) {
+    if (uniformInteger(golden_random, 35, 100) != expected) {
+      std::cerr << "seeded JPEG parameter inventory changed\n";
+      return EXIT_FAILURE;
+    }
+  }
   const uint64_t seed = environmentUnsigned(
       "STRIPCV_RANDOMIZED_SEED", kSeed, 0, UINT64_MAX);
   const size_t cases = static_cast<size_t>(environmentUnsigned(
@@ -450,7 +474,7 @@ int main() {
                        uniform(random, 0.90, 1.08),
                        uniform(random, 0.86, 1.14)};
     condition.jpeg_quality =
-        std::uniform_int_distribution<int>(35, 100)(random);
+        uniformInteger(random, 35, 100);
     condition.scale = uniform(random, 0.36, 1.0);
     condition.blur_sigma = uniform(random, 0.0, 1.35);
     condition.noise_sigma = uniform(random, 0.0, 3.5);
@@ -654,7 +678,7 @@ int main() {
                        uniform(automatic_random, 0.93, 1.07),
                        uniform(automatic_random, 0.90, 1.10)};
     condition.jpeg_quality =
-        std::uniform_int_distribution<int>(45, 100)(automatic_random);
+        uniformInteger(automatic_random, 45, 100);
     condition.scale = uniform(automatic_random, 0.55, 1.0);
     condition.blur_sigma = uniform(automatic_random, 0.0, 1.0);
     condition.noise_sigma = uniform(automatic_random, 0.0, 2.0);
@@ -903,7 +927,7 @@ int main() {
                        uniform(invalid_random, 0.95, 1.05),
                        uniform(invalid_random, 0.92, 1.08)};
     condition.jpeg_quality =
-        std::uniform_int_distribution<int>(55, 100)(invalid_random);
+        uniformInteger(invalid_random, 55, 100);
     condition.scale = uniform(invalid_random, 0.65, 1.0);
     condition.blur_sigma = uniform(invalid_random, 0.0, 0.8);
     condition.noise_sigma = uniform(invalid_random, 0.0, 1.5);
