@@ -3,10 +3,12 @@ import { Text } from 'react-native';
 import { ProfileContacts } from '../../components/ProfileContacts';
 import { LoginEmailVerification } from '../../components/LoginEmailVerification';
 import { useState } from 'react';
+import { AuthScreen } from '../../components/AuthScreen';
 function Fixture() {
   const params = new URLSearchParams(location.search);
   const [login, setLogin] = useState(params.has('login'));
   const [done, setDone] = useState(false);
+  if (params.has('signup')) return done ? <p>Аккаунт создан на стенде</p> : <AuthScreen onAuthenticated={() => setDone(true)} />;
   return (
     <div style={{ maxWidth: 700, margin: 'auto', padding: 20 }}>
       <h1>Данные профиля</h1>
@@ -27,7 +29,7 @@ function Fixture() {
         />
       )}
       <ProfileContacts
-        email="fixture@example.test"
+        email={params.has('no-email') ? undefined : 'fixture@example.test'}
         phone={params.has('phone') ? '+79990000001' : undefined}
         disabled={false}
         renderPhone={() => <Text>Стенд: SMS не отправляются</Text>}

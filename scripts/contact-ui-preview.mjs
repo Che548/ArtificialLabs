@@ -23,6 +23,9 @@ const ctx = await context({
     {
       name: 'fixture-native-sms',
       setup(build) {
+        build.onResolve({ filter: /(^|\/)(connectivity|update-manager)$|^(expo-crypto|expo-status-bar)$/ }, () => ({
+          path: path.resolve('tests/contact-ui/isolated-auth.ts'),
+        }));
         build.onResolve({ filter: /(^|\/)theme$/ }, () => ({
           path: path.resolve('tests/contact-ui/theme.ts'),
         }));
@@ -38,7 +41,7 @@ const ctx = await context({
       },
     },
   ],
-  define: { 'process.env.NODE_ENV': '"development"' },
+  define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}', __DEV__: 'false' },
 });
 await ctx.serve({ host: '127.0.0.1', port: 4321, servedir: out });
 console.log(

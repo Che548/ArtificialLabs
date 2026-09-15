@@ -49,6 +49,7 @@ import type * as monitoringData from "../monitoringData.js";
 import type * as notifications from "../notifications.js";
 import type * as passwordRecovery from "../passwordRecovery.js";
 import type * as phoneChange from "../phoneChange.js";
+import type * as phoneRegistration from "../phoneRegistration.js";
 import type * as profile from "../profile.js";
 import type * as publicCatalog from "../publicCatalog.js";
 import type * as registrationConsent from "../registrationConsent.js";
@@ -107,6 +108,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   passwordRecovery: typeof passwordRecovery;
   phoneChange: typeof phoneChange;
+  phoneRegistration: typeof phoneRegistration;
   profile: typeof profile;
   publicCatalog: typeof publicCatalog;
   registrationConsent: typeof registrationConsent;

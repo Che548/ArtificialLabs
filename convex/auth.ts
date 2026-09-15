@@ -14,6 +14,7 @@ import { countAccount, uncountAccount } from './lib/accountCounts';
 import { finishEmailLogin, requireEmailForLogin } from './emailVerification';
 import { normalizeEmail } from './emailChange';
 import type { Id } from './_generated/dataModel';
+import { finishPhoneRegistration, createPhoneRegistrationUser } from './phoneRegistration';
 
 const basePassword = Password({ profile: params => ({ email: normalizeEmail(String(params.email ?? '')) }), validatePasswordRequirements: password => {
   if (password.length < 8 || password.length > 1024) throw new Error('Invalid password length');
@@ -45,6 +46,7 @@ const PhoneProvider = Phone({
 export const PhonePasswordProvider: ReturnType<typeof ConvexCredentials> = ConvexCredentials({
   id: 'phone-password',
   authorize: async (params, ctx): Promise<{ userId: Id<'users'> }> => {
+    if (params.flow === 'signUp') return finishPhoneRegistration(ctx, params);
     const phone = normalizeRussianPhone(String(params.phone ?? ''));
     const password = String(params.password ?? '');
     if (password.length < 8) throw new Error('Invalid credentials');
@@ -75,6 +77,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   signIn: { maxFailedAttempsPerHour: 5 },
   callbacks: {
     createOrUpdateUser: async (ctx, args) => {
+      if (args.provider.id === 'password' && (args.profile as any).registrationChallenge) {
+        return createPhoneRegistrationUser(ctx, args.profile);
+      }
       const { emailVerified, phoneVerified, ...profile } = args.profile;
       const currentUserId = await getAuthUserId(ctx);
       let userId = args.existingUserId;

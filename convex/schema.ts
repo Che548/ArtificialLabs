@@ -85,6 +85,12 @@ const agentRuleCondition = v.object({
 });
 
 export default defineSchema({
+  phoneRegistrationChallenges: defineTable({
+    phone: v.string(), tokenHash: v.string(), codeHash: v.string(), generation: v.string(),
+    expiresAt: v.number(), retryAt: v.number(), failedAttempts: v.number(),
+    status: v.union(v.literal('sending'), v.literal('pending'), v.literal('failed'), v.literal('verified'), v.literal('consumed')),
+    userId: v.optional(v.id('users')), purgeAt: v.number(),
+  }).index('by_expiry', ['purgeAt']),
   contactVerificationChallenges: defineTable({
     kind: v.union(v.literal('login-email'), v.literal('phone-change')),
     userId: v.id('users'), accountId: v.id('authAccounts'),
@@ -104,7 +110,7 @@ export default defineSchema({
   ...authTables,
   emailChangeChallenges: defineTable({
     userId: v.id('users'), sessionId: v.id('authSessions'), accountId: v.id('authAccounts'),
-    oldEmail: v.string(), newEmail: v.string(), credentialHash: v.string(),
+    oldEmail: v.optional(v.string()), newEmail: v.string(), credentialHash: v.string(),
     codeHash: v.string(), generation: v.string(), expiresAt: v.number(), retryAt: v.number(),
     failedAttempts: v.number(), status: v.union(v.literal('sending'), v.literal('pending'), v.literal('failed'), v.literal('consumed')),
     createdAt: v.number(), purgeAt: v.number(),

@@ -5,6 +5,10 @@ export function useAction(ref: any) {
     const name = getFunctionName(ref);
     calls.push(name);
     await new Promise((resolve) => setTimeout(resolve, 100));
+    if (name === 'phoneRegistration:confirm') {
+      if (args.code !== '123456') throw new Error('CONTACT_INVALID_CODE');
+      return { verified: true };
+    }
     if (args.currentPassword === 'NetworkFailure123!')
       throw new Error('Network request failed');
     if (

@@ -42,7 +42,11 @@ private `sms-gateway` service in the Convex Docker network on `junk`. The
 gateway has no host port or FRP endpoint. `SMS_GATEWAY_SHARED_SECRET` and
 `SMS_RATE_LIMIT_HASH_SECRET` exist only in the Convex/junk environment; never
 log or commit them. `SMS_AUTH_ENABLED=1` enables SMS delivery for profile phone
-verification and password recovery. OTP-only login remains disabled unless the
+verification, phone registration and password recovery. Phone registration has
+no separate feature flag: a device-bound SMS challenge must be verified before
+Convex Auth atomically creates the phone-only user and password account. Never
+invent an email address or silently link an existing account during signup.
+OTP-only login remains disabled unless the
 temporary migration flag `SMS_LOGIN_ENABLED=1` is explicitly set; normal login
 uses a confirmed phone plus password. The public-client IP probe must confirm
 that separate connections do not collapse to one proxy IP. Never log phone
@@ -124,8 +128,8 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
   must not start medical snapshot reads or outbox writes.
   The approved registration UX may collect this choice in the existing unchecked
   signup consent, with visible cloud/AI/provider/data/purpose disclosure. A
-  versioned local receipt may activate chat, assistant and sync after email
-  verification for that newly created account on that device, without repeated
+  versioned local receipt may activate chat, assistant and sync after verification
+  of the selected email or phone for that newly created account on that device, without repeated
   dialogs. Never infer it from signIn, recovery or older accounts; never replay
   it over a revocation. Analytics and document interpretation remain separate.
 - Offline and temporary server failures must never reject a completed local
@@ -134,8 +138,9 @@ SMS count and safe status metadata; never persist or log the raw USSD reply.
   an immediate single-flight sync when connectivity returns. Do not retry Auth
   or validation errors as transport failures.
 - Password recovery is available in the native app through SMS or Resend email.
-  Registration remains email-only, while confirmed phones can be used with the
-  same password for login. `RESEND_API_KEY`, `RESEND_FROM` and
+  Registration supports email or a confirmed phone without mandatory email;
+  both use passwords for login. An optional second contact requires its own
+  verification and must not create another account. `RESEND_API_KEY`, `RESEND_FROM` and
   `PASSWORD_RECOVERY_HASH_SECRET` are Convex-only secrets and must never be
   exposed to clients, Git or build artifacts. Mandatory email verification is
   gated by the server-only `EMAIL_VERIFICATION_REQUIRED=1`; keep it off until
