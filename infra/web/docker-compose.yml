@@ -5,6 +5,8 @@ services:
     image: ${WEB_IMAGE:-ghcr.io/che548/artificiallabs:latest}
     container_name: artificiallabs_web
     restart: unless-stopped
+    volumes:
+      - ./downloads:/usr/share/nginx/html/beta-assets/downloads:ro
     ports:
       - "${WEB_PORT:-8093}:80"
     labels:

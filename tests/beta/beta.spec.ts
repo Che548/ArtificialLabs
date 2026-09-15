@@ -1,9 +1,59 @@
 import { test, expect, devices, webkit } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import { createServer } from 'node:http';
+
+function renderAndroid(overrides: object) {
+  // Render the real component outside Playwright's component-testing JSX transform.
+  return execFileSync(process.execPath, ['-e', `
+    const {buildSync}=require('esbuild');
+    const Module=require('node:module');
+    const result=buildSync({entryPoints:['admin/components/beta-android.tsx'],bundle:true,
+      platform:'node',format:'cjs',write:false,external:['react']});
+    const m=new Module(process.cwd()+'/beta-test.cjs');m.paths=module.paths;
+    m._compile(result.outputFiles[0].text,m.id);
+    const {BetaAndroid,androidDistribution}=m.exports;
+    process.stdout.write(require('react-dom/server').renderToStaticMarkup(
+      require('react').createElement(BetaAndroid,{distribution:{...androidDistribution,...JSON.parse(process.argv[1])}})));
+  `, JSON.stringify(overrides)], { encoding: 'utf8' });
+}
 
 const apple = 'https://testflight.apple.com/join/Aq5UurM8';
 const group = 'https://groups.google.com/g/sfera-brainwaves-beta';
 const play = 'https://play.google.com/apps/testing/engineering.brainwaves.sfera';
 const base = process.env.BETA_BASE_URL || 'http://127.0.0.1:4321';
+
+test('configured APK downloads synthetic bytes; Google Play mode remains reversible', async ({ page }) => {
+  const apk = { url: '/synthetic-only.apk', version: 'test-only', size: '16 Б' };
+  const html = renderAndroid({ apk });
+  const server = createServer((request, response) => {
+    if (request.url === '/synthetic-only.apk') {
+      response.writeHead(200, { 'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Disposition': 'attachment; filename="synthetic-only.apk"' });
+      response.end('synthetic fixture');
+    } else {
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      response.end('<!doctype html><meta charset="utf-8">' + html);
+    }
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+  const address = server.address() as { port: number };
+  await page.goto(`http://127.0.0.1:${address.port}/apk-fixture/`);
+  await expect(page.getByText('Версия test-only · 16 Б')).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Скачать APK' }).click();
+  const file = await download;
+  expect(await file.failure()).toBeNull();
+  expect(file.suggestedFilename()).toBe('synthetic-only.apk');
+  await file.delete();
+  await page.setContent(renderAndroid({ apk: null }));
+  await expect(page.getByRole('button', { name: 'Скачать APK' })).toBeDisabled();
+  await expect(page.getByText('APK готовится к загрузке')).toBeVisible();
+  await page.setContent(renderAndroid({ mode: 'google-play' }));
+  await expect(page.getByRole('link', { name: '1. Вступить в группу' })).toHaveAttribute('href', group);
+  await expect(page.getByRole('link', { name: '2. Установить бету' })).toHaveAttribute('href', play);
+  } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
+});
 
 test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, context }) => {
   const external: string[] = [];
@@ -27,8 +77,9 @@ test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, 
   await expect(page.getByText('Один код.', { exact: false })).toHaveCount(0);
   await expect(page.locator('svg.beta-geometry')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.getByRole('link', { name: 'Открыть в TestFlight' })).toHaveAttribute('href', apple);
-  await expect(page.getByRole('link', { name: '1. Вступить в группу' })).toHaveAttribute('href', group);
-  await expect(page.getByRole('link', { name: '2. Установить бету' })).toHaveAttribute('href', play);
+  await expect(page.getByRole('link', { name: 'Скачать APK' })).toHaveAttribute('href', '/beta-assets/downloads/sfera-1.0.0-9-google-play-signed.apk');
+  await expect(page.getByText('Версия 1.0.0 (9) · 613,1 МиБ')).toBeVisible();
+  await expect(page.locator(`a[href="${group}"],a[href="${play}"]`)).toHaveCount(0);
   await expect(page.locator('.beta-share svg')).toBeVisible();
   await page.locator('.beta-share svg').screenshot({ path: 'output/playwright/beta-qr.png' });
   await page.getByRole('button', { name: 'Скопировать ссылку' }).click();
@@ -60,8 +111,8 @@ for (const item of [
     await expect(page.getByRole('button', { name: expected, exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: 'Android', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'iPhone и iPad' })).toBeHidden();
-    await page.getByText('Не получается установить?').click();
-    await expect(page.getByText(/Проверка Google может/)).toBeVisible();
+    await page.getByText('Как установить APK?').click();
+    await expect(page.getByText(/разрешите установку из этого браузера/)).toBeVisible();
     await page.setViewportSize({ width: 320, height: 720 });
     await expect(page.getByRole('button', { name: 'Android', exact: true })).toHaveAttribute('aria-pressed', 'true');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -79,14 +130,15 @@ test('without JS both instructions remain usable', async ({ browser }) => {
   const page = await context.newPage();
   await page.goto(new URL('/beta/', base).href);
   await expect(page.getByRole('link', { name: 'Открыть в TestFlight' })).toBeVisible();
-  await expect(page.getByRole('link', { name: '2. Установить бету' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Скачать APK' })).toBeVisible();
   await context.close();
 });
 
 test('admin and kit remain gated; keyboard and clipboard failure', async ({ page }) => {
   for (const route of ['/', '/kit/']) {
     await page.goto(route);
-    await expect(page.getByRole('heading', { name: 'Административная консоль' })).toBeVisible();
+    await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeVisible();
     await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
   }
   await page.goto('/beta/');

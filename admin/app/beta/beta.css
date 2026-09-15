@@ -29,6 +29,7 @@
 .beta-page .button { min-height:48px; height:auto; padding:12px 18px; border-radius:0; font-size:14px; font-weight:400; line-height:1.4; white-space:normal; text-align:center; gap:10px; box-shadow:none; }
 .beta-page .button-primary { background:#181818; border-color:#181818; color:#fff; }
 .beta-page .button-primary:hover { background:#363636; }
+.beta-page .button-primary:disabled { background:#ededed; border-color:#bdbdbd; color:#666; cursor:not-allowed; opacity:1; }
 .beta-page .button-secondary { background:#fff; border:1px solid #bdbdbd; color:#181818; }
 .beta-page .button-secondary:hover { background:#f2f2f2; }
 .beta-page :focus-visible { outline:2px solid #181818; outline-offset:4px; }
@@ -45,6 +46,8 @@
 .beta-page details { font-size:13px; border-top:1px solid var(--border); padding-top:4px; }
 .beta-page summary { cursor:pointer; min-height:44px; padding:12px 0; color:var(--text-2); }
 .beta-page details p { padding-bottom:10px; }
+.beta-page details ol { padding-left:22px; margin:8px 0 16px; }
+.beta-page details li { margin-bottom:8px; line-height:1.55; }
 .beta-share { display:flex; align-items:center; gap:48px; padding:40px 32px; border-bottom:1px solid var(--border); }
 .beta-share svg { flex-shrink:0; background:#fff; }
 .beta-share p { color:var(--text-2); max-width:430px; margin-bottom:18px; }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Badge, Button } from './ui';
 import sferaLogo from '../assets/sfera-logo.png';
+import { BetaAndroid } from './beta-android';
 
 type Platform = 'all' | 'apple' | 'android';
 
@@ -72,13 +73,7 @@ export function BetaInstall() {
       </section>
       <section className="beta-install-panel" hidden={selected === 'apple'} aria-labelledby="beta-android">
         <h2 id="beta-android">Android</h2>
-        <p>Вступите в группу, затем присоединитесь к тестированию.</p>
-        <div className="beta-actions">
-          <a className="button button-secondary button-md" href="https://groups.google.com/g/sfera-brainwaves-beta" target="_blank" rel="noopener noreferrer">1. Вступить в группу <span aria-hidden="true">↗</span></a>
-          <a className="button button-primary button-md" href="https://play.google.com/apps/testing/engineering.brainwaves.sfera">2. Установить бету <span aria-hidden="true">↗</span></a>
-        </div>
-        <p className="beta-note">Используйте один Google-аккаунт в группе и Google Play.</p>
-        <details><summary>Не получается установить?</summary><p>Проверка Google может задержать доступ к бете. Если вы участвуете во внутреннем тестировании (internal testing), сначала выйдите из него, затем присоединитесь к закрытой бете.</p></details>
+        <BetaAndroid />
       </section>
     </div>
     {desktop && url && <section className="beta-share" aria-label="Открыть на телефоне">
