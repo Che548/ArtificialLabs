@@ -4,3 +4,6 @@ import type { ThemeColors } from '../../lib/theme';
 // This fixture exercises contact actions, not device preferences/SQLCipher.
 export const useAppTheme = () => ({ colors, mode: 'light' as const });
 export const useThemeStyles = <T>(factory: (value: ThemeColors) => T) => factory(colors);
+
+// Native status bars have no DOM output in this isolated browser fixture.
+export { StatusBar as ThemeStatusBar } from './isolated-auth';

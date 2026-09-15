@@ -1,6 +1,6 @@
 import { useDocumentOcr } from '../lib/document-ocr-manager';
 import { Image } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { AppText } from '../design-system';
@@ -52,6 +52,11 @@ export function ProfileDocumentsSection({
   const { colors } = useAppTheme();
   const ocr = useDocumentOcr();
   const [selected, setSelected] = useState<HealthDocument>();
+  useEffect(() => {
+    if (selected && !documents.some((document) => document.localId === selected.localId)) {
+      setSelected(undefined);
+    }
+  }, [documents, selected]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const perform = async (action: () => Promise<void>) => {

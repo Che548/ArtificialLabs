@@ -8,6 +8,7 @@ ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
 
 COPY package.json package-lock.json ./
 COPY admin/package.json admin/package-lock.json ./admin/
+COPY scripts/patch-native-tabs-background.mjs ./scripts/patch-native-tabs-background.mjs
 RUN npm ci && npm --prefix admin ci
 
 COPY admin ./admin

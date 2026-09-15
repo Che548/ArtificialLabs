@@ -1,4 +1,4 @@
-import { parseOcrPage } from '../../shared/document-ocr';
+import { OCR_POLICY_VERSION, parseOcrPage } from '../../shared/document-ocr';
 import {
   createContext,
   useContext,
@@ -7,7 +7,8 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { createRoot } from 'react-dom/client';
-import { View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { ProfileDocumentPermissions } from '../../components/ProfileDocumentPermissions';
 import { ProfileDocumentsSection } from '../../components/ProfileDocumentsSection';
 import type { HealthDocument } from '../../lib/health-types';
 import {
@@ -76,7 +77,14 @@ export const useSafeAreaInsets = () => ({
   left: 0,
   right: 0,
 });
-export const useRouter = () => ({ push() {} });
+export const useRouter = () => {
+  const { setPanel } = useContext(FixtureContext);
+  return { push: (route: { pathname: string; params?: { panel?: string } }) => {
+    if (route.pathname !== '/profile' || route.params?.panel !== 'permissions')
+      throw new Error('Unexpected document navigation');
+    setPanel('permissions');
+  } };
+};
 export const usePathname = () => '/profile';
 // No native update service in this isolated synthetic document UI harness.
 // Preserve registration/cleanup semantics instead of mounting an OTA provider.
@@ -88,11 +96,17 @@ export function useBeforeUpdateRestart(prepare: () => Promise<void>) {
   }, [prepare]);
 }
 export const useConvexAuth = () => ({ isAuthenticated: true });
-export const useQueries = () => ({
-  status: { enabled: false, accepted: false },
-});
-export const useMutation = () => async () => {
-  throw new Error('Unexpected live mutation');
+export const useQueries = () => {
+  const { ocr } = useContext(FixtureContext);
+  return { status: { enabled: ocr.enabled, accepted: ocr.accepted } };
+};
+export const useMutation = () => {
+  const { ocr } = useContext(FixtureContext);
+  return async (args: { accepted?: boolean; policyVersion?: string }) => {
+    if (typeof args.accepted !== 'boolean' || args.policyVersion !== OCR_POLICY_VERSION)
+      throw new Error('Unexpected live mutation');
+    return ocr.consent(args.accepted);
+  };
 };
 export const useAction = useMutation;
 export { AppText, SegmentedSwitcher } from '../../design-system/components';
@@ -103,6 +117,7 @@ export {
   ProfileSettingsRow,
 } from '../../design-system/profile';
 export { profileTones, spacing } from '../../design-system/tokens';
+export const ThemeStatusBar = () => null;
 export function useAppTheme() {
   return { colors };
 }
@@ -122,6 +137,7 @@ export const useDocumentOcr = () => useContext(FixtureContext).ocr;
 export const useHealthStore = () => useContext(FixtureContext).store;
 function Fixture({ children }: PropsWithChildren) {
   const params = new URLSearchParams(location.search);
+  const [panel, setPanel] = useState('documents');
   const [accepted, setAccepted] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, DocumentExtraction>>({});
@@ -170,6 +186,7 @@ function Fixture({ children }: PropsWithChildren) {
   const store = {
     readOnly,
     cloudSyncEnabled: enabled,
+    accountDeletion: { pendingDeletion: false },
     confirmDocumentExtraction: async (value: DocumentExtraction) => {
       validateDocumentExtraction(value);
       confirmed.push(structuredClone(value));
@@ -246,7 +263,7 @@ function Fixture({ children }: PropsWithChildren) {
     },
   });
   return (
-    <FixtureContext.Provider value={{ ocr, store }}>
+    <FixtureContext.Provider value={{ ocr, store, setPanel }}>
       <View
         style={{
           padding: 20,
@@ -255,7 +272,10 @@ function Fixture({ children }: PropsWithChildren) {
           alignSelf: 'center',
         }}
       >
-        <ProfileDocumentsSection
+        <Pressable accessibilityRole="button" accessibilityLabel={panel === 'documents' ? 'Разрешения и данные' : 'К документам'} onPress={() => setPanel(panel === 'documents' ? 'permissions' : 'documents')}>
+          <Text>{panel === 'documents' ? 'Разрешения и данные' : 'К документам'}</Text>
+        </Pressable>
+        {panel === 'permissions' ? <ProfileDocumentPermissions /> : <ProfileDocumentsSection
           documents={documents}
           readOnly={readOnly}
           onAdd={async () => {
@@ -267,7 +287,7 @@ function Fixture({ children }: PropsWithChildren) {
             operations.push(`delete:${document.localId}`);
             setDocuments([]);
           }}
-        />
+        />}
       </View>
       {children}
     </FixtureContext.Provider>

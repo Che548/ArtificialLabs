@@ -14,15 +14,12 @@ const command = (page: Page, name: string) =>
 const events = (page: Page, name = 'operations') =>
   page.evaluate((key) => (window as any).fixture[key], name);
 async function consent(page: Page) {
-  await page
-    .getByRole('button', { name: 'Разрешить распознавание', exact: true })
-    .click();
-  await page
-    .getByRole('button', {
-      name: 'Согласен: автоматически распознавать новые документы',
-      exact: true,
-    })
-    .click();
+  await page.getByRole('button', { name: 'Разрешения и данные', exact: true }).click();
+  const toggle = page.getByRole('switch', { name: 'Распознавание документов', exact: true });
+  await expect(toggle).not.toBeChecked();
+  await toggle.check();
+  await expect(toggle).toBeChecked();
+  await page.getByRole('button', { name: 'К документам', exact: true }).click();
 }
 async function open(page: Page) {
   await page
@@ -37,11 +34,12 @@ test('consent gates recognition; import, progress, cancellation and explicit ret
   await expect(
     page.getByRole('button', { name: 'Распознать документ', exact: true }),
   ).toBeDisabled();
-  await page
-    .getByRole('button', { name: 'Закрыть окно', exact: true })
-    .last()
-    .click();
-  await consent(page);
+  await page.getByRole('button', { name: 'Настроить распознавание', exact: true }).click();
+  const permission = page.getByRole('switch', { name: 'Распознавание документов', exact: true });
+  await expect(permission).not.toBeChecked();
+  await permission.check();
+  await expect(permission).toBeChecked();
+  await page.getByRole('button', { name: 'К документам', exact: true }).click();
   expect(await events(page)).toEqual(['consent:true']); // Old documents are never auto-enqueued by consent.
   await page.getByRole('button', { name: 'Добавить документ' }).click();
   expect(await events(page)).toEqual([
@@ -51,7 +49,6 @@ test('consent gates recognition; import, progress, cancellation and explicit ret
     'enqueue:synthetic-doc:0',
   ]);
   await command(page, 'progress');
-  await expect(page.getByText(/страниц готово: 1 из 2/)).toBeVisible();
   await open(page);
   await expect(page.getByText('Страницы: 1 из 2')).toBeVisible();
   await page.getByRole('button', { name: 'Отменить распознавание' }).click();
@@ -72,12 +69,10 @@ test('consent gates recognition; import, progress, cancellation and explicit ret
     .getByRole('button', { name: 'Закрыть окно', exact: true })
     .last()
     .click();
-  await page.getByRole('button', { name: 'Настройки распознавания' }).click();
-  await page
-    .getByRole('button', {
-      name: 'Отозвать согласие и остановить распознавание',
-    })
-    .click();
+  await page.getByRole('button', { name: 'Разрешения и данные', exact: true }).click();
+  const toggle = page.getByRole('switch', { name: 'Распознавание документов', exact: true });
+  await toggle.uncheck();
+  await expect(toggle).not.toBeChecked();
   expect(await events(page)).toContain('consent:false');
 });
 test('review is compact, survives delayed disk load, and only checked values are saved', async ({
@@ -152,21 +147,14 @@ test('sync state is truthful and deletion stops OCR before removing the document
   await page.goto('/');
   await consent(page);
   await command(page, 'syncOff');
-  await expect(
-    page.getByText(
-      'Для распознавания включите облачную синхронизацию в разрешениях.',
-      { exact: true },
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByText('Новые документы распознаются автоматически через Yandex.'),
-  ).toHaveCount(0);
-  await page
-    .getByRole('button', { name: 'Удалить документ', exact: true })
-    .click();
-  await page
-    .getByRole('button', { name: 'Подтверждаю удаление документа' })
-    .click();
+  await open(page);
+  await expect(page.getByText('Для распознавания включите облачную синхронизацию в разрешениях.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Распознать документ', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Закрыть окно', exact: true }).last().click();
+  const document = page.getByRole('button', { name: /Synthetic laboratory document/ });
+  await document.click({ delay: 650 });
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Удалить', exact: true }).click();
   expect((await events(page)).slice(-2)).toEqual([
     'cancel:synthetic-doc',
     'delete:synthetic-doc',
@@ -188,10 +176,11 @@ test('removed documents close their review and read-only mode blocks document ac
   ).toBeDisabled();
   await expect(
     page.getByRole('button', { name: /Synthetic laboratory document/ }),
-  ).toBeDisabled();
-  await expect(
-    page.getByRole('button', { name: 'Разрешить распознавание', exact: true }),
-  ).toHaveCount(0);
+  ).toBeEnabled();
+  await open(page);
+  await expect(page.getByRole('button', { name: 'Распознать документ', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Сохранить показатели/ })).toHaveCount(0);
+
 });
 
 test('original preview and OCR use the chosen page orientation', async ({
@@ -224,20 +213,10 @@ test('unavailable OCR clearly explains why consent cannot be accepted', async ({
 }) => {
   await page.goto('/');
   await command(page, 'syncOff');
-  await page
-    .getByRole('button', { name: 'Разрешить распознавание', exact: true })
-    .click();
-  await expect(
-    page.getByRole('button', {
-      name: 'Согласен: автоматически распознавать новые документы',
-      exact: true,
-    }),
-  ).toBeDisabled();
-  await expect(
-    page.getByText(
-      'Согласие можно будет подтвердить, когда распознавание станет доступно. Документы можно добавлять и хранить на устройстве уже сейчас.',
-    ),
-  ).toBeVisible();
+  await page.getByRole('button', { name: 'Разрешения и данные', exact: true }).click();
+  await expect(page.getByRole('switch', { name: 'Распознавание документов', exact: true })).toBeDisabled();
+  await expect(page.getByText('Сначала включите облачную синхронизацию', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'К документам', exact: true }).click();
   expect(await events(page)).toEqual([]);
   await expect(
     page.getByRole('button', { name: 'Добавить документ', exact: true }),
