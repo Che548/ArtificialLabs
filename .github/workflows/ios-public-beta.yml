@@ -58,6 +58,8 @@ jobs:
 
   testflight:
     needs: validate
+    # Independent platform switch; defaults to enabled for existing installations.
+    if: vars.IOS_PUBLIC_BETA_ENABLED != '0'
     runs-on: macos-15
     timeout-minutes: 120
     environment: ios-public-beta

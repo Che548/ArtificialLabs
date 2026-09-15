@@ -9,6 +9,11 @@ test('beta delivery handles Apple ordering and draft receipt retries', () => {
 
 const workflow = readFileSync('.github/workflows/ios-public-beta.yml', 'utf8');
 const lanes = readFileSync('fastlane/Fastfile', 'utf8');
+test('iOS can be disabled independently without skipping Android validation', () => {
+  assert.match(workflow, /testflight:\s+needs: validate\s+#[^\n]*\n\s+if: vars\.IOS_PUBLIC_BETA_ENABLED != '0'/);
+  assert.match(workflow, /android-internal:\s+needs: validate/);
+  assert.match(workflow, /if: vars\.ANDROID_INTERNAL_ENABLED == '1'/);
+});
 test('release upload is gated by complete verification, never PR or main push', () => {
   assert.match(workflow, /tags: \['v\*'\]/);
   assert.doesNotMatch(workflow, /pull_request|branches:|continue-on-error/);

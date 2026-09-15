@@ -36,6 +36,11 @@ manual setup of a draft application; CI never promotes to production/open testin
 
 ## Build and retries
 
+Repository variable `IOS_PUBLIC_BETA_ENABLED=0` skips the TestFlight job for
+new runs without skipping shared checks or Android. Unset/other values keep
+the previous iOS behavior. `ANDROID_INTERNAL_ENABLED=1` independently enables
+Android. Changing a variable does not cancel a job already running.
+
 The job generates native files with explicit store versionCode, uses the existing
 release-signing plugin, verifies the AAB package/version/certificate/fingerprint,
 and uploads only after a fresh immutable-tag validation. Bundletool 1.18.3 is
