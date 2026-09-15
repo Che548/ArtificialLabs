@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     outputs:
-      version: ${{ steps.tag.outputs.version }}
+      source_version: ${{ steps.tag.outputs.version }}
       sha: ${{ steps.tag.outputs.sha }}
     env:
       CI: 'true'
@@ -66,7 +66,10 @@ jobs:
       CI: 'true'
       RELEASE_TAG: ${{ github.ref_name }}
       RELEASE_SHA: ${{ needs.validate.outputs.sha }}
-      SFERA_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+      # Tags version the source, not the TestFlight marketing-version train.
+      # Keep public beta on 1.0.0; prepare_beta increments the Apple build number.
+      # This does not bypass or guarantee exemption from Apple beta review.
+      SFERA_RELEASE_VERSION: '1.0.0'
       EXPO_PUBLIC_GIT_COMMIT: ${{ needs.validate.outputs.sha }}
       EXPO_PUBLIC_CONVEX_URL: https://artificiallabs-convex.bebra42.ru
       EXPO_PUBLIC_CONVEX_SITE_URL: https://artificiallabs-convex-site.bebra42.ru

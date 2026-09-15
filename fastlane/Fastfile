@@ -43,6 +43,10 @@ def release_receipt
       UI.user_error!('Release ledger/tag identity mismatch') unless
         data['schema'] == 1 && data['sha'] == required('RELEASE_SHA') &&
         data['tag'] == required('RELEASE_TAG') && data['build'].to_s.match?(/\A[1-9]\d*\z/)
+      # Old receipts predate separate source/app versions. Never reinterpret an
+      # uploaded 1.0.1 receipt as 1.0.0 when resuming after a policy change.
+      recorded_version = data['app_version'] || data.fetch('tag').delete_prefix('v')
+      UI.user_error!('Release receipt app version changed') unless recorded_version == required('SFERA_RELEASE_VERSION')
       return [found, data]
     end
     return nil if releases.length < 100
@@ -90,6 +94,7 @@ platform :ios do
         builds.any? { |b| !b.version.match?(/\A[1-9]\d*\z/) }
       number = ([7, Integer(required('GITHUB_RUN_NUMBER'))] + builds.map { |b| b.version.to_i }).max + 1
       data = { schema: 1, tag: required('RELEASE_TAG'), sha: required('RELEASE_SHA'),
+               app_version: required('SFERA_RELEASE_VERSION'),
                build: number, state: 'reserved' }
       release = gh_json(ledger_path, '--method', 'POST', '--input', '-', input: JSON.generate({
         tag_name: data[:tag], target_commitish: data[:sha], name: "iOS beta #{data[:tag]}",
@@ -233,7 +238,7 @@ platform :ios do
     data['assigned_to_public_group'] = group.fetch_builds.any? { |b| b.id == build.id }
     save_receipt(release, data)
     File.open(required('GITHUB_STEP_SUMMARY'), 'a') do |f|
-      f.puts "## iOS beta\nTag: #{data['tag']}\n\nSHA: #{data['sha']}\n\nBuild: #{data['build']}\n\nRuntime: #{data['runtime']}\n\nApple status: #{data['state']}"
+      f.puts "## iOS beta\nSource tag: #{data['tag']}\n\nApp version: #{required('SFERA_RELEASE_VERSION')}\n\nSHA: #{data['sha']}\n\nBuild: #{data['build']}\n\nRuntime: #{data['runtime']}\n\nApple status: #{data['state']}"
       f.puts "\nAssigned to public group: #{data['assigned_to_public_group']}"
       f.puts "\nPublic availability requires IN_BETA_TESTING and membership in the configured group."
     end

@@ -20,6 +20,9 @@ test('release upload is gated by complete verification, never PR or main push', 
   }
   assert.doesNotMatch(workflow, /ota-release|promote-production|e2e:sms|supply|deliver_to_app_store/);
   assert.match(workflow, /cancel-in-progress: false/);
+  assert.match(workflow, /SFERA_RELEASE_VERSION: '1\.0\.0'/);
+  assert.doesNotMatch(workflow, /SFERA_RELEASE_VERSION:.*needs\.validate/);
+  assert.match(lanes, /app_version: required\('SFERA_RELEASE_VERSION'\)/);
   assert.ok(workflow.indexOf('node scripts/prepare-document-ocr.mjs') < workflow.indexOf('node scripts/package-document-ocr-ios.mjs'));
   assert.ok(workflow.indexOf('node scripts/package-document-ocr-ios.mjs') < workflow.indexOf('npx expo prebuild'));
 });
