@@ -3204,45 +3204,29 @@ export function ScanFlowOverlay({
       />
     );
 
-  const transitionTransform = reduceMotion
-    ? []
-    : transitionIntent.current === 'forward'
-      ? [
-          {
-            translateX: transition.interpolate({
-              inputRange: [0, 1],
-              outputRange: [28, 0],
-            }),
-          },
-        ]
-      : transitionIntent.current === 'back'
-        ? [
-            {
-              translateX: transition.interpolate({
-                inputRange: [0, 1],
-                outputRange: [-28, 0],
-              }),
-            },
-          ]
-        : transitionIntent.current === 'modal'
-          ? [
-              {
-                translateY: transition.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [20, 0],
-                }),
-              },
-            ]
-          : transitionIntent.current === 'result'
-            ? [
-                {
-                  translateY: transition.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [8, 0],
-                  }),
-                },
-              ]
-            : [];
+  // Keep both native transform axes present when switching transition types.
+  // Removing translateX for a fade can leave the previous page offset applied.
+  const intent = transitionIntent.current;
+  const transitionTransform = [
+    {
+      translateX: transition.interpolate({
+        inputRange: [0, 1],
+        outputRange: [
+          reduceMotion ? 0 : intent === 'forward' ? 28 : intent === 'back' ? -28 : 0,
+          0,
+        ],
+      }),
+    },
+    {
+      translateY: transition.interpolate({
+        inputRange: [0, 1],
+        outputRange: [
+          reduceMotion ? 0 : intent === 'modal' ? 20 : intent === 'result' ? 8 : 0,
+          0,
+        ],
+      }),
+    },
+  ];
 
   return (
     <View style={styles.overlay}>
