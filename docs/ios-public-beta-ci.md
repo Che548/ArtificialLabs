@@ -6,6 +6,13 @@ stable release tags. Validation runs again immediately before upload. Main
 still deploys web/Convex independently. Android, OTA and App Store submission
 are not performed by this workflow.
 
+Public beta now stays on the **1.0.0 marketing version** (owner-approved
+2026-09-15). A new source tag such as `v1.0.2` creates `1.0.0 (10)` or the next
+free higher Apple build number, not an app marketed as 1.0.2. Tags remain
+immutable source identifiers. No bulk release of 100 builds is performed.
+Apple may still require beta review for any build; keeping the marketing
+version unchanged is not a review bypass. Already-uploaded 1.0.1 (8) is untouched.
+
 ## One-time setup (before creating a release tag)
 
 An administrator must protect `v*` against updates/deletions with a repository
@@ -52,7 +59,8 @@ export-reporting obligations.
 
 ### Version identity
 
-The marketing version is the tag without `v`. `app.config.ts` accepts
+The workflow pins the marketing version to `1.0.0`, separately from the
+source tag's SemVer. `app.config.ts` accepts
 `SFERA_RELEASE_VERSION` and `SFERA_IOS_BUILD_NUMBER` only for the explicit
 `SFERA_IOS_APP_STORE=1` identity; local development keeps its original identity.
 Store builds without both values fail rather than silently reusing build 7.
@@ -60,8 +68,10 @@ Dependency versions do not follow the release tag; runtime stays fingerprint-bas
 StripCV's own algorithm version is incremented when its measured-pixel processing
 changes, independently of the application version.
 
-A private **draft GitHub release** reserves a JSON receipt with tag, SHA,
-monotonic integer build number and delivery state. Do not edit, publish or
+A private **draft GitHub release** reserves a JSON receipt with source tag, SHA,
+app version, monotonic integer build number and delivery state. Old receipts
+without app version retain their original tag-derived version; changing it on
+rerun is rejected, not treated as permission for another upload. Do not edit, publish or
 delete this draft: it is the retry ledger, not a downloadable GitHub release.
 The build number exceeds existing integer iOS TestFlight build numbers, 7 and
 the workflow run number. Store uploads outside this serialized workflow must

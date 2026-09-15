@@ -33,6 +33,17 @@ end
 @releases = [{ 'id' => 1, 'draft' => true, 'tag_name' => 'untagged-example',
                'body' => JSON.generate(@receipt) }]
 raise 'Lost draft receipt' unless release_receipt.last == @receipt
+ENV['SFERA_RELEASE_VERSION'] = '1.0.0'
+begin
+  release_receipt
+  raise 'Legacy app version changed silently'
+rescue RuntimeError => e
+  raise unless e.message.include?('app version changed')
+end
+@releases.first['body'] = JSON.generate(@receipt.merge('app_version' => '1.0.0'))
+raise 'Separate source/app versions rejected' unless release_receipt.last['app_version'] == '1.0.0'
+ENV['SFERA_RELEASE_VERSION'] = '1.0.1'
+@releases.first['body'] = JSON.generate(@receipt)
 save_receipt(@releases.first, @receipt)
 raise 'PATCH lost tag' unless @saved['tag_name'] == 'v1.0.1'
 @releases.first['body'] = JSON.generate(@receipt.merge('sha' => 'c' * 40))
