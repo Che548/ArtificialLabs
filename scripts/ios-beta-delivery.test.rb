@@ -9,6 +9,16 @@ def lane(name, &block) = (@lanes ||= {})[name] = block
 module UI
   def self.user_error!(message) = raise(message)
 end
+module Spaceship
+  module ConnectAPI
+    def self.patch_builds(build_id:, attributes:)
+      raise 'Wrong compliance answer' unless attributes == { usesNonExemptEncryption: false }
+      $patched_build.uses_non_exempt_encryption = false
+      $patched_build.build_beta_detail.external_build_state = 'READY_FOR_BETA_SUBMISSION'
+      $compliance_patches += 1
+    end
+  end
+end
 load File.expand_path('../fastlane/Fastfile', __dir__)
 ENV['RELEASE_TAG'] = 'v1.0.1'
 ENV['RELEASE_SHA'] = 'a' * 40
@@ -37,6 +47,7 @@ def apple_session = [nil, nil, @group]
 def exact_build(*) = @build
 def upload_to_testflight(**options)
   raise 'Duplicate binary upload' unless options[:distribute_only]
+  raise 'Interactive platform prompt' unless options[:app_platform] == 'ios'
   @submissions += 1
   @build.build_beta_detail.external_build_state = 'WAITING_FOR_BETA_REVIEW'
   @assigned << @build # Pilot submits review, then assigns the group.
@@ -64,6 +75,7 @@ Dir.mktmpdir do |dir|
     raise 'Duplicate group' unless @assigned.length == 1
   end
   %w[MISSING_EXPORT_COMPLIANCE IN_EXPORT_COMPLIANCE_REVIEW BETA_REJECTED EXPIRED].each do |state|
+    @build.uses_non_exempt_encryption = true
     @submissions = 0
     @assigned.clear
     @build.build_beta_detail.external_build_state = state
@@ -75,5 +87,12 @@ Dir.mktmpdir do |dir|
     end
     raise 'Submitted blocked build' unless @submissions.zero? && @assigned.empty?
   end
+  @build.uses_non_exempt_encryption = nil
+  @build.build_beta_detail.external_build_state = 'MISSING_EXPORT_COMPLIANCE'
+  $patched_build = @build
+  $compliance_patches = 0
+  @lanes[:deliver_beta].call
+  @lanes[:deliver_beta].call
+  raise 'Compliance not idempotent' unless $compliance_patches == 1 && @submissions == 1
 end
 puts 'Beta delivery: draft recovery, SHA protection, review ordering and retries passed'

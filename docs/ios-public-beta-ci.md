@@ -35,6 +35,23 @@ not been provisioned by adding these files.
 
 ## Build identity and reruns
 
+### Encryption questionnaire
+
+The owner approved these answers on 2026-09-15: standard third-party
+cryptography (including SQLCipher), no proprietary algorithms, no distribution
+in France. Apple's declaration API rejects document-declaration creation for
+this combination; the corresponding build answer is
+`usesNonExemptEncryption=false`, not a claim that the app uses no encryption.
+`app.config.ts` embeds `ITSAppUsesNonExemptEncryption=false` for future IPAs.
+The delivery lane fills only an unanswered (`null`) answer on an already
+uploaded build in `MISSING_EXPORT_COMPLIANCE`, then waits at most one minute.
+Existing `true` answers, rejected declarations and export review are never
+overwritten. Reconsider both settings before changing cryptography or enabling
+France. This does not change storefront availability or replace any separate
+export-reporting obligations.
+
+### Version identity
+
 The marketing version is the tag without `v`. `app.config.ts` accepts
 `SFERA_RELEASE_VERSION` and `SFERA_IOS_BUILD_NUMBER` only for the explicit
 `SFERA_IOS_APP_STORE=1` identity; local development keeps its original identity.

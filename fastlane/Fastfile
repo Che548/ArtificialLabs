@@ -195,11 +195,27 @@ platform :ios do
       sleep 30
     end
     UI.user_error!('Apple rejected processing this binary') unless build.processing_state == 'VALID'
+    # Owner-approved 2026-09-15: standard third-party crypto, no France.
+    # Matches ITSAppUsesNonExemptEncryption in app.config.ts; NOT "no crypto".
+    # Reassess when algorithms/territories change. Never overwrite a true value
+    # or an existing declaration/review. This also resumes older uploaded IPAs.
+    if build.build_beta_detail&.external_build_state == 'MISSING_EXPORT_COMPLIANCE' &&
+       build.uses_non_exempt_encryption.nil?
+      Spaceship::ConnectAPI.patch_builds(build_id: build.id,
+        attributes: { usesNonExemptEncryption: false })
+      12.times do
+        build = exact_build(app, data.fetch('build'))
+        break if build && build.build_beta_detail&.external_build_state != 'MISSING_EXPORT_COMPLIANCE'
+        sleep 5
+      end
+      UI.user_error!('Apple compliance update still processing; rerun later, do not re-upload') unless
+        build && build.build_beta_detail&.external_build_state != 'MISSING_EXPORT_COMPLIANCE'
+    end
     state = build.build_beta_detail&.external_build_state
     unless %w[WAITING_FOR_BETA_REVIEW IN_BETA_REVIEW IN_BETA_TESTING].include?(state)
       UI.user_error!("Apple beta requires manual action: #{state}; binary is already uploaded, do not re-upload") if
         %w[BETA_REJECTED MISSING_EXPORT_COMPLIANCE IN_EXPORT_COMPLIANCE_REVIEW EXPIRED].include?(state)
-      upload_to_testflight(api_key: key, distribute_only: true,
+      upload_to_testflight(api_key: key, distribute_only: true, app_platform: 'ios',
         app_identifier: BUNDLE_ID, app_version: required('SFERA_RELEASE_VERSION'),
         build_number: data.fetch('build').to_s, distribute_external: true,
         groups: [group.name], notify_external_testers: true,

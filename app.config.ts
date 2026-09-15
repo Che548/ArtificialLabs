@@ -47,6 +47,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     buildNumber: appStoreBuild ? releaseBuild : (baseConfig.ios?.buildNumber ?? '1'),
     infoPlist: {
       ...(baseConfig.ios?.infoPlist ?? {}),
+      // Owner-approved 2026-09-15: standard third-party crypto, no France.
+      // No Apple encryption documentation for this questionnaire branch.
+      // Reassess with any cryptography or distribution-territory change.
+      ITSAppUsesNonExemptEncryption: false,
       ...(localOtaE2E
         ? {
             NSAppTransportSecurity: {
