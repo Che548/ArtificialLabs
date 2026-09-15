@@ -111,6 +111,12 @@ jobs:
         run: node scripts/ios-release-tag.mjs
       - name: Reserve build and verify public TestFlight group
         run: bundle exec fastlane ios prepare_beta
+      - name: Build pinned OCR native dependencies
+        if: env.IOS_BUILD_EXISTS != 'true'
+        run: |
+          command -v cmake >/dev/null || brew install cmake
+          node scripts/prepare-document-ocr.mjs
+          node scripts/package-document-ocr-ios.mjs
       - name: Generate native App Store project
         if: env.IOS_BUILD_EXISTS != 'true'
         env:

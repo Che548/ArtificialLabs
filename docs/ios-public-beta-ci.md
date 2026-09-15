@@ -64,6 +64,12 @@ uploaded as public Actions artifacts. Hosted runners must remain ephemeral.
 An identical pre-existing local provisioning profile may be reused, but is never
 removed by cleanup. A differing profile at the same UUID is rejected untouched.
 
+Clean runners must run `prepare-document-ocr.mjs` (lock-file SHA-256 checks)
+and `package-document-ocr-ios.mjs` before Expo prebuild/pod install. The existing
+OCR XCFramework, headers and language resources are generated/ignored files,
+not repository contents. A local machine's prebuilt OCR cache is not a CI
+dependency. Both device and simulator slices are built by the existing script.
+
 GitHub hides `bypass_actors` from callers without write access to the ruleset.
 An absent property from a collaborator's API response is not evidence of an
 empty bypass list; verify that list with the owner's account.

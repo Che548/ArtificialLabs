@@ -15,6 +15,8 @@ test('release upload is gated by complete verification, never PR or main push', 
   }
   assert.doesNotMatch(workflow, /ota-release|promote-production|e2e:sms|supply|deliver_to_app_store/);
   assert.match(workflow, /cancel-in-progress: false/);
+  assert.ok(workflow.indexOf('node scripts/prepare-document-ocr.mjs') < workflow.indexOf('node scripts/package-document-ocr-ios.mjs'));
+  assert.ok(workflow.indexOf('node scripts/package-document-ocr-ios.mjs') < workflow.indexOf('npx expo prebuild'));
 });
 test('no upload before current tag check and IPA verification', () => {
   const finalCheck = workflow.lastIndexOf('run: node scripts/ios-release-tag.mjs');
