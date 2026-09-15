@@ -31,7 +31,13 @@ def release_receipt
   page = 1
   loop do
     releases = gh_json("#{ledger_path}?per_page=100&page=#{page}")
-    found = releases.find { |r| r['tag_name'] == required('RELEASE_TAG') }
+    found = releases.find do |r|
+      # GitHub may expose a draft as untagged-* after a metadata-only PATCH.
+      # Recover only our exact receipt; the SHA is still checked below.
+      r['tag_name'] == required('RELEASE_TAG') ||
+        (r['draft'] && r['tag_name'].to_s.start_with?('untagged-') &&
+          (JSON.parse(r['body'].to_s) rescue {})['tag'] == required('RELEASE_TAG'))
+    end
     if found
       data = JSON.parse(found.fetch('body'))
       UI.user_error!('Release ledger/tag identity mismatch') unless
@@ -46,7 +52,7 @@ end
 
 def save_receipt(release, data)
   gh_json("#{ledger_path}/#{release.fetch('id')}", '--method', 'PATCH', '--input', '-',
-          input: JSON.generate({ body: JSON.generate(data) }))
+          input: JSON.generate({ tag_name: required('RELEASE_TAG'), body: JSON.generate(data) }))
 end
 
 def apple_session
@@ -190,11 +196,8 @@ platform :ios do
     end
     UI.user_error!('Apple rejected processing this binary') unless build.processing_state == 'VALID'
     state = build.build_beta_detail&.external_build_state
-    unless group.fetch_builds.any? { |b| b.id == build.id }
-      build.add_beta_groups(beta_groups: [group])
-    end
     unless %w[WAITING_FOR_BETA_REVIEW IN_BETA_REVIEW IN_BETA_TESTING].include?(state)
-      UI.user_error!('Apple beta rejected or requires export-compliance action') if
+      UI.user_error!("Apple beta requires manual action: #{state}; binary is already uploaded, do not re-upload") if
         %w[BETA_REJECTED MISSING_EXPORT_COMPLIANCE IN_EXPORT_COMPLIANCE_REVIEW EXPIRED].include?(state)
       upload_to_testflight(api_key: key, distribute_only: true,
         app_identifier: BUNDLE_ID, app_version: required('SFERA_RELEASE_VERSION'),
@@ -204,6 +207,12 @@ platform :ios do
         wait_processing_timeout_duration: 1800)
     end
     build = exact_build(app, data.fetch('build'))
+    # Pilot submits beta review BEFORE assigning external groups. Doing this
+    # earlier fails with Apple's "Build is not externally assignable" error.
+    # Also repair membership on retries of an already-submitted build.
+    unless group.fetch_builds.any? { |b| b.id == build.id }
+      build.add_beta_groups(beta_groups: [group])
+    end
     data['state'] = build.build_beta_detail&.external_build_state || 'processing'
     data['assigned_to_public_group'] = group.fetch_builds.any? { |b| b.id == build.id }
     save_receipt(release, data)

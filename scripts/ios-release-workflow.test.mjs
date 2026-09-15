@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+
+test('beta delivery handles Apple ordering and draft receipt retries', () => {
+  execFileSync('ruby', ['scripts/ios-beta-delivery.test.rb'], { stdio: 'pipe' });
+});
 
 const workflow = readFileSync('.github/workflows/ios-public-beta.yml', 'utf8');
 const lanes = readFileSync('fastlane/Fastfile', 'utf8');
