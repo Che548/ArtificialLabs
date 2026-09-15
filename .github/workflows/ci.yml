@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: ['**'] # Release tags have their own full verification workflow.
   pull_request:
 
 permissions:
@@ -23,6 +24,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Select affected heavy checks
+        id: affected
+        run: node scripts/ci-affected.mjs
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -43,15 +50,21 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Test CI change selection
+        run: node --test scripts/ci-affected.test.mjs
+
       - name: Install StripCV build dependencies
+        if: steps.affected.outputs.native == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y cmake libopencv-dev
 
       - name: Build and smoke-test StripCV
+        if: steps.affected.outputs.native == 'true'
         run: npm run test:strip-cv
 
       - name: Verify CV demo with the shared native reader
+        if: steps.affected.outputs.cv == 'true'
         # Use the same OpenCV as deployment; Ubuntu's 4.6 cannot load R2 ONNX.
         run: docker build --target browser-test -f CV_Demo_WebAPP/Dockerfile .
 

@@ -107,3 +107,12 @@ First release: complete the prerequisites and tests, select a reviewed main
 commit, create an annotated `v1.0.1` (or a higher intended SemVer), and push that
 exact tag. Do not use `git push --tags`, move an old tag or trigger a production
 OTA workflow as part of this procedure.
+# Incremental branch CI
+
+Ordinary branch pushes and pull requests always run unit tests and `verify`.
+The expensive native StripCV and Docker CV-demo suites run only when their
+inputs change (including models, dependencies, scripts and CI configuration).
+Push comparisons cover the entire before/after range; PR comparisons use the
+merge base. Missing history runs both suites. A skipped suite is reported as
+not affected, not as a newly passed test. Release tags run all checks regardless
+of changed paths; the ordinary CI does not duplicate tag runs.

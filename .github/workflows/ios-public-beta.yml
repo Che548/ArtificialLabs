@@ -35,6 +35,7 @@ jobs:
         run: node scripts/ios-release-tag.mjs
       - run: npm ci && npm --prefix admin ci
       - run: node --test scripts/ios-release-tag.test.mjs
+      - run: node --test scripts/ci-affected.test.mjs
       - run: npm test
       - name: Native StripCV tests (no skips or relaxed thresholds)
         run: |
