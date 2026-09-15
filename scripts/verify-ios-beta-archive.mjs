@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +22,9 @@ try {
   const entitlements = JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', '-'],
     { input: entitlementXml, encoding: 'utf8' }));
   const updates = plist('Expo.plist');
-  const runtime = validateArchiveRuntime(entitlements, updates);
+  const embeddedFingerprint = updates.EXUpdatesRuntimeVersion === 'file:fingerprint'
+    ? readFileSync(join(app, 'EXUpdates.bundle', 'fingerprint'), 'utf8') : undefined;
+  const runtime = validateArchiveRuntime(entitlements, updates, embeddedFingerprint);
   writeFileSync('output/ios-beta/runtime.txt', `${runtime}\n`);
   console.log(`Verified signed IPA ${info.CFBundleShortVersionString} (${info.CFBundleVersion}), runtime ${runtime}`);
 } finally {

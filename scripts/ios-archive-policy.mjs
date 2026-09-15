@@ -6,11 +6,14 @@ export function validateArchiveIdentity(info, version, build) {
   }
 }
 
-export function validateArchiveRuntime(entitlements, updates) {
+export function validateArchiveRuntime(entitlements, updates, embeddedFingerprint) {
   if (entitlements['com.apple.developer.team-identifier'] !== '6HZGXYF43L' ||
       entitlements['application-identifier'] !== '6HZGXYF43L.engineering.brainwaves.sfera' ||
       entitlements['get-task-allow'] === true) throw new Error('Wrong archive signing entitlements');
-  const runtime = updates.EXUpdatesRuntimeVersion;
+  // Expo SDK 54 resolves this sentinel from EXUpdates.bundle/fingerprint.
+  // Validate the actual resource, never treat the sentinel itself as a runtime.
+  const runtime = updates.EXUpdatesRuntimeVersion === 'file:fingerprint'
+    ? embeddedFingerprint : updates.EXUpdatesRuntimeVersion;
   if (typeof runtime !== 'string' || !/^[a-f0-9]{12,64}$(?![\s\S])/.test(runtime)) {
     throw new Error('Missing fingerprint runtime in archive');
   }

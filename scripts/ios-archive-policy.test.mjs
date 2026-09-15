@@ -26,3 +26,12 @@ test('runtime remains a fingerprint and anti-bricking must remain enabled', () =
     assert.throws(() => validateArchiveRuntime(entitlements, { ...updates, ...change }));
   }
 });
+test('SDK 54 file sentinel requires the actual signed fingerprint resource', () => {
+  const fromFile = { ...updates, EXUpdatesRuntimeVersion: 'file:fingerprint' };
+  const hash = 'a'.repeat(40);
+  assert.equal(validateArchiveRuntime(entitlements, fromFile, hash), hash);
+  for (const invalid of [undefined, '', 'file:fingerprint', '1.0.1', hash + '\n']) {
+    assert.throws(() => validateArchiveRuntime(entitlements, fromFile, invalid));
+  }
+  assert.throws(() => validateArchiveRuntime(entitlements, { ...fromFile, EXUpdatesEnabled: false }, hash));
+});
