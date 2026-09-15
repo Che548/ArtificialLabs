@@ -1,14 +1,15 @@
+import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
+import { ProfileDocumentPermissions } from '../components/ProfileDocumentPermissions';
+import { useIOSSwipe } from '../lib/use-ios-swipe';
 import { useDailySymptomsPrompt } from '../lib/daily-symptoms-prompt-context';
 import SymptomsIcon from '../assets/today/planning-symptoms.svg';
 import { ProfileAppearanceScope } from '../lib/profile-appearance';
-import { LegalDocumentsButton } from '../components/LegalDocumentsModal';
 import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { colors as defaultThemeColors } from '../design-system/tokens';
 import { filterInput } from '../lib/input-format';
 import { AppSheet, sheetStyles, useSheetStyles } from '../components/AppSheet';
 import { ProfileCollapse } from '../components/ProfileMotion';
 import { fontStyle } from '../lib/font-style';
-import { FontLicenses } from '../components/FontLicenses';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import * as DocumentPicker from 'expo-document-picker';
@@ -334,7 +335,11 @@ function ProfileContent() {
   }, []);
 
   useEffect(() => {
-    if (!activeSection) return undefined;
+    if (!activeSection) {
+      sectionProgress.stopAnimation();
+      sectionProgress.setValue(0);
+      return undefined;
+    }
 
     sectionProgress.stopAnimation();
     if (reducePageMotion) {
@@ -542,6 +547,21 @@ function ProfileContent() {
     });
   };
 
+  const backSwipe = useIOSSwipe({
+    axis: 'horizontal', positiveOnly: true, edgeOnly: true,
+    enabled: Boolean(activeSection && activeSection !== 'onboarding'),
+    onStart: () => sectionProgress.stopAnimation(),
+    onDrag: (distance) => sectionProgress.setValue(1 - Math.min(distance / windowWidth, 1)),
+    onCancel: () => {
+      if (!activeSection) { sectionProgress.setValue(0); return; }
+      if (reducePageMotion) sectionProgress.setValue(1);
+      else Animated.spring(sectionProgress, {
+        toValue: 1, damping: 24, stiffness: 280, useNativeDriver: true,
+      }).start();
+    },
+    onSwipe: closeSection,
+  });
+
   return (
     <View style={styles.root}>
       <ThemeStatusBar hidden={false} />
@@ -550,16 +570,16 @@ function ProfileContent() {
         style={[
           styles.profilePage,
           {
-            opacity: sectionProgress.interpolate({
+            opacity: activeSection ? sectionProgress.interpolate({
               inputRange: [0, 1],
               outputRange: [1, 0.94],
-            }),
+            }) : 1,
             transform: [
               {
-                translateX: sectionProgress.interpolate({
+                translateX: activeSection ? sectionProgress.interpolate({
                   inputRange: [0, 1],
                   outputRange: [0, -windowWidth * 0.22],
-                }),
+                }) : 0,
               },
             ],
           },
@@ -575,7 +595,7 @@ function ProfileContent() {
             styles.scrollContent,
             {
               paddingTop: insets.top + 20,
-              paddingBottom: Math.max(insets.bottom + 112, 128),
+              paddingBottom: Math.max(insets.bottom + 76, 92),
             },
           ]}
         >
@@ -603,18 +623,17 @@ function ProfileContent() {
             }
             onOpen={openSection}
           />
-          <LegalDocumentsButton />
           <ProfileVersionFooter
             onPress={handleVersionPress}
             updateCreatedAt={updateManager.currentUpdateCreatedAt}
             updateId={updateManager.currentUpdateId}
           />
-          <FontLicenses />
         </ScrollView>
       </Animated.View>
 
       {activeSection && activeSection !== 'onboarding' ? (
         <Animated.View
+          {...backSwipe}
           style={[
             styles.detailPage,
             {
@@ -709,7 +728,7 @@ function ProfileContent() {
                 setNotificationTone,
                 setResultNotifications,
                 sendTestNotification: notificationManager.sendTest,
-                signOut: () => void signOutSafely(),
+                signOut: () => Alert.alert('Выйти из аккаунта?', 'Вы сможете войти снова в любое время.', [{ text: 'Отмена', style: 'cancel' }, { text: 'Выйти', style: 'destructive', onPress: () => void signOutSafely() }]),
                 requestAccountDeletion,
                 serviceIssue,
                 changeAiChatEnabled,
@@ -910,31 +929,7 @@ function ProfileOverview({
         />
       </ProfileSettingsGroup>
 
-      <ProfileSettingsGroup title="Разработка">
-        <ProfileSettingsRow
-          icon="sparkles.rectangle.stack.fill"
-          fallback="ОБ"
-          iconBackground="#F4E7EB"
-          iconColor={colors.brand.primary}
-          label="Онбординг"
-          value="5 вариантов"
-          isLast
-          onPress={() => onOpen('onboarding')}
-        />
-      </ProfileSettingsGroup>
 
-      <ProfileSettingsGroup title="Сохранённые экраны">
-        <ProfileSettingsRow
-          icon="heart.circle"
-          fallback="ПЛ"
-          iconBackground="#FFF0F4"
-          iconColor={colors.brand.primary}
-          label="Сегодня · Планирование"
-          value="Вариант"
-          isLast
-          onPress={() => onOpen('planning-today-ui-kit')}
-        />
-      </ProfileSettingsGroup>
     </View>
   );
 }
@@ -1157,36 +1152,16 @@ function ProfileDetailScreen({
 }) {
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
-  const { mode } = useAppTheme();
   return (
     <View style={styles.root}>
       <ThemeStatusBar hidden={false} />
+      <TopChromeBackdrop headerTop={topInset + 8} style={{ height: topInset + 90 }} strength={12} />
       <View
         style={[
           styles.detailHeader,
           { paddingTop: topInset + 8 },
-          styles.detailHeaderWithFade,
         ]}
       >
-        <View pointerEvents="none" style={styles.detailHeaderOpaque} />
-        <LinearGradient
-          pointerEvents="none"
-          colors={[
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},1)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.972)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.896)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.784)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.648)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.5)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.352)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.216)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.104)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0.028)`,
-            `rgba(${mode === 'dark' ? '22,20,23' : '245,243,243'},0)`,
-          ]}
-          locations={[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]}
-          style={styles.detailHeaderFade}
-        />
         <GlassControl
           accessibilityLabel="Вернуться в профиль"
           onPress={onBack}
@@ -1205,6 +1180,7 @@ function ProfileDetailScreen({
         <View style={styles.headerSpacer} />
       </View>
       <ScrollView
+        style={{ flex: 1 }}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
@@ -1213,7 +1189,7 @@ function ProfileDetailScreen({
         contentContainerStyle={[
           styles.detailContent,
           {
-            paddingTop: topInset + 84,
+            paddingTop: topInset + 82,
             paddingBottom: compactBottom
               ? Math.max(bottomInset + 64, 80)
               : Math.max(bottomInset + 112, 128),
@@ -1390,6 +1366,7 @@ function PhoneVerificationRow({
 
   return (
     <View style={styles.phoneVerificationRow}>
+      <AppText style={styles.phoneVerificationLabel}>Номер телефона</AppText>
       <View style={styles.phoneVerificationInputRow}>
         <TextInput
           accessibilityLabel="Российский номер телефона"
@@ -1400,10 +1377,13 @@ function PhoneVerificationRow({
           onChangeText={(value) =>
             setInput(filterInput(value, 'phone').slice(0, 12))
           }
-          onSubmitEditing={() => void requestCode()}
           placeholder="+7 999 000-00-00"
           placeholderTextColor={colors.text.secondary}
-          returnKeyType="send"
+          returnKeyType="default"
+          autoComplete="tel"
+          textContentType="telephoneNumber"
+          autoCorrect={false}
+          selectionColor={colors.brand.primary}
           style={[
             styles.phoneVerificationInput,
             styles.phoneVerificationInputFlex,
@@ -1715,9 +1695,9 @@ function ProfileSectionContent({
                 isLast
               />
               {serviceIssue?.kind === 'update-required' ? <UpdateRequiredNotice localChangesSaved /> : serviceIssue ? (
-                <View accessibilityRole="alert">
+                <View accessibilityRole="alert" style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
                   <AppText style={styles.transferCaption} color={colors.text.secondary}>
-                    {serviceIssue.message}
+                    {serviceIssue.conflict ? 'Версии данных различаются. Ваши изменения сохранены на устройстве.' : serviceIssue.message}
                   </AppText>
                 </View>
               ) : null}
@@ -1780,6 +1760,8 @@ function ProfileSectionContent({
               onDelete={clearAgentData}
             />
           </ProfileSettingsGroup>
+
+          <ProfileDocumentPermissions />
 
           <ProfileSettingsGroup title="Устройство и приватность">
             <PermissionAction
@@ -2617,6 +2599,7 @@ function AccountDataActions({
 }) {
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
+  const { serviceIssue } = useHealthStore();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
   const running = useRef(false);
@@ -2687,10 +2670,10 @@ function AccountDataActions({
         }
         isLast
       />
-      {message ? (
+      {message || serviceIssue ? (
         <View style={styles.transferDetails}>
           <AppText style={styles.transferCaption} color={colors.text.secondary}>
-            {message}
+            {serviceIssue?.message ?? message}
           </AppText>
         </View>
       ) : null}
@@ -2746,21 +2729,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   phoneVerificationRow: {
     gap: 12,
-    paddingLeft: 14,
-    paddingRight: 18,
+    paddingTop: 12,
     paddingBottom: 16,
   },
+  phoneVerificationLabel: {
+    fontSize: 14,
+    lineHeight: 18,
+    color: colors.text.secondary,
+  },
   phoneVerificationInput: {
-    height: 48,
+    height: 56,
     paddingVertical: 0,
-    paddingBottom: Platform.OS === 'ios' ? 6 : 0,
     textAlignVertical: 'center',
-    borderRadius: radii.md,
-    backgroundColor: colors.surface.canvas,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.surface.divider,
+    backgroundColor: colors.surface.raised,
     color: colors.text.primary,
     paddingHorizontal: spacing.md,
     ...fontStyle('SFProDisplay-Regular'),
-    fontSize: 15,
+    fontSize: 17,
     includeFontPadding: false,
   },
   phoneVerificationInputRow: {
@@ -2822,36 +2810,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   detailHeader: {
     position: 'absolute',
-    zIndex: 10,
+    top: 0,
     left: 0,
     right: 0,
-    top: 0,
+    zIndex: 10,
     paddingHorizontal: sizes.screenGutter,
     paddingBottom: 10,
-    backgroundColor: `${colors.surface.canvas}f0`,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  detailHeaderWithFade: {
-    backgroundColor: 'transparent',
-    paddingBottom: 32,
-  },
-  detailHeaderOpaque: {
-    position: 'absolute',
-    top: 0,
-    bottom: 80,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surface.canvas,
-  },
-  detailHeaderFade: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-  },
+
+
+
   backButton: {
     width: 48,
     height: 48,
@@ -2987,9 +2958,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface.canvas,
     paddingHorizontal: spacing.md,
     paddingVertical: 0,
-    // UITextField centers its line box, whose glyphs sit below the visual
-    // midpoint. Balance that baseline inset without moving the field itself.
-    paddingBottom: Platform.OS === 'ios' ? 6 : 0,
+    flexShrink: 0,
     textAlignVertical: 'center',
     includeFontPadding: false,
     fontSize: 16,

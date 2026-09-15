@@ -1,8 +1,8 @@
+import { useIOSSwipe } from '../lib/use-ios-swipe';
 import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { colors as defaultThemeColors } from './tokens';
 import { toggleCalendarPeriodDays } from '../lib/calendar-period-selection';
 import { overlayRadii } from './tokens';
-import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -1640,6 +1640,15 @@ function CalendarPageModalBase({
     }
   };
 
+  const backSwipe = useIOSSwipe({
+    axis: 'horizontal', positiveOnly: true, edgeOnly: true,
+    enabled: visible && !periodMarkingMode,
+    onSwipe: () => {
+      if (dayDetailsVisible) dismissDayDetails();
+      else onClose();
+    },
+  });
+
   return (
     <Modal
       animationType={reduceMotion ? 'none' : 'slide'}
@@ -1648,7 +1657,7 @@ function CalendarPageModalBase({
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.modalRoot}>
+      <View style={styles.modalRoot} {...backSwipe}>
         <StatusBar style={useAppTheme().mode === 'dark' ? 'light' : 'dark'} hidden={false} />
         <View
           style={{
@@ -2069,7 +2078,6 @@ function CalendarPageModalBase({
                 ]}
               />
 
-              <TopChromeBackdrop headerTop={headerTop} style={{ zIndex: 7 }} />
               {!periodMarkingMode ? (
                 <CalendarGlassGroup
                   spacing={12}
@@ -2089,6 +2097,7 @@ function CalendarPageModalBase({
                   {variant === 'continuous' ? (
                     <View style={styles.calendarModeHeaderSlot}>
                       <SegmentedSwitcher
+                        elevated
                         accessibilityLabel="Масштаб календаря"
                         options={calendarViewModes}
                         value={viewMode}

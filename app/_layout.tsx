@@ -1,3 +1,4 @@
+import { DefaultPermissions } from '../components/DefaultPermissions';
 import { AppThemeProvider, useAppTheme, ThemeStatusBar } from '../lib/theme';
 import { bundledFonts } from '../lib/bundled-fonts';
 import { fontStyle } from '../lib/font-style';
@@ -475,8 +476,9 @@ function Tabs() {
 }
 
 function LoadingAuth() {
+  const { colors } = useAppTheme();
   return (
-    <View className="flex-1 items-center justify-center bg-surface-canvas">
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface.canvas }}>
       <ActivityIndicator color={activeTint} />
     </View>
   );
@@ -560,6 +562,7 @@ function NativeApp() {
 
   return (
     <HealthStoreProvider>
+      <DefaultPermissions />
       <NotificationManagerProvider>
         <TelemetryManager />
         <AgentAutomationManager>

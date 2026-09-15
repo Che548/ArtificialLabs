@@ -64,3 +64,11 @@ test('sync conflicts, revoked consent and bad clocks stay local and never retry 
     assert.doesNotMatch(issue.message, /private-payload-marker|PROFILE_SYNC|RECORD_SYNC/);
   }
 });
+
+
+test('account deletion explains the administrator restriction', () => {
+  const issue = classifyServiceIssue(new Error('REVOKE_ADMIN_BEFORE_ACCOUNT_DELETION'));
+  assert.equal(issue.retryable, false);
+  assert.match(issue.message, /права администратора/);
+  assert.doesNotMatch(issue.message, /REVOKE_ADMIN/);
+});

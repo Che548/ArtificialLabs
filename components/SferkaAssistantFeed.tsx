@@ -1,9 +1,8 @@
+import { useAssistantFeedPosition } from '../lib/use-assistant-feed-position';
 import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
-import { useEffect } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import {
   markAssistantWelcomeRead,
-  useAssistantUnread,
   useAssistantWelcomeCreatedAt,
 } from '../lib/assistant-inbox';
 import { Image, ScrollView, StyleSheet, View } from 'react-native';
@@ -16,26 +15,39 @@ const mascot = require('../assets/figma/chat/mascot.png');
 export function SferkaAssistantFeed({
   topInset,
   bottomInset,
+  active = true,
 }: {
   topInset: number;
   bottomInset: number;
+  active?: boolean;
 }) {
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
   const focused = useIsFocused();
-  const unread = useAssistantUnread();
   const createdAt = useAssistantWelcomeCreatedAt();
   const dateLabel = createdAt == null ? null : new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   }).format(new Date(createdAt));
-  useEffect(() => {
-    if (!focused || !unread) return;
-    const timer = setTimeout(markAssistantWelcomeRead, 1000);
-    return () => clearTimeout(timer);
-  }, [focused, unread]);
+  const feed = useAssistantFeedPosition({
+    active: active && focused,
+    ready: createdAt !== null,
+    readOnly: true,
+    reminders: [],
+    contentKey: String(createdAt),
+    markReminderRead: async () => {},
+    markWelcomeRead: markAssistantWelcomeRead,
+  });
   return (
     <ScrollView
+      ref={feed.scrollRef}
+      testID="assistant-message-feed"
+      style={{ flex: 1, opacity: feed.positioned ? 1 : 0 }}
+      onLayout={feed.onLayout}
+      onContentSizeChange={feed.onContentSizeChange}
+      onScroll={feed.onScroll}
+      onScrollBeginDrag={feed.onScrollBeginDrag}
+      scrollEventThrottle={16}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[
         styles.content,

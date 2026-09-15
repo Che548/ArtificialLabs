@@ -1,17 +1,14 @@
 import { useAction } from 'convex/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppSheet } from './AppSheet';
 import { ProfileSettingsGroup } from '../design-system/profile';
 import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { api } from '../convex/_generated/api';
@@ -430,7 +427,6 @@ export function ProfileContacts({
   const styles = useThemeStyles(createStyles);
   const [modal, setModal] = useState<'phone' | 'email' | null>(null);
   const [notice, setNotice] = useState('');
-  const insets = useSafeAreaInsets();
   const close = () => setModal(null);
   return (
     <>
@@ -491,72 +487,43 @@ export function ProfileContacts({
           {notice}
         </Text>
       )}
-      {modal && (
-        <Modal transparent visible animationType="slide" onRequestClose={close}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.overlay}
-          >
-            <View
-              style={[
-                styles.sheet,
-                {
-                  paddingBottom: Math.max(insets.bottom, 20),
-                  marginTop: insets.top + 12,
-                },
-              ]}
-              accessibilityViewIsModal
-            >
-              <View style={styles.row}>
-                <Text accessibilityRole="header" style={styles.title}>
-                  {modal === 'phone'
-                    ? phone
-                      ? 'Изменить телефон'
-                      : 'Добавить телефон'
-                    : 'Изменить почту'}
-                </Text>
-                <Pressable
-                  testID="contact-modal-close"
-                  accessibilityRole="button"
-                  onPress={close}
-                  style={styles.action}
-                >
-                  <Text style={styles.link}>Закрыть</Text>
-                </Pressable>
-              </View>
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: 16 }}
-              >
-                {modal === 'phone' ? (
-                  phone ? (
-                    <PhoneChangeForm
-                      onDone={async (newPhone) => {
-                        await onPhoneChanged?.(newPhone);
-                        close();
-                        setNotice('Телефон изменён.');
-                      }}
-                    />
-                  ) : (
-                    renderPhone(() => {
-                      close();
-                      setNotice('Телефон подтверждён.');
-                    })
-                  )
-                ) : (
-                  <EmailChangeForm
-                    email={email}
-                    onDone={() => {
-                      close();
-                      setNotice('Электронная почта изменена.');
-                    }}
-                  />
-                )}
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
-      )}
+      <AppSheet
+        visible={modal !== null}
+        title={
+          modal === 'phone'
+            ? phone
+              ? 'Изменить телефон'
+              : 'Добавить телефон'
+            : 'Изменить почту'
+        }
+        onClose={close}
+        closeTestID="contact-modal-close"
+      >
+        {modal === 'phone' ? (
+          phone ? (
+            <PhoneChangeForm
+              onDone={async (newPhone) => {
+                await onPhoneChanged?.(newPhone);
+                close();
+                setNotice('Телефон изменён.');
+              }}
+            />
+          ) : (
+            renderPhone(() => {
+              close();
+              setNotice('Телефон подтверждён.');
+            })
+          )
+        ) : (
+          <EmailChangeForm
+            email={email}
+            onDone={() => {
+              close();
+              setNotice('Электронная почта изменена.');
+            }}
+          />
+        )}
+      </AppSheet>
     </>
   );
 }

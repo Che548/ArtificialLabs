@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { useAuthToken } from '@convex-dev/auth/react';
 import { useConvex, useMutation, useQuery } from 'convex/react';
 import {
@@ -1051,19 +1052,23 @@ export function HealthStoreProvider({
     try {
       const state = await requestRemoteDeletion({});
       setLocalDeletionDeadline(state.scheduledDeletionAt);
+      // The server has accepted deletion. Local cleanup must not roll it back.
       await saveLocalSetting(
         DELETION_DEADLINE_SETTING,
         state.scheduledDeletionAt,
-      );
+      ).catch(() => undefined);
       setCloudSyncEnabledState(false);
       setServiceIssue(undefined);
       chatCloudPrepared.current = false;
-      await clearPendingChatOutbox();
+      await clearPendingChatOutbox().catch(() => undefined);
       return true;
     } catch (error) {
       setLocalDeletionPending(false);
       setLocalDeletionDeadline(undefined);
-      setServiceIssue(classifyServiceIssue(error, offlineRef.current));
+      const issue = classifyServiceIssue(error, offlineRef.current);
+      setServiceIssue(issue);
+      // The optimistic gate may have unmounted the profile action already.
+      Alert.alert('Не удалось удалить аккаунт', issue.message);
       return false;
     }
   }, [readOnly, remoteEnabled, requestRemoteDeletion]);

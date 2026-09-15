@@ -3,7 +3,7 @@ export default defineConfig({
   testDir: '.',
   testMatch: 'contact.spec.ts',
   workers: 1,
-  use: { browserName: 'chromium', headless: true },
+  use: { browserName: 'chromium', channel: process.env.PLAYWRIGHT_CHANNEL, headless: true },
   webServer: {
     command: 'node scripts/contact-ui-preview.mjs',
     cwd: process.cwd(),

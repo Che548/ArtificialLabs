@@ -43,6 +43,9 @@ export function classifyServiceIssue(
   }
 
   const text = errorText(error).toLowerCase();
+  if (/revoke_admin_before_account_deletion/.test(text)) {
+    return { kind: 'auth', retryable: false, message: 'У этого аккаунта есть права администратора. Сначала передайте управление и снимите права в панели администратора, затем повторите удаление.' };
+  }
   if (/cloud_sync_consent_revoked|cloud_sync_consent_required/.test(text)) {
     return { kind: 'auth', retryable: false, message: 'Согласие на облачную синхронизацию отсутствует или отозвано для этой сессии. Проверьте настройку синхронизации. Локальные данные сохранены.' };
   }

@@ -617,6 +617,7 @@ export default function ScanScreen() {
           <View style={styles.canvas}>
             <TopChromeBackdrop headerTop={headerTop} style={{ zIndex: 4 }} />
             <AppHeader
+              elevatedControls
               style={[styles.header, { top: headerTop }]}
               onHistory={() => setHistoryVisible(true)}
               onDate={() => setCalendarVisible(true)}

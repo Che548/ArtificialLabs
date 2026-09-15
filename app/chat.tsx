@@ -387,20 +387,26 @@ export default function ChatScreen() {
   const conversationComposerBottom = keyboardShown
     ? 8
     : Math.max(insets.bottom + 4, 16) - 12;
-  const emptyHeroVisible = chatEmptyHeroFits(
-    window.height,
-    insets.top,
-    composerBottom,
-    mainDockHeight,
-    keyboardShown,
-    !!draft.trim(),
-  );
-  const compactHero = compactHeight ||
-    window.height - composerBottom - mainDockHeight - insets.top - 80 < 340;
+  const keyboardActive = composerFocused || keyboardShown;
+  // Keep the greeting's measured layout while the keyboard animates. Removing
+  // it on keyboardWillShow used to cut off its opacity transition.
+  const heroLayout = useRef({ visible: false, compact: compactHeight });
+  if (!keyboardActive && !draft.trim()) {
+    heroLayout.current = {
+      visible: chatEmptyHeroFits(
+        window.height, insets.top, composerBottom, mainDockHeight, false,
+      ),
+      compact: compactHeight ||
+        window.height - composerBottom - mainDockHeight - insets.top - 80 < 340,
+    };
+  }
+  const emptyHeroVisible = heroLayout.current.visible;
+  const compactHero = heroLayout.current.compact;
   const historyPanelWidth = Math.min(window.width * 0.76, 318);
   const headerTop = getHeaderTop(insets.top);
-  const keyboardActive = composerFocused || keyboardShown;
-  const suggestionsVisible = !keyboardActive && !draft.trim();
+  // Start together with the native keyboard, rather than on the earlier focus.
+  const suggestionsVisible = !keyboardShown && !draft.trim();
+  const keyboardAnimationDuration = useRef(300);
   const suggestionsProgress = useRef(new Animated.Value(1)).current;
   const emptyStateProgress = useRef(
     new Animated.Value(keyboardShown ? 0 : 1),
@@ -584,6 +590,7 @@ export default function ChatScreen() {
 
   useEffect(() => {
     const updateKeyboard = (shown: boolean) => (event: KeyboardEvent) => {
+      keyboardAnimationDuration.current = event.duration > 0 ? event.duration : 300;
       if (Platform.OS === 'ios') Keyboard.scheduleLayoutAnimation(event);
       setKeyboardShown(shown);
       if (!shown) setComposerFocused(false);
@@ -605,14 +612,14 @@ export default function ChatScreen() {
 
   useEffect(() => {
     const animation = Animated.timing(emptyStateProgress, {
-      toValue: keyboardActive ? 0 : 1,
-      duration: reduceMotion ? 0 : keyboardActive ? 150 : 200,
-      easing: Easing.out(Easing.cubic),
+      toValue: suggestionsVisible ? 1 : 0,
+      duration: reduceMotion ? 0 : keyboardAnimationDuration.current,
+      easing: Easing.inOut(Easing.quad),
       useNativeDriver: true,
     });
     animation.start();
     return () => animation.stop();
-  }, [emptyStateProgress, keyboardActive, reduceMotion]);
+  }, [emptyStateProgress, suggestionsVisible, reduceMotion]);
 
   useEffect(() => {
     if (!conversationVisible) return undefined;
@@ -669,8 +676,8 @@ export default function ChatScreen() {
   useEffect(() => {
     const animation = Animated.timing(suggestionsProgress, {
       toValue: suggestionsVisible ? 1 : 0,
-      duration: reduceMotion ? 0 : suggestionsVisible ? 200 : 150,
-      easing: Easing.out(Easing.cubic),
+      duration: reduceMotion ? 0 : keyboardAnimationDuration.current,
+      easing: Easing.inOut(Easing.quad),
       useNativeDriver: false,
     });
 
@@ -1590,7 +1597,7 @@ export default function ChatScreen() {
         ]}
       >
         <ThemeStatusBar />
-        <TopChromeBackdrop headerTop={headerTop} />
+        <TopChromeBackdrop headerTop={headerTop} style={{ height: headerTop + 180 }} />
 
         <View
           onTouchStart={dismissComposer}
@@ -1615,6 +1622,7 @@ export default function ChatScreen() {
         >
           {displayedMode === 'assistant' ? (
             <SferkaAssistantFeed
+              active={headerMode === 'assistant' && !conversationVisible && !historyRendered}
               topInset={headerTop + 72}
               bottomInset={composerBottom + 16}
             />
@@ -1657,6 +1665,21 @@ export default function ChatScreen() {
               </ScrollView>
             </>
           )}
+          <LinearGradient
+            pointerEvents="none"
+            colors={[
+              `${displayedMode === 'assistant' ? colors.surface.canvas : colors.surface.raised}00`,
+              `${displayedMode === 'assistant' ? colors.surface.canvas : colors.surface.raised}60`,
+              `${displayedMode === 'assistant' ? colors.surface.canvas : colors.surface.raised}ff`,
+            ]}
+            locations={[0, 0.65, 1]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={[
+              styles.conversationBottomFade,
+              { height: composerBottom + (displayedMode === 'chat' ? mainDockHeight + 40 : 56) },
+            ]}
+          />
           {displayedMode === 'chat' ? (
           <View
             pointerEvents="box-none"
@@ -1806,7 +1829,7 @@ export default function ChatScreen() {
               ]}
             />
 
-            <TopChromeBackdrop headerTop={headerTop} />
+            <TopChromeBackdrop headerTop={headerTop} style={{ height: headerTop + 180 }} />
             <View style={[styles.headerWrap, { top: headerTop }]}>
               <ChatHeader
                 activeMode={headerMode}
@@ -1897,32 +1920,30 @@ export default function ChatScreen() {
               pointerEvents="none"
               colors={[
                 `${colors.surface.raised}ff`,
-                `${colors.surface.raised}f5`,
+                `${colors.surface.raised}b8`,
                 `${colors.surface.raised}00`,
               ]}
-              locations={[0, 0.56, 1]}
+              locations={[0, 0.3, 1]}
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
-              style={[styles.conversationTopFade, { height: insets.top + 150 }]}
+              style={[styles.conversationTopFade, { height: insets.top + 105 }]}
             />
 
-            {Platform.OS !== 'android' ? (
-              <LinearGradient
-                pointerEvents="none"
-                colors={[
-                  `${colors.surface.raised}00`,
-                  `${colors.surface.raised}b8`,
-                  `${colors.surface.raised}ff`,
-                ]}
-                locations={[0, 0.5, 1]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={[
-                  styles.conversationBottomFade,
-                  { height: conversationComposerBottom + 120 },
-                ]}
-              />
-            ) : null}
+            <LinearGradient
+              pointerEvents="none"
+              colors={[
+                `${colors.surface.raised}00`,
+                `${colors.surface.raised}60`,
+                `${colors.surface.raised}ff`,
+              ]}
+              locations={[0, 0.65, 1]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={[
+                styles.conversationBottomFade,
+                { height: conversationComposerBottom + conversationDockHeight + 56 },
+              ]}
+            />
 
             <Animated.View
               pointerEvents="box-none"

@@ -243,6 +243,7 @@ export function ProfileTabControl({
 }) {
   return (
     <SegmentedSwitcher
+      elevated
       accessibilityLabel="Раздел профиля"
       options={[
         { value: 'profile', label: 'Профиль' },
@@ -966,16 +967,20 @@ function ProfileSelectionPopover<T extends string>({
   const styles = useThemeStyles(createStyles);
   const reducedMotion = useProfileReducedMotion();
   const closing = useRef(false);
+  const [shown, setShown] = useState(false);
   const appear = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(appear, {
+    if (!shown) return;
+    const animation = Animated.timing(appear, {
       toValue: 1,
-      duration: reducedMotion ? 0 : 170,
+      duration: reducedMotion ? 0 : 240,
       easing: Easing.bezier(0.2, 0.8, 0.2, 1),
       useNativeDriver: true,
-    }).start();
-  }, [appear, reducedMotion]);
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [appear, reducedMotion, shown]);
 
   const dismiss = (after: () => void) => {
     if (closing.current) return;
@@ -983,7 +988,7 @@ function ProfileSelectionPopover<T extends string>({
     appear.stopAnimation();
     Animated.timing(appear, {
       toValue: 0,
-      duration: reducedMotion ? 0 : 140,
+      duration: reducedMotion ? 0 : 200,
       easing: Easing.bezier(0.22, 1, 0.36, 1),
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -993,6 +998,7 @@ function ProfileSelectionPopover<T extends string>({
 
   return (
     <Modal
+      onShow={() => setShown(true)}
       animationType="none"
       transparent
       statusBarTranslucent

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -12,15 +11,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fontStyle } from '../lib/font-style';
-import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
+import { useAppTheme, useThemeStyles, ThemeStatusBar, type ThemeColors } from '../lib/theme';
 import {
   getLegalDocument,
   legalDocuments,
   type LegalDocumentId,
   type LegalDocumentSelection,
 } from '../lib/legal-documents';
-import { SheetHeader } from './AppSheet';
-import { useProfileReducedMotion } from './ProfileMotion';
+import { AppSheet } from './AppSheet';
 
 function LegalText({
   weight = 'regular',
@@ -63,7 +61,6 @@ export function LegalDocumentsModal({
   const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
-  const reduceMotion = useProfileReducedMotion();
   const [page, setPage] = useState<Exclude<LegalDocumentSelection, null>>(
     selection ?? 'index',
   );
@@ -79,23 +76,23 @@ export function LegalDocumentsModal({
   const document = page === 'index' ? null : getLegalDocument(page);
 
   return (
-    <Modal
+    <AppSheet
       visible={selection !== null}
-      presentationStyle="pageSheet"
-      animationType={
-        reduceMotion ? 'none' : Platform.OS === 'ios' ? 'slide' : 'fade'
-      }
-      allowSwipeDismissal
-      onRequestClose={onClose}
+      title="Правовая информация"
+      onClose={onClose}
+      scroll={false}
+      fullWidth
+      containsLiquidGlass
+      backdropColor={colors.surface.canvas}
     >
       <View
         accessibilityViewIsModal
         style={[
           styles.root,
-          { paddingTop: Platform.OS === 'ios' ? 12 : insets.top },
+          { paddingTop: 0 },
         ]}
       >
-        <SheetHeader title="Правовая информация" onClose={onClose} />
+        <ThemeStatusBar hidden={false} />
         <ScrollView
           key={page}
           testID="legal-document-scroll"
@@ -182,7 +179,7 @@ export function LegalDocumentsModal({
           )}
         </ScrollView>
       </View>
-    </Modal>
+    </AppSheet>
   );
 }
 
@@ -207,10 +204,15 @@ export function LegalDocumentsButton({
         onPress={() => setSelection(documentId)}
         style={[styles.entry, variant === 'row' && styles.entryRow]}
       >
-        <LegalText color={variant === 'row' ? colors.text.primary : colors.brand.primary} style={[styles.entryLabel, variant === 'row' && styles.entryRowLabel]}>
+        <LegalText
+          color={variant === 'row' ? colors.text.primary : colors.brand.primary}
+          style={[styles.entryLabel, variant === 'row' && styles.entryRowLabel]}
+        >
           {label}
         </LegalText>
-        {variant === 'row' ? <LegalText color={colors.text.secondary}>›</LegalText> : null}
+        {variant === 'row' ? (
+          <LegalText color={colors.text.secondary}>›</LegalText>
+        ) : null}
       </Pressable>
       <LegalDocumentsModal
         selection={selection}
@@ -222,7 +224,7 @@ export function LegalDocumentsButton({
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.surface.canvas },
+    root: { flexShrink: 1, backgroundColor: colors.surface.canvas },
     content: {
       width: '100%',
       maxWidth: 760,
@@ -251,7 +253,15 @@ const createStyles = (colors: ThemeColors) =>
     },
     rowLabel: { flex: 1, fontSize: 17, lineHeight: 24 },
     entry: { minHeight: 44, justifyContent: 'center', paddingVertical: 10 },
-    entryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, minHeight: 52, borderRadius: 18, backgroundColor: colors.surface.raised },
+    entryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 16,
+      minHeight: 52,
+      borderRadius: 18,
+      backgroundColor: colors.surface.raised,
+    },
     entryRowLabel: { flex: 1, textDecorationLine: 'none' },
     entryLabel: {
       fontSize: 15,

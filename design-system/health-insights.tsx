@@ -1710,7 +1710,14 @@ export function HealthInsightsPage({
           onPeriodChange={setPeriod}
         />
       </ScrollView>
-      <TopChromeBackdrop headerTop={headerTop} />
+      <TopChromeBackdrop headerTop={headerTop} style={{ height: headerTop + 90 }} />
+      <ExpoLinearGradient
+        pointerEvents="none"
+        accessible={false}
+        colors={[colors.surface.canvas, colors.surface.canvas, `${colors.surface.canvas}00`]}
+        locations={[0, 0.65, 1]}
+        style={[styles.pageHeaderFade, { height: headerTop + 72 }]}
+      />
       <View style={[styles.pageHeader, { top: headerTop }]}>
         <GlassControl
           accessibilityLabel="Закрыть графики"
@@ -1750,7 +1757,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface.canvas,
   },
   pageScrollContent: { width: 370, alignSelf: 'center', gap: spacing.lg },
-  pageHeaderFade: { position: 'absolute', top: 0, left: 0, right: 0 },
+  pageHeaderFade: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9 },
   pageHeader: {
     position: 'absolute',
     zIndex: 20,

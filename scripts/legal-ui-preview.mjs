@@ -8,9 +8,9 @@ const stub = path.resolve('tests/legal-ui/stubs.tsx');
 const ctx = await context({ entryPoints: ['tests/legal-ui/entry.tsx'], bundle: true, outfile: `${out}/bundle.js`, jsx: 'automatic',
  alias: { 'react-native': 'react-native-web' },
  plugins: [{ name: 'isolated-native-and-server-services', setup(build) {
-   build.onResolve({ filter: /^(expo-symbols|expo-status-bar|expo-sqlite\/kv-store|react-native-safe-area-context|@convex-dev\/auth\/react|convex\/react)$|(?:design-system\/components|lib\/connectivity|lib\/sms-otp-retriever|\.\/BrandLogo)$/ }, () => ({ path: stub }));
+   build.onResolve({ filter: /^(expo-crypto|expo-symbols|expo-status-bar|expo-sqlite\/kv-store|react-native-safe-area-context|@convex-dev\/auth\/react|convex\/react)$|(?:design-system\/components|lib\/registration-consent|lib\/update-manager|lib\/connectivity|lib\/sms-otp-retriever|\.\/BrandLogo)$/ }, () => ({ path: stub }));
  } }],
- define: { 'process.env': '{}', __DEV__: 'false', 'process.env.NODE_ENV': '"development"' },
+ define: { global: 'globalThis', 'process.env': '{}', __DEV__: 'false', 'process.env.NODE_ENV': '"development"' },
 });
 await ctx.serve({ host: '127.0.0.1', port: 4323, servedir: out });
 console.log('Sfera legal UI: http://127.0.0.1:4323 — offline fixture; no live accounts or messages.');

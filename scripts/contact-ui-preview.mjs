@@ -21,13 +21,19 @@ const ctx = await context({
     {
       name: 'fixture-native-sms',
       setup(build) {
+        build.onResolve({ filter: /^(expo-symbols)$|(?:design-system\/(components|profile))$/ }, () => ({
+          path: path.resolve('tests/contact-ui/presentation.tsx'),
+        }));
+        build.onResolve({ filter: /^expo-sqlite\/kv-store$/ }, () => ({
+          path: path.resolve('tests/legal-ui/stubs.tsx'),
+        }));
         build.onResolve({ filter: /\/sms-otp-retriever$/ }, () => ({
           path: path.resolve('tests/contact-ui/sms.ts'),
         }));
       },
     },
   ],
-  define: { 'process.env.NODE_ENV': '"development"' },
+  define: { global: 'globalThis', 'process.env.NODE_ENV': '"development"' },
 });
 await ctx.serve({ host: '127.0.0.1', port: 4321, servedir: out });
 console.log(

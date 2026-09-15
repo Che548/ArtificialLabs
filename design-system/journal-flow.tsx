@@ -1,7 +1,6 @@
 import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { colors as defaultThemeColors } from './tokens';
 import { filterInput } from '../lib/input-format';
-import { TopChromeBackdrop } from '../components/TopChromeBackdrop';
 import * as Haptics from 'expo-haptics';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1607,7 +1606,6 @@ export function JournalFlowModal({
               />
               <View pointerEvents="none" style={styles.backgroundScrim} />
 
-              <TopChromeBackdrop headerTop={headerTop} style={styles.headerBackdrop} />
               <View style={[styles.header, { top: headerTop }]}>
                 <GlassControl
                   accessibilityLabel="Закрыть журнал"

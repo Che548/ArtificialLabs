@@ -1,3 +1,4 @@
+import { Image } from 'react-native';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -139,10 +140,13 @@ export function ProfileDocumentsSection({
             onLongPress={() => confirmDelete(document)}
             style={[styles.row, { backgroundColor: colors.surface.raised }]}
           >
-            <View
-              style={[styles.icon, { backgroundColor: colors.surface.rose }]}
-            >
-              <DocumentIcon color={colors.brand.primary} />
+            <View style={styles.icon}>
+              <Image
+                source={require('../assets/profile/document-artwork.png')}
+                resizeMode="contain"
+                accessible={false}
+                style={{ width: 40, height: 40 }}
+              />
             </View>
             <AppText
               numberOfLines={1}

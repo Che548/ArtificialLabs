@@ -23,8 +23,8 @@ export function OnboardingScreen() {
     medicalRecommendations,
     ...profile
   }: OnboardingFlowResult) => {
-    // Only a choice actually made on this device during this account's signup
-    // may activate services. Ordinary login/recovery/legacy onboarding is local.
+    // Signup receipts may activate services early; initial settings are supplied
+    // by the onboarding defaults and remaining permissions by DefaultPermissions.
     const receipt = await pendingRegistrationConsent();
     const activation = receipt ? await acceptRegistrationConsent(receipt) : undefined;
     await setCloudSyncEnabled(activation?.accepted === true || cloudSyncEnabled);

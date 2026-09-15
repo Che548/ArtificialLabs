@@ -11,6 +11,7 @@ useExpoPublishing()
 useDefaultAndroidSdkVersions()
 
 android {
+  ndkVersion rootProject.ext.ndkVersion
   namespace 'expo.modules.stripcv'
 
   defaultConfig {
