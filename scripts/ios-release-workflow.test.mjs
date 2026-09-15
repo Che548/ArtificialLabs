@@ -23,6 +23,8 @@ test('no upload before current tag check and IPA verification', () => {
   assert.ok(delivery.indexOf('verify-ios-beta-archive.mjs') < delivery.indexOf('upload_to_testflight'));
   assert.ok(delivery.indexOf("data['state'] = 'upload_attempted'") < delivery.indexOf('upload_to_testflight'));
   assert.match(delivery, /Previous upload is unresolved/);
+  assert.match(lanes, /Build exists without this workflow upload receipt/);
+  assert.match(delivery, /reject_unrecorded_build\(build, data\)/);
   assert.match(delivery, /distribute_external: true/);
   assert.match(delivery, /notify_external_testers: true/);
   assert.doesNotMatch(workflow, /upload-artifact/);

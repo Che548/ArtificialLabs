@@ -67,6 +67,12 @@ def exact_build(app, number)
   builds.first
 end
 
+def reject_unrecorded_build(build, data)
+  if build && (data['state'] == 'reserved' || !data['runtime'].to_s.match?(/\A[a-f0-9]{12,64}\z/))
+    UI.user_error!('Build exists without this workflow upload receipt; inspect external uploads before retrying')
+  end
+end
+
 platform :ios do
   desc 'Reserve one immutable tag/SHA/build identity before native compilation'
   lane :prepare_beta do
@@ -87,6 +93,7 @@ platform :ios do
     end
     _release, data = receipt
     build = exact_build(app, data.fetch('build'))
+    reject_unrecorded_build(build, data)
     # Once upload was attempted, absence can mean eventual consistency, not a
     # failed upload. Do not blindly upload a second binary on a rerun.
     if data['state'] != 'reserved' && !build
@@ -161,6 +168,7 @@ platform :ios do
     key, app, group = apple_session
     release, data = release_receipt || UI.user_error!('Missing release reservation')
     build = exact_build(app, data.fetch('build'))
+    reject_unrecorded_build(build, data)
     unless build
       UI.user_error!('Previous upload is unresolved; refusing another upload') unless data['state'] == 'reserved'
       sh('node', File.join(ROOT, 'scripts/verify-ios-beta-archive.mjs'))
