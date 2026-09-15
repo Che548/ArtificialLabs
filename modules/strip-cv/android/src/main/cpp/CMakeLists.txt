@@ -26,7 +26,7 @@ target_include_directories(
     ${STRIPCV_ROOT}/include
     ${STRIPCV_ROOT}/vendor
 )
-target_compile_definitions(stripcv PRIVATE STRIPCV_VERSION="0.4.1")
+target_compile_definitions(stripcv PRIVATE STRIPCV_VERSION="0.4.2")
 target_compile_options(stripcv PRIVATE -Wall -Wextra -Wpedantic)
 target_link_options(stripcv PRIVATE "-Wl,-z,max-page-size=16384")
 target_link_libraries(

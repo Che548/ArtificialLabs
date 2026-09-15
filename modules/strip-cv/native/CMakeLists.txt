@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(stripcv VERSION 0.4.1 LANGUAGES CXX)
+project(stripcv VERSION 0.4.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,6 +48,10 @@ add_executable(stripcv_learned_cli src/learned_reader_cli.cpp)
 target_link_libraries(stripcv_learned_cli PRIVATE stripcv_core)
 
 enable_testing()
+add_executable(stripcv_precise_warp_test tests/precise_warp_test.cpp)
+target_link_libraries(stripcv_precise_warp_test PRIVATE stripcv_core)
+add_test(NAME stripcv_precise_warp COMMAND stripcv_precise_warp_test)
+
 add_executable(stripcv_c_api_boundary_test tests/c_api_boundary_test.cpp)
 target_link_libraries(stripcv_c_api_boundary_test PRIVATE stripcv_core)
 add_test(NAME stripcv_c_api_boundary COMMAND stripcv_c_api_boundary_test)

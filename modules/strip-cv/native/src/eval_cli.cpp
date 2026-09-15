@@ -27,7 +27,7 @@ namespace {
 using json = nlohmann::json;
 
 #ifndef STRIPCV_VERSION
-#define STRIPCV_VERSION "0.4.1"
+#define STRIPCV_VERSION "0.4.2"
 #endif
 
 struct Arguments {

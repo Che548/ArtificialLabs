@@ -15,6 +15,7 @@
 #endif
 
 #include "stripcv/types.hpp"
+#include "stripcv/precise_warp.hpp"
 
 namespace stripcv::test {
 
@@ -283,8 +284,7 @@ inline Capture placeInScene(const cv::Mat& strip,
   const cv::Mat homography =
       cv::getPerspectiveTransform(source.data(), corners.data());
   cv::Mat warped;
-  cv::warpPerspective(strip, warped, homography, size, cv::INTER_LINEAR,
-                      cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
+  preciseWarpPerspective(strip, warped, homography, size);
   cv::Mat source_mask(strip.size(), CV_8U, cv::Scalar(255));
   cv::Mat mask;
   cv::warpPerspective(source_mask, mask, homography, size, cv::INTER_NEAREST,

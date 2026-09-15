@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name           = 'StripCv'
-  s.version        = '0.4.1'
+  s.version        = '0.4.2'
   s.summary        = 'Native StripCV pipeline for biochemical strip analysis'
   s.description    = 'Expo module that analyzes local camera images with the StripCV C++ core.'
   s.license        = { :type => 'MIT' }
