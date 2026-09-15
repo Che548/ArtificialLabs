@@ -78,3 +78,22 @@ for (const [name, width, height] of [
     await expect(page.getByTestId('email-change-address')).toHaveValue('');
   });
 }
+
+for (const reducedMotion of ['reduce', 'no-preference'] as const) {
+  test(`outside tap dismisses, inside tap preserves draft (${reducedMotion})`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('http://127.0.0.1:4321');
+    await page.getByTestId('profile-change-email').click();
+    const input = page.getByTestId('email-change-address');
+    await input.fill('draft@example.test');
+    await input.click();
+    await expect(input).toHaveValue('draft@example.test');
+    await page.getByTestId('sheet-backdrop').click({ position: { x: 5, y: 5 } });
+    await expect(input).toBeHidden();
+    await page.getByTestId('profile-change-email').click();
+    await expect(input).toHaveValue('');
+    await page.keyboard.press('Escape');
+    await expect(input).toBeHidden();
+  });
+}

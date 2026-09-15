@@ -75,7 +75,6 @@ import {
   latestCarePlanDueAt,
 } from '../lib/product-insights';
 
-const mascotHandsImage = require('../assets/analyses/mascot-hands-reference.png');
 
 const e2eDocumentFixtureUri =
   __DEV__ && process.env.EXPO_PUBLIC_E2E_MODE === '1'
@@ -728,7 +727,6 @@ export default function AnalysesScreen() {
       >
         <View style={styles.heroWrap}>
           <AnalysisAttentionHero
-            mascot={mascotHandsImage}
             score={attentionScore}
             onPress={() => setActiveTab('current')}
           />
@@ -1000,7 +998,7 @@ export default function AnalysesScreen() {
         )}
       </ScrollView>
 
-      <TopChromeBackdrop headerTop={headerTop} />
+      <TopChromeBackdrop headerTop={headerTop} style={{ height: headerTop + 90 }} />
 
       <View style={[styles.fixedHeader, { top: headerTop }]}>
         <AnalysisReferenceHeader
@@ -1186,7 +1184,7 @@ export default function AnalysesScreen() {
                     <AppText role="caption" color={colors.text.secondary}>
                       {documentOcr.accepted && documentOcr.enabled
                         ? 'После сохранения начнётся распознавание. Показатели и дату нужно проверить и подтвердить.'
-                        : 'Файл сохранится на устройстве. Для автоматического распознавания включите облачную синхронизацию и дайте согласие в разделе «Документы».'}
+                        : 'Файл сохранится на устройстве. Для автоматического распознавания включите облачную синхронизацию и дайте согласие в разделе «Разрешения и данные».'}
                     </AppText>
                     {!documentOcr.accepted || !documentOcr.enabled ? (
                       <Pressable
@@ -1195,7 +1193,7 @@ export default function AnalysesScreen() {
                           closeAnalysis();
                           router.push({
                             pathname: '/profile',
-                            params: { panel: 'documents' },
+                            params: { panel: 'permissions' },
                           });
                         }}
                         disabled={saving || attachmentPicking}

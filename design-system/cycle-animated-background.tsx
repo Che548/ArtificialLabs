@@ -1,5 +1,5 @@
-import { useAppTheme } from '../lib/theme';
 import { SphereTilt } from '../components/SphereTilt';
+import { useAppTheme } from '../lib/theme';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import {
@@ -30,6 +30,7 @@ const sphereIdleMotion = [
   { x: 18, y: -16, scale: 0.035 },
   { x: -14, y: -22, scale: 0.028 },
 ];
+
 const sphereTiltLayers = ['back', 'middle', 'front'] as const;
 
 export type CycleBackgroundState = 'neutral' | 'menstruation' | 'ovulation';
@@ -160,9 +161,14 @@ export const cycleBackgroundThemes: Record<
 export function CycleAnimatedBackground({
   state = 'neutral',
   scrollY,
+  backgroundImage,
+  edgeRetreat = 0,
 }: {
   state?: CycleBackgroundState;
   scrollY?: Animated.Value;
+  backgroundImage?: ImageSourcePropType;
+  /** Fraction of the visible width to move beyond the nearest side edge. */
+  edgeRetreat?: number | readonly [number, number, number];
 }) {
   const { mode } = useAppTheme();
   const [motionEnabled, setMotionEnabled] = useState(false);
@@ -346,6 +352,14 @@ export function CycleAnimatedBackground({
             },
           ]}
         >
+          {backgroundImage ? (
+            <Image
+              source={backgroundImage}
+              resizeMode="cover"
+              accessible={false}
+              style={[StyleSheet.absoluteFillObject, { opacity: mode === 'dark' ? 0.16 : 1 }]}
+            />
+          ) : null}
           {cycleBackgroundThemes[layerState].spheres.map((sphere, index) => {
             const { x, y, width } = sphere;
             const darkAsset = mode === 'dark' ? darkStateAssets[layerState]?.[index] : undefined;
@@ -353,11 +367,15 @@ export function CycleAnimatedBackground({
             const asset = darkAsset ?? sphere.asset;
             const [cropX, cropY, cropWidth, cropHeight] = asset.bounds;
             const size = width * REFERENCE_SCALE;
+            const originalLeft = x * REFERENCE_SCALE;
+            const visibleWidth = Math.max(0, x < 0 ? originalLeft + size : DESIGN_WIDTH - originalLeft);
+            const retreat = typeof edgeRetreat === 'number' ? edgeRetreat : edgeRetreat[index];
+            const left = originalLeft + (x < 0 ? -1 : 1) * visibleWidth * Math.max(0, Math.min(1, retreat));
             // Keep the original visible footprint and scroll path, regardless of export padding.
             const height = size * sphere.asset.bounds[3] / sphere.asset.bounds[2];
             const imageScale = size / cropWidth;
             const imageScaleY = height / cropHeight;
-            const targetX = DESIGN_WIDTH / 2 - (x * REFERENCE_SCALE + size / 2);
+            const targetX = DESIGN_WIDTH / 2 - (left + size / 2);
             const targetY = -24 - (y * REFERENCE_SCALE + height / 2);
             const trajectory = sphereTrajectories[index];
             const progress = activeScroll.interpolate({
@@ -387,15 +405,11 @@ export function CycleAnimatedBackground({
             const driftStrength = Animated.subtract(1, convergence);
             const drift = Animated.multiply(motions[index], driftStrength);
             return (
-              <SphereTilt
-                key={index}
-                layer={sphereTiltLayers[index]}
-                style={StyleSheet.absoluteFillObject}
-              >
+              <SphereTilt key={index} layer={sphereTiltLayers[index]} style={StyleSheet.absoluteFillObject}>
               <Animated.View
                 style={{
                   position: 'absolute',
-                  left: x * REFERENCE_SCALE,
+                  left,
                   top: y * REFERENCE_SCALE,
                   width: size,
                   height,

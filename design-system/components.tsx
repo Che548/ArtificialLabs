@@ -1,3 +1,5 @@
+import { useIOSSwipe } from '../lib/use-ios-swipe';
+import { adjacentSwipeIndex } from '../lib/swipe-gesture';
 import { AndroidMaterialBackdrop } from './android-material';
 import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { colors as defaultThemeColors } from './tokens';
@@ -67,7 +69,6 @@ export function EdgeFadeGradient({
   const { colors } = useAppTheme();
   const { mode } = useAppTheme();
   const styles = useThemeStyles(createStyles);
-  if (Platform.OS === 'android' && edge === 'bottom') return null;
 
   const isTop = edge === 'top';
 
@@ -103,6 +104,7 @@ export type SegmentedSwitcherOption<T extends string> = {
 
 export function SegmentedSwitcher<T extends string>({
   accessibilityLabel,
+  elevated = false,
   labelStyle,
   onChange,
   options,
@@ -110,6 +112,7 @@ export function SegmentedSwitcher<T extends string>({
   value,
 }: {
   accessibilityLabel?: string;
+  elevated?: boolean;
   labelStyle?: StyleProp<TextStyle>;
   onChange: (value: T) => void;
   options: ReadonlyArray<SegmentedSwitcherOption<T>>;
@@ -126,6 +129,14 @@ export function SegmentedSwitcher<T extends string>({
   const [containerWidth, setContainerWidth] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
   const segmentWidth = Math.max(0, (containerWidth - 8) / options.length);
+  const swipeHandlers = useIOSSwipe({
+    axis: 'horizontal',
+    enabled: options.filter((option) => !option.disabled).length > 1,
+    onSwipe: (direction) => {
+      const next = adjacentSwipeIndex(options, activeIndex, direction);
+      if (next !== activeIndex) onChange(options[next].value);
+    },
+  });
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
@@ -159,8 +170,9 @@ export function SegmentedSwitcher<T extends string>({
     <View
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="tablist"
+      {...swipeHandlers}
       onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
-      style={[styles.segmentedSwitcher, style]}
+      style={[styles.segmentedSwitcher, elevated && styles.segmentedSwitcherElevated, style]}
     >
       <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
         <LiquidGlassSurface
@@ -176,6 +188,7 @@ export function SegmentedSwitcher<T extends string>({
           pointerEvents="none"
           style={[
             styles.segmentedSwitcherIndicator,
+            !elevated && styles.segmentedSwitcherFlatIndicator,
             {
               width: segmentWidth,
               transform: [
@@ -4082,6 +4095,16 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     borderRadius: 22,
     backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.canvas : 'rgba(115,115,122,0.10)',
+  },
+  segmentedSwitcherElevated: {
+    ...(colors.surface.canvas !== '#161417'
+      ? Platform.OS === 'android' ? androidShadows.control : shadows.control
+      : {}),
+  },
+  segmentedSwitcherFlatIndicator: {
+    shadowOpacity: 0,
+    elevation: 0,
+    boxShadow: 'none',
   },
   segmentedSwitcherIndicator: {
     position: 'absolute',

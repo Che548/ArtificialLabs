@@ -274,6 +274,13 @@ export function PermissionPrivacyDetails() {
           </AppText>
         </View>
       </ProfileCollapse>
+      <View style={styles.divider} />
+      <PermissionAction
+        label="Правовая информация"
+        testID="legal-open-index"
+        onPress={() => setDocumentSelection('index')}
+        isLast
+      />
     </>
   );
 }

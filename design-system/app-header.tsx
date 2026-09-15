@@ -14,6 +14,7 @@ import { androidShadows, colors, shadows } from './tokens';
 const hasNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 export function AppHeader({
+  elevatedControls = false,
   centerContent,
   centerStyle,
   dateAccessibilityLabel = 'Выбрать дату',
@@ -28,6 +29,7 @@ export function AppHeader({
   rightContent,
   style,
 }: {
+  elevatedControls?: boolean;
   centerContent?: ReactNode;
   centerStyle?: StyleProp<ViewStyle>;
   dateAccessibilityLabel?: string;
@@ -51,7 +53,7 @@ export function AppHeader({
       ) : (
         <GlassControl
           accessibilityLabel={historyAccessibilityLabel}
-          elevated={Platform.OS === 'android'}
+          elevated={elevatedControls || Platform.OS === 'android'}
           onPress={onHistory}
           tintColor={colors.surface.headerGlassWash}
           washColor={colors.surface.headerGlassWash}
@@ -70,7 +72,7 @@ export function AppHeader({
       ) : (
         <GlassControl
           accessibilityLabel={dateAccessibilityLabel}
-          elevated={Platform.OS === 'android'}
+          elevated={elevatedControls || Platform.OS === 'android'}
           onPress={onDate}
           tintColor={colors.surface.headerGlassWash}
           washColor={colors.surface.headerGlassWash}
@@ -85,7 +87,7 @@ export function AppHeader({
       ) : (
         <GlassControl
           accessibilityLabel={rightAccessibilityLabel ?? 'Открыть календарь'}
-          elevated={Platform.OS === 'android'}
+          elevated={elevatedControls || Platform.OS === 'android'}
           onPress={rightContent ? onRightAction : onCalendar}
           tintColor={colors.surface.headerGlassWash}
           washColor={colors.surface.headerGlassWash}
@@ -103,7 +105,7 @@ export function AppHeader({
 
   return (
     <View style={[styles.header, style]}>
-      {Platform.OS === 'android' ? null : (
+      {elevatedControls || Platform.OS === 'android' ? null : (
         <View pointerEvents="none" style={styles.shadowLayer}>
           <View
             style={[

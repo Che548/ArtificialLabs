@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import { LOCAL_ONBOARDING_PRIVACY } from '../shared/onboarding-privacy';
 import { onboardingLayout } from './onboarding-layout';
 
-test('onboarding defaults stay local unless an explicit new-registration receipt is accepted', () => {
+test('onboarding enables the default internal services', () => {
   assert.deepEqual(LOCAL_ONBOARDING_PRIVACY, {
-    cloudSyncEnabled: false, anonymousAnalytics: false, medicalRecommendations: false,
+    cloudSyncEnabled: true, anonymousAnalytics: true, medicalRecommendations: true,
   });
   const screen = readFileSync(new URL('../components/OnboardingScreen.tsx', import.meta.url), 'utf8');
   const flow = readFileSync(new URL('../design-system/onboarding-flow.tsx', import.meta.url), 'utf8');

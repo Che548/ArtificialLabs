@@ -141,6 +141,7 @@ const analysisTabs: Array<{ key: AnalysisTabKey; label: string }> = [
 export function AnalysisTabs({ activeTab, onChange }: AnalysisTabsProps) {
   return (
     <SegmentedSwitcher
+      elevated={false}
       accessibilityLabel="Раздел анализов"
       options={analysisTabs.map((tab) => ({ value: tab.key, label: tab.label }))}
       value={activeTab}

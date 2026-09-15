@@ -8,7 +8,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppText, colors } from '../design-system';
+import { AppText } from '../design-system/components';
+import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 
 type Action = {
   text: string;
@@ -106,6 +107,8 @@ function FeedbackCard({
   feedback: ReturnType<typeof useScreenFeedback>;
   notice: Notice;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useThemeStyles(createStyles);
   const [value, setValue] = useState(notice.edit?.initialValue ?? '');
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -116,7 +119,7 @@ function FeedbackCard({
     >
       <ScrollView keyboardShouldPersistTaps="handled">
         <View accessibilityRole="header">
-          <AppText weight="semibold">{notice.title}</AppText>
+          <AppText weight="semibold" style={styles.title}>{notice.title}</AppText>
         </View>
         {!!notice.message && (
           <AppText style={styles.message}>{notice.message}</AppText>
@@ -130,12 +133,14 @@ function FeedbackCard({
             selectTextOnFocus
             maxLength={120}
             editable={!feedback.busy}
+            placeholderTextColor={colors.text.secondary}
+            selectionColor={colors.brand.primary}
             style={styles.input}
           />
         )}
         {!!notice.error && (
           <View accessibilityRole="alert">
-            <AppText style={styles.message}>{notice.error}</AppText>
+            <AppText style={[styles.message, styles.error]}>{notice.error}</AppText>
           </View>
         )}
         <View style={styles.actions}>
@@ -146,9 +151,10 @@ function FeedbackCard({
               onPress={() =>
                 void feedback.run(() => notice.edit!.onSave(value.trim()))
               }
-              style={styles.button}
+              cssInterop={false}
+              style={({ pressed }) => [styles.button, (feedback.busy || !value.trim()) && styles.disabled, pressed && styles.pressed]}
             >
-              <AppText>Сохранить</AppText>
+              <AppText weight="semibold" style={styles.buttonLabel}>Сохранить</AppText>
             </Pressable>
           ) : (
             notice.actions.map((action, index) => (
@@ -161,12 +167,15 @@ function FeedbackCard({
                     ? feedback.dismiss()
                     : void feedback.run(() => action.onPress?.())
                 }
-                style={styles.button}
+                cssInterop={false}
+                style={({ pressed }) => [styles.button, action.style === 'cancel' && styles.secondaryButton, feedback.busy && styles.disabled, pressed && styles.pressed]}
               >
                 <AppText
+                  weight="semibold"
+                  style={styles.buttonLabel}
                   color={
                     action.style === 'destructive'
-                      ? '#A51D39'
+                      ? colors.state.error
                       : colors.text.primary
                   }
                 >
@@ -182,9 +191,10 @@ function FeedbackCard({
                 accessibilityRole="button"
                 disabled={feedback.busy}
                 onPress={feedback.dismiss}
-                style={styles.button}
+                cssInterop={false}
+                style={({ pressed }) => [styles.button, styles.secondaryButton, feedback.busy && styles.disabled, pressed && styles.pressed]}
               >
-                <AppText>Отмена</AppText>
+                <AppText weight="semibold" style={styles.buttonLabel}>Отмена</AppText>
               </Pressable>
             )}
         </View>
@@ -198,41 +208,51 @@ function FeedbackCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     position: 'absolute',
     left: 16,
     right: 16,
     zIndex: 1000,
     elevation: 30,
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#D9BBC7',
-    backgroundColor: '#FFF8FA',
-    shadowColor: '#351D28',
+    padding: 20,
+    borderRadius: 26,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.surface.divider,
+    backgroundColor: colors.surface.raised,
+    shadowColor: '#000000',
     shadowOpacity: 0.15,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   },
-  message: { marginTop: 10 },
+  title: { fontSize: 20, lineHeight: 25, color: colors.text.primary },
+  message: { marginTop: 8, fontSize: 16, lineHeight: 23, color: colors.text.secondary },
+  error: { color: colors.state.error },
   input: {
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#AB8798',
+    borderColor: colors.surface.divider,
     borderRadius: 10,
     padding: 12,
     fontSize: 16,
-    color: '#2B2025',
-    backgroundColor: '#FFFFFF',
+    color: colors.text.primary,
+    backgroundColor: colors.surface.canvas,
   },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 20 },
   button: {
-    minHeight: 44,
+    minHeight: 48,
+    minWidth: 120,
+    flexGrow: 1,
+    flexBasis: 0,
+    alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: '#F4DDE7',
-    borderRadius: 12,
+    backgroundColor: colors.surface.rose,
+    borderRadius: 24,
   },
+  buttonLabel: { fontSize: 16, lineHeight: 21, textAlign: 'center' },
+  secondaryButton: { backgroundColor: colors.surface.divider },
+  pressed: { opacity: 0.78 },
+  disabled: { opacity: 0.5 },
 });

@@ -325,6 +325,11 @@ export function PregnancySphere({
   };
 
   const top = headerTop + 48 + 16;
+  // Keep artwork and its motion inside the existing stage, without moving
+  // the week selector or extending the screen's scroll range.
+  const availableSize = Math.min(BASE_SIZE, Math.max(1,
+    stageHeight - top - 12 - PREGNANCY_SPHERE_MOTION_PADDING * 2,
+  ));
   return (
     <View
       testID="pregnancy-sphere-stage"
@@ -343,8 +348,10 @@ export function PregnancySphere({
       <SphereTilt
         layer="embryo"
         style={{
-          width: BASE_SIZE,
-          height: BASE_SIZE,
+          width: availableSize,
+          height: availableSize,
+          alignItems: 'center',
+          justifyContent: 'center',
           marginVertical: PREGNANCY_SPHERE_MOTION_PADDING,
         }}
       >
@@ -372,7 +379,7 @@ export function PregnancySphere({
                   outputRange: ['-1.2deg', '1.2deg'],
                 }),
               },
-              { scale: size },
+              { scale: Animated.multiply(size, availableSize / BASE_SIZE) },
             ],
           }}
         >

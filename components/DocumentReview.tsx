@@ -1268,7 +1268,7 @@ export function DocumentReview({
                               void close(() =>
                                 router.push({
                                   pathname: '/profile',
-                                  params: { panel: 'documents' },
+                                  params: { panel: 'permissions' },
                                 }),
                               )
                             }

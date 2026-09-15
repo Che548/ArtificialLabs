@@ -10,6 +10,7 @@ useDefaultAndroidSdkVersions()
 def ocrArchitectures = (findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').split(',').collect { it.trim() }
 
 android {
+  ndkVersion rootProject.ext.ndkVersion
   namespace 'expo.modules.documentocr'
   defaultConfig {
     versionCode 1

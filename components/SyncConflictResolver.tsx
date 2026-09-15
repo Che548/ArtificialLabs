@@ -3,7 +3,8 @@ import { Platform, Pressable, View } from 'react-native';
 import { useConvex } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { AppText } from '../design-system';
-import { AppSheet, sheetStyles } from './AppSheet';
+import { AppSheet, useSheetStyles } from './AppSheet';
+import { useAppTheme } from '../lib/theme';
 import { useHealthStore } from '../lib/health-store';
 import { loadLocalSnapshot, pendingOutbox, resolveLocalSyncConflict } from '../lib/local-database';
 import { conflictValue, hasRecordConflict, sameConflictValue, type SyncConflictSelection } from '../lib/sync-conflict';
@@ -26,12 +27,14 @@ const names: Record<string, string> = {
 };
 const hidden = new Set(['localId', 'syncRevision', 'updatedAt']);
 const show = (value: unknown, key: string) => {
+  if (key === 'goal' && typeof value === 'string') return ({ planning: 'Планирование', pregnancy: 'Беременность', cycle: 'Мониторинг цикла' } as Record<string, string>)[value] ?? value;
   if (value === undefined) return key === 'deletedAt' ? 'Не удалено' : 'Не указано';
-  if (typeof value === 'number' && Number.isFinite(value) && (key.endsWith('At') || key === 'birthDate' || key === 'documentDate')) return new Date(value).toLocaleString('ru-RU');
+  if (typeof value === 'number' && Number.isFinite(value) && (key.endsWith('At') || key === 'birthDate' || key === 'documentDate')) return new Date(value).toLocaleDateString('ru-RU');
   return typeof value === 'boolean' ? (value ? 'Да' : 'Нет') : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
 };
 
 export function SyncConflictResolver() {
+  const sheetStyles = useSheetStyles();
   const store = useHealthStore();
   const convex = useConvex();
   const [open, setOpen] = useState(false);
@@ -94,7 +97,7 @@ export function SyncConflictResolver() {
   }
 
   return <>
-    <Pressable accessibilityRole="button" onPress={() => void review()} disabled={busy} style={sheetStyles.secondary}>
+    <Pressable accessibilityRole="button" onPress={() => void review()} disabled={busy} style={[sheetStyles.secondary, { marginHorizontal: 16, marginBottom: 16, opacity: busy ? 0.5 : 1 }]}>
       <AppText>Сравнить версии</AppText>
     </Pressable>
     <SyncConflictReview open={open} busy={busy} selection={selection} choice={choice} message={message}
@@ -107,9 +110,11 @@ export function SyncConflictReview({ open, busy, selection, choice, message, onC
   open: boolean; busy: boolean; selection?: SyncConflictSelection; choice?: 'local' | 'remote'; message: string;
   onClose: () => void; onChoice: (choice: 'local' | 'remote') => void; onApply: () => void; onReview: () => void;
 }) {
+  const sheetStyles = useSheetStyles();
+  const { colors } = useAppTheme();
   return <AppSheet visible={open} title="Конфликт синхронизации" onClose={onClose} dismissDisabled={busy}>
-      <View style={sheetStyles.content}>
-        <AppText>Выберите версию только после сравнения. Предыдущая локальная версия останется в зашифрованной резервной записи на этом устройстве. Файлы не отправляются.</AppText>
+      <View style={{ gap: 16 }}>
+        <AppText>Сравните версии и выберите нужную. Предыдущая версия сохранится на устройстве.</AppText>
         {busy ? <AppText>Проверяем версии…</AppText> : null}
         {selection ? <>
           {Object.keys({ ...selection.local, ...selection.remote }).filter(key => !hidden.has(key) && !sameConflictValue(selection.local[key], selection.remote[key])).map(key => <View key={key} style={sheetStyles.group}>
@@ -117,10 +122,10 @@ export function SyncConflictReview({ open, busy, selection, choice, message, onC
             <AppText>На устройстве: {show(selection.local[key], key)}</AppText>
             <AppText>В облаке: {show(selection.remote[key], key)}</AppText>
           </View>)}
-          {selection.remote.deletedAt ? <AppText>Запись удалена в облаке. Автоматическое восстановление запрещено; локальная версия сохранится в резервной записи.</AppText> : <Pressable accessibilityRole="button" disabled={busy} style={sheetStyles.secondary} onPress={() => onChoice('local')}><AppText>Выбрать версию устройства</AppText></Pressable>}
-          <Pressable accessibilityRole="button" disabled={busy} style={sheetStyles.secondary} onPress={() => onChoice('remote')}><AppText>Выбрать версию облака</AppText></Pressable>
+          {selection.remote.deletedAt ? <AppText>Запись удалена в облаке. Локальная копия останется в резерве.</AppText> : <Pressable accessibilityRole="button" disabled={busy} style={sheetStyles.secondary} onPress={() => onChoice('local')}><AppText>Оставить на устройстве</AppText></Pressable>}
+          <Pressable accessibilityRole="button" disabled={busy} style={sheetStyles.secondary} onPress={() => onChoice('remote')}><AppText>Использовать облачную</AppText></Pressable>
           {choice ? <><AppText>Подтвердить выбор: {choice === 'local' ? 'версия устройства будет отправлена в облако' : 'версия облака заменит эту локальную запись'}?</AppText>
-            <Pressable accessibilityRole="button" disabled={busy} style={sheetStyles.primary} onPress={onApply}><AppText>Подтвердить выбор</AppText></Pressable></> : null}
+            <Pressable accessibilityRole="button" disabled={busy} style={sheetStyles.primary} onPress={onApply}><AppText color={colors.text.inverse}>Подтвердить выбор</AppText></Pressable></> : null}
         </> : null}
         {message ? <View accessibilityRole="alert"><AppText>{message}</AppText></View> : null}
         <Pressable accessibilityRole="button" disabled={busy} onPress={onReview} style={sheetStyles.secondary}><AppText>Обновить сравнение</AppText></Pressable>

@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   createCycleHistory,
   cycleDateKey,
+  cycleHistoryFromHealthData,
   cycleDayInsight,
   cycleLengthVariation,
   isMenstruationJournalEntry,
@@ -105,4 +106,35 @@ test('today reports a delayed period without inventing a new period start', () =
   assert.equal(insight.delayDays, 3);
   assert.equal(insight.kind, 'neutral');
   assert.equal(insight.probability, 'low');
+});
+
+
+test('calendar period entries immediately determine the Today phase', () => {
+  const now = new Date(2026, 8, 15, 12);
+  const entries = [13, 14, 15].map((day) =>
+    entry(new Date(2026, 8, day, 12), 'Отмечено в календаре'),
+  );
+  const history = cycleHistoryFromHealthData(undefined, entries);
+  assert.ok(history);
+  const insight = cycleDayInsight(now, history, now);
+  assert.equal(insight.kind, 'menstruation');
+  assert.equal(insight.cycleDay, 3);
+  assert.equal(insight.delayDays, 0);
+});
+
+test('editing the saved period shifts the ovulation forecast with it', () => {
+  const historyForStart = (day: number) => cycleHistoryFromHealthData(
+    undefined,
+    [0, 1, 2, 3, 4].map((offset) =>
+      entry(new Date(2026, 8, day + offset, 12), 'Отмечено в календаре'),
+    ),
+  );
+  const before = historyForStart(1);
+  const after = historyForStart(5);
+  assert.ok(before);
+  assert.ok(after);
+  const now = new Date(2026, 8, 10, 12);
+  assert.equal(cycleDayInsight(new Date(2026, 8, 14, 12), before, now).kind, 'ovulation');
+  assert.equal(cycleDayInsight(new Date(2026, 8, 18, 12), after, now).kind, 'ovulation');
+  assert.notEqual(cycleDayInsight(new Date(2026, 8, 14, 12), after, now).kind, 'ovulation');
 });

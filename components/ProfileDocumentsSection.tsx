@@ -1,20 +1,40 @@
 import { useDocumentOcr } from '../lib/document-ocr-manager';
-import { OCR_CONSENT } from '../shared/document-ocr';
+import { Image } from 'react-native';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
-import {
-  AppText,
-  ProfileActionRow,
-  ProfileEmptyMessage,
-  ProfileSettingsGroup,
-  ProfileSettingsRow,
-  profileTones,
-  spacing,
-} from '../design-system';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { AppText } from '../design-system';
 import { useAppTheme } from '../lib/theme';
 import type { HealthDocument } from '../lib/health-types';
 import { DocumentReview } from './DocumentReview';
+
+function DocumentIcon({
+  color,
+  add = false,
+}: {
+  color: string;
+  add?: boolean;
+}) {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8l-5-5Z M14 3v5h5 M8 12h8 M8 16h6"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {add ? (
+        <Path
+          d="M3 16v6 M0 19h6"
+          stroke={color}
+          strokeWidth={1.7}
+          strokeLinecap="round"
+        />
+      ) : null}
+    </Svg>
+  );
+}
 
 export function ProfileDocumentsSection({
   documents,
@@ -29,14 +49,9 @@ export function ProfileDocumentsSection({
   onAdd: () => Promise<void>;
   onDelete: (document: HealthDocument) => Promise<void>;
 }) {
-  const ocr = useDocumentOcr();
   const { colors } = useAppTheme();
-  const [consentOpen, setConsentOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string>();
-  const selected = documents.find(
-    (document) => document.localId === selectedId && !document.deletedAt,
-  );
-  const [deleting, setDeleting] = useState<string>();
+  const ocr = useDocumentOcr();
+  const [selected, setSelected] = useState<HealthDocument>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const perform = async (action: () => Promise<void>) => {
@@ -45,7 +60,6 @@ export function ProfileDocumentsSection({
     setError('');
     try {
       await action();
-      setDeleting(undefined);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : '';
       setError(
@@ -65,194 +79,165 @@ export function ProfileDocumentsSection({
       setBusy(false);
     }
   };
-  const deletingDocument = documents.find(
-    (document) => document.localId === deleting,
-  );
-  const statusText = (document: HealthDocument) => {
-    const draft = ocr.drafts[document.localId];
-    switch (draft?.state) {
-      case 'queued':
-        return 'Ожидает распознавания';
-      case 'recognizing':
-        return `Распознаётся · страниц готово: ${draft.pages.length} из ${draft.job?.pageCount ?? '…'}`;
-      case 'error':
-        return 'Нужно повторить распознавание';
-      case 'cancelled':
-        return 'Распознавание остановлено · можно продолжить';
-      case 'review':
-        return 'Распознано · требуется проверка';
-      default:
-        return undefined;
-    }
+  const confirmDelete = (document: HealthDocument) => {
+    if (readOnly || busy) return;
+    Alert.alert(
+      'Удалить документ?',
+      'Связанные результаты сохранятся без исходного файла.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: () => void perform(async () => {
+            await ocr.cancel(document.localId);
+            await onDelete(document);
+          }),
+        },
+      ],
+    );
   };
   return (
-    <View
-      style={{ position: 'relative', minHeight: 0, flex: 1, gap: spacing.lg }}
-    >
-      {/* Restore the Documents composition from da8c3ba/74b18c1. */}
-      <ProfileActionRow
-        icon="doc.badge.plus"
-        label="Добавить документ"
-        pill
+    <View style={styles.root}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Добавить документ"
+        accessibilityHint="PDF, JPEG или PNG, до 20 МБ и 20 страниц"
         disabled={readOnly || busy}
+        style={[
+          styles.add,
+          {
+            backgroundColor: colors.brand.primary,
+            opacity: readOnly || busy ? 0.5 : 1,
+          },
+        ]}
         onPress={() => void perform(onAdd)}
-      />
-      {documents.length ? (
-        <ProfileSettingsGroup
-          title={
-            sourceDocumentId
-              ? 'Источник ответа чата'
-              : `Сохранено: ${documents.length}`
-          }
-        >
-          {documents.map((document, index) => (
-            <ProfileSettingsRow
-              key={document.localId}
-              icon="doc.text.fill"
-              fallback="Д"
-              iconBackground={profileTones.health.tile}
-              label={document.title}
-              value={`${new Date(document.documentDate).toLocaleDateString('ru-RU')}${document.localId === sourceDocumentId ? ' · источник' : ''}`}
-              subtitle={statusText(document)}
-              isLast={index === documents.length - 1}
-              disabled={readOnly || busy}
-              onPress={() => setSelectedId(document.localId)}
-              trailing={
-                !readOnly && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Удалить документ"
-                    disabled={busy}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      setDeleting(document.localId);
-                    }}
-                    style={{
-                      width: 44,
-                      minHeight: 44,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Svg
-                      width={18}
-                      height={18}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke={colors.text.secondary}
-                      strokeWidth={1.5}
-                    >
-                      <Path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" />
-                    </Svg>
-                  </Pressable>
-                )
-              }
-            />
-          ))}
-        </ProfileSettingsGroup>
-      ) : (
-        <ProfileEmptyMessage
-          icon="documents"
-          title="Документы пока не добавлены"
-        />
-      )}
-      {deletingDocument && (
-        <ProfileSettingsGroup title={deletingDocument.title}>
-          <View style={{ padding: spacing.lg, gap: spacing.md }}>
-            <AppText>
-              Удалить локальный документ? Связанные результаты сохранятся без
-              исходного файла.
-            </AppText>
-            <ProfileActionRow
-              icon="trash"
-              destructive
-              label="Подтверждаю удаление документа"
-              disabled={busy}
-              onPress={() =>
-                void perform(async () => {
-                  await ocr.cancel(deletingDocument.localId);
-                  await onDelete(deletingDocument);
-                })
-              }
-            />
-            <ProfileActionRow
-              secondary
-              label="Отмена"
-              disabled={busy}
-              onPress={() => setDeleting(undefined)}
-            />
-          </View>
-        </ProfileSettingsGroup>
-      )}
-      <ProfileSettingsGroup
-        title="Распознавание"
-        footer="PDF, JPEG, PNG · до 20 МБ и 20 страниц. Исходники хранятся только на устройстве."
       >
-        {!readOnly ? (
-          <ProfileSettingsRow
-            icon="doc.text.viewfinder"
-            fallback="Т"
-            iconBackground={profileTones.health.tile}
-            label={
-              ocr.accepted
-                ? 'Настройки распознавания'
-                : 'Разрешить распознавание'
-            }
-            subtitle={
-              ocr.reason ||
-              'Новые документы распознаются автоматически через Yandex.'
-            }
-            isLast
-            onPress={() => setConsentOpen(!consentOpen)}
-          />
-        ) : (
-          <View style={{ padding: spacing.lg }}>
-            <AppText>{ocr.reason}</AppText>
-          </View>
-        )}
-        {consentOpen && (
-          <View style={{ padding: spacing.lg, gap: spacing.md }}>
-            <AppText>{OCR_CONSENT}</AppText>
-            <ProfileActionRow
-              label={
-                ocr.accepted
-                  ? 'Отозвать согласие и остановить распознавание'
-                  : 'Согласен: автоматически распознавать новые документы'
-              }
-              disabled={busy || (!ocr.enabled && !ocr.accepted)}
-              secondary={ocr.accepted}
-              onPress={() =>
-                void perform(async () => {
-                  await ocr.consent(!ocr.accepted);
-                  setConsentOpen(false);
-                })
-              }
-            />
-            {!ocr.enabled && !ocr.accepted && (
-              <View accessibilityLiveRegion="polite">
-                <AppText>{ocr.reason}</AppText>
-                <AppText>
-                  Согласие можно будет подтвердить, когда распознавание станет
-                  доступно. Документы можно добавлять и хранить на устройстве
-                  уже сейчас.
-                </AppText>
-              </View>
-            )}
-          </View>
-        )}
-      </ProfileSettingsGroup>
+        <DocumentIcon color="#FFFFFF" add />
+        <AppText style={styles.addLabel}>
+          {busy ? 'Подождите…' : 'Добавить документ'}
+        </AppText>
+      </Pressable>
       {error ? (
         <View accessibilityRole="alert">
-          <AppText>{error}</AppText>
+          <AppText color={colors.state.error}>{error}</AppText>
         </View>
       ) : null}
-      {selected && (
+      <View style={styles.list}>
+        <AppText style={[styles.count, { color: colors.text.secondary }]}>
+          СОХРАНЕНО: {documents.length}
+        </AppText>
+        {documents.map((document) => (
+          <Pressable
+            key={document.localId}
+            accessibilityRole="button"
+            accessibilityLabel={`${document.title}, ${new Date(document.documentDate).toLocaleDateString('ru-RU')}`}
+            accessibilityHint="Открыть документ. Удерживайте для удаления."
+            accessibilityActions={
+              readOnly ? [] : [{ name: 'delete', label: 'Удалить документ' }]
+            }
+            onAccessibilityAction={(event) => {
+              if (event.nativeEvent.actionName === 'delete')
+                confirmDelete(document);
+            }}
+            disabled={busy}
+            onPress={() => setSelected(document)}
+            onLongPress={() => confirmDelete(document)}
+            style={[styles.row, { backgroundColor: colors.surface.raised }]}
+          >
+            <View style={styles.icon}>
+              <Image
+                source={require('../assets/profile/document-artwork.png')}
+                resizeMode="contain"
+                accessible={false}
+                style={{ width: 40, height: 40 }}
+              />
+            </View>
+            <AppText
+              numberOfLines={1}
+              style={[styles.title, { color: colors.text.primary }]}
+            >
+              {document.title}
+              {document.localId === sourceDocumentId ? ' · источник' : ''}
+            </AppText>
+            <AppText
+              numberOfLines={1}
+              style={[styles.date, { color: colors.text.secondary }]}
+            >
+              {new Intl.DateTimeFormat('ru-RU', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              }).format(new Date(document.documentDate))}
+            </AppText>
+            <Svg width={10} height={18} viewBox="0 0 10 18">
+              <Path
+                d="m2 3 6 6-6 6"
+                fill="none"
+                stroke={colors.text.secondary}
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </Pressable>
+        ))}
+        {!documents.length ? (
+          <View style={styles.empty}>
+            <DocumentIcon color={colors.text.secondary} />
+            <AppText color={colors.text.secondary}>
+              Документы пока не добавлены
+            </AppText>
+          </View>
+        ) : null}
+      </View>
+      {selected ? (
         <DocumentReview
           key={selected.localId}
           document={selected}
-          onClose={() => setSelectedId(undefined)}
+          onClose={() => setSelected(undefined)}
         />
-      )}
+      ) : null}
     </View>
   );
 }
+const styles = StyleSheet.create({
+  root: { gap: 24 },
+  add: {
+    minHeight: 56,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  addLabel: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '600',
+  },
+  list: { gap: 10 },
+  count: { fontSize: 12, lineHeight: 18, letterSpacing: 0.4, marginLeft: 14 },
+  row: {
+    minHeight: 60,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  icon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: { flex: 1, fontSize: 16, lineHeight: 22 },
+  date: { maxWidth: 116, fontSize: 13, lineHeight: 20, flexShrink: 0 },
+  empty: { alignItems: 'center', paddingVertical: 40, gap: 14 },
+});

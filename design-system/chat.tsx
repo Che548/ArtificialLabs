@@ -210,6 +210,7 @@ export function ChatModeSwitcher({
   const unread = useAssistantUnread();
   return (
     <SegmentedSwitcher
+      elevated
       accessibilityLabel="Режим чата"
       options={chatHeaderModes.map((mode) => ({
         ...mode,
@@ -1253,7 +1254,7 @@ export function ChatMessageBubble({
   }>;
   variant?: ChatMessageVariant;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const styles = useThemeStyles(createStyles);
   const config = chatMessageVariantConfigs[variant];
   const responseProgress = useRef(
@@ -1349,6 +1350,8 @@ export function ChatMessageBubble({
     },
     list: { marginVertical: 6 },
     listItem: { marginVertical: 2 },
+    listUnorderedItemIcon: { color: mode === 'dark' ? '#FFFFFF' : colors.text.primary, lineHeight: config.messageLineHeight },
+    listOrderedItemIcon: { color: mode === 'dark' ? '#FFFFFF' : colors.text.primary, lineHeight: config.messageLineHeight },
   };
 
   useEffect(() => {
@@ -1704,8 +1707,9 @@ function CustomMessageIcon({
   kind: CustomMessageIconKind;
   size: number;
 }) {
+  const { mode } = useAppTheme();
   const Icon = customMessageIcons[kind];
-  return <Icon width={size} height={size} />;
+  return <Icon width={size} height={size} color={mode === 'dark' ? '#FFFFFF' : '#171717'} />;
 }
 
 export type ChatMessageVariant =

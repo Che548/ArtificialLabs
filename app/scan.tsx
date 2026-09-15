@@ -339,6 +339,7 @@ function HistoryBackIcon() {
 }
 
 export default function ScanScreen() {
+  const { mode } = useAppTheme();
   const styles = useThemeStyles(createStyles);
   const { journalId } = useLocalSearchParams<{ journalId?: string }>();
   const {
@@ -616,6 +617,7 @@ export default function ScanScreen() {
           <View style={styles.canvas}>
             <TopChromeBackdrop headerTop={headerTop} style={{ zIndex: 4 }} />
             <AppHeader
+              elevatedControls
               style={[styles.header, { top: headerTop }]}
               onHistory={() => setHistoryVisible(true)}
               onDate={() => setCalendarVisible(true)}
@@ -709,7 +711,7 @@ export default function ScanScreen() {
               ) : null}
             </View>
 
-            <View
+            {mode !== 'dark' ? <View
               style={[
                 styles.scanContentPanel,
                 { top: contentPanelTop, bottom: navbarClearance },
@@ -722,7 +724,7 @@ export default function ScanScreen() {
                 resizeMode="contain"
                 style={styles.testStrips}
               />
-            </View>
+            </View> : null}
 
             <EdgeFadeGradient
               edge="bottom"

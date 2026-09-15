@@ -598,7 +598,7 @@ export function AuthScreen({
                 <View style={styles.brandBlock}>
                   <BrandLogo width={184} style={{ marginTop: 2 }} />
                   <Text style={styles.brandSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-                    Сфера женского здоровья
+                    {recoveryMode ? 'Восстановление доступа' : 'Сфера женского здоровья'}
                   </Text>
                 </View>
 
@@ -795,18 +795,11 @@ export function AuthScreen({
                       <Text
                         style={[styles.consentText, styles.personalConsentText]}
                       >
-                        Я даю согласие ООО «БРЭЙНВЕЙВС ИНЖИНИРИНГ» на обработку моих
-                        персональных данных для работы приложения. На этом устройстве
-                        будут включены облачная синхронизация и ИИ: тексты чатов и
-                        сведения профиля, дневника, анализов, плана и подтверждённые
-                        сведения о документах могут передаваться Яндекс AI Studio
-                        для ответов и автоматического подбора рекомендаций.
-                        Исходные фото, PDF и непроверенный текст распознавания не
-                        передаются. Отключить ИИ и синхронизацию можно в профиле.
-                        Отдельная интерпретация документов требует отдельного выбора.
-                        Я ознакомлен(а) с{' '}
+                        Согласен(на) на обработку и облачную синхронизацию
+                        данных, их передачу Яндекс AI Studio для ответов
+                        и рекомендаций. Подробнее — в{' '}
                         <LegalLink onPress={() => setLegalDocument('privacy')}>
-                          Политикой обработки персональных данных
+                          Политике конфиденциальности
                         </LegalLink>
                         .
                       </Text>
@@ -846,7 +839,9 @@ export function AuthScreen({
                   </Text>
                 ) : null}
 
+                <View key={`${flow}:${recoveryMode}`} collapsable={false} style={styles.authActions}>
                 <Pressable
+                  cssInterop={false}
                   testID="e2e-auth-submit"
                   accessibilityRole="button"
                   accessibilityState={{ disabled: submitDisabled }}
@@ -878,6 +873,7 @@ export function AuthScreen({
                 </Pressable>
 
                 <Pressable
+                  cssInterop={false}
                   testID="e2e-auth-switch-flow"
                   accessibilityRole="button"
                   hitSlop={8}
@@ -897,6 +893,7 @@ export function AuthScreen({
                     ) : null}
                   </Text>
                 </Pressable>
+                </View>
               </View>
             </KeyboardAvoidingView>
           </View>
@@ -1087,7 +1084,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: 17,
   },
   errorTextSignIn: {
-    top: 446,
+    top: 480,
   },
   errorTextRecovery: {
     top: 665,
@@ -1126,11 +1123,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-  primaryButton: {
+  authActions: {
     position: 'absolute',
     left: 26,
-    top: 740,
-    width: 349,
+    right: 26,
+    bottom: 24,
+    gap: 8,
+  },
+  primaryButton: {
+    width: '100%',
     height: 54,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1153,19 +1154,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: '#A8A3A8',
   },
   flowSwitcher: {
-    position: 'absolute',
-    left: 26,
-    top: 800,
-    width: 349,
-    height: 54,
+    width: '100%',
+    minHeight: 44,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   flowSwitcherText: {
     color: colors.text.primary,
     ...fontStyle('SFProDisplay-Regular'),
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 21,
+    textAlign: 'center',
+    flexShrink: 1,
   },
   flowSwitcherAction: {
     color: '#EA4087',

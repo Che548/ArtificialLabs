@@ -41,3 +41,12 @@ test('reader above consent sheet closes back to consent', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('open-consent')).toBeVisible();
 });
+
+test('reader dismisses by backdrop without accepting consent', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('http://127.0.0.1:4323');
+  await page.getByTestId('legal-open-index').click();
+  await expect(page.getByRole('heading', { name: 'Документы Sfera', exact: true })).toBeVisible();
+  await page.getByTestId('sheet-backdrop').click({ position: { x: 5, y: 5 } });
+  await expect(page.getByTestId('e2e-auth-consent-agreement')).toHaveAttribute('aria-checked', 'false');
+});

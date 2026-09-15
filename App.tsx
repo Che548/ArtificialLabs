@@ -1,17 +1,17 @@
+import { PregnancySphere } from './components/PregnancySphere';
+import { SphereTiltProvider } from './components/SphereTilt';
+import { PregnancySizeLabel } from './components/PregnancySizeLabel';
+import { PregnancyAmbientBackground } from './design-system/pregnancy-ambient-background';
 import { AndroidMaterialBackdrop } from './design-system/android-material';
-import { ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from './lib/theme';
+import { AppThemeScope, ThemeStatusBar, useAppTheme, useThemeStyles, type ThemeColors } from './lib/theme';
 import { colors as defaultThemeColors } from './design-system/tokens';
 import { TodayArticleSheet } from './components/TodayArticleSheet';
 import type { TodayArticle } from './lib/today-articles';
 import { useTodayArticles } from './lib/use-today-articles';
 import { todayCardTitle } from './shared/today-content';
 import { AppSheet, sheetStyles } from './components/AppSheet';
-import { TopChromeBackdrop } from './components/TopChromeBackdrop';
 import { GradientBlur } from './components/GradientBlur';
 import { useProfileReducedMotion } from './components/ProfileMotion';
-import { PregnancySphere } from './components/PregnancySphere';
-import { SphereTiltProvider } from './components/SphereTilt';
-import { pregnancySphereStageHeight } from './lib/pregnancy-sphere';
 import { bundledFonts } from './lib/bundled-fonts';
 import { fontStyle } from './lib/font-style';
 import { BlurView } from 'expo-blur';
@@ -546,14 +546,37 @@ function TodayArticleCards({
   );
 }
 
+/** Decorative continuation lives outside ScrollView's content clipping bounds. */
+function TodayContentContinuation({ scrollY, top }: {
+  scrollY: Animated.Value;
+  top: number;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <Animated.View
+      testID="today-content-continuation"
+      pointerEvents="none"
+      accessible={false}
+      style={{
+        position: 'absolute', left: 0, top, width: DESIGN_WIDTH,
+        height: DESIGN_HEIGHT * 6, zIndex: 2,
+        backgroundColor: colors.surface.raised,
+        transform: [{ translateY: Animated.multiply(scrollY, -1) }],
+      }}
+    />
+  );
+}
+
 function TodayScrollBackdrop({
   scrollY,
   headerTop,
   distance = 320,
+  height = headerTop + 340,
 }: {
   scrollY: Animated.Value;
   headerTop: number;
   distance?: number;
+  height?: number;
 }) {
   const styles = useThemeStyles(createStyles);
   const opacity = scrollY.interpolate({
@@ -567,7 +590,7 @@ function TodayScrollBackdrop({
       accessible={false}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[styles.todayScrollBlur, { height: headerTop + 340, opacity }]}
+      style={[styles.todayScrollBlur, { height, opacity }]}
     >
       <GradientBlur intensity={100} strength={1} locations={[0, 0.5, 0.88, 1]} />
     </Animated.View>
@@ -600,7 +623,6 @@ function MonitoringScreen({
   const pregnancyWeek = pregnancyWeekFromStart(profile?.pregnancyStartAt);
   const initialWeek = pregnancyWeek ?? 1;
   const [activeWeek, setActiveWeek] = useState(initialWeek);
-  const sphereStageHeight = pregnancySphereStageHeight(headerTop);
   const scrollY = useRef(new Animated.Value(0)).current;
   const fontsReady = useContext(FontReadyContext);
   const weekScrollRef = useRef<ScrollView>(null);
@@ -680,8 +702,12 @@ function MonitoringScreen({
 
   return (
     <View style={styles.canvas}>
-      <CycleAnimatedBackground state="menstruation" scrollY={scrollY} />
-      <TopChromeBackdrop headerTop={headerTop} strength={0.28} style={{ height: headerTop + 56 }} />
+      <AppThemeScope mode="light">
+        <View pointerEvents="none" collapsable={false} style={styles.pregnancyBackgroundLayer}>
+          <PregnancyAmbientBackground />
+
+        </View>
+      </AppThemeScope>
 
       <LiquidGlassGroup
         spacing={12}
@@ -757,6 +783,7 @@ function MonitoringScreen({
         </LiquidGlassPressable>
       </LiquidGlassGroup>
 
+      <TodayContentContinuation scrollY={scrollY} top={423 + 180} />
       <Animated.ScrollView
         testID="pregnancy-today-scroll"
         onScroll={Animated.event(
@@ -770,10 +797,11 @@ function MonitoringScreen({
         style={styles.dashboardScroll}
         contentContainerStyle={styles.dashboardScrollContent}
       >
-        {pregnancyWeek ? (
-          <PregnancySphere week={activeWeek} headerTop={headerTop} stageHeight={sphereStageHeight} />
-        ) : <View style={{ height: sphereStageHeight }} />}
-        <View testID="pregnancy-today-details" style={styles.dashboardScrollCanvas}>
+          {pregnancyWeek ? (
+            <PregnancySphere week={activeWeek} headerTop={headerTop} stageHeight={423} />
+          ) : <View style={{ height: 423 }} />}
+        <View style={styles.dashboardScrollCanvas}>
+          <View collapsable={false} style={styles.pregnancyWeekLayer}>
           {pregnancyWeek ? (
             <>
               <Animated.ScrollView
@@ -864,6 +892,8 @@ function MonitoringScreen({
                   );
                 })}
               </Animated.ScrollView>
+
+              <PregnancySizeLabel week={activeWeek} />
 
               <View
                 pointerEvents="none"
@@ -980,6 +1010,24 @@ function MonitoringScreen({
             </Pressable>
           )}
 
+          </View>
+          <AppThemeScope mode="light">
+            <Animated.View
+              collapsable={false}
+              pointerEvents="none"
+              style={[styles.pregnancyScrollBlurLayer, {
+                transform: [{ translateY: scrollY }],
+              }]}
+            >
+              <TodayScrollBackdrop
+                scrollY={scrollY}
+                headerTop={headerTop}
+                height={DESIGN_HEIGHT}
+                distance={970 - DESIGN_HEIGHT}
+              />
+            </Animated.View>
+          </AppThemeScope>
+          <View collapsable={false} pointerEvents="box-none" style={styles.pregnancyMainLayer}>
           <View pointerEvents="none" style={styles.contentSurfaceExtension} />
 
           <ContentShape
@@ -1038,19 +1086,11 @@ function MonitoringScreen({
               checkupCount={checkupProgress.total}
             />
           </View>
+          </View>
         </View>
       </Animated.ScrollView>
 
-      <LinearGradient
-        pointerEvents="none"
-        colors={[
-          'rgba(255,255,255,0)',
-          'rgba(255,255,255,0)',
-          `${colors.surface.raised}ff`,
-        ]}
-        locations={[0, 0.62, 1]}
-        style={styles.navbarFadeGradient}
-      />
+
     </View>
   );
 }
@@ -1418,7 +1458,7 @@ function PlanningMonitoringScreen({
           backgroundState ??
           (cycleInsight?.kind === 'menstruation'
             ? 'menstruation'
-            : planningMode && cycleInsight?.kind === 'ovulation'
+            : cycleInsight?.kind === 'ovulation'
               ? 'ovulation'
               : 'neutral')
         }
@@ -1481,7 +1521,11 @@ function PlanningMonitoringScreen({
             : 'Цикл пока не настроен'}
         </ProjectText>
         <AppText style={styles.planningProbability} weight={planningMode ? "medium" : "bold"}>
-          {planningMode
+          {cycleInsight?.kind === 'menstruation'
+            ? 'Менструация'
+            : cycleInsight?.kind === 'ovulation'
+              ? 'Овуляция'
+              : planningMode
             ? probabilityLabel
               ? `${probabilityLabel} вероятность`
               : 'Вероятность не рассчитана'
@@ -1492,7 +1536,11 @@ function PlanningMonitoringScreen({
                 : 'Добавьте дату месячных'}
         </AppText>
         <ProjectText style={styles.planningProbabilityCaption}>
-          {planningMode
+          {cycleInsight?.kind === 'menstruation'
+            ? 'текущая фаза цикла'
+            : cycleInsight?.kind === 'ovulation'
+              ? 'предполагаемый день'
+              : planningMode
             ? 'забеременеть'
             : cycleInsight?.delayDays
               ? 'от ожидаемой даты'
@@ -1504,6 +1552,7 @@ function PlanningMonitoringScreen({
 
       <TodayScrollBackdrop scrollY={scrollY} headerTop={headerTop} />
 
+      <TodayContentContinuation scrollY={scrollY} top={420 + 180} />
       <Animated.ScrollView
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
@@ -1746,6 +1795,7 @@ export function PlanningTodayScreenCatalogPreview({
 
   return (
     <FontReadyContext.Provider value>
+      <SphereTiltProvider enabled={!calendarVisible && !intimacyVisible && !symptomsDate}>
       <PlanningMonitoringScreen
         backgroundState={backgroundState}
         headerTop={headerTop}
@@ -1786,11 +1836,13 @@ export function PlanningTodayScreenCatalogPreview({
           });
         }}
       />
+      </SphereTiltProvider>
     </FontReadyContext.Provider>
   );
 }
 
 export default function App() {
+  const { colors } = useAppTheme();
   const styles = useThemeStyles(createStyles);
   const router = useRouter();
   const {
@@ -1964,6 +2016,19 @@ export default function App() {
             )}
           </View>
         </View>
+        {(
+          <LinearGradient
+            testID="pregnancy-viewport-footer"
+            pointerEvents="none"
+            colors={[
+              `${colors.surface.canvas}00`,
+              `${colors.surface.canvas}ff`,
+              `${colors.surface.canvas}ff`,
+            ]}
+            locations={[0, 0.60, 1]}
+            style={[styles.navbarFadeGradient, { height: Math.max(110 * scale, insets.bottom + 75) }]}
+          />
+        )}
         <CalendarPageModal
           visible={calendarVisible}
           onClose={() => setCalendarVisible(false)}
@@ -1975,7 +2040,7 @@ export default function App() {
           periodDateKeys={savedPeriodDateKeys}
           onSavePeriodDateKeys={savePeriodDateKeys}
           pregnancyMode={profile?.goal === 'pregnancy'}
-          highlightFertility={profile?.goal === 'planning'}
+          highlightFertility={profile?.goal !== 'pregnancy'}
         />
         <JournalFlowModal
           visible={journalFlowDate !== null}
@@ -2036,7 +2101,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
-    backgroundColor: colors.surface.warm,
+    backgroundColor: '#FCE7DC',
     borderRadius: Platform.OS === 'android' ? 0 : 40,
   },
   topBar: {
@@ -2232,7 +2297,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     left: 0,
     top: 180,
     width: DESIGN_WIDTH,
-    height: 371,
+    // Decorative overflow does not change the fixed scroll canvas height.
+    height: DESIGN_HEIGHT * 3,
     backgroundColor: colors.surface.raised,
   },
   cardsRow: {
@@ -2346,7 +2412,30 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 1,
     backgroundColor: colors.surface.canvas === '#161417' ? colors.surface.divider : '#ededed',
   },
+  pregnancyWeekLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  pregnancyScrollBlurLayer: {
+    ...StyleSheet.absoluteFillObject,
+    // The details canvas begins after the 423-point embryo stage. Cancel
+    // that origin; translateY cancels scrolling so blur stays in the viewport.
+    top: -423,
+    height: DESIGN_HEIGHT,
+    // Above embryo/week content, below the main surface and its controls.
+    zIndex: 2,
+  },
+  pregnancyMainLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 3,
+  },
+  pregnancyBackgroundLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+    overflow: 'hidden',
+  },
   dashboardScroll: {
+    zIndex: 3,
     position: 'absolute',
     left: 0,
     top: 0,
@@ -2355,7 +2444,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   dashboardScrollContent: {
     width: DESIGN_WIDTH,
-    paddingBottom: 32,
+    height: 970,
   },
   dashboardScrollCanvas: {
     width: DESIGN_WIDTH,

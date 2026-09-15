@@ -1,3 +1,4 @@
+import * as SystemUI from 'expo-system-ui';
 import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { Appearance, Platform } from 'react-native';
 import { StatusBar, type StatusBarProps } from 'expo-status-bar';
@@ -40,6 +41,7 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
   }, [preference]);
   useEffect(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') document.documentElement.style.colorScheme = mode;
+    if (Platform.OS !== 'web') void SystemUI.setBackgroundColorAsync(mode === 'dark' ? darkColors.surface.canvas : lightColors.surface.canvas).catch(() => undefined);
   }, [mode]);
   const value = useMemo(() => ({
     mode, preference, saveError, colors: mode === 'dark' ? darkColors : lightColors,

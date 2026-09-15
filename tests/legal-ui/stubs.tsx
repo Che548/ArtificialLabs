@@ -12,3 +12,9 @@ export const SegmentedSwitcher = ({ options, onChange, style }: any) => <View st
 export const listenForSmsOtp = () => () => {};
 export const startSmsRetriever = async () => {};
 export default { getItemSync: () => null, setItemSync: () => {} };
+
+export const useUpdateManager = () => ({ required: false, status: 'idle' });
+
+export const getRandomBytes = (length: number) => new Uint8Array(length);
+export const rememberRegistrationConsent = async () => {};
+export const clearRegistrationConsent = async () => {};

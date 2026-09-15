@@ -9,7 +9,6 @@ const welcomeReadKey = 'sferka.assistant.welcome.v1.read';
 const welcomeCreatedAtKey = 'sferka.assistant.welcome.v1.createdAt';
 let welcomeCreatedAt: number | null = null;
 let unread = false;
-let loaded = false;
 let loading: Promise<void> | undefined;
 const listeners = new Set<() => void>();
 
@@ -57,7 +56,6 @@ function load() {
       } catch {
         welcomeCreatedAt ??= Date.now();
       }
-      loaded = true;
       publish(read !== '1');
     })();
   }
@@ -100,8 +98,9 @@ export function useAssistantUnread() {
   return value || reminders.some((reminder) => !reminder.readAt);
 }
 
-export function markAssistantWelcomeRead() {
-  if (!loaded || !unread) return;
+export async function markAssistantWelcomeRead() {
+  await load();
+  if (!unread) return;
   publish(false);
   if (Platform.OS === 'web') {
     try {
@@ -110,7 +109,7 @@ export function markAssistantWelcomeRead() {
       /* Session only. */
     }
   } else {
-    void SecureStore.setItemAsync(welcomeReadKey, '1', {
+    await SecureStore.setItemAsync(welcomeReadKey, '1', {
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     }).catch(() => {
       /* Keep the read state for this session. */

@@ -1,3 +1,4 @@
+import { analysisMascotMood } from '../lib/analysis-mascot';
 import { useAppTheme, useThemeStyles, type ThemeColors } from '../lib/theme';
 import { colors as defaultThemeColors } from './tokens';
 import { fontStyle } from '../lib/font-style';
@@ -9,7 +10,6 @@ import {
   type StyleProp,
   Text,
   View,
-  type ImageSourcePropType,
   type ViewStyle,
 } from 'react-native';
 
@@ -18,6 +18,12 @@ import AndroidGraphIcon from '../assets/android-icons/graph.svg';
 import ArrowUpRightIcon from '../assets/figma/arrow-card.svg';
 import { AppText, GlassControl, HeaderDateLabel } from './components';
 import { colors, fonts, shadows, spacing } from './tokens';
+
+const attentionMascots = {
+  sad: require('../assets/analyses/mascot-sad.png'),
+  neutral: require('../assets/analyses/mascot-neutral.png'),
+  happy: require('../assets/analyses/mascot-hands-reference.png'),
+};
 
 const headerGlass = colors.surface.headerGlassWash;
 const headerWash = colors.surface.headerGlassWash;
@@ -82,15 +88,14 @@ export function AnalysisReferenceHeader({
 }
 
 export function AnalysisAttentionHero({
-  mascot,
   onPress,
   score = 72,
 }: {
-  mascot: ImageSourcePropType;
   onPress?: () => void;
   score?: number;
 }) {
   const styles = useThemeStyles(createStyles);
+  const mood = analysisMascotMood(score);
   return (
     <View style={styles.hero}>
       <View pointerEvents="box-none" style={styles.heroActionSlot}>
@@ -115,12 +120,14 @@ export function AnalysisAttentionHero({
         </Text>
       </View>
 
-      <Image
-        accessible={false}
-        source={mascot}
-        resizeMode="contain"
-        style={styles.heroMascot}
-      />
+      <View pointerEvents="none" style={styles.heroMascot} testID={`analysis-mascot-${mood}`}>
+        <Image
+          accessible={false}
+          source={attentionMascots[mood]}
+          resizeMode="contain"
+          style={mood === 'happy' ? styles.heroMascotHappy : styles.heroMascotFullCanvas}
+        />
+      </View>
     </View>
   );
 }
@@ -312,6 +319,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     zIndex: 5,
     width: 154,
     height: 90,
+    overflow: 'hidden',
+  },
+  heroMascotHappy: {
+    width: 154,
+    height: 90,
+  },
+  // The new 1536×1024 originals contain the same figure at (240, 280).
+  // Match the existing 1040×640 crop at 90/640 scale without altering PNGs.
+  heroMascotFullCanvas: {
+    position: 'absolute',
+    width: 216,
+    height: 144,
+    left: -29.875,
+    top: -39.375,
   },
   deadlineRow: {
     width: '100%',
