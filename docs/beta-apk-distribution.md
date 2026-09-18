@@ -4,6 +4,10 @@
 to null to show the disabled preparation state. Restore `google-play` after
 the store track is available. iOS and the page QR are independent.
 
+While APK mode is active, the official Google Play internal-test link is shown
+first and the versioned APK remains the fallback below it. Keep both URLs
+independent so the APK can be removed after the store track becomes available.
+
 The deployment's `downloads/` directory is a read-only bind mount at
 `/usr/share/nginx/html/beta-assets/downloads`. APKs are not Git content or image
 layers. Upload with an `.uploading` suffix, verify SHA-256, then rename before

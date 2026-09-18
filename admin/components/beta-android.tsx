@@ -3,6 +3,7 @@ import React from 'react';
 export type AndroidDistribution = {
   mode: 'apk' | 'google-play';
   apk: { url: string; version: string; size: string } | null;
+  internalTestUrl: string;
   groupUrl: string;
   playUrl: string;
 };
@@ -16,6 +17,7 @@ export const androidDistribution: AndroidDistribution = {
     version: '1.0.0 (9)',
     size: '613,1 МиБ',
   },
+  internalTestUrl: 'https://play.google.com/apps/internaltest/4701718642781511900',
   groupUrl: 'https://groups.google.com/g/sfera-brainwaves-beta',
   playUrl: 'https://play.google.com/apps/testing/engineering.brainwaves.sfera',
 };
@@ -33,10 +35,10 @@ export function BetaAndroid({ distribution = androidDistribution }: { distributi
 
   const apk = distribution.apk;
   return <>
-    <p>Google Play ещё проверяет приложение. Пока Android-бету можно установить из APK.</p>
     <div className="beta-actions">
-      {apk ? <a className="button button-primary button-md" href={apk.url} download>Скачать APK</a>
-        : <button type="button" className="button button-primary button-md" disabled aria-describedby="beta-apk-status">Скачать APK</button>}
+      <a className="button button-primary button-md" href={distribution.internalTestUrl} target="_blank" rel="noopener noreferrer">Установить через Google Play <span aria-hidden="true">↗</span></a>
+      {apk ? <a className="button button-secondary button-md" href={apk.url} download>Скачать APK</a>
+        : <button type="button" className="button button-secondary button-md" disabled aria-describedby="beta-apk-status">Скачать APK</button>}
     </div>
     <p id="beta-apk-status" className="beta-note">{apk ? `Версия ${apk.version} · ${apk.size}` : 'APK готовится к загрузке'}</p>
     <details><summary>Как установить APK?</summary>

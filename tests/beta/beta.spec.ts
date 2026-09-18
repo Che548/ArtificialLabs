@@ -18,6 +18,7 @@ function renderAndroid(overrides: object) {
 }
 
 const apple = 'https://testflight.apple.com/join/Aq5UurM8';
+const internalTest = 'https://play.google.com/apps/internaltest/4701718642781511900';
 const group = 'https://groups.google.com/g/sfera-brainwaves-beta';
 const play = 'https://play.google.com/apps/testing/engineering.brainwaves.sfera';
 const base = process.env.BETA_BASE_URL || 'http://127.0.0.1:4321';
@@ -77,7 +78,14 @@ test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, 
   await expect(page.getByText('Один код.', { exact: false })).toHaveCount(0);
   await expect(page.locator('svg.beta-geometry')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.getByRole('link', { name: 'Открыть в TestFlight' })).toHaveAttribute('href', apple);
+  await expect(page.getByRole('link', { name: 'Установить через Google Play' })).toHaveAttribute('href', internalTest);
   await expect(page.getByRole('link', { name: 'Скачать APK' })).toHaveAttribute('href', '/beta-assets/downloads/sfera-1.0.0-9-google-play-signed.apk');
+  const androidLinks = page.locator('.beta-install-panel[aria-labelledby="beta-android"] a');
+  await expect(androidLinks.filter({ hasText: 'Установить через Google Play' })).toHaveCount(1);
+  expect(await androidLinks.evaluateAll((links) => links.map((link) => link.textContent?.trim()).filter(Boolean))).toEqual([
+    'Установить через Google Play ↗',
+    'Скачать APK',
+  ]);
   await expect(page.getByText('Версия 1.0.0 (9) · 613,1 МиБ')).toBeVisible();
   await expect(page.locator(`a[href="${group}"],a[href="${play}"]`)).toHaveCount(0);
   await expect(page.locator('.beta-share svg')).toBeVisible();
@@ -130,6 +138,7 @@ test('without JS both instructions remain usable', async ({ browser }) => {
   const page = await context.newPage();
   await page.goto(new URL('/beta/', base).href);
   await expect(page.getByRole('link', { name: 'Открыть в TestFlight' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Установить через Google Play' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Скачать APK' })).toBeVisible();
   await context.close();
 });
