@@ -13,8 +13,8 @@ export type AndroidDistribution = {
 export const androidDistribution: AndroidDistribution = {
   mode: 'apk',
   apk: {
-    url: '/beta-assets/downloads/sfera-1.0.0-9-google-play-signed.apk',
-    version: '1.0.0 (9)',
+    url: '/beta-assets/downloads/sfera-1.0.0-10.apk',
+    version: '1.0.0 (10)',
     size: '613,1 МиБ',
   },
   internalTestUrl: 'https://play.google.com/apps/internaltest/4701718642781511900',

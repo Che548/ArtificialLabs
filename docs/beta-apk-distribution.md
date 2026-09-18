@@ -13,11 +13,8 @@ The deployment's `downloads/` directory is a read-only bind mount at
 layers. Upload with an `.uploading` suffix, verify SHA-256, then rename before
 releasing the page. Preserve old versioned files while links remain in use.
 
-Current artifact: `sfera-1.0.0-9-google-play-signed.apk`, version 1.0.0 (9),
-package `engineering.brainwaves.sfera`, 642866617 bytes, source e50a04f4.
-SHA-256: `998d116fd57290f7deb489a5feceea8286fd72d12f0c27e85b2502453dd81a6b`.
-Runtime: `d5dd9e9c8cc470b0a382d8a884d627e1b45656ca`.
-Artifact supplied and signature checked by the Android release task: downloaded
-from Google Play, signed with the Play app signing key, not the upload key.
-Never rebuild/re-sign it for this page. This alone does not prove installation
-over every existing build; do not recommend uninstalling to resolve conflicts.
+Current artifact: `sfera-1.0.0-10.apk`, version 1.0.0 (10), package
+`engineering.brainwaves.sfera`, 642850233 bytes.
+SHA-256: `ee7bf612e8fcb4765072432806cb59e85e49cb4178ea7bb8cb7b001ce6403bff`.
+The versioned artifact is stored outside the image and must not be rebuilt or
+re-signed by the web deployment.

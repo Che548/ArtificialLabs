@@ -79,14 +79,14 @@ test('public desktop page: links, QR, copy, no Convex, refresh', async ({ page, 
   await expect(page.locator('svg.beta-geometry')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.getByRole('link', { name: 'Открыть в TestFlight' })).toHaveAttribute('href', apple);
   await expect(page.getByRole('link', { name: 'Установить через Google Play' })).toHaveAttribute('href', internalTest);
-  await expect(page.getByRole('link', { name: 'Скачать APK' })).toHaveAttribute('href', '/beta-assets/downloads/sfera-1.0.0-9-google-play-signed.apk');
+  await expect(page.getByRole('link', { name: 'Скачать APK' })).toHaveAttribute('href', '/beta-assets/downloads/sfera-1.0.0-10.apk');
   const androidLinks = page.locator('.beta-install-panel[aria-labelledby="beta-android"] a');
   await expect(androidLinks.filter({ hasText: 'Установить через Google Play' })).toHaveCount(1);
   expect(await androidLinks.evaluateAll((links) => links.map((link) => link.textContent?.trim()).filter(Boolean))).toEqual([
     'Установить через Google Play ↗',
     'Скачать APK',
   ]);
-  await expect(page.getByText('Версия 1.0.0 (9) · 613,1 МиБ')).toBeVisible();
+  await expect(page.getByText('Версия 1.0.0 (10) · 613,1 МиБ')).toBeVisible();
   await expect(page.locator(`a[href="${group}"],a[href="${play}"]`)).toHaveCount(0);
   await expect(page.locator('.beta-share svg')).toBeVisible();
   await page.locator('.beta-share svg').screenshot({ path: 'output/playwright/beta-qr.png' });
